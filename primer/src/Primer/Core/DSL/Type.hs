@@ -10,12 +10,15 @@ module Primer.Core.DSL.Type (
   tapp,
   tvar,
   tcon',
+  khole,
+  ktype,
+  kfun,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Primer.Core.DSL.Meta (meta)
+import Primer.Core.DSL.Meta (kmeta, meta)
 import Primer.Core.Meta (
   ID,
   ModuleName (ModuleName),
@@ -25,6 +28,7 @@ import Primer.Core.Meta (
  )
 import Primer.Core.Type (
   Kind,
+  Kind' (KFun, KHole, KType),
   Type,
   Type' (..),
  )
@@ -39,7 +43,7 @@ thole t = THole <$> meta <*> t
 tcon :: MonadFresh ID m => TyConName -> m Type
 tcon t = TCon <$> meta <*> pure t
 
-tforall :: MonadFresh ID m => TyVarName -> Kind -> m Type -> m Type
+tforall :: MonadFresh ID m => TyVarName -> Kind' () -> m Type -> m Type
 tforall v k t = TForall <$> meta <*> pure v <*> pure k <*> t
 
 tlet :: MonadFresh ID m => TyVarName -> m Type -> m Type -> m Type
@@ -58,3 +62,12 @@ tvar v = TVar <$> meta <*> pure v
 -- for both arguments
 tcon' :: MonadFresh ID m => NonEmpty Name -> Name -> m Type
 tcon' m n = tcon $ qualifyName (ModuleName m) n
+
+khole :: MonadFresh ID m => m Kind
+khole = KHole <$> kmeta
+
+ktype :: MonadFresh ID m => m Kind
+ktype = KType <$> kmeta
+
+kfun :: MonadFresh ID m => m Kind -> m Kind -> m Kind
+kfun a b = KFun <$> kmeta <*> a <*> b

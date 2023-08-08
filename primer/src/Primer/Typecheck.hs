@@ -8,6 +8,7 @@
 -- polymorphism.
 module Primer.Typecheck (
   Type,
+  Kind,
   Expr,
   ExprT,
   SmartHoles (..),
@@ -109,7 +110,8 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind (..),
+  Kind' (..),
+  KindMeta,
   LVarName,
   LocalName (LocalName),
   Meta (..),
@@ -138,6 +140,7 @@ import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
 import Primer.Core.Transform (decomposeTAppCon, mkTAppCon, unfoldTApp)
 import Primer.Core.Utils (
   alphaEqTy,
+  forgetKindMetadata,
   forgetTypeMetadata,
   freshLocalName,
   freshLocalName',
@@ -173,7 +176,7 @@ import Primer.TypeDef (
   typeDefAST,
   typeDefParameters,
  )
-import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs))
+import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs), Kind)
 import Primer.Typecheck.Kindcheck (
   KindError (..),
   KindOrType (K, T),
@@ -215,7 +218,7 @@ import Primer.Typecheck.Utils (
 -- synthesised type, not the checked one. For example, when checking that
 -- @Int -> ?@ accepts @\x . x@, we record that the variable node has type
 -- @Int@, rather than @?@.
-type ExprT = Expr' (Meta TypeCache) (Meta Kind)
+type ExprT = Expr' (Meta TypeCache) (Meta (Kind' ()))
 
 assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
@@ -303,10 +306,10 @@ checkValidContext cxt = do
   checkLocalCxtTys $ localTyVars cxt
   runReaderT (checkLocalCxtTms $ localTmVars cxt) $ extendLocalCxtTys (M.toList $ localTyVars cxt) (initialCxt NoSmartHoles){typeDefs = tds}
   where
-    checkGlobalCxt = mapM_ (checkKind' KType <=< fakeMeta)
+    checkGlobalCxt = mapM_ (checkKind' (KType ()) <=< fakeMeta)
     -- a tyvar just declares its kind. There are no possible errors in kinds.
     checkLocalCxtTys _tyvars = pure ()
-    checkLocalCxtTms = mapM_ (checkKind' KType <=< fakeMeta)
+    checkLocalCxtTms = mapM_ (checkKind' (KType ()) <=< fakeMeta)
     -- We need metadata to use checkKind, but we don't care about the output,
     -- just a yes/no answer. In this case it is fine to put nonsense in the
     -- metadata as it won't be inspected.
@@ -315,8 +318,8 @@ checkValidContext cxt = do
 -- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
   TypeM e m =>
-  Map TyConName (TypeDef TypeMeta) ->
-  m (Map TyConName (TypeDef (Meta Kind)))
+  Map TyConName (TypeDef TypeMeta KindMeta) ->
+  m (Map TyConName (TypeDef (Meta (Kind' ())) KindMeta))
 checkTypeDefs tds = do
   existingTypes <- asks typeDefs
   -- NB: we expect the frontend to only submit acceptable typedefs, so all
@@ -364,7 +367,7 @@ checkTypeDefs tds = do
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       traverseOf #_TypeDefAST (checkADTTypeDef tc) td
     checkADTTypeDef tc td = do
-      let params = astTypeDefParameters td
+      let params = map (second forgetKindMetadata) $ astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
         ( (1 ==) . S.size $
@@ -376,9 +379,9 @@ checkTypeDefs tds = do
         (distinct $ map (unLocalName . fst) params <> map (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       local (extendLocalCxtTys params) $
-        traverseOf astTypeDefConArgs (checkKind' KType) td
+        traverseOf astTypeDefConArgs (checkKind' (KType ())) td
 
-astTypeDefConArgs :: Traversal (ASTTypeDef a) (ASTTypeDef b) (Type' a) (Type' b)
+astTypeDefConArgs :: Traversal (ASTTypeDef a c) (ASTTypeDef b c) (Type' a) (Type' b)
 astTypeDefConArgs = #astTypeDefConstructors % traversed % #valConArgs % traversed
 
 distinct :: Ord a => [a] -> Bool
@@ -424,7 +427,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
           -- Kind check and update (for smartholes) all the type signatures.
           -- Note that this may give ill-typed definitions if the type changes
           -- since we have not checked the expressions against the new types.
-          updatedSigs <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck'
+          updatedSigs <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' (KType ())) toCheck'
           -- Now extend the context with the new types
           let defsUpdatedSigs = itoListOf foldDefTypesWithName updatedSigs
           local (extendGlobalCxt defsUpdatedSigs) $
@@ -515,7 +518,7 @@ synth = \case
             synth $ APP i eWrap t
   Ann i e t -> do
     -- Check that the type is well-formed by synthesising its kind
-    t' <- checkKind' KType t
+    t' <- checkKind' (KType ()) t
     let t'' = forgetTypeMetadata t'
     -- Check e against the annotation
     e' <- check t'' e
@@ -553,7 +556,7 @@ synth = \case
     pure $ annSynth3 bT i Let x a' b'
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
-    tA' <- checkKind' KType tA
+    tA' <- checkKind' (KType ()) tA
     let t = forgetTypeMetadata tA'
         ctx' = extendLocalCxt (x, t)
     -- Check the bound expression against its annotation
@@ -571,7 +574,7 @@ synth = \case
     asks smartHoles >>= \case
       NoSmartHoles -> throwError' $ CannotSynthesiseType e
       SmartHoles -> do
-        ann <- TEmptyHole <$> meta' (Just KType)
+        ann <- TEmptyHole <$> meta' (Just (KType ()))
         eMeta <- meta
         synth $ Ann eMeta e ann
   where
@@ -701,7 +704,7 @@ check t = \case
     pure $ Let (annotate (typeOf b') i) x a' b'
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
-    tA' <- checkKind' KType tA
+    tA' <- checkKind' (KType ()) tA
     let ctx' = extendLocalCxt (x, forgetTypeMetadata tA')
     -- Check the bound expression against its annotation
     a' <- local ctx' $ check (forgetTypeMetadata tA') a
@@ -897,7 +900,7 @@ checkBranch ::
   Type ->
   (ValConName, [Type' ()]) -> -- The constructor and its instantiated parameter types
   CaseBranch' ExprMeta TypeMeta ->
-  m (CaseBranch' (Meta TypeCache) (Meta Kind))
+  m (CaseBranch' (Meta TypeCache) (Meta (Kind' ())))
 checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
   do
     -- We check an invariant due to paranoia
@@ -943,10 +946,10 @@ matchArrowType _ = Nothing
 
 -- | Checks if a type can be hole-refined to a forall, and if so returns the
 -- forall'd version.
-matchForallType :: MonadFresh NameCounter m => Type -> m (Maybe (TyVarName, Kind, Type))
+matchForallType :: MonadFresh NameCounter m => Type -> m (Maybe (TyVarName, Kind' (), Type))
 -- These names will never enter the program, so we don't need to avoid shadowing
-matchForallType (TEmptyHole _) = (\n -> Just (n, KHole, TEmptyHole ())) <$> freshLocalName mempty
-matchForallType (THole _ _) = (\n -> Just (n, KHole, TEmptyHole ())) <$> freshLocalName mempty
+matchForallType (TEmptyHole _) = (\n -> Just (n, KHole (), TEmptyHole ())) <$> freshLocalName mempty
+matchForallType (THole _ _) = (\n -> Just (n, KHole (), TEmptyHole ())) <$> freshLocalName mempty
 matchForallType (TForall _ a k t) = pure $ Just (a, k, t)
 matchForallType _ = pure Nothing
 
@@ -988,5 +991,5 @@ exprTtoExpr = over _exprTypeMeta (fmap Just) . over _exprMeta (fmap Just)
 typeTtoType :: TypeT -> Type' TypeMeta
 typeTtoType = over _typeMeta (fmap Just)
 
-checkKind' :: TypeM e m => Kind -> Type' (Meta a) -> m TypeT
+checkKind' :: TypeM e m => Kind' () -> Type' (Meta a) -> m TypeT
 checkKind' k t = modifyError' KindError (checkKind k t)

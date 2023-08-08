@@ -318,7 +318,10 @@
                     "DeleteCon",
                     "AddConField",
                     "DeleteConField",
-                    "DeleteTypeParam"
+                    "DeleteTypeParam",
+                    "MakeKType",
+                    "MakeKFun",
+                    "DeleteKind"
                 ],
                 "type": "string"
             },
@@ -804,7 +807,7 @@
                     },
                     "params": {
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/TypeParam"
                         },
                         "type": "array"
                     }
@@ -854,7 +857,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/TypeDefParamSelection"
                             },
                             "tag": {
                                 "enum": [
@@ -888,6 +891,22 @@
                         "type": "object"
                     }
                 ]
+            },
+            "TypeDefParamSelection": {
+                "properties": {
+                    "kindMeta": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    },
+                    "param": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "param"
+                ],
+                "type": "object"
             },
             "TypeDefSelection": {
                 "properties": {
@@ -942,6 +961,21 @@
                         "type": "object"
                     }
                 ]
+            },
+            "TypeParam": {
+                "properties": {
+                    "kind": {
+                        "$ref": "#/components/schemas/Tree"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "kind"
+                ],
+                "type": "object"
             },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",

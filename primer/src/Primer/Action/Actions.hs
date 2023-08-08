@@ -107,6 +107,10 @@ data Action
     RenameForall Text
   | -- | Rename a case binding
     RenameCaseBinding Text
+  | -- | Construct the kind KType
+    ConstructKType
+  | -- | Construct a function kind
+    ConstructKFun
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Action
   deriving anyclass (NFData)

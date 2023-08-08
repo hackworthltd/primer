@@ -1,3 +1,5 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
+
 -- | Utilities useful across several types of tests.
 module Primer.Test.Util (
   (@?=),
@@ -23,6 +25,7 @@ module Primer.Test.Util (
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (Severity (Informational), WithSeverity (msgSeverity))
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -40,6 +43,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID,
   HasMetadata (_metadata),
+  ID,
   ModuleName (ModuleName, unModuleName),
   TyConName,
   Type',
@@ -65,8 +69,8 @@ import Test.Tasty.HUnit (
  )
 import Test.Tasty.HUnit qualified as HUnit
 
-primDefs :: DefMap
-primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
+primDefs :: MonadFresh ID m => m DefMap
+primDefs = Map.mapKeys primitive . moduleDefs <$> primitiveModule
 
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action

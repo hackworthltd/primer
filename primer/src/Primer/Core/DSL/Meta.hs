@@ -2,6 +2,7 @@
 -- to worry about generating unique IDs.
 module Primer.Core.DSL.Meta (
   meta,
+  kmeta,
   meta',
   create,
   create',
@@ -15,6 +16,7 @@ import Primer.Core.Meta (
   ID,
   Meta (..),
  )
+import Primer.Core.Type (KindMeta)
 
 newtype S a = S {unS :: State ID a}
   deriving newtype (Functor, Applicative, Monad)
@@ -36,6 +38,9 @@ create' = fst . create
 
 meta :: MonadFresh ID m => m (Meta (Maybe a))
 meta = meta' Nothing
+
+kmeta :: MonadFresh ID m => m KindMeta
+kmeta = meta' ()
 
 meta' :: MonadFresh ID m => a -> m (Meta a)
 meta' a = Meta <$> fresh <*> pure a <*> pure Nothing

@@ -34,7 +34,9 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   ID (..),
-  Kind (..),
+  Kind,
+  Kind' (..),
+  KindMeta,
   LVarName,
   LocalName (LocalName),
   Meta (..),
@@ -49,6 +51,7 @@ import Primer.Core (
   ValConName,
   qualifyName,
  )
+import Primer.Core.Utils (forgetKindMetadata)
 import Primer.Name (Name, unsafeMkName)
 
 type ExprGen a = StateT ID Gen a
@@ -175,18 +178,25 @@ genType =
     [ THole <$> genMeta <*> genType
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
-    , TForall <$> genMeta <*> genTyVarName <*> genKind <*> genType
+    , TForall <$> genMeta <*> genTyVarName <*> (forgetKindMetadata <$> genKind) <*> genType
     , TLet <$> genMeta <*> genTyVarName <*> genType <*> genType
     ]
 
 genTyConName :: MonadGen m => m TyConName
 genTyConName = qualifyName <$> genModuleName <*> genName
 
-genKind :: MonadGen m => m Kind
-genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]
+genKind :: ExprGen Kind
+genKind =
+  Gen.recursive
+    Gen.choice
+    [KType <$> genKindMeta, KHole <$> genKindMeta]
+    [KFun <$> genKindMeta <*> genKind <*> genKind]
 
 genMeta :: ExprGen (Meta (Maybe a))
 genMeta = Meta <$> genID <*> pure Nothing <*> pure Nothing
+
+genKindMeta :: ExprGen KindMeta
+genKindMeta = Meta <$> genID <*> pure () <*> pure Nothing
 
 genID :: ExprGen ID
 genID = do

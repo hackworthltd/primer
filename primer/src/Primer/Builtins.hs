@@ -38,7 +38,7 @@ import Primer.Core.Meta (
   qualifyName,
  )
 import Primer.Core.Type (
-  Kind (KType),
+  Kind' (KType),
   Type' (TApp, TCon, TVar),
  )
 import Primer.Name (Name)
@@ -87,7 +87,7 @@ cLeft = builtin "Left"
 cRight = builtin "Right"
 
 -- | A definition of the Bool type
-boolDef :: ASTTypeDef ()
+boolDef :: ASTTypeDef () a
 boolDef =
   ASTTypeDef
     { astTypeDefParameters = []
@@ -99,7 +99,7 @@ boolDef =
     }
 
 -- | A definition of the Nat type
-natDef :: ASTTypeDef ()
+natDef :: ASTTypeDef () a
 natDef =
   ASTTypeDef
     { astTypeDefParameters = []
@@ -111,10 +111,10 @@ natDef =
     }
 
 -- | A definition of the List type
-listDef :: ASTTypeDef ()
+listDef :: ASTTypeDef () ()
 listDef =
   ASTTypeDef
-    { astTypeDefParameters = [("a", KType)]
+    { astTypeDefParameters = [("a", KType ())]
     , astTypeDefConstructors =
         [ ValCon cNil []
         , ValCon cCons [TVar () "a", TApp () (TCon () tList) (TVar () "a")]
@@ -123,10 +123,10 @@ listDef =
     }
 
 -- | A definition of the Maybe type
-maybeDef :: ASTTypeDef ()
+maybeDef :: ASTTypeDef () ()
 maybeDef =
   ASTTypeDef
-    { astTypeDefParameters = [("a", KType)]
+    { astTypeDefParameters = [("a", KType ())]
     , astTypeDefConstructors =
         [ ValCon cNothing []
         , ValCon cJust [TVar () "a"]
@@ -135,19 +135,19 @@ maybeDef =
     }
 
 -- | A definition of the Pair type
-pairDef :: ASTTypeDef ()
+pairDef :: ASTTypeDef () ()
 pairDef =
   ASTTypeDef
-    { astTypeDefParameters = [("a", KType), ("b", KType)]
+    { astTypeDefParameters = [("a", KType ()), ("b", KType ())]
     , astTypeDefConstructors = [ValCon cMakePair [TVar () "a", TVar () "b"]]
     , astTypeDefNameHints = []
     }
 
 -- | A definition of the Either type
-eitherDef :: ASTTypeDef ()
+eitherDef :: ASTTypeDef () ()
 eitherDef =
   ASTTypeDef
-    { astTypeDefParameters = [("a", KType), ("b", KType)]
+    { astTypeDefParameters = [("a", KType ()), ("b", KType ())]
     , astTypeDefConstructors = [ValCon cLeft [TVar () "a"], ValCon cRight [TVar () "b"]]
     , astTypeDefNameHints = []
     }

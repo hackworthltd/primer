@@ -20,7 +20,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
-import Optics (Traversal, over, traverseOf, traversed, (%))
+import Optics (Field2 (_2), Traversal, over, traversalVL, traverseOf, traversed, (%))
 import Primer.Core.Meta (
   ID,
   TyConName,
@@ -29,11 +29,12 @@ import Primer.Core.Meta (
  )
 import Primer.Core.Transform (mkTAppCon)
 import Primer.Core.Type (
-  Kind (KFun, KType),
+  Kind' (KFun, KType),
+  KindMeta,
   Type' (TForall, TFun, TVar),
   TypeMeta,
  )
-import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, generateKindIDs, generateTypeIDs)
 import Primer.JSON (
   CustomJSON (CustomJSON),
   FromJSON,
@@ -42,23 +43,23 @@ import Primer.JSON (
  )
 import Primer.Name (Name)
 
-data TypeDef b
-  = TypeDefPrim PrimTypeDef
-  | TypeDefAST (ASTTypeDef b)
+data TypeDef b c
+  = TypeDefPrim (PrimTypeDef c)
+  | TypeDefAST (ASTTypeDef b c)
   deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDef b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDef b c)
   deriving anyclass (NFData)
 
 -- | A mapping of global names to 'TypeDef's.
-type TypeDefMap = Map TyConName (TypeDef ())
+type TypeDefMap = Map TyConName (TypeDef () ())
 
 -- | Definition of a primitive data type
-data PrimTypeDef = PrimTypeDef
-  { primTypeDefParameters :: [(TyVarName, Kind)]
+data PrimTypeDef c = PrimTypeDef
+  { primTypeDefParameters :: [(TyVarName, Kind' c)]
   , primTypeDefNameHints :: [Name]
   }
   deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimTypeDef
+  deriving (FromJSON, ToJSON) via PrimerJSON (PrimTypeDef c)
   deriving anyclass (NFData)
 
 -- | Definition of an algebraic data type
@@ -66,13 +67,13 @@ data PrimTypeDef = PrimTypeDef
 -- Consider the type T = ASTTypeDef "T" [("a",TYPE),("b",TYPE->TYPE)] [ValCon "C" [b a, Nat]]
 -- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
-data ASTTypeDef b = ASTTypeDef
-  { astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
+data ASTTypeDef b c = ASTTypeDef
+  { astTypeDefParameters :: [(TyVarName, Kind' c)] -- These names scope over the constructors
   , astTypeDefConstructors :: [ValCon b]
   , astTypeDefNameHints :: [Name]
   }
   deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (ASTTypeDef b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (ASTTypeDef b c)
   deriving anyclass (NFData)
 
 data ValCon b = ValCon
@@ -83,34 +84,48 @@ data ValCon b = ValCon
   deriving (FromJSON, ToJSON) via PrimerJSON (ValCon b)
   deriving anyclass (NFData)
 
-valConType :: TyConName -> ASTTypeDef () -> ValCon () -> Type' ()
+valConType :: TyConName -> ASTTypeDef () () -> ValCon () -> Type' ()
 valConType tc td vc =
   let ret = mkTAppCon tc (TVar () . fst <$> astTypeDefParameters td)
       args = foldr (TFun () . forgetTypeMetadata) ret (valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
-typeDefNameHints :: TypeDef b -> [Name]
+typeDefNameHints :: TypeDef b c -> [Name]
 typeDefNameHints = \case
   TypeDefPrim t -> primTypeDefNameHints t
   TypeDefAST t -> astTypeDefNameHints t
-typeDefParameters :: TypeDef b -> [(TyVarName, Kind)]
+typeDefParameters :: TypeDef b c -> [(TyVarName, Kind' c)]
 typeDefParameters = \case
   TypeDefPrim t -> primTypeDefParameters t
   TypeDefAST t -> astTypeDefParameters t
-typeDefAST :: TypeDef b -> Maybe (ASTTypeDef b)
+typeDefAST :: TypeDef b c -> Maybe (ASTTypeDef b c)
 typeDefAST = \case
   TypeDefPrim _ -> Nothing
   TypeDefAST t -> Just t
-typeDefKind :: TypeDef b -> Kind
-typeDefKind = foldr (KFun . snd) KType . typeDefParameters
+typeDefKind :: TypeDef b () -> Kind' ()
+typeDefKind = foldr (KFun () . snd) (KType ()) . typeDefParameters
 
 -- | A traversal over the contstructor fields in an typedef.
-_typedefFields :: Traversal (TypeDef b) (TypeDef c) (Type' b) (Type' c)
-_typedefFields = #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed
+_typedefFields :: Traversal (TypeDef b c) (TypeDef b' c) (Type' b) (Type' b')
+_typedefFields =
+  #_TypeDefAST
+    % #astTypeDefConstructors
+    % traversed
+    % #valConArgs
+    % traversed
 
-forgetTypeDefMetadata :: TypeDef b -> TypeDef ()
-forgetTypeDefMetadata = over _typedefFields forgetTypeMetadata
+_typedefParamKinds :: Traversal (TypeDef b c) (TypeDef b c') (Kind' c) (Kind' c')
+_typedefParamKinds = traversalVL $ \f -> \case
+  TypeDefPrim td -> TypeDefPrim <$> traverseOf (#primTypeDefParameters % traversed % _2) f td
+  TypeDefAST td -> TypeDefAST <$> traverseOf (#astTypeDefParameters % traversed % _2) f td
 
-generateTypeDefIDs :: MonadFresh ID m => TypeDef () -> m (TypeDef TypeMeta)
-generateTypeDefIDs = traverseOf _typedefFields generateTypeIDs
+forgetTypeDefMetadata :: TypeDef b c -> TypeDef () ()
+forgetTypeDefMetadata =
+  over _typedefFields forgetTypeMetadata
+    . over _typedefParamKinds forgetKindMetadata
+
+generateTypeDefIDs :: MonadFresh ID m => TypeDef () () -> m (TypeDef TypeMeta KindMeta)
+generateTypeDefIDs =
+  traverseOf _typedefFields generateTypeIDs
+    <=< traverseOf _typedefParamKinds generateKindIDs

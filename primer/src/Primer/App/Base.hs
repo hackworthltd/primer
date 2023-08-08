@@ -14,6 +14,7 @@ module Primer.App.Base (
   Selection' (..),
   TypeDefSelection (..),
   TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefConsSelection (..),
   TypeDefConsFieldSelection (..),
   DefSelection (..),
@@ -29,6 +30,7 @@ import Primer.Core (
   ExprMeta,
   GVarName,
   HasID (..),
+  KindMeta,
   TyConName,
   TyVarName,
   Type',
@@ -70,7 +72,7 @@ data NodeType = BodyNode | SigNode
 -- | Describes which element of a (type or term) definition the student has selected.
 -- We have the following invariant: when this contains a `NodeSelection` with @nodeType = SigNode@,
 -- or any `TypeDefConsFieldSelection`, then they will always have @meta = Right _@.
-type Selection = Selection' (Either ExprMeta TypeMeta)
+type Selection = Selection' (Either ExprMeta (Either TypeMeta KindMeta))
 
 data Selection' a
   = SelectionDef (DefSelection a)
@@ -90,10 +92,20 @@ data TypeDefSelection a = TypeDefSelection
 
 -- | Some element in a type definition, other than simply the definition itself.
 data TypeDefNodeSelection a
-  = TypeDefParamNodeSelection TyVarName
+  = TypeDefParamNodeSelection (TypeDefParamSelection a)
   | TypeDefConsNodeSelection (TypeDefConsSelection a)
   deriving stock (Eq, Show, Read, Functor, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefNodeSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element of a definition of a type parameter.
+data TypeDefParamSelection a = TypeDefParamSelection
+  { param :: TyVarName
+  , kindMeta :: Maybe a
+  -- ^ `Nothing` indicates that the parameter name is selected, `Just` means a node in its kind.
+  }
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefParamSelection a)
   deriving anyclass (NFData)
 
 -- | Some element of a definition of a constructor.
@@ -135,7 +147,7 @@ data NodeSelection a = NodeSelection
 instance HasID a => HasID (NodeSelection a) where
   _id = lens (getID . (.meta)) (flip $ over #meta . set _id)
 
-getTypeDefConFieldType :: ASTTypeDef a -> ValConName -> Int -> Maybe (Type' a)
+getTypeDefConFieldType :: ASTTypeDef a b -> ValConName -> Int -> Maybe (Type' a)
 getTypeDefConFieldType def con index =
   flip atMay index . valConArgs
     =<< find ((== con) . valConName) (astTypeDefConstructors def)

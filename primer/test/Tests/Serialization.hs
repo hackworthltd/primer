@@ -31,7 +31,8 @@ import Primer.Core (
   Expr' (EmptyHole, PrimCon),
   ExprMeta,
   ID (..),
-  Kind (KFun, KType),
+  Kind' (KType),
+  KindMeta,
   Meta (..),
   ModuleName (ModuleName),
   PrimCon (..),
@@ -41,7 +42,7 @@ import Primer.Core (
   TypeMeta,
   qualifyName,
  )
-import Primer.Core.DSL (create', tapp, tcon, tvar)
+import Primer.Core.DSL (create', kfun, ktype, tapp, tcon, tvar)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -107,7 +108,7 @@ fixtures :: [Fixture]
 fixtures =
   let id0 = ID 0
       typeMeta :: TypeMeta
-      typeMeta = Meta (ID 0) (Just KType) Nothing
+      typeMeta = Meta (ID 0) (Just (KType ())) Nothing
       exprMeta :: ExprMeta
       exprMeta = Meta (ID 0) (Just (TCSynthed $ TEmptyHole ())) Nothing
       actionError :: ActionError
@@ -120,14 +121,16 @@ fixtures =
       defName = "main"
       def :: ASTDef
       def = ASTDef{astDefExpr = expr, astDefType = TEmptyHole typeMeta}
-      typeDef :: TypeDef TypeMeta
+      typeDef :: TypeDef TypeMeta KindMeta
       typeDef = create' $ do
         f1 <- tvar "b" `tapp` tvar "a"
         f2 <- tcon tNat
+        k1 <- ktype
+        kb <- ktype `kfun` ktype
         pure $
           TypeDefAST
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
+              { astTypeDefParameters = [("a", k1), ("b", kb)]
               , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [f1, f2]]
               , astTypeDefNameHints = []
               }
@@ -182,7 +185,7 @@ fixtures =
       , mkFixture "typecache" (TCSynthed $ TEmptyHole ())
       , mkFixture "typecacheboth" (TCBoth (TEmptyHole ()) (TEmptyHole ()))
       , mkFixture "expr" expr
-      , mkFixture "kind" KType
+      , mkFixture "kind" (KType ())
       , mkFixture "log" log
       , mkFixture "def" def
       , mkFixture "typeDef" typeDef

@@ -54,6 +54,7 @@ import Primer.API (
   Tree,
   TypeDef,
   TypeOrKind,
+  TypeParam,
   ValCon,
  )
 import Primer.API qualified as API
@@ -65,7 +66,7 @@ import Primer.API.NodeFlavor (
  )
 import Primer.API.RecordPair (RecordPair)
 import Primer.Action.Available qualified as Available
-import Primer.App (DefSelection, NodeSelection, NodeType, TypeDefSelection)
+import Primer.App (DefSelection, NodeSelection, NodeType, TypeDefParamSelection, TypeDefSelection)
 import Primer.App.Base (Level, TypeDefConsFieldSelection (..), TypeDefConsSelection (..), TypeDefNodeSelection)
 import Primer.Core (
   GlobalName,
@@ -156,6 +157,7 @@ deriving via PrimerJSON NodeFlavorPrimBody instance ToSchema NodeFlavorPrimBody
 deriving via PrimerJSON NodeFlavorBoxBody instance ToSchema NodeFlavorBoxBody
 deriving via PrimerJSON NodeFlavorNoBody instance ToSchema NodeFlavorNoBody
 deriving via PrimerJSON TypeDef instance ToSchema TypeDef
+deriving via PrimerJSON TypeParam instance ToSchema TypeParam
 deriving via PrimerJSON ValCon instance ToSchema ValCon
 deriving via PrimerJSON Def instance ToSchema Def
 deriving via NonEmpty Name instance ToSchema ModuleName
@@ -171,6 +173,7 @@ deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
 deriving via PrimerJSONNamed "Selection" Selection instance ToSchema Selection
 deriving via PrimerJSONNamed "TypeDefSelection" (TypeDefSelection ID) instance ToSchema (TypeDefSelection ID)
 deriving via PrimerJSONNamed "TypeDefNodeSelection" (TypeDefNodeSelection ID) instance ToSchema (TypeDefNodeSelection ID)
+deriving via PrimerJSONNamed "TypeDefParamSelection" (TypeDefParamSelection ID) instance ToSchema (TypeDefParamSelection ID)
 deriving via PrimerJSONNamed "TypeDefConsSelection" (TypeDefConsSelection ID) instance ToSchema (TypeDefConsSelection ID)
 deriving via PrimerJSONNamed "TypeDefConsFieldSelection" (TypeDefConsFieldSelection ID) instance ToSchema (TypeDefConsFieldSelection ID)
 deriving via PrimerJSONNamed "DefSelection" (DefSelection ID) instance ToSchema (DefSelection ID)

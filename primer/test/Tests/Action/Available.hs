@@ -66,6 +66,7 @@ import Primer.App (
   Selection' (..),
   TypeDefConsSelection (TypeDefConsSelection),
   TypeDefNodeSelection (TypeDefConsNodeSelection, TypeDefParamNodeSelection),
+  TypeDefParamSelection (TypeDefParamSelection),
   TypeDefSelection (TypeDefSelection),
   appProg,
   checkAppWellFormed,
@@ -89,7 +90,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
-  Kind (KFun, KType),
+  Kind' (..),
   ModuleName (ModuleName, unModuleName),
   Pattern (PatPrim),
   Type,
@@ -206,7 +207,7 @@ mkTests deps (defName, DefAST def') =
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
       enumeratePairs = (,) <$> enumerate <*> enumerate
       defs = Map.singleton defName $ DefAST def
-      typeDefs = foldMap' @[] moduleTypesQualified [create' builtinModule, primitiveModule]
+      typeDefs = foldMap' @[] moduleTypesQualified $ create' $ sequence [builtinModule, primitiveModule]
       offered level id = \case
         Available.NoInput a -> NoInput a
         Available.Input a ->
@@ -282,7 +283,7 @@ tasty_available_actions_accepted = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
       l <- forAllT $ Gen.element enumerate
-      cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, pure primitiveModule]]
+      cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
       -- We only test SmartHoles mode (which is the only supported student-facing
       -- mode - NoSmartHoles is only used for internal sanity testing etc)
       a <- forAllT $ genApp SmartHoles cxt
@@ -333,14 +334,36 @@ tasty_available_actions_accepted = withTests 500 $
                       , case astTypeDefParameters def' of
                           [] -> pure forTypeDef
                           ps -> do
-                            (p, _) <- Gen.element ps
-                            pure
-                              ( "forTypeDefParamNode"
-                              ,
-                                ( typeDefSel $ Just $ TypeDefParamNodeSelection p
-                                , Available.forTypeDefParamNode p l defMut allTypes' allDefs' defName def'
+                            (p, k) <- Gen.element ps
+                            let typeDefParamNodeSel = typeDefSel . Just . TypeDefParamNodeSelection . TypeDefParamSelection p
+                            Gen.frequency
+                              [
+                                ( 1
+                                , pure
+                                    ( "forTypeDefParamNode"
+                                    ,
+                                      ( typeDefParamNodeSel Nothing
+                                      , Available.forTypeDefParamNode p l defMut allTypes' allDefs' defName def'
+                                      )
+                                    )
                                 )
-                              )
+                              ,
+                                ( 3
+                                , do
+                                    let allKindIDs = \case
+                                          KHole m -> [getID m]
+                                          KType m -> [getID m]
+                                          KFun m k1 k2 -> [getID m] <> allKindIDs k1 <> allKindIDs k2
+                                    id <- Gen.element $ allKindIDs k
+                                    pure
+                                      ( "forTypeDefParamKindNode"
+                                      ,
+                                        ( typeDefParamNodeSel $ Just id
+                                        , Available.forTypeDefParamKindNode p id l defMut allTypes' allDefs' defName def'
+                                        )
+                                      )
+                                )
+                              ]
                       )
                     ,
                       ( 5
@@ -674,7 +697,7 @@ offeredActionTest' ::
   IO (Either OAT ASTDef)
 offeredActionTest' sh l inputDef position action = do
   let progRaw = create' $ do
-        ms <- sequence [builtinModule, pure primitiveModule]
+        ms <- sequence [builtinModule, primitiveModule]
         prog0 <- defaultEmptyProg
         d <- inputDef
         pure $
@@ -776,32 +799,32 @@ unit_rename_lam_names =
 unit_make_LAM_names :: Assertion
 unit_make_LAM_names = do
   offeredNamesTest
-    (emptyHole `ann` tforall "a" KType (tcon tBool))
+    (emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
     (InExpr [Child1])
     MakeLAM
     "α"
-    (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
+    (lAM "α" emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
   offeredNamesTest
-    (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
     (InExpr [Child1])
     MakeLAM
     "f"
-    (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (lAM "f" emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
 
 unit_rename_LAM_names :: Assertion
 unit_rename_LAM_names = do
   offeredNamesTest
-    (lAM "x" emptyHole `ann` tforall "a" KType (tcon tBool))
+    (lAM "x" emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
     (InExpr [Child1])
     RenameLAM
     "α"
-    (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
+    (lAM "α" emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
   offeredNamesTest
-    (lAM "x" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (lAM "x" emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
     (InExpr [Child1])
     RenameLAM
     "f"
-    (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (lAM "f" emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
 
 -- nb: renaming let cares about the type of the bound var, not of the let
 unit_rename_let_names :: Assertion
@@ -846,17 +869,17 @@ unit_rename_letrec_names =
 unit_rename_forall_names :: Assertion
 unit_rename_forall_names = do
   offeredNamesTest
-    (emptyHole `ann` tforall "a" KType (tcon tBool))
+    (emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
     ([] `InType` [])
     RenameForall
     "α"
-    (emptyHole `ann` tforall "α" KType (tcon tBool))
+    (emptyHole `ann` tforall "α" (KType ()) (tcon tBool))
   offeredNamesTest
-    (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
     ([] `InType` [])
     RenameForall
     "f"
-    (emptyHole `ann` tforall "f" (KFun KType KType) (tcon tBool))
+    (emptyHole `ann` tforall "f" (KFun () (KType ()) (KType ())) (tcon tBool))
 
 {-
 -- TODO: reinstate once the TC handles let type!

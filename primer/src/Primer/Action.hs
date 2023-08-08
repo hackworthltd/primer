@@ -52,6 +52,7 @@ import Primer.App.Base (
   TypeDefConsFieldSelection (..),
   TypeDefConsSelection (..),
   TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefSelection (..),
  )
 import Primer.Core (
@@ -63,6 +64,7 @@ import Primer.Core (
   HasID,
   HasMetadata (_metadata),
   ID,
+  KindMeta,
   LVarName,
   LocalName (LocalName, unLocalName),
   Pattern (PatCon, PatPrim),
@@ -113,7 +115,7 @@ import Primer.Core.DSL (
   var,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -261,7 +263,7 @@ applyActionsToField ::
   SmartHoles ->
   [Module] ->
   (Module, [Module]) ->
-  (Name, ValConName, Int, ASTTypeDef TypeMeta) ->
+  (Name, ValConName, Int, ASTTypeDef TypeMeta KindMeta) ->
   [Action] ->
   m (Either ActionError ([Module], TypeZ))
 applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyDef) actions =
@@ -292,7 +294,7 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
       let mod' = mod{moduleTypes = insert tyName (TypeDefAST tyDef{astTypeDefConstructors = valCons}) $ moduleTypes mod}
       (,zt) <$> checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
     addParamsToCxt :: TC.Cxt -> TC.Cxt
-    addParamsToCxt = over #localCxt (<> Map.fromList (map (bimap unLocalName TC.K) $ astTypeDefParameters tyDef))
+    addParamsToCxt = over #localCxt (<> Map.fromList (map (bimap unLocalName (TC.K . forgetKindMetadata)) (astTypeDefParameters tyDef)))
     withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
@@ -469,6 +471,8 @@ applyAction' a = case a of
   RenameCaseBinding x -> \case
     InBind (BindCase z) -> InBind . BindCase <$> renameCaseBinding x z
     _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
+  ConstructKType -> const $ throwError $ CustomFailure ConstructKType "kind edits currently only allowed in typedefs"
+  ConstructKFun -> const $ throwError $ CustomFailure ConstructKFun "kind edits currently only allowed in typedefs"
   where
     termAction f s = \case
       InExpr ze -> InExpr <$> f ze
@@ -1030,7 +1034,7 @@ constructTForall mx zt = do
     Nothing -> LocalName <$> mkFreshNameTy zt
     Just x -> pure (unsafeMkLocalName x)
   unless (isFreshTy x $ target zt) $ throwError NameCapture
-  flip replace zt <$> tforall x C.KType (pure (target zt))
+  flip replace zt <$> tforall x (C.KType ()) (pure (target zt))
 
 constructTApp :: MonadFresh ID m => TypeZ -> m TypeZ
 constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole
@@ -1052,7 +1056,7 @@ renameForall b zt = case target zt of
 -- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
 toProgActionNoInput ::
   DefMap ->
-  Either (ASTTypeDef TypeMeta) ASTDef ->
+  Either (ASTTypeDef TypeMeta KindMeta) ASTDef ->
   Selection' ID ->
   Available.NoInputAction ->
   Either ActionError [ProgAction]
@@ -1153,7 +1157,13 @@ toProgActionNoInput defs def0 sel0 = \case
     pure [DeleteConField t c sel.index]
   Available.DeleteTypeParam -> do
     (t, p) <- typeParamSel
-    pure [DeleteTypeParam t p]
+    pure [DeleteTypeParam t p.param]
+  Available.MakeKType -> do
+    toProgAction [ConstructKType]
+  Available.MakeKFun -> do
+    toProgAction [ConstructKFun]
+  Available.DeleteKind -> do
+    toProgAction [Delete]
   where
     termSel = case sel0 of
       SelectionDef s -> pure s
@@ -1175,22 +1185,31 @@ toProgActionNoInput defs def0 sel0 = \case
       typeNodeSel >>= \case
         (s0, TypeDefParamNodeSelection s) -> pure (s0, s)
         _ -> Left NeedTypeDefParamSelection
+    typeParamKindSel =
+      typeParamSel >>= \case
+        (t, TypeDefParamSelection p (Just id)) -> pure (t, p, id)
+        _ -> Left NeedTypeDefParamKindSelection
     conFieldSel = do
       (ty, s) <- conSel
       maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
     toProgAction actions = do
       case sel0 of
         SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
-        SelectionTypeDef _ -> do
-          (t, c, f) <- conFieldSel
-          pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
+        SelectionTypeDef sel -> case sel.node of
+          Just (TypeDefParamNodeSelection _) -> do
+            (t, p, id) <- typeParamKindSel
+            pure [ParamKindAction t p id actions]
+          Just (TypeDefConsNodeSelection _) -> do
+            (t, c, f) <- conFieldSel
+            pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
+          Nothing -> Left NeedTypeDefNodeSelection
     termDef = first (const NeedTermDef) def0
     typeDef = either Right (Left . const NeedTypeDef) def0
 
 -- | Convert a high-level 'Available.InputAction', and associated 'Available.Option',
 -- to a concrete sequence of 'ProgAction's.
 toProgActionInput ::
-  Either (ASTTypeDef a) ASTDef ->
+  Either (ASTTypeDef a b) ASTDef ->
   Selection' ID ->
   Available.Option ->
   Available.InputAction ->
@@ -1279,7 +1298,7 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.RenameTypeParam -> do
     opt <- optNoCxt
     (defName, sel) <- typeParamSel
-    pure [RenameTypeParam defName sel opt]
+    pure [RenameTypeParam defName sel.param opt]
   Available.AddCon -> do
     opt <- optNoCxt
     sel <- typeSel
@@ -1290,7 +1309,7 @@ toProgActionInput def0 sel0 opt0 = \case
     opt <- optNoCxt
     sel <- typeSel
     index <- length . astTypeDefParameters <$> typeDef -- for now, we always add on to the end
-    pure [AddTypeParam sel.def index opt C.KType]
+    pure [AddTypeParam sel.def index opt $ C.KType ()]
   where
     termSel = case sel0 of
       SelectionDef s -> pure s

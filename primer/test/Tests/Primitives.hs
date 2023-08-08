@@ -6,7 +6,7 @@ import Foreword
 
 import Data.Map qualified as M
 import Primer.Core (
-  Kind (KFun, KType),
+  Kind' (KFun, KType),
  )
 import Primer.Core.DSL (char, tcon)
 import Primer.Primitives (tChar)
@@ -37,7 +37,7 @@ import Tests.Typecheck (runTypecheckTestMIn)
 unit_prim_con_scope :: Assertion
 unit_prim_con_scope = do
   -- Char is indeed not in scope
-  test (checkKind KType =<< tcon tChar) @?= Left (KindError $ UnknownTypeConstructor tChar)
+  test (checkKind (KType ()) =<< tcon tChar) @?= Left (KindError $ UnknownTypeConstructor tChar)
   test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     cxt = buildTypingContextFromModules mempty NoSmartHoles
@@ -53,13 +53,13 @@ unit_prim_con_scope_ast = do
   assertBool "Char is not in scope?" $
     isRight $
       test $
-        checkKind (KType `KFun` KType) =<< tcon tChar
+        checkKind (KFun () (KType ()) (KType ())) =<< tcon tChar
   test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     charASTDef =
       TypeDefAST $
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType ())]
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty
           }

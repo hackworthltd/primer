@@ -57,7 +57,7 @@ functionOutput' f args depth =
         then r
         else error $ unlines $ "There were severe logs:" : foldMap' ((: []) . show) severe
   where
-    mods = [create' builtinModule, primitiveModule, prelude']
+    mods = create' $ sequence [builtinModule, primitiveModule, pure prelude']
     (ty, def) = mconcat $ map (\m -> (moduleTypesQualified m, moduleDefsQualified m)) mods
     n = depth
     d = Chk

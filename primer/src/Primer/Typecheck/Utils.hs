@@ -29,7 +29,7 @@ import Optics (Lens', view, (%))
 import Primer.Core (Expr, Expr', GlobalName (baseName, qualifiedModule), ModuleName, TypeCache, _exprMetaLens)
 import Primer.Core.Meta (Meta, TyConName, ValConName, _type)
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Type (Kind, Type' (TEmptyHole, THole))
+import Primer.Core.Type (Type' (TEmptyHole, THole))
 import Primer.Core.Type.Utils (forgetTypeMetadata)
 import Primer.Name (Name, NameCounter)
 import Primer.Subst (substTySimul)
@@ -41,19 +41,19 @@ import Primer.TypeDef (
   typeDefAST,
   typeDefParameters,
  )
-import Primer.Typecheck.Cxt (Cxt, globalCxt, typeDefs)
+import Primer.Typecheck.Cxt (Cxt, Kind, globalCxt, typeDefs)
 
 -- | Given a 'TypeDefMap', for each value constructor of a
 -- non-primitive typedef in the map, tuple the value constructor up
 -- with its type constructor name and its corresponding AST.
-allNonPrimValCons :: TypeDefMap -> [(ValCon (), TyConName, ASTTypeDef ())]
+allNonPrimValCons :: TypeDefMap -> [(ValCon (), TyConName, ASTTypeDef () ())]
 allNonPrimValCons tydefs = do
   (tc, TypeDefAST td) <- M.assocs tydefs
   vc <- astTypeDefConstructors td
   pure (vc, tc, td)
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon (), TyConName, ASTTypeDef ())
+lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon (), TyConName, ASTTypeDef () ())
 lookupConstructor tyDefs c = find ((== c) . valConName . fst3) $ allNonPrimValCons tyDefs
 
 data TypeDefError
@@ -63,7 +63,7 @@ data TypeDefError
   | TDIUnknown TyConName -- not in scope
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
-data TypeDefInfo a = TypeDefInfo [Type' a] TyConName (TypeDef ()) -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
+data TypeDefInfo a = TypeDefInfo [Type' a] TyConName (TypeDef () ()) -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
 
 getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
@@ -90,7 +90,7 @@ getTypeDefInfo' tydefs ty =
 instantiateValCons ::
   (MonadFresh NameCounter m, MonadReader Cxt m) =>
   Type' () ->
-  m (Either TypeDefError (TyConName, ASTTypeDef (), [(ValConName, [Type' ()])]))
+  m (Either TypeDefError (TyConName, ASTTypeDef () (), [(ValConName, [Type' ()])]))
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
@@ -114,7 +114,7 @@ instantiateValCons t = do
 instantiateValCons' ::
   TypeDefMap ->
   Type' () ->
-  Either TypeDefError (TyConName, ASTTypeDef (), [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])])
+  Either TypeDefError (TyConName, ASTTypeDef () (), [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])])
 instantiateValCons' tyDefs t =
   getTypeDefInfo' tyDefs t
     >>= \(TypeDefInfo params tc def) -> case def of

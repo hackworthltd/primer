@@ -82,7 +82,6 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   Fold,
-  ReversibleOptic (re),
   elemOf,
   folded,
   getting,
@@ -102,12 +101,10 @@ import Optics (
   (^.),
   (^?),
   _Just,
-  _Left,
-  _Right,
  )
 import Optics.State.Operators ((<<%=))
 import Primer.Action (
-  Action,
+  Action (..),
   ActionError (..),
   ProgAction (..),
   applyAction',
@@ -128,6 +125,7 @@ import Primer.App.Base (
   TypeDefConsFieldSelection (..),
   TypeDefConsSelection (..),
   TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefSelection (..),
   getTypeDefConFieldType,
  )
@@ -141,7 +139,8 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
-  Kind (KType),
+  Kind' (..),
+  KindMeta,
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
@@ -169,10 +168,10 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
-import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -298,12 +297,12 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog defaultLog
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
-progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef ())
+progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef () ())
 progAllTypeDefs p =
   foldMap' (fmap (Editable,) . moduleTypesQualified) (progModules p)
     <> foldMap' (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
 
-progAllTypeDefsMeta :: Prog -> Map TyConName (Editable, TypeDef TypeMeta)
+progAllTypeDefsMeta :: Prog -> Map TyConName (Editable, TypeDef TypeMeta KindMeta)
 progAllTypeDefsMeta p =
   foldMap' (fmap (Editable,) . moduleTypesQualifiedMeta) (progModules p)
     <> foldMap' (fmap (NonEditable,) . moduleTypesQualifiedMeta) (progImports p)
@@ -393,7 +392,7 @@ newProg =
         newEmptyProgImporting
           [ prelude
           , builtinModule
-          , pure primitiveModule
+          , primitiveModule
           ]
    in ( p
       , nextID
@@ -432,7 +431,7 @@ importModules ms = do
 allTypes :: Prog -> TypeDefMap
 allTypes = fmap snd . progAllTypeDefs
 
-allTypesMeta :: Prog -> Map TyConName (TypeDef TypeMeta)
+allTypesMeta :: Prog -> Map TyConName (TypeDef TypeMeta KindMeta)
 allTypesMeta = fmap snd . progAllTypeDefsMeta
 
 -- | Get all definitions from all modules (including imports)
@@ -739,7 +738,7 @@ applyProgAction prog = \case
       m' <- updateTypeDef m
       pure
         ( m'
-        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection new
+        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection new Nothing
         )
     where
       updateTypeDef =
@@ -828,7 +827,7 @@ applyProgAction prog = \case
       updateTypeDef =
         let new' =
               runReaderT
-                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind (KType ()) =<< generateTypeIDs new)
                 (progCxt prog)
          in alterTypeDef
               ( traverseOf #astTypeDefConstructors $
@@ -892,16 +891,17 @@ applyProgAction prog = \case
         ( \td -> do
             checkTypeNotInUse tdName td $ m : ms
             assertFreshNameForTypeDef (unLocalName paramName) (tdName, td)
+            k' <- generateKindIDs k
             traverseOf
               #astTypeDefParameters
               ( \ps -> do
-                  maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k) ps
+                  maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k') ps
               )
               td
         )
         tdName
         m
-    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName $ Just $ TypeDefParamNodeSelection paramName)
+    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection paramName Nothing)
   DeleteTypeParam tdName paramName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
     m' <-
       alterTypeDef
@@ -934,7 +934,7 @@ applyProgAction prog = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (def', z) -> do
-        let meta = bimap (view _exprMetaLens . target) (view _typeMetaLens . target) $ locToEither z
+        let meta = bimap (view _exprMetaLens . target) (Left . view _typeMetaLens . target) $ locToEither z
         pure
           ( insertDef m defName (DefAST def')
           , Just . SelectionDef $
@@ -960,7 +960,7 @@ applyProgAction prog = \case
                     Just
                       NodeSelection
                         { nodeType = SigNode
-                        , meta = Right meta
+                        , meta = Right $ Left meta
                         }
               )
   ConFieldAction tyName con index actions -> editModuleOfCrossType (Just tyName) prog $ \ms defName def -> do
@@ -983,11 +983,49 @@ applyProgAction prog = \case
                                 Just
                                   TypeDefConsFieldSelection
                                     { index
-                                    , meta = Right $ zt ^. _target % _typeMetaLens
+                                    , meta = Right $ Left $ zt ^. _target % _typeMetaLens
                                     }
                             }
                   }
           )
+  ParamKindAction tyName paramName id actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
+    def' <-
+      def
+        & traverseOf
+          #astTypeDefParameters
+          ( maybe (throwError $ ParamNotFound paramName) pure
+              <=< findAndAdjustA
+                ((== paramName) . fst)
+                ( traverseOf _2 $
+                    flip
+                      ( foldlM $ flip \case
+                          ConstructKType -> modifyKind $ const ktype
+                          ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
+                          Delete -> modifyKind $ const khole
+                          a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
+                      )
+                      actions
+                )
+          )
+    let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
+        imports = progImports prog
+        smartHoles = progSmartHoles prog
+    mods' <-
+      runExceptT
+        ( runReaderT
+            (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
+            (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+        )
+        >>= either (throwError . ActionError) pure
+    pure (mods', Nothing)
+    where
+      modifyKind f k =
+        if getID k == id
+          then f k
+          else case k of
+            KHole _ -> pure k
+            KType _ -> pure k
+            KFun m k1 k2 -> KFun m <$> modifyKind f k1 <*> modifyKind f k2
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
@@ -1028,7 +1066,7 @@ applyProgAction prog = \case
     mdefName = case progSelection prog of
       Just (SelectionDef s) -> Just s.def
       _ -> Nothing
-    typeDefNames :: Fold (TyConName, ASTTypeDef a) Name
+    typeDefNames :: Fold (TyConName, ASTTypeDef a b) Name
     typeDefNames =
       (_1 % to baseName)
         `summing` (_2 % #astTypeDefParameters % folded % _1 % to unLocalName)
@@ -1127,7 +1165,7 @@ editModuleOfCrossType ::
   MonadError ProgError m =>
   Maybe TyConName ->
   Prog ->
-  ((Module, [Module]) -> Name -> ASTTypeDef TypeMeta -> m ([Module], Maybe Selection)) ->
+  ((Module, [Module]) -> Name -> ASTTypeDef TypeMeta KindMeta -> m ([Module], Maybe Selection)) ->
   m Prog
 editModuleOfCrossType mdefName prog f = case mdefName of
   Nothing -> throwError NoTypeDefSelected
@@ -1489,7 +1527,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
       TEmptyHole _ -> pure $ replace freshCopy tgt
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
     let newDef = oldDef{astDefType = fromZipper pasted}
-    let newSel = NodeSelection SigNode (pasted ^. _target % _typeMetaLens % re _Right)
+    let newSel = NodeSelection SigNode (Right $ Left $ pasted ^. _target % _typeMetaLens)
     pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
   liftError ActionError $ tcWholeProg finalProg
 
@@ -1565,8 +1603,8 @@ tcWholeProg p = do
         Just sel@NodeSelection{nodeType} -> do
           n <- runExceptT $ focusNode p' defName_ $ getID sel
           case (nodeType, n) of
-            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ x ^. _target % _typeMetaLens % re _Right
+            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ bimap (view _exprMetaLens . target) (Left . view _typeMetaLens . target) x
+            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
@@ -1580,14 +1618,14 @@ tcWholeProg p = do
           conSel & over #field \case
             Nothing -> Nothing
             Just fieldSel ->
-              flip (set #meta) fieldSel . (Right . (^. _typeMetaLens)) <$> do
+              flip (set #meta) fieldSel . (Right . Left . (^. _typeMetaLens)) <$> do
                 -- If something goes wrong in finding the metadata, we just don't set a field selection.
                 -- This is similar to what we do when selection is in a term, above.
                 td <- Map.lookup s.def $ allTypesMeta p
                 tda <- typeDefAST td
                 ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
                 id <- case fieldSel.meta of
-                  Left _ -> Nothing -- Any selection in a typedef should have TypeMeta, not ExprMeta
+                  Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
                   Right m -> pure $ getID m
                 target <$> focusOnTy id ty
   pure $ p'{progSelection = newSel}
@@ -1660,7 +1698,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
           TEmptyHole _ -> pure $ replace freshCopy tgtT
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
         let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
-        let newSel = NodeSelection BodyNode (pasted ^. _target % _typeMetaLens % re _Right)
+        let newSel = NodeSelection BodyNode $ Right $ Left $ pasted ^. _target % _typeMetaLens
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
       (Left srcE, InExpr tgtE) -> do
         let sharedScope =
@@ -1717,7 +1755,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
           EmptyHole _ -> pure $ replace freshCopy tgtE
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
         let newDef = oldDef{astDefExpr = unfocusExpr pasted}
-        let newSel = NodeSelection BodyNode (pasted ^. _target % _exprMetaLens % re _Left)
+        let newSel = NodeSelection BodyNode $ Left $ pasted ^. _target % _exprMetaLens
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
   liftError ActionError $ tcWholeProg finalProg
 
@@ -1726,7 +1764,7 @@ lookupASTDef name = defAST <=< Map.lookup name
 
 alterTypeDef ::
   MonadError ProgError m =>
-  (ASTTypeDef TypeMeta -> m (ASTTypeDef TypeMeta)) ->
+  (ASTTypeDef TypeMeta KindMeta -> m (ASTTypeDef TypeMeta KindMeta)) ->
   TyConName ->
   Module ->
   m Module

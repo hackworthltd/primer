@@ -53,7 +53,7 @@ import Primer.Core (
   GVarName,
   GlobalName (qualifiedModule),
   ID (),
-  Kind (..),
+  Kind' (..),
   LVarName,
   LocalName (LocalName, unLocalName),
   ModuleName (),
@@ -254,7 +254,7 @@ genSyns ty = do
                 let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
                 Just . (foldl' f he is,) <$> substTySimul sb instTy
     genApp = do
-      s <- genWTType KType
+      s <- genWTType $ KType ()
       (f, fTy) <- genSyns (TFun () s ty)
       (s', t') <- maybe Gen.discard pure $ matchArrowType fTy -- discard should never happen: fTy should be consistent with (TFun _ s ty)
       a <- App () f <$> genChk s'
@@ -288,7 +288,7 @@ genSyns ty = do
             pure (Let () x e f, fTy)
         , -- letrec
           do
-            eTy <- genWTType KType
+            eTy <- genWTType $ KType ()
             x <- genLVarNameAvoiding [ty, eTy]
             (e, (f, fTy)) <- local (extendLocalCxt (x, eTy)) $ do
               (,) <$> genChk eTy <*> genSyns ty
@@ -358,7 +358,7 @@ genSyn = genSyns (TEmptyHole ())
 --  - the ADT it belongs to (if @c@ maps to @([(p1,k1),(p2,k2)],_,T)@ in the
 --    returned map, then @c [A,B] _ ∈ T A B@ for any @A@ of kind @k1@ and @B@
 --    of kind @k2@)
-allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind)], [Type' ()])
+allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind' ())], [Type' ()])
 allCons cxt = M.fromList $ concatMap consForTyDef $ typeDefs cxt
   where
     consForTyDef = \case
@@ -426,7 +426,7 @@ genChk ty = do
             Let () x e <$> local (extendLocalCxt (x, eTy)) (genChk ty)
         , -- letrec
           do
-            eTy <- genWTType KType
+            eTy <- genWTType $ KType ()
             x <- genLVarNameAvoiding [ty, eTy]
             (e, f) <- local (extendLocalCxt (x, eTy)) $ (,) <$> genChk eTy <*> genChk ty
             pure $ Letrec () x e eTy f
@@ -499,7 +499,7 @@ genStrictSubsequence xs = Gen.justT $ do
 -- | Generates types which infer kinds consistent with the argument
 -- I.e. @genWTType k@ will generate types @ty@ such that @synthKind ty = k'@
 -- with @consistentKinds k k'@. See 'Tests.Gen.Core.Typed.tasty_genTy'
-genWTType :: Kind -> GenT WT TypeG
+genWTType :: Kind' () -> GenT WT TypeG
 genWTType k = do
   vars <- lift vari
   cons <- lift constr
@@ -510,8 +510,8 @@ genWTType k = do
     ehole :: GenT WT TypeG
     ehole = pure $ TEmptyHole ()
     hole :: GenT WT TypeG
-    hole = THole () <$> genWTType KHole
-    app = do k' <- genWTKind; TApp () <$> genWTType (KFun k' k) <*> genWTType k'
+    hole = THole () <$> genWTType (KHole ())
+    app = do k' <- genWTKind; TApp () <$> genWTType (KFun () k' k) <*> genWTType k'
     vari :: WT (Maybe (GenT WT TypeG))
     vari = do
       goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
@@ -529,8 +529,8 @@ genWTType k = do
           else Just $ Gen.element $ map (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
     arrow =
-      if k == KHole || k == KType
-        then Just $ TFun () <$> genWTType KType <*> genWTType KType
+      if k == KHole () || k == KType ()
+        then Just $ TFun () <$> genWTType (KType ()) <*> genWTType (KType ())
         else Nothing
     {- TODO: reinstate once the TC handles them! and then be careful to do
                interesting things where we need to expand the synonym
@@ -543,16 +543,16 @@ genWTType k = do
     -}
     poly :: Maybe (GenT WT TypeG)
     poly =
-      if k == KHole || k == KType
+      if k == KHole () || k == KType ()
         then Just $ do
           k' <- genWTKind
           n <- genTyVarName
-          TForall () n k' <$> local (extendLocalCxtTy (n, k')) (genWTType KType)
+          TForall () n k' <$> local (extendLocalCxtTy (n, k')) (genWTType $ KType ())
         else Nothing
 
 -- | Generates an arbitary kind. Note that all kinds are well-formed.
-genWTKind :: GenT WT Kind
-genWTKind = Gen.recursive Gen.choice [pure KType] [KFun <$> genWTKind <*> genWTKind]
+genWTKind :: GenT WT (Kind' ())
+genWTKind = Gen.recursive Gen.choice [pure $ KType ()] [KFun () <$> genWTKind <*> genWTKind]
 
 -- NB: we are only generating the context entries, and so don't
 -- need definitions for the symbols!
@@ -560,7 +560,7 @@ genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
-      (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType KType
+      (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType (KType ())
 
 -- We are careful to not let generated globals depend on whatever
 -- locals may be in the cxt
@@ -576,7 +576,7 @@ genList n g = Gen.frequency [(1, pure []), (9, Gen.list (Range.linear 1 n) g)]
 -- Generates a group of potentially-mutually-recursive typedefs
 -- If given a module name, they will all live in that module,
 -- otherwise they may live in disparate modules
-genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef ())]
+genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef () ())]
 genTypeDefGroup mod = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   let tyconName = case mod of
@@ -597,7 +597,7 @@ genTypeDefGroup mod = local forgetLocals $ do
               )
           )
           nps
-  let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
+  let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType $ KType () -- params+types scope...
   let freshValConNameForCxt tyConName = qualifyName (qualifiedModule tyConName) <$> freshNameForCxt
   let genCons ty params = Gen.list (Range.linear 0 5) $ ValCon <$> freshValConNameForCxt ty <*> genConArgs params
   let genTD (n, ps) =
@@ -614,7 +614,7 @@ genTypeDefGroup mod = local forgetLocals $ do
           <$> genCons n ps
   mapM genTD nps
 
-addTypeDefs :: [(TyConName, TypeDef ())] -> Cxt -> Cxt
+addTypeDefs :: [(TyConName, TypeDef () ())] -> Cxt -> Cxt
 addTypeDefs = extendTypeDefCxt . M.fromList
 
 extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt
@@ -649,7 +649,7 @@ genCxtExtendingLocal = do
       cxtE <-
         Gen.choice
           [ curry extendLocalCxtTy <$> freshTyVarNameForCxt <*> genWTKind
-          , curry extendLocalCxt <$> freshLVarNameForCxt <*> genWTType KType
+          , curry extendLocalCxt <$> freshLVarNameForCxt <*> genWTType (KType ())
           ]
       local cxtE $ go (n - 1)
 

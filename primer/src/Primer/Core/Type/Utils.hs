@@ -2,7 +2,9 @@ module Primer.Core.Type.Utils (
   typeIDs,
   generateTypeIDs,
   regenerateTypeIDs,
+  generateKindIDs,
   forgetTypeMetadata,
+  forgetKindMetadata,
   noHoles,
   _freeVarsTy,
   traverseFreeVarsTy,
@@ -32,6 +34,7 @@ import Optics (
   _2,
  )
 
+import Primer.Core.DSL.Meta (kmeta)
 import Primer.Core.Meta (
   HasID (_id),
   ID,
@@ -39,9 +42,11 @@ import Primer.Core.Meta (
   trivialMeta,
  )
 import Primer.Core.Type (
-  Kind (KHole),
+  Kind,
+  Kind' (KHole),
   Type,
   Type' (..),
+  _kindMeta,
   _typeMeta,
  )
 import Primer.Zipper.Type (getBoundHereDnTy)
@@ -57,10 +62,17 @@ regenerateTypeIDs' s = traverseOf _typeMeta (\a -> flip s a <$> fresh)
 generateTypeIDs :: MonadFresh ID m => Type' () -> m Type
 generateTypeIDs = regenerateTypeIDs' $ const . trivialMeta
 
+generateKindIDs :: MonadFresh ID m => Kind' () -> m Kind
+generateKindIDs = traverseOf _kindMeta $ \() -> kmeta
+
 -- | Replace all 'ID's in a Type with unit.
 -- Technically this replaces all annotations, regardless of what they are.
 forgetTypeMetadata :: Type' a -> Type' ()
 forgetTypeMetadata = set _typeMeta ()
+
+-- | Replace all metadata in a Kind with unit.
+forgetKindMetadata :: Kind' a -> Kind' ()
+forgetKindMetadata = set _kindMeta ()
 
 -- | Test whether an type contains any holes
 -- (empty or non-empty, or inside a kind)
@@ -69,7 +81,7 @@ noHoles t = flip all (universe t) $ \case
   THole{} -> False
   TEmptyHole{} -> False
   TForall _ _ k _ -> flip all (universe k) $ \case
-    KHole -> False
+    KHole _ -> False
     _ -> True
   _ -> True
 

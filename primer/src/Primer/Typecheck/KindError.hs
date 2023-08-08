@@ -3,9 +3,9 @@ module Primer.Typecheck.KindError (KindError (..)) where
 import Foreword
 
 import Primer.Core.Meta (TyConName, TyVarName)
-import Primer.Core.Type (Kind)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
+import Primer.Typecheck.Cxt (Kind)
 
 data KindError
   = UnknownTypeVariable TyVarName

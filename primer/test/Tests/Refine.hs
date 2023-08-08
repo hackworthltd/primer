@@ -19,7 +19,7 @@ import Primer.Builtins (tBool, tList, tNat)
 import Primer.Core (
   Expr' (APP, Ann, App, EmptyHole),
   ID,
-  Kind (KFun, KType),
+  Kind' (KFun, KType),
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
  )
 import Primer.Core.Utils (forgetMetadata, freeVarsTy, generateIDs, noHoles)
@@ -51,7 +51,7 @@ import Test.Tasty.HUnit (Assertion, (@?=))
 import Tests.Gen.Core.Typed (propertyWTInExtendedLocalGlobalCxt, synthTest)
 
 defaultCxt :: Cxt
-defaultCxt = buildTypingContextFromModules' [builtinModule, pure primitiveModule] NoSmartHoles
+defaultCxt = buildTypingContextFromModules' [builtinModule, primitiveModule] NoSmartHoles
 
 refine' :: (MonadFresh NameCounter m, MonadFresh ID m) => Cxt -> Type -> Type -> m (Maybe ([Inst], Type))
 refine' cxt s t = fmap (either crash identity) $ runExceptT $ refine cxt s t
@@ -65,7 +65,7 @@ unit_var_refl =
   evalTestM
     0
     ( refine'
-        (extendLocalCxtTy ("a", KType) defaultCxt)
+        (extendLocalCxtTy ("a", KType ()) defaultCxt)
         (TVar () "a")
         (TVar () "a")
     )
@@ -116,9 +116,9 @@ unit_instUnconstrainedAPP =
     ( refine'
         defaultCxt
         (TCon () tNat)
-        (TForall () "a" KType (TCon () tNat))
+        (TForall () "a" (KType ()) (TCon () tNat))
     )
-    @?= Just ([InstUnconstrainedAPP "a1" KType], TCon () tNat)
+    @?= Just ([InstUnconstrainedAPP "a1" (KType ())], TCon () tNat)
 
 -- refine [...] Nat (∀a.a) succeeds: have an APP Nat to do
 unit_instAPP :: Assertion
@@ -128,7 +128,7 @@ unit_instAPP =
     ( refine'
         defaultCxt
         (TCon () tNat)
-        (TForall () "a" KType (TVar () "a"))
+        (TForall () "a" (KType ()) (TVar () "a"))
     )
     @?= Just ([InstAPP $ TCon () tNat], TCon () tNat)
 
@@ -140,7 +140,7 @@ unit_forall_fail =
     ( refine'
         defaultCxt
         (TCon () tNat)
-        (TForall () "a" KType $ TApp () (TCon () tList) (TVar () "a"))
+        (TForall () "a" (KType ()) $ TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
@@ -152,7 +152,7 @@ unit_ill_kinded_fail =
     ( refine'
         defaultCxt
         (TCon () tNat)
-        (TForall () "a" (KFun KType KType) $ TVar () "a")
+        (TForall () "a" (KFun () (KType ()) (KType ())) $ TVar () "a")
     )
     @?= Nothing
 
@@ -164,19 +164,19 @@ unit_ill_kinded_fail_2 =
     ( refine'
         defaultCxt
         (TApp () (TEmptyHole ()) (TCon () tList))
-        (TForall () "a" KType $ TApp () (TCon () tList) (TVar () "a"))
+        (TForall () "a" (KType ()) $ TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
 -- refine [...] (∀a. List a) (∀b. List b) succeeds, trivially
 unit_alpha :: Assertion
 unit_alpha =
-  let t n = (TForall () n KType $ TApp () (TCon () tList) (TVar () n))
+  let t n = (TForall () n (KType ()) $ TApp () (TCon () tList) (TVar () n))
    in evalTestM 0 (refine' defaultCxt (t "a") (t "b")) @?= Just ([], t "b")
 
 -- refine cxt T T succeeds
 tasty_refl :: Property
-tasty_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
+tasty_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   ty <- forAllT $ genWTType k
   cxt <- ask
@@ -185,7 +185,7 @@ tasty_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveMo
 
 -- refine _ ? S succeeds
 tasty_tgt_hole :: Property
-tasty_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
+tasty_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   tgt <- forAllT $ Gen.choice [pure $ TEmptyHole (), THole () <$> genWTType k]
   src <- forAllT $ genWTType k
@@ -195,7 +195,7 @@ tasty_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primiti
 
 -- refine _ T ? succeeds
 tasty_src_hole :: Property
-tasty_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
+tasty_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   tgt <- forAllT $ genWTType k
   src <- forAllT $ Gen.choice [pure $ TEmptyHole (), THole () <$> genWTType k]
@@ -205,7 +205,7 @@ tasty_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primiti
 
 -- constructor types refine to their fully-applied typedef
 tasty_con :: Property
-tasty_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
+tasty_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tcs <- asks $ mapMaybe (traverse typeDefAST) . M.assocs . typeDefs
   -- NB: this only works because our context has at least one tydef with a constructor
   -- (because, among others, it includes builtinModule that contains Bool)
@@ -227,10 +227,10 @@ tasty_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveMod
 -- refine cxt T S succeds when S is built from T, S1 -> _, ∀a._
 -- The success may not instantiate as much as one would expect, if T has holes in
 tasty_arr_app :: Property
-tasty_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
-  tgt <- forAllT $ genWTType KType
+tasty_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  tgt <- forAllT $ genWTType (KType ())
   when (isHole tgt) discard
-  src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
+  src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType (KType ()), curry Right <$> freshTyVarNameForCxt <*> genWTKind]
   let src = foldr (\case Left t -> TFun () t; Right (n, k) -> TForall () n k) tgt src'
   annotateShow src
   let inst = map (\case Left t -> InstApp t; Right (n, k) -> InstUnconstrainedAPP n k) src'
@@ -252,9 +252,9 @@ tasty_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiv
 -- if refine _ T S = Just (I:IS,_) , then refine _ T (S $ I) = Just (IS,_); here "S $ I" means "inspect S, I assert they match and strip off a layer"
 tasty_matches :: Property
 tasty_matches = withDiscards 2000 $
-  propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
-    tgt <- forAllT $ genWTType KType
-    src <- forAllT $ genWTType KType
+  propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+    tgt <- forAllT $ genWTType (KType ())
+    src <- forAllT $ genWTType (KType ())
     cxt <- ask
     r <- refine' cxt tgt src
     annotateShow r
@@ -276,9 +276,9 @@ tasty_matches = withDiscards 2000 $
 
 -- if refine cxt tgt s = Just (is,ty)   =>  (? : s) $ <stuff checking against is>  ∈ ty[instantiation vars substituted appropriately] ~ tgt
 tasty_refinement_synths :: Property
-tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
-  tgt <- forAllT $ genWTType KType
-  src <- forAllT $ genWTType KType
+tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  tgt <- forAllT $ genWTType (KType ())
+  src <- forAllT $ genWTType (KType ())
   cxt <- ask
   r <- refine' cxt tgt src
   annotateShow r
@@ -303,9 +303,9 @@ tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pur
 -- 'InstUnconstrainedAPP' do not appear in 'InstAPP's (but can in 'InstApp's)
 -- Also, these names are distinct
 tasty_scoping :: Property
-tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
-  tgt <- forAllT $ genWTType KType
-  src <- forAllT $ genWTType KType
+tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  tgt <- forAllT $ genWTType (KType ())
+  src <- forAllT $ genWTType (KType ())
   cxt <- ask
   r <- refine' cxt tgt src
   annotateShow r

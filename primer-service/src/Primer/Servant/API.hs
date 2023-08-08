@@ -23,7 +23,7 @@ import Primer.App (
 import Primer.Core (
   GVarName,
   ID,
-  Kind,
+  Kind',
   LVarName,
   TyVarName,
   Type',
@@ -161,7 +161,7 @@ data QuestionAPI mode = QuestionAPI
         :- "variables-in-scope"
           :> Summary "Ask what variables are in scope for the given node ID"
           :> ReqBody '[JSON] (GVarName, ID)
-          :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+          :> Post '[JSON] (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
   , generateNames ::
       mode
         :- "generate-names"
@@ -172,7 +172,7 @@ data QuestionAPI mode = QuestionAPI
               \(since it doesn't modify any state) but we need \
               \to provide a request body, which isn't well \
               \supported for GET requests."
-          :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
+          :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ())))
           :> Post '[JSON] (Either ProgError [Name])
   }
   deriving stock (Generic)

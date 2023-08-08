@@ -76,6 +76,7 @@ data ActionError
   | NeedTypeDefConsSelection
   | NeedTypeDefConsFieldSelection
   | NeedTypeDefParamSelection
+  | NeedTypeDefParamKindSelection
   | NoNodeSelection
   | ValConNotFound TyConName ValConName
   | FieldIndexOutOfBounds ValConName Int

@@ -1,10 +1,13 @@
 module Primer.Core.Type (
   Type,
   Type' (..),
-  Kind (..),
+  Kind,
+  Kind' (..),
   TypeMeta,
   _typeMeta,
   _typeMetaLens,
+  KindMeta,
+  _kindMeta,
 ) where
 
 import Foreword
@@ -34,7 +37,7 @@ type Type = Type' TypeMeta
 
 -- | Type metadata. Each type is optionally annotated with a kind.
 -- Currently we don't fill these in during typechecking.
-type TypeMeta = Meta (Maybe Kind)
+type TypeMeta = Meta (Maybe (Kind' ()))
 
 -- | NB: Be careful with equality -- it is on-the-nose, rather than up-to-alpha: see Subst:alphaEqTy
 data Type' a
@@ -44,7 +47,7 @@ data Type' a
   | TFun a (Type' a) (Type' a)
   | TVar a TyVarName
   | TApp a (Type' a) (Type' a)
-  | TForall a TyVarName Kind (Type' a)
+  | TForall a TyVarName (Kind' ()) (Type' a)
   | -- | TLet is a let binding at the type level.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
@@ -71,13 +74,31 @@ _typeMetaLens :: Lens' (Type' a) a
 _typeMetaLens = position @1
 
 -- | Core kinds.
-data Kind = KHole | KType | KFun Kind Kind
+type Kind = Kind' KindMeta
+
+-- | Metadata for kinds.
+type KindMeta = Meta ()
+
+data Kind' a
+  = KHole a
+  | KType a
+  | KFun a (Kind' a) (Kind' a)
   deriving stock (Eq, Ord, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Kind
+  deriving (FromJSON, ToJSON) via PrimerJSON (Kind' a)
   deriving anyclass (NFData)
+
+-- | A traversal over the metadata of a kind
+_kindMeta :: Traversal (Kind' a) (Kind' b) a b
+_kindMeta = param @0
 
 instance HasID a => HasID (Type' a) where
   _id = position @1 % _id
 
 instance HasMetadata (Type' TypeMeta) where
+  _metadata = position @1 % typed @(Maybe Value)
+
+instance HasID a => HasID (Kind' a) where
+  _id = position @1 % _id
+
+instance HasMetadata (Kind' KindMeta) where
   _metadata = position @1 % typed @(Maybe Value)

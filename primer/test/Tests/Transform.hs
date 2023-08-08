@@ -163,7 +163,7 @@ unit_var_6 = do
 unit_var_7 :: Assertion
 unit_var_7 = do
   let tst c = afterRenameTy "foo" "bar" (c $ tvar "bar") Nothing
-  tst $ tforall "foo" KType
+  tst $ tforall "foo" $ KType ()
   tst $ tlet "foo" tEmptyHole
 
 -- All other expressions are renamed as expected
@@ -199,11 +199,11 @@ unit_case =
 -- conflicting name
 unit_forall_1 :: Assertion
 unit_forall_1 =
-  afterRenameTy "x" "y" (tforall "z" KType (tvar "x")) (Just (tforall "z" KType (tvar "y")))
+  afterRenameTy "x" "y" (tforall "z" (KType ()) (tvar "x")) (Just (tforall "z" (KType ()) (tvar "y")))
 
 -- We can't rename inside a type if it has a forall binding the new name already
 unit_forall_2 :: Assertion
-unit_forall_2 = afterRenameTy "x" "y" (tapp (tforall "y" KType (tvar "x")) (tvar "x")) Nothing
+unit_forall_2 = afterRenameTy "x" "y" (tapp (tforall "y" (KType ()) (tvar "x")) (tvar "x")) Nothing
 
 -- We can rename a type with a forall that binds the same variable name,
 -- but we won't do any renaming underneath the forall.
@@ -212,8 +212,8 @@ unit_forall_3 =
   afterRenameTy
     "x"
     "y"
-    (tapp (tforall "x" KType (tvar "x")) (tvar "x"))
-    (Just (tapp (tforall "x" KType (tvar "x")) (tvar "y")))
+    (tapp (tforall "x" (KType ()) (tvar "x")) (tvar "x"))
+    (Just (tapp (tforall "x" (KType ()) (tvar "x")) (tvar "y")))
 
 -- All other types are renamed as we expect
 unit_tEmptyHole :: Assertion

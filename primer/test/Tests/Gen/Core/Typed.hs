@@ -15,7 +15,7 @@ import Hedgehog (
 import Hedgehog.Internal.Property (forAllT)
 import Primer.Core (
   Expr,
-  Kind (KType),
+  Kind' (KType),
   Meta,
   Type,
   Type',
@@ -78,14 +78,14 @@ propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt 
 
 tasty_genTy :: Property
 tasty_genTy = withTests 1000 $
-  propertyWTInExtendedGlobalCxt [builtinModule, pure primitiveModule] $ do
+  propertyWTInExtendedGlobalCxt [builtinModule, primitiveModule] $ do
     k <- forAllT genWTKind
     ty <- forAllT $ genWTType k
     ty' <- checkKindTest k =<< generateTypeIDs ty
     ty === forgetTypeMetadata ty' -- check no smart holes stuff happened
 
 -- | Lift 'checkKind' into a property
-checkKindTest :: HasCallStack => Kind -> Type -> PropertyT WT (Type' (Meta Kind))
+checkKindTest :: HasCallStack => Kind' () -> Type -> PropertyT WT (Type' (Meta (Kind' ())))
 checkKindTest k t = do
   x <- lift $ runExceptT @TypeError $ checkKind k t
   case x of
@@ -93,7 +93,7 @@ checkKindTest k t = do
     Right s -> pure s
 
 -- | Lift 'synthKind' into a property
-synthKindTest :: HasCallStack => Type -> PropertyT WT (Kind, Type' (Meta Kind))
+synthKindTest :: HasCallStack => Type -> PropertyT WT (Kind' (), Type' (Meta (Kind' ())))
 synthKindTest t = do
   x <- lift $ runExceptT @TypeError $ synthKind t
   case x of
@@ -111,7 +111,7 @@ checkValidContextTest t = do
 -- This indirectly also tests genCxtExtendingLocal, genCxtExtendingGlobal and genTypeDefGroup
 tasty_genCxtExtending_typechecks :: Property
 tasty_genCxtExtending_typechecks = withTests 1000 $
-  propertyWT [builtinModule, pure primitiveModule] $ do
+  propertyWT [builtinModule, primitiveModule] $ do
     cxt <- forAllT genCxtExtendingGlobal
     checkValidContextTest cxt
     cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
@@ -120,7 +120,7 @@ tasty_genCxtExtending_typechecks = withTests 1000 $
 tasty_inExtendedLocalGlobalCxt_valid :: Property
 tasty_inExtendedLocalGlobalCxt_valid = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       cxt <- ask
       checkValidContextTest cxt
 
@@ -166,9 +166,9 @@ tasty_genCxtExtending_is_extension =
 tasty_genSyns :: Property
 tasty_genSyns = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
-      tgtTy <- forAllT $ genWTType KType
-      _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs tgtTy
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+      tgtTy <- forAllT $ genWTType (KType ())
+      _ :: Type' (Meta (Kind' ())) <- checkKindTest (KType ()) =<< generateTypeIDs tgtTy
       (e, ty) <- forAllT $ genSyns tgtTy
       (ty', e') <- synthTest =<< generateIDs e
       annotateShow e'
@@ -180,9 +180,9 @@ tasty_genSyns = withTests 1000 $
 tasty_genChk :: Property
 tasty_genChk = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
-      ty <- forAllT $ genWTType KType
-      _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs ty
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+      ty <- forAllT $ genWTType (KType ())
+      _ :: Type' (Meta (Kind' ())) <- checkKindTest (KType ()) =<< generateTypeIDs ty
       t <- forAllT $ genChk ty
       t' <- checkTest ty =<< generateIDs t
       t === forgetMetadata t' -- check no smart holes stuff happened

@@ -98,10 +98,10 @@ runAppTestM' a m =
 comprehensive :: App
 comprehensive =
   let modName = mkSimpleModuleName "TestModule"
-      ((builtinMod, (defName, def)), id_) = create $ (,) <$> builtinModule <*> Examples.comprehensive modName
+      ((builtinMod, primitiveMod, (defName, def)), id_) = create $ (,,) <$> builtinModule <*> primitiveModule <*> Examples.comprehensive modName
       testProg =
         defaultProg
-          { progImports = [builtinMod, primitiveModule]
+          { progImports = [builtinMod, primitiveMod]
           , progModules =
               [ Module
                   { moduleName = mkSimpleModuleName "TestModule"

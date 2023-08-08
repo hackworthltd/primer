@@ -18,6 +18,7 @@ module Primer.Action.Available (
   options,
   forTypeDef,
   forTypeDefParamNode,
+  forTypeDefParamKindNode,
   forTypeDefConsNode,
   forTypeDefConsFieldNode,
 ) where
@@ -69,6 +70,8 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
+  Kind' (..),
+  KindMeta,
   ModuleName (unModuleName),
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
@@ -89,7 +92,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars, _freeVarsTy)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, freeVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   DefMap,
@@ -161,6 +164,9 @@ data NoInputAction
   | AddConField
   | DeleteConField
   | DeleteTypeParam
+  | MakeKType
+  | MakeKFun
+  | DeleteKind
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 
@@ -355,7 +361,7 @@ forTypeDef ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDef _ NonEditable _ _ _ _ = mempty
 forTypeDef l Editable tydefs defs tdName td =
@@ -378,7 +384,7 @@ forTypeDefParamNode ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefParamNode _ _ NonEditable _ _ _ _ = mempty
 forTypeDefParamNode paramName l Editable tydefs defs tdName td =
@@ -397,13 +403,41 @@ forTypeDefParamNode paramName l Editable tydefs defs tdName td =
         )
         [NoInput DeleteTypeParam]
 
+forTypeDefParamKindNode ::
+  TyVarName ->
+  ID ->
+  Level ->
+  Editable ->
+  TypeDefMap ->
+  DefMap ->
+  TyConName ->
+  ASTTypeDef TypeMeta KindMeta ->
+  [Action]
+forTypeDefParamKindNode _ _ _ NonEditable _ _ _ _ = mempty
+forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
+  sortByPriority
+    l
+    $ mwhen (not $ typeInUse tdName td tydefs defs)
+    $ [NoInput MakeKFun] <> case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
+      Nothing -> []
+      Just (KHole _) -> [NoInput MakeKType]
+      Just _ -> [NoInput DeleteKind]
+  where
+    findKind i k =
+      if getID k == i
+        then Just k
+        else case k of
+          KHole _ -> Nothing
+          KType _ -> Nothing
+          KFun _ k1 k2 -> findKind i k1 <|> findKind i k2
+
 forTypeDefConsNode ::
   Level ->
   Editable ->
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefConsNode _ NonEditable _ _ _ _ = mempty
 forTypeDefConsNode l Editable tydefs defs tdName td =
@@ -422,7 +456,7 @@ forTypeDefConsFieldNode ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
@@ -467,7 +501,7 @@ options ::
   DefMap ->
   Cxt ->
   Level ->
-  Either (ASTTypeDef TypeMeta) ASTDef ->
+  Either (ASTTypeDef TypeMeta KindMeta) ASTDef ->
   Selection' ID ->
   InputAction ->
   -- | Returns 'Nothing' if an ID was required but not passed, passed but not found in the tree,
@@ -638,7 +672,7 @@ options typeDefs defs cxt level def0 sel0 = \case
           Right zT -> (variablesInScopeTy zT, [], [])
       SelectionTypeDef sel -> do
         (def, zT) <- conField sel
-        pure (astTypeDefParameters def <> variablesInScopeTy zT, [], [])
+        pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy zT, [], [])
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of
@@ -699,6 +733,9 @@ sortByPriority l =
         AddConField -> P.addConField
         DeleteConField -> P.delete
         DeleteTypeParam -> P.delete
+        MakeKType -> P.ktype
+        MakeKFun -> P.kfun
+        DeleteKind -> P.delete
       Input a -> case a of
         MakeCon -> P.useSaturatedValueCon
         MakeInt -> P.makeInt

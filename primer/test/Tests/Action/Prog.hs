@@ -16,6 +16,8 @@ import Primer.Action (
     ConstructApp,
     ConstructArrowL,
     ConstructCase,
+    ConstructKFun,
+    ConstructKType,
     ConstructLet,
     ConstructTCon,
     ConstructVar,
@@ -82,12 +84,13 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName),
   ID,
-  Kind (KType),
+  Kind' (..),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
   Pattern (PatCon),
   TmVarRef (..),
   TyConName,
+  TyVarName,
   Type,
   Type' (..),
   ValConName,
@@ -106,6 +109,7 @@ import Primer.Core.DSL (
   emptyHole,
   gvar,
   hole,
+  ktype,
   lAM,
   lam,
   lvar,
@@ -329,7 +333,7 @@ unit_create_typedef :: Assertion
 unit_create_typedef =
   let lst =
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType ())]
           , astTypeDefConstructors =
               [ ValCon (vcn "Nil") []
               , ValCon (vcn "Cons") [TVar () "a", TApp () (TCon () (tcn "List")) (TVar () "a")]
@@ -338,7 +342,7 @@ unit_create_typedef =
           }
       tree =
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType ())]
           , astTypeDefConstructors = [ValCon (vcn "Node") [TVar () "a", TApp () (TCon () (tcn "List")) (TApp () (TCon () (tcn "Tree")) (TVar () "a"))]]
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
@@ -356,7 +360,7 @@ unit_create_typedef_bad_1 :: Assertion
 unit_create_typedef_bad_1 =
   let td =
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType ())]
           , astTypeDefConstructors = [ValCon (vcn "Node") [TVar () "a", TApp () (TCon () $ tcn "List") (TApp () (TCon () $ tcn "Tree") (TVar () "a"))]]
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
@@ -419,7 +423,7 @@ unit_create_typedef_bad_5 :: Assertion
 unit_create_typedef_bad_5 =
   let td =
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType), ("a", KType)]
+          { astTypeDefParameters = [("a", KType ()), ("a", KType ())]
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
@@ -431,7 +435,7 @@ unit_create_typedef_bad_6 :: Assertion
 unit_create_typedef_bad_6 =
   let td =
         ASTTypeDef
-          { astTypeDefParameters = [("T", KType)]
+          { astTypeDefParameters = [("T", KType ())]
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
@@ -443,7 +447,7 @@ unit_create_typedef_bad_7 :: Assertion
 unit_create_typedef_bad_7 =
   let td =
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType ())]
           , astTypeDefConstructors = [ValCon (vcn "a") []]
           , astTypeDefNameHints = []
           }
@@ -542,7 +546,7 @@ unit_copy_paste_duplicate = do
   let fromDef = gvn "main"
       toDef = gvn "blank"
       (p, fromType, fromExpr, _toType, _toExpr) = create' $ do
-        mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
+        mainType <- tforall "a" (KType ()) (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
         mainExpr <- lAM "b" $ lam "x" $ con cJust [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
@@ -589,16 +593,16 @@ unit_copy_paste_type_scoping :: Assertion
 unit_copy_paste_type_scoping = do
   let mainName = gvn "main"
       (pInitial, srcID, pExpected) = create' $ do
-        toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "e" KType (tvar "c" `tfun` tvar "d" `tfun` tvar "e" `tfun` tvar "f")
+        toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "e" (KType ()) (tvar "c" `tfun` tvar "d" `tfun` tvar "e" `tfun` tvar "f")
         let skel r =
-              tforall "a" KType $
-                tforall "d" KType $
-                  tforall "f" KType $
-                    tfun (tforall "b" KType $ tforall "c" KType $ tforall "d" KType $ pure toCopy) $
-                      tforall "c" KType $
-                        tforall "f" KType r
+              tforall "a" (KType ()) $
+                tforall "d" (KType ()) $
+                  tforall "f" (KType ()) $
+                    tfun (tforall "b" (KType ()) $ tforall "c" (KType ()) $ tforall "d" (KType ()) $ pure toCopy) $
+                      tforall "c" (KType ()) $
+                        tforall "f" (KType ()) r
         defInitial <- ASTDef <$> emptyHole <*> skel tEmptyHole
-        expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "e" KType (tEmptyHole `tfun` tEmptyHole `tfun` tvar "e" `tfun` tEmptyHole))
+        expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "e" (KType ()) (tEmptyHole `tfun` tEmptyHole `tfun` tvar "e" `tfun` tEmptyHole))
         pure
           ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
@@ -622,8 +626,8 @@ unit_raise = do
       mainName = gvn mainName'
       (pInitial, srcID, pExpected) = create' $ do
         toCopy <- tvar "a"
-        defInitial <- ASTDef <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
-        expected <- ASTDef <$> emptyHole <*> tforall "a" KType (tvar "a")
+        defInitial <- ASTDef <$> emptyHole <*> tforall "a" (KType ()) (tforall "b" (KType ()) $ pure toCopy)
+        expected <- ASTDef <$> emptyHole <*> tforall "a" (KType ()) (tvar "a")
         pure
           ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
           , getID toCopy
@@ -649,7 +653,7 @@ unit_copy_paste_expr_1 = do
   let mainName' = "main"
       mainName = gvn mainName'
       (pInitial, srcID, pExpected) = create' $ do
-        ty <- tforall "a" KType $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
+        ty <- tforall "a" (KType ()) $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" (KType ()) (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
         let toCopy' = con cMakePair [lvar "y" `ann` tvar "a", lvar "z" `ann` tvar "b"] -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
@@ -761,7 +765,8 @@ unit_import_vars :: Assertion
 unit_import_vars =
   let test = do
         builtinModule' <- builtinModule
-        importModules [builtinModule', primitiveModule]
+        primitiveModule' <- primitiveModule
+        importModules [builtinModule', primitiveModule']
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
             (_, vs) <- readerToState (handleQuestion (VariablesInScope i $ getID $ astDefExpr d))
@@ -779,7 +784,8 @@ unit_import_reference :: Assertion
 unit_import_reference =
   let test = do
         builtinModule' <- builtinModule
-        importModules [builtinModule', primitiveModule]
+        primitiveModule' <- primitiveModule
+        importModules [builtinModule', primitiveModule']
         prog <- gets appProg
         case (findGlobalByName prog $ primitiveGVar ToUpper, Map.assocs . moduleDefsQualified <$> progModules prog) of
           (Just _, [[(i, _)]]) -> do
@@ -972,7 +978,7 @@ unit_RenameTypeParam =
     $ expectSuccess
     $ \_ prog' -> do
       td <- findTypeDef tT prog'
-      astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
+      astTypeDefParameters td @?= [("a", KType ()), ("b'", KType ())]
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
             , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b'")) (TVar () "a"), TVar () "b'"]
@@ -1171,6 +1177,51 @@ unit_ConFieldAction =
                   , con0 $ vcn "True"
                   ]
           )
+
+unit_ParamKindAction_1 :: Assertion
+unit_ParamKindAction_1 =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ParamKindAction tT pB 30 [ConstructKFun]]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefParameters td
+        @?= [ ("a", KType ())
+            , ("b", KFun () (KType ()) (KType ()))
+            ]
+
+unit_ParamKindAction_2 :: Assertion
+unit_ParamKindAction_2 =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ ParamKindAction tT pB 30 [ConstructKFun]
+    , ParamKindAction tT pB 5 [ConstructKType]
+    ]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefParameters td
+        @?= [ ("a", KType ())
+            , ("b", KFun () (KType ()) (KType ()))
+            ]
+
+unit_ParamKindAction_3 :: Assertion
+unit_ParamKindAction_3 =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ ParamKindAction tT pA 29 [Delete]
+    ]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefParameters td
+        @?= [ ("a", KHole ())
+            , ("b", KType ())
+            ]
 
 -- Check that we see name hints from imported modules
 -- (This differs from the tests in Tests.Question by testing the actual action,
@@ -1458,11 +1509,12 @@ defaultFullProg :: MonadFresh ID m => m Prog
 defaultFullProg = do
   p <- defaultEmptyProg
   builtinModule' <- builtinModule
+  primitiveModule' <- primitiveModule
   let m = moduleName $ unsafeHead $ progModules p
       -- We need to move the primitives, which requires renaming
       -- unit_defaultFullModule_no_clash ensures that there will be no clashes
       renamed :: [Module]
-      renamed = transformBi (const m) [builtinModule', primitiveModule]
+      renamed = transformBi (const m) [builtinModule', primitiveModule']
       renamedTypes = foldOf (folded % #moduleTypes) renamed
       renamedDefs = foldOf (folded % #moduleDefs) renamed
   pure $
@@ -1470,7 +1522,7 @@ defaultFullProg = do
       & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
-findTypeDef :: TyConName -> Prog -> IO (ASTTypeDef ())
+findTypeDef :: TyConName -> Prog -> IO (ASTTypeDef () ())
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap' moduleTypesQualified $ progModules p
 
 findDef :: GVarName -> Prog -> IO ASTDef
@@ -1478,7 +1530,8 @@ findDef d p = maybe (assertFailure "couldn't find def") pure $ defAST =<< findGl
 
 -- We use the same type definition for all tests related to editing type definitions
 -- (This is added to `defaultFullProg`)
--- The qualified name for this is recorded in 'tT', and its constructors are 'cA' and 'cB'
+-- The qualified name for this is recorded in 'tT', its constructors are 'cA' and 'cB',
+-- and its parameters in `pA` and `pB`.
 defaultProgEditableTypeDefs :: MonadFresh ID f => f [(Name, ASTDef)] -> f Prog
 defaultProgEditableTypeDefs ds = do
   p <- defaultFullProg
@@ -1486,14 +1539,15 @@ defaultProgEditableTypeDefs ds = do
   td <- do
     fieldsA <- replicateM 3 $ tcon $ tcn "Bool"
     fieldsB <- sequence [(tcon tT `tapp` tvar "b") `tapp` tvar "a", tvar "b"]
+    ka <- ktype
+    kb <- ktype
     pure $
       TypeDefAST
         ASTTypeDef
-          { astTypeDefParameters = [("a", KType), ("b", KType)]
+          { astTypeDefParameters = [(pA, ka), (pB, kb)]
           , astTypeDefConstructors = [ValCon cA fieldsA, ValCon cB fieldsB]
           , astTypeDefNameHints = []
           }
-
   pure $
     p
       & (#progModules % _head % #moduleTypes) %~ (Map.singleton (baseName tT) td <>)
@@ -1508,6 +1562,12 @@ cA = vcn "A"
 cB :: ValConName
 cB = vcn "B"
 
+pA :: TyVarName
+pA = "a"
+
+pB :: TyVarName
+pB = "b"
+
 unit_good_defaultFullProg :: Assertion
 unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
 
@@ -1518,7 +1578,7 @@ unit_good_defaultProgEditableTypeDefs = checkProgWellFormed $ defaultProgEditabl
 unit_defaultFullProg_no_clash :: Assertion
 unit_defaultFullProg_no_clash =
   let p = create' defaultEmptyProg
-      ms = progModules p <> [create' builtinModule, primitiveModule]
+      ms = progModules p <> [create' builtinModule, create' primitiveModule]
       typeNames = ms ^.. folded % #moduleTypes % to Map.keys % folded
       termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
    in do

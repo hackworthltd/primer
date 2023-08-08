@@ -7,7 +7,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (ID, TyVarName)
-import Primer.Core.Type (Kind, Type' (TForall, TFun, TVar))
+import Primer.Core.Type (Type' (TForall, TFun, TVar))
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTySimul)
 import Primer.Typecheck.Cxt (Cxt)
@@ -18,7 +18,7 @@ import Primer.Zipper.Type (bindersBelowTy, focus)
 data Inst
   = InstApp TC.Type
   | InstAPP TC.Type
-  | InstUnconstrainedAPP TyVarName Kind
+  | InstUnconstrainedAPP TyVarName TC.Kind
   deriving stock (Show, Eq)
 
 -- | Given a target type @T@ and a source type @S@, find an instantiation @I@
@@ -43,7 +43,7 @@ refine cxt tgtTy srcTy = go [] srcTy
   where
     boundNames = bindersBelowTy (focus tgtTy) <> bindersBelowTy (focus srcTy)
     avoidNames = Map.keysSet (TC.localTyVars cxt) <> boundNames
-    go :: [Either TC.Type (TyVarName, Kind)] -> TC.Type -> m (Maybe ([Inst], TC.Type))
+    go :: [Either TC.Type (TyVarName, TC.Kind)] -> TC.Type -> m (Maybe ([Inst], TC.Type))
     go instantiation tmTy =
       let cxt' = extendCxtTys (rights instantiation) cxt
           uvs = Set.fromList $ map fst $ rights instantiation
@@ -67,5 +67,5 @@ refine cxt tgtTy srcTy = go [] srcTy
               _ -> pure Nothing
 
 -- NB: this assumes the list is ordered st the /last/ element is most global
-extendCxtTys :: [(TyVarName, Kind)] -> Cxt -> Cxt
+extendCxtTys :: [(TyVarName, TC.Kind)] -> Cxt -> Cxt
 extendCxtTys = TC.extendLocalCxtTys . reverse

@@ -1,18 +1,21 @@
 module Primer.Typecheck.Cxt (
   Type,
+  Kind,
   KindOrType (..),
   Cxt (..),
 ) where
 
 import Foreword
 
-import Primer.Core.Meta
-import Primer.Core.Type (Kind, Type')
+import Primer.Core.Meta (GVarName)
+import Primer.Core.Type (Kind', Type')
 import Primer.Name (Name)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Typecheck.SmartHoles (SmartHoles)
 
 type Type = Type' ()
+
+type Kind = Kind' ()
 
 data KindOrType = K Kind | T Type
   deriving stock (Show, Eq)

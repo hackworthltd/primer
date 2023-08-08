@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module Primer.Module (
   Module (..),
   qualifyTyConName,
@@ -23,7 +25,7 @@ import Data.Generics.Uniplate.Data (transformBi)
 import Data.List.Extra (enumerate)
 import Data.Map (delete, insert, mapKeys, member)
 import Data.Map qualified as M
-import Optics (traverseOf)
+import Optics (Field2 (_2), traverseOf, traversed, (%))
 import Primer.Builtins (
   boolDef,
   builtinModuleName,
@@ -43,13 +45,14 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName),
   ID,
+  KindMeta,
   ModuleName,
   TyConName,
   TypeMeta,
   qualifyName,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (generateTypeIDs)
+import Primer.Core.Utils (generateKindIDs, generateTypeIDs)
 import Primer.Def (
   Def (..),
   DefMap,
@@ -63,11 +66,11 @@ import Primer.JSON (
  )
 import Primer.Name (Name)
 import Primer.Primitives (allPrimTypeDefs, primDefName, primitiveModuleName)
-import Primer.TypeDef (TypeDef (..), TypeDefMap, forgetTypeDefMetadata, _typedefFields)
+import Primer.TypeDef (ASTTypeDef (..), PrimTypeDef (..), TypeDef (..), TypeDefMap, forgetTypeDefMetadata, _typedefFields)
 
 data Module = Module
   { moduleName :: ModuleName
-  , moduleTypes :: Map Name (TypeDef TypeMeta)
+  , moduleTypes :: Map Name (TypeDef TypeMeta KindMeta)
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
   deriving stock (Eq, Show, Read, Data, Generic)
@@ -80,7 +83,7 @@ qualifyTyConName m = qualifyName (moduleName m)
 moduleTypesQualified :: Module -> TypeDefMap
 moduleTypesQualified = map forgetTypeDefMetadata . moduleTypesQualifiedMeta
 
-moduleTypesQualifiedMeta :: Module -> Map TyConName (TypeDef TypeMeta)
+moduleTypesQualifiedMeta :: Module -> Map TyConName (TypeDef TypeMeta KindMeta)
 moduleTypesQualifiedMeta m = mapKeys (qualifyTyConName m) $ moduleTypes m
 
 qualifyDefName :: Module -> Name -> GVarName
@@ -127,22 +130,24 @@ nextModuleID m = foldl' (\id_ d -> max (nextID d) id_) minBound (moduleDefs m)
 
 -- | This module depends on the builtin module, due to some terms referencing builtin types.
 -- It contains all primitive types and terms.
-primitiveModule :: Module
-primitiveModule =
-  Module
-    { moduleName = primitiveModuleName
-    , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
-    , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
-    }
+primitiveModule :: MonadFresh ID m => m Module
+primitiveModule = do
+  allPrimTypeDefs' <- traverse (traverseOf (#primTypeDefParameters % traversed % _2) generateKindIDs) allPrimTypeDefs
+  pure
+    Module
+      { moduleName = primitiveModuleName
+      , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs'
+      , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
+      }
 
 builtinModule :: MonadFresh ID m => m Module
 builtinModule = do
   boolDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST boolDef
   natDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST natDef
-  listDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST listDef
-  maybeDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST maybeDef
-  pairDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST pairDef
-  eitherDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST eitherDef
+  listDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs listDef
+  maybeDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs maybeDef
+  pairDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs pairDef
+  eitherDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs eitherDef
   pure $
     Module
       { moduleName = builtinModuleName
