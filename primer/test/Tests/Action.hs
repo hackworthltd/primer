@@ -2,15 +2,15 @@
 module Tests.Action where
 
 import Foreword
+import Prelude (error)
 
-import Data.Data (Data)
-import Data.Generics.Uniplate.Data (universe)
 import Hedgehog hiding (
   Action,
   Property,
   Var,
   property,
  )
+import Optics (maximumOf)
 import Primer.Action (
   Action (..),
   ActionError (CaseBindsClash, NameCapture),
@@ -23,15 +23,17 @@ import Primer.Builtins.DSL (listOf)
 import Primer.Core (
   Expr,
   Expr' (..),
-  HasID,
   ID (..),
   Kind' (KType),
+  Meta (Meta),
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
+  Type' (TEmptyHole, TForall),
   getID,
  )
 import Primer.Core.DSL
+import Primer.Core.Utils (exprIDs)
 import Primer.Gen.Core.Raw (
   evalExprGen,
   genExpr,
@@ -57,11 +59,21 @@ import Primer.Zipper (
 import Tasty (Property, property)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 
--- Note: 'unsafeMaximum' is partial, but we believe that 'maxID' itself is
--- safe due to the fact that 'universe x' always contains at least
--- `x`.
-maxID :: (HasID a, Data a) => a -> ID
-maxID = unsafeMaximum . map getID . universe
+-- Note: the 'fromMaybe' will only ever see a 'Just' (i.e. could be replaced
+-- with 'fromJust'), since 'exprIDs' will always target at least one ID (namely,
+-- the ID at the root)
+maxID :: Expr -> ID
+maxID e = fromMaybe (getID e) $ maximumOf exprIDs e
+
+unit_maxID :: Assertion
+unit_maxID =
+  let m :: ID -> Meta (Maybe a)
+      m i = Meta i Nothing Nothing
+      h = EmptyHole . m
+      expr a b c d e f = App (m a) (h b) (APP (m c) (h d) $ TForall (m e) "a" (KType ()) (TEmptyHole $ m f))
+   in for_ (permutations [0 .. 5]) $ \case
+        [a, b, c, d, e, f] -> maxID (expr a b c d e f) @?= 5
+        _ -> error "impossible"
 
 tasty_ConstructVar_succeeds_on_hole_when_in_scope :: Property
 tasty_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
