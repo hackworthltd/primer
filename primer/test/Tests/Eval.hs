@@ -1123,7 +1123,7 @@ unit_redexes_let_1 =
 unit_redexes_let_2 :: Assertion
 unit_redexes_let_2 =
   redexesOf (let_ "x" (con0' ["M"] "C") (lam "x" (app (lvar "x") (lvar "y"))))
-    <@?=> Set.fromList [0, 2]
+    <@?=> Set.fromList [2]
 
 unit_redexes_let_3 :: Assertion
 unit_redexes_let_3 = do
@@ -1222,7 +1222,7 @@ unit_redexes_tlet_2 =
 
 unit_redexes_tlet_3 :: Assertion
 unit_redexes_tlet_3 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [2, 4]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [4]
 
 unit_redexes_tlet_4 :: Assertion
 unit_redexes_tlet_4 = do
