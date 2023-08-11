@@ -145,8 +145,8 @@ unit_3 =
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 7 Syn expr
-        s <~==> Right expected
+        s <- evalFullTestExactSteps maxID mempty mempty 7 Syn expr
+        s ~== expected
 
 -- Check we don't have shadowing issues in terms
 unit_4 :: Assertion
@@ -157,8 +157,8 @@ unit_4 =
         expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 7 Syn expr
-        s <~==> Right expected
+        s <- evalFullTestExactSteps maxID mempty mempty 7 Syn expr
+        s ~== expected
 
 -- This test is slightly unfortunate for two reasons
 -- First, maybe we should do upsilon redexes more aggressively, to avoid the
@@ -285,11 +285,8 @@ unit_11 =
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
-        evalFullTest maxID builtinTypes (M.fromList globals) 10 Syn e >>= \case
-          Left (TimedOut _) -> pure ()
-          x -> assertFailure $ show x
-        s <- evalFullTest maxID builtinTypes (M.fromList globals) 20 Syn e
-        s <~==> Right expected
+        s <- evalFullTestExactSteps maxID builtinTypes (M.fromList globals) 13 Syn e
+        s ~== expected
 
 -- This example shows that we may only substitute the top-most let otherwise we
 -- may go down a rabbit hole unrolling a letrec and not doing enough
@@ -309,8 +306,8 @@ unit_12 =
         expect <- con0 cTrue `ann` tcon tBool
         pure (expr, expect)
    in do
-        s <- evalFullTest maxID builtinTypes mempty 15 Syn e
-        s <~==> Right expected
+        s <- evalFullTestExactSteps maxID builtinTypes mempty 11 Syn e
+        s ~== expected
 
 unit_13 :: Assertion
 unit_13 =
@@ -1319,8 +1316,8 @@ unit_prim_partial_map =
             <*> pure (M.singleton mapName mapDef)
             <*> primDefs
    in do
-        s <- evalFullTest maxID builtinTypes (gs <> prims) 67 Syn e
-        s <~==> Right r
+        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 65 Syn e
+        s ~== r
 
 -- Test that handleEvalFullRequest will reduce imported terms
 unit_eval_full_modules :: Assertion
@@ -1464,6 +1461,17 @@ evalFullTest id_ tydefs globals n d e = do
   distinctIDs r
   pure r
 
+evalFullTestExactSteps :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO Expr
+evalFullTestExactSteps id_ tydefs globals n d e = do
+  s <- evalFullTest id_ tydefs globals (n - 1) d e
+  case s of
+    Right s' -> assertFailure $ "Unexpectedly reached normal form: " <> show s'
+    Left _ -> do
+      t <- evalFullTest id_ tydefs globals n d e
+      case t of
+        Left t' -> assertFailure $ "Unexpected timeout: " <> show t'
+        Right t' -> pure t'
+
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog tydefs globals n d e
@@ -1505,6 +1513,9 @@ evalResultExpr = _Left % timedOut `adjoin` _Right
 
 (<~==>) :: HasCallStack => Either EvalFullError Expr -> Either EvalFullError Expr -> Assertion
 x <~==> y = on (@?=) (over evalResultExpr zeroIDs) x y
+
+(~==) :: HasCallStack => Expr -> Expr -> Assertion
+x ~== y = on (@?=) zeroIDs x y
 
 distinctIDs :: Either EvalFullError Expr -> Assertion
 distinctIDs e =
