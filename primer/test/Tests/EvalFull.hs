@@ -722,9 +722,18 @@ unit_type_preservation_BETA_regression =
             lam "x" $
               let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Push the lets
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (lettype a = b Bool in a)) : (b Bool))
+        -- Push the lettype
+        -- Λb. λx. (let c = (x : Nat) in ((lettype a = b Bool in ?) : (lettype a = b Bool in a)) : (b Bool))
         expectA7 <-
+          lAM "b" $
+            lam "x" $ let_ "c" (lvar "x" `ann` tcon tNat)
+              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
+                  `ann` tlet "a" (tvar "b" `tapp` tcon tBool) (tvar "a")
+              )
+                `ann` (tvar "b" `tapp` tcon tBool)
+        -- Push the let
+        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (lettype a = b Bool in a)) : (b Bool))
+        expectA8 <-
           lAM "b" $
             lam "x" $
               ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
@@ -733,7 +742,7 @@ unit_type_preservation_BETA_regression =
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Inline a let
         -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (b Bool)) : (b Bool))
-        expectA8 <-
+        expectA9 <-
           lAM "b" $
             lam "x" $
               ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
@@ -741,17 +750,17 @@ unit_type_preservation_BETA_regression =
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Elide a pointless let
-        -- Λb. λx. (((lettype a = b Bool in ?) : (b Bool)) : (b Bool))
-        expectA9 <-
+        -- Λb. λx. (((let c = (x : Nat) in ?) : (b Bool)) : (b Bool))
+        expectA10 <-
           lAM "b" $
             lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
+              (  let_ "c" (lvar "x" `ann` tcon tNat) emptyHole
                   `ann` (tvar "b" `tapp` tcon tBool)
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Elide a pointless let
         -- Λb. λx. ((? : (b Bool)) : (b Bool))
-        expectA10 <-
+        expectA11 <-
           lAM "b" $
             lam "x" $
               ( emptyHole
@@ -794,6 +803,7 @@ unit_type_preservation_BETA_regression =
                 , expectA8
                 , expectA9
                 , expectA10
+                , expectA11
                 ]
             )
           , (eB, [(1, expectB1), (7, expectB7)])
@@ -956,14 +966,11 @@ unit_regression_self_capture_let_let = do
         lAM "y" $
           let_
             "x"
-            (emptyHole `ann` tvar "y")
+            (emptyHole `ann` tvar "y") $
             ( let_ "y" (emptyHole `ann` tvar "y") $
                 lvar "y"
             )
-            `app` let_
-              "x"
-              (emptyHole `ann` tvar "y")
-              ( let_ "y" (emptyHole `ann` tvar "y") $
+            `app`  ( let_ "y" (emptyHole `ann` tvar "y") $
                   lvar "x"
               )
       g =
@@ -975,7 +982,7 @@ unit_regression_self_capture_let_let = do
       x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
   ev 0 ~ e
   ev 1 ~ f
-  ev 4 ~ g
+  ev 6 ~ g
 
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
