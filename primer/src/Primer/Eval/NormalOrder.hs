@@ -55,6 +55,7 @@ import Primer.Eval.Redex (
   EvalLog,
   Redex,
   RedexType,
+  ViewRedexOptions,
   viewRedex,
   viewRedexType,
  )
@@ -176,16 +177,17 @@ hoistAccum = Foreword.hoistAccum generalize
 findRedex ::
   forall l m.
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  ViewRedexOptions ->
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
   MaybeT m RedexWithContext
-findRedex tydefs globals =
+findRedex opts tydefs globals =
   foldMapExpr
     ( FMExpr
-        { expr = \ez d -> runReaderT (RExpr ez <$> viewRedex tydefs globals d (target ez))
-        , ty = \tz -> hoistMaybe . runReader (RType tz <<$>> viewRedexType (target tz))
+        { expr = \ez d -> runReaderT (RExpr ez <$> viewRedex opts tydefs globals d (target ez))
+        , ty = \tz -> hoistMaybe . runReader (RType tz <<$>> viewRedexType opts (target tz))
         , subst = Nothing
         , substTy = Nothing
         }

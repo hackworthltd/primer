@@ -44,6 +44,7 @@ import Primer.Core.Utils (
   forgetMetadata,
  )
 import Primer.Def (DefMap)
+import Primer.Eval
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
@@ -530,6 +531,8 @@ tasty_resume = withDiscards 2000 $
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
+  let optsV = ViewRedexOptions{}
+  let optsR = RunRedexOptions{}
   let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
@@ -540,19 +543,19 @@ resumeTest mods dir t = do
   -- exactly the same as "reducing n steps and then further reducing m
   -- steps" (including generated names). (A happy consequence of this is that
   -- it is precisely the same including ids in metadata.)
-  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalLog tds globs n dir t
+  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalLog optsV optsR tds globs n dir t
   testNoSevereLogs logs
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
   m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
-  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs m dir t
+  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs m dir t
   stepsMid === m
   sMid <- case sMid' of
     Left (TimedOut e) -> pure e
     -- This should never happen: we know we are not taking enough steps to
     -- hit a normal form (as m < stepsFinal)
     Right e -> assert False >> pure e
-  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs (stepsFinal - m) dir sMid
+  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs (stepsFinal - m) dir sMid
   stepsMid + stepsTotal === stepsFinal'
   sFinal === sTotal
 
@@ -996,6 +999,8 @@ tasty_type_preservation :: Property
 tasty_type_preservation = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
+      let optsV = ViewRedexOptions{}
+      let optsR = RunRedexOptions{}
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t, ty) <- genDirTm
@@ -1012,7 +1017,7 @@ tasty_type_preservation = withTests 1000 $
                 s' <- checkTest ty s
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs maxSteps dir t
+      (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs maxSteps dir t
       annotateShow steps
       annotateShow s
       -- s is often reduced to normal form
@@ -1022,7 +1027,7 @@ tasty_type_preservation = withTests 1000 $
         then label "generated a normal form"
         else do
           midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs midSteps dir t
+          (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs midSteps dir t
           test "mid " s'
 
 -- Unsaturated primitives are stuck terms
@@ -1527,13 +1532,15 @@ tasty_unique_ids :: Property
 tasty_unique_ids = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
+      let optsV = ViewRedexOptions{}
+      let optsR = RunRedexOptions{}
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t1, _) <- genDirTm
       let go n t
             | n == (0 :: Int) = pure ()
             | otherwise = do
-                t' <- failWhenSevereLogs $ evalFull @EvalLog tds globs 1 dir t
+                t' <- failWhenSevereLogs $ evalFull @EvalLog optsV optsR tds globs 1 dir t
                 case t' of
                   Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
                   Right e -> uniqueIDs e
@@ -1601,7 +1608,9 @@ unit_case_prim =
 
 evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog tydefs globals n d e
+  let optsV = ViewRedexOptions{}
+  let optsR = RunRedexOptions{}
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
   distinctIDs r
   pure r
@@ -1619,7 +1628,9 @@ evalFullTestExactSteps id_ tydefs globals n d e = do
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog tydefs globals n d e
+  let optsV = ViewRedexOptions{}
+  let optsR = RunRedexOptions{}
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
   testNoSevereLogs logs
   let ids = r ^.. evalResultExpr % exprIDs
   ids === ordNub ids
