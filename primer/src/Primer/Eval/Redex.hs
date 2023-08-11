@@ -885,7 +885,7 @@ viewRedexType opts = \case
     , isLeaf body
     -> purer $
         ElideLetInType
-          { letBindingsDrop = first getID <$> letBinding1 :| letBindings
+          { letBindingsDrop = first getID <$> letBindingsDrop
           , letBindingsKeep
           , body
           , orig
@@ -1286,7 +1286,7 @@ runRedexTy _opts (ElideLetInType{body, orig, letBindingsKeep, letBindingsDrop}) 
             , letIDs = fst <$> letBindingsDrop
           , bodyID = getID body
           }
-  pure (body, TLetRemoval details)
+  pure (ty, TLetRemoval details)
 -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
 runRedexTy _opts (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
   newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
