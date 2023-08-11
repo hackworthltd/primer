@@ -1265,7 +1265,8 @@ unit_redexes_case_3 =
     <@?=> Set.fromList [0, 2]
 
 -- The variable x in the rhs is bound to the branch pattern, so is no longer refering to the @let@.
--- However this means the let is redundant, and can be reduced.
+-- This means the let is redundant, but we don't elide it as we prefer to push,
+--but that requires renaming the inner "x" binder.
 unit_redexes_case_4 :: Assertion
 unit_redexes_case_4 =
   redexesOf
@@ -1277,7 +1278,7 @@ unit_redexes_case_4 =
             [branch' (["M"], "C") [("x", Nothing)] (lvar "x")]
         )
     )
-    <@?=> Set.fromList [0, 2]
+    <@?=> Set.fromList [2]
 
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
@@ -1342,10 +1343,10 @@ unit_redexes_push_let :: Assertion
 unit_redexes_push_let = do
   -- TODO: we shouldn't offer to rename the lam/forall-inside-the-let-bindings
   -- for similar reasons to unit_redexes_let_upsilon
-  redexesOf (letrec "x" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 1, 4]
-  redexesOf (letType "x" tEmptyHole $ let_ "y" (lam "x" emptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 3, 5]
-  redexesOf (letType "x" tEmptyHole $ letrec "y" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 3, 6]
-  redexesOf (letType "x" tEmptyHole $ letType "y" (tforall "x" (KType ()) tEmptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 3, 5]
+  redexesOf (letrec "x" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [1, 4]
+  redexesOf (letType "x" tEmptyHole $ let_ "y" (lam "x" emptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [2, 3, 5]
+  redexesOf (letType "x" tEmptyHole $ letrec "y" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [2, 3, 6]
+  redexesOf (letType "x" tEmptyHole $ letType "y" (tforall "x" (KType ()) tEmptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [2, 3, 5]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
