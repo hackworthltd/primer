@@ -526,7 +526,7 @@ tasty_resume = withDiscards 2000 $
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
-  let optsV = ViewRedexOptions { pushMulti = True }
+  let optsV = ViewRedexOptions { pushMulti = True , aggressiveElision = True }
   let optsR = RunRedexOptions { }
   let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
@@ -975,7 +975,7 @@ tasty_type_preservation :: Property
 tasty_type_preservation = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let optsV = ViewRedexOptions { pushMulti = True }
+      let optsV = ViewRedexOptions { pushMulti = True , aggressiveElision = True }
       let optsR = RunRedexOptions { }
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
@@ -1515,7 +1515,7 @@ tasty_unique_ids :: Property
 tasty_unique_ids = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let optsV = ViewRedexOptions { pushMulti = True }
+      let optsV = ViewRedexOptions { pushMulti = True , aggressiveElision = True }
       let optsR = RunRedexOptions { }
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
@@ -1591,7 +1591,7 @@ unit_case_prim =
 
 evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
-  let optsV = ViewRedexOptions { pushMulti = True }
+  let optsV = ViewRedexOptions { pushMulti = True , aggressiveElision = True }
   let optsR = RunRedexOptions { }
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
@@ -1611,7 +1611,7 @@ evalFullTestExactSteps id_ tydefs globals n d e = do
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
-  let optsV = ViewRedexOptions { pushMulti = True }
+  let optsV = ViewRedexOptions { pushMulti = True , aggressiveElision = True }
   let optsR = RunRedexOptions {  }
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
   testNoSevereLogs logs
