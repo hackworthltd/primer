@@ -252,8 +252,8 @@ unit_tryReduce_let = do
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.letID @?= 0
+      detail.bindingNames @?= ["x"]
+      detail.letIDs @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
@@ -286,8 +286,8 @@ unit_tryReduce_lettype = do
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.letID @?= 0
+      detail.bindingNames @?= ["x"]
+      detail.letIDs @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
@@ -303,8 +303,8 @@ unit_tryReduce_lettype_self_capture = do
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.letID @?= 0
-      detail.letBindingName @?= "x"
+      detail.letIDs @?= [0]
+      detail.letBindingNames @?= ["x"]
       detail.intoID @?= 2
     _ -> assertFailure $ show result
 
@@ -320,8 +320,8 @@ unit_tryReduce_tlet_elide = do
 
       detail.before @?= ty
       detail.after ~~= expectedResult
-      detail.bindingName @?= "x"
-      detail.letID @?= 0
+      detail.bindingNames @?= ["x"]
+      detail.letIDs @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
@@ -354,8 +354,8 @@ unit_tryReduce_letrec = do
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.letID @?= 0
+      detail.bindingNames @?= ["x"]
+      detail.letIDs @?= [0]
       detail.bodyID @?= 3
     _ -> assertFailure $ show result
 
