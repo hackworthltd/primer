@@ -7,6 +7,8 @@
 module Primer.Eval.Redex (
   Redex (..),
   viewRedex,
+  ViewRedexOptions (..),
+  RunRedexOptions (..),
   runRedex,
   RedexType (..),
   viewRedexType,
@@ -179,6 +181,14 @@ import Primer.Zipper.Type (
   getBoundHereDnTy,
   letTypeBindingName,
  )
+
+data ViewRedexOptions = ViewRedexOptions
+  {
+  }
+
+data RunRedexOptions = RunRedexOptions
+  {
+  }
 
 data EvalLog
   = -- | Found something that may have been a case redex,
@@ -640,12 +650,13 @@ lookup n (Cxt cxt) = M.lookup n cxt
 -- IDEAS: either have an annotation "why stuck", or just say "do let-push in each (ty&tm) child first, before anything else)
 viewRedex ::
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  ViewRedexOptions ->
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
   ReaderT Cxt (MaybeT m) Redex
-viewRedex tydefs globals dir = \case
+viewRedex opts tydefs globals dir = \case
   orig@(Var _ (GlobalVarRef gvar))
     | Just (DefAST def) <- gvar `M.lookup` globals ->
         pure $
@@ -759,8 +770,8 @@ viewLetTy =  \case
       TLet m a t b -> Just ((m,LetTypeBind a t),b)
       _ -> Nothing
 
-viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
-viewRedexType = \case
+viewRedexType :: ViewRedexOptions -> Type -> Reader Cxt (Maybe RedexType)
+viewRedexType opts = \case
   TLet mLet v s (TVar mVar var)
     | v == var ->
         purer $
@@ -840,8 +851,8 @@ cxtToAvoidTy = do
   pure $ foldMap' (setOf (_1 % _Just % _LetTyBind % _LetTypeBind % (_1 `summing` _2 % getting _freeVarsTy % _2))) cxt
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
-runRedex :: forall l m. MonadEval l m => Redex -> m (Expr, EvalDetail)
-runRedex = \case
+runRedex :: forall l m. MonadEval l m => RunRedexOptions -> Redex -> m (Expr, EvalDetail)
+runRedex opts = \case
   InlineGlobal{def, orig} -> do
     after <- ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
     let details = GlobalVarInlineDetail{def, var = orig, after}
@@ -1143,8 +1154,8 @@ partitionLetsTy ls t = fst $ foldr
      (([],[]),freeVarsTy t)
      ls
 
-runRedexTy :: MonadEval l m => RedexType -> m (Type, EvalDetail)
-runRedexTy (InlineLetInType{ty, letID, varID, var}) = do
+runRedexTy :: MonadEval l m => RunRedexOptions -> RedexType -> m (Type, EvalDetail)
+runRedexTy _opts (InlineLetInType{ty, letID, varID, var}) = do
   let details =
         LocalVarInlineDetail
           { letID
@@ -1155,7 +1166,7 @@ runRedexTy (InlineLetInType{ty, letID, varID, var}) = do
           , isTypeVar = True
           }
   pure (ty, LocalTypeVarInline details)
-runRedexTy (PushLetType{binding, intoTy, origTy}) = do
+runRedexTy opts (PushLetType{binding, intoTy, origTy}) = do
   ty' <- descendM (addTLet $ LetTyBind . snd $ binding) intoTy
   let details =
         PushLetDetail
@@ -1167,7 +1178,7 @@ runRedexTy (PushLetType{binding, intoTy, origTy}) = do
           }
   pure (ty', PushLetDownTy details)
 -- let a = s in t  ~>  t  if a does not appear in t
-runRedexTy (ElideLetInType{body, orig, letBindingDrop}) = do
+runRedexTy _opts (ElideLetInType{body, orig, letBindingDrop}) = do
   let details =
         LetRemovalDetail
           { before = orig
@@ -1178,7 +1189,7 @@ runRedexTy (ElideLetInType{body, orig, letBindingDrop}) = do
           }
   pure (body, TLetRemoval details)
 -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
-runRedexTy (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
+runRedexTy _opts (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
   newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
   insertedLet <- tlet origBinder (tvar newBinder) (pure body)
   let result = TForall meta newBinder kind insertedLet

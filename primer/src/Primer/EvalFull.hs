@@ -28,7 +28,7 @@ import Primer.Eval.Redex (
   EvalLog (..),
   MonadEval,
   runRedex,
-  runRedexTy,
+  runRedexTy, ViewRedexOptions, RunRedexOptions,
  )
 import Primer.TypeDef (
   TypeDefMap,
@@ -49,8 +49,8 @@ newtype EvalFullError
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: MonadEval l m => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
-evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
+evalFull :: MonadEval l m => ViewRedexOptions -> RunRedexOptions -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull optsV optsR tydefs env n d expr = snd <$> evalFullStepCount optsV optsR tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
 -- (This is mostly useful for testing purposes.)
@@ -62,26 +62,28 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 -- more to notice termination.
 evalFullStepCount ::
   MonadEval l m =>
+  ViewRedexOptions ->
+  RunRedexOptions ->
   TypeDefMap ->
   DefMap ->
   TerminationBound ->
   Dir ->
   Expr ->
   m (Natural, Either EvalFullError Expr)
-evalFullStepCount tydefs env n d = go 0
+evalFullStepCount optsV optsR tydefs env n d = go 0
   where
     go s expr
       | s >= n = pure (s, Left $ TimedOut expr)
       | otherwise =
-          runMaybeT (step tydefs env d expr) >>= \case
+          runMaybeT (step optsV optsR tydefs env d expr) >>= \case
             Nothing -> pure (s, Right expr) -- this is a normal form
             Just e -> go (s + 1) e
 
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: MonadEval l m => TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Expr
-step tydefs g d e =
-  findRedex tydefs g d e >>= \case
-    RExpr ez r -> lift $ unfocusExpr . flip replace ez . fst <$> runRedex r
-    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et . fst <$> runRedexTy r
+step :: MonadEval l m => ViewRedexOptions -> RunRedexOptions -> TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Expr
+step optsV optsR tydefs g d e =
+  findRedex optsV tydefs g d e >>= \case
+    RExpr ez r -> lift $ unfocusExpr . flip replace ez . fst <$> runRedex optsR r
+    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et . fst <$> runRedexTy optsR r
