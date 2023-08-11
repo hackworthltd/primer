@@ -303,8 +303,8 @@ unit_tryReduce_lettype_self_capture = do
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.letIDs @?= [0]
-      detail.letBindingNames @?= ["x"]
+      detail.letID @?= 0
+      detail.letBindingName @?= "x"
       detail.intoID @?= 2
     _ -> assertFailure $ show result
 

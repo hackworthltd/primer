@@ -2,6 +2,7 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Primer.Eval.Redex (
   Redex (..),
@@ -24,6 +25,7 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT)
+import Data.Bitraversable (bitraverse)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (children, descendM)
 import Data.List (zip3)
@@ -48,9 +50,9 @@ import Optics (
   traverseOf,
   (%),
   (<%),
+  _Just,
   _1,
   _2,
-  _Just,
  )
 import Primer.Core (
   Bind,
@@ -178,8 +180,6 @@ import Primer.Zipper.Type (
   letTypeBindingName,
  )
 
-pushMulti = False
-
 data EvalLog
   = -- | Found something that may have been a case redex,
     -- but the scrutinee's head is an out-of-scope constructor.
@@ -224,7 +224,7 @@ data Redex
       -- ^ What is its definition
       }
   | -- let x = e in x  ~>  e
-    InlineLet
+    InlineLet -- TODO/REVIEW: don't know if I want to change this def for push-down-lets, as only inline an immediate usage
       { var :: LVarName
       -- ^ What variable are we inlining
       , expr :: Expr
@@ -235,7 +235,7 @@ data Redex
       -- ^ Where was the occurrence (used for details)
       }
   | -- letrec x = t : T in x  ~>  letrec x = t : T in t : T
-    InlineLetrec
+    InlineLetrec -- TODO/REVIEW: don't know if I want to change this def for push-down-lets, as only inline an immediate usage
       { var :: LVarName
       -- ^ What variable are we inlining
       , expr :: Expr
@@ -250,11 +250,10 @@ data Redex
   | -- let x = e in f s  ~>  (let x = e in f) (let x = e in s)  etc
     -- [for any non-leaf @f s@ which neither binds @x@ (else we should elide)
     --  nor any free variable of @e@ (to avoid capture)]
-    -- [We actually do this rule for a whole sequence of let bindings at once]
     -- [If we push into an annotation, we drop term variables:  let x = e in (t : T)  ~> (let x = e in t) : T]
     PushLet
-      { bindings :: NonEmpty (ID, LetBinding)
-      -- ^ The bindings we push
+      { binding :: (ID, LetBinding)
+      -- ^ The binding we push
       , expr :: Expr
       -- ^ The expression we are pushing into, i.e. the original body of the above bindings
       , orig :: Expr
@@ -262,10 +261,10 @@ data Redex
       }
   | -- let(rec/type) x = e in t  ~>  t  if x does not appear in t
     ElideLet
-      { letBinding :: LetBinding
-      -- ^ Original binding
+      { letBindingDrop :: (ID, LetBinding)
+      -- ^ The binding to drop
       , body :: Expr
-      -- ^ Body, in which the bound var does not occur
+      -- ^ Body, in which the elided variable does not occur
       , orig :: Expr
       -- ^ the original let (used for details)
       }
@@ -414,27 +413,25 @@ data RedexType
       -- ^ What is its definition (used for reduction)
       , letID :: ID
       -- ^ Where was the binding (used for details)
+      -- TODO/REVIEW: it seems a bit silly recording both these IDs, since they'll be right next to each other...
       , varID :: ID
       -- ^ Where was the occurrence (used for details)
       }
   | -- let a = s in t1 t2  ~>  (let a = s in t1) (let a = s in t2)  etc
-    -- (see notes on the analogous rule for Redex)
     PushLetType
-      { bindings :: NonEmpty LetTypeBinding
-      -- ^ what bindings we are pushing (used for reduction)
+      { binding :: (ID, LetTypeBinding)
+      -- ^ what binding we are pushing (ID used for details, binding used for reduction)
       , intoTy :: Type
-      -- ^ the type they are being pushed into (used for reduction)
+      -- ^ the type it is being pushed into (used for reduction)
       , origTy :: Type
       -- ^ what was the original ("let-outside") (used for details)
-      , bindingIDs :: NonEmpty ID
-      -- ^ the IDs of the bindings (used for details)
       }
   | -- let a = s in t  ~>  t  if a does not appear in t
     ElideLetInType
-      { letBinding :: LetTypeBinding
-      -- ^ original binding (name is used for finding normal-order redex; used for details)
+      { letBindingDrop :: (ID, LetTypeBinding)
+      -- ^ Binding to drop
       , body :: Type
-      -- ^ Body, in which the bound var does not occur (used for reduction)
+      -- ^ Body, in which the elided variable does not occur
       , orig :: Type
       -- ^ the original let (used for details)
       }
@@ -486,10 +483,10 @@ _freeVarsLetBinding =
                         & ifiltered ((/=) . unLocalName)
                      )
               )
-    `summing` (_LetTyBind % _freeVarsLetTypeBinding)
+    `summing` (_LetTyBind % _freeVarsLetTypeBinding % to unLocalName)
 
-_freeVarsLetTypeBinding :: Fold LetTypeBinding Name
-_freeVarsLetTypeBinding = _LetTypeBind % _2 % _freeVarsTy'
+_freeVarsLetTypeBinding :: Fold LetTypeBinding TyVarName
+_freeVarsLetTypeBinding = _LetTypeBind % _2 % getting _freeVarsTy % _2
 
 data Dir = Syn | Chk
   deriving stock (Eq, Show, Read, Generic)
@@ -625,6 +622,22 @@ lookup n (Cxt cxt) = M.lookup n cxt
 -- - stuck on its left-most child
 -- - stuck on the type annotation on its left-most child
 -- - stuck on expression under the type annotation in its left-most child
+--
+--
+-- TODO/REVIEW: we use this to choose order, by going into type annotations first.
+-- However, consider
+--    (Λa.Λb. t : ∀a.∀b. T) @x @y
+-- which reduces to
+--    (let a = x in Λb. t : let a=x in ∀b. T) @y
+-- one step in type and one in term would give
+--    (Λb. let a = x in t : ∀b. let a=x in T) @y
+-- which would then reduce the top application:
+--    (let b = y in let a = x in t : let b = y in let a=x in T) @y
+-- rather than forcing us to push the substitution through the annotation first.
+-- This way would be more efficient (with grouped lets): we only have to push one large
+-- substitution through T (and t) once, rather than two small ones.
+--
+-- IDEAS: either have an annotation "why stuck", or just say "do let-push in each (ty&tm) child first, before anything else)
 viewRedex ::
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   TypeDefMap ->
@@ -637,61 +650,46 @@ viewRedex tydefs globals dir = \case
     | Just (DefAST def) <- gvar `M.lookup` globals ->
         pure $
           InlineGlobal{gvar, def, orig}
-  orig@(viewLets -> Just (bindings, expr))
-    | pushMulti || null (NonEmpty.tail bindings)
-    , S.disjoint
-        (getBoundHereDn expr)
-        (foldMap' (S.singleton . letBindingName . snd) bindings <> setOf (folded % _2 % _freeVarsLetBinding) bindings) ->
-        pure $ PushLet{bindings, expr, orig}
-  orig@(Let _ var rhs body)
-    | Var _ (LocalVarRef var') <- body
-    , var == var' ->
-        pure $
+  Let mLet var rhs (Var mVar (LocalVarRef var'))
+    | var == var'
+    -> pure $
           InlineLet
             { var
             , expr = rhs
-            , letID = getID orig
-            , varID = getID body
+            , letID = getID mLet
+            , varID = getID mVar
             }
+  Letrec mLet var rhs ty (Var mVar (LocalVarRef var'))
+    | var == var'
+    -> pure $
+          InlineLetrec
+            { var
+            , expr = rhs
+            , ty
+            , letID = getID mLet
+            , varID = getID mVar
+            }
+  orig@(viewLet -> Just (letBinding,body))
+    | not $ isLeaf body
+    , not $ isLet body
+    , S.disjoint (getBoundHereDn body) (setOf (_2 % (_freeVarsLetBinding `summing` to letBindingName)) letBinding)
+    -> pure $
+        PushLet
+          { binding = first getID letBinding
+          , expr = body
+          , orig
+          }
     -- NB: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
     -- This could be optimised in the future. See
     -- https://github.com/hackworthltd/primer/issues/733
-    | unLocalName var `S.notMember` freeVars body ->
-        pure $
-          ElideLet
-            { letBinding = LetBind var rhs
-            , body
-            , orig
-            }
-    | otherwise -> mzero
-  orig@(LetType _ var trhs body)
-    | unLocalName var `S.notMember` freeVars body ->
-        pure $
-          ElideLet
-            { letBinding = LetTyBind $ LetTypeBind var trhs
-            , body
-            , orig
-            }
-    | otherwise -> mzero
-  orig@(Letrec _ v e1 t body)
-    | Var _ (LocalVarRef w) <- body
-    , v == w ->
-        pure $
-          InlineLetrec
-            { var = v
-            , expr = e1
-            , ty = t
-            , letID = getID orig
-            , varID = getID body
-            }
-    | unLocalName v `S.notMember` freeVars body ->
-        pure $
-          ElideLet
-            { letBinding = LetrecBind v e1 t
-            , body
-            , orig
-            }
-    | otherwise -> mzero
+    | letBindingName (snd letBinding) `S.notMember` freeVars body
+    , isLeaf body
+    -> pure $
+        ElideLet
+          { letBindingDrop = first getID letBinding
+          , body
+          , orig
+          }
   l@(Lam meta var body) -> do
     avoid <- cxtToAvoid
     if unLocalName var `S.member` avoid
@@ -743,66 +741,53 @@ viewRedex tydefs globals dir = \case
       else pure $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig = e}
   orig@(Ann _ expr ty) | Chk <- dir, concreteTy ty -> pure $ Upsilon{expr, ann = ty, orig}
   _ -> mzero
+ where
+   isLeaf = null . children
+   isLet = isJust . viewLet
 
--- | Decompose multiple @let@s (of varying flavors) around a
--- non-leaf expression.
-viewLets :: Expr -> Maybe (NonEmpty (ID, LetBinding), Expr)
-viewLets ex = case viewLets' ex of
-  ([], _) -> Nothing
-  (l : ls, b)
-    | isLeaf b -> Nothing
-    | otherwise -> Just (l :| ls, b)
-  where
-    viewLets' = \case
-      Let m v e b -> first ((getID m, LetBind v e) :) $ viewLets' b
-      Letrec m v t ty b -> first ((getID m, LetrecBind v t ty) :) $ viewLets' b
-      LetType m a ty b -> first ((getID m, LetTyBind (LetTypeBind a ty)) :) $ viewLets' b
-      e -> ([], e)
-    isLeaf = null . children
+-- | Decompose one @let@ (of any flavor)
+viewLet :: Expr -> Maybe ((ExprMeta, LetBinding), Expr)
+viewLet = \case
+   Let m v e b -> Just ((m,LetBind v e),b)
+   Letrec m v t ty b -> Just ((m,LetrecBind v t ty),b)
+   LetType m a ty b -> Just ((m, LetTyBind (LetTypeBind a ty)),b)
+   _ -> Nothing
 
-viewLetsTy :: Type -> Maybe (NonEmpty (LetTypeBinding, ID), Type)
-viewLetsTy ty = case viewLets' ty of
-  ([], _) -> Nothing
-  (l : ls, b)
-    | isLeaf b -> Nothing
-    | otherwise -> Just (l :| ls, b)
-  where
-    viewLets' = \case
-      TLet m a t b -> first ((LetTypeBind a t, getID m) :) $ viewLets' b
-      e -> ([], e)
-    isLeaf = null . children
+-- | Decompose one @let@ in a type
+viewLetTy :: Type -> Maybe ((TypeMeta, LetTypeBinding), Type)
+viewLetTy =  \case
+      TLet m a t b -> Just ((m,LetTypeBind a t),b)
+      _ -> Nothing
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
 viewRedexType = \case
-  origTy
-    | Just (bindingsWithID, intoTy) <- viewLetsTy origTy
-    , pushMulti || null (NonEmpty.tail bindingsWithID)
-    , (bindings, bindingIDs) <- NonEmpty.unzip bindingsWithID
-    , S.disjoint
-        (S.map unLocalName $ getBoundHereDnTy intoTy)
-        (foldMap' (S.singleton . letTypeBindingName) bindings <> setOf (folded % _freeVarsLetTypeBinding) bindings) ->
-        purer $ PushLetType{bindings, intoTy, origTy, bindingIDs}
-  orig@(TLet _ v s body)
-    | TVar _ var <- body
-    , v == var ->
+  TLet mLet v s (TVar mVar var)
+    | v == var ->
         purer $
           InlineLetInType
             { var
             , ty = s
-            , letID = getID orig
-            , varID = getID body
+            , letID = getID mLet
+            , varID = getID mVar
             }
-    -- NB: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
-    -- This could be optimised in the future. See
-    -- https://github.com/hackworthltd/primer/issues/733
-    | notElemOf (getting _freeVarsTy % _2) v body ->
-        purer $
-          ElideLetInType
-            { letBinding = LetTypeBind v s
-            , body
-            , orig
-            }
-    | otherwise -> pure Nothing
+  orig@(viewLetTy -> Just (letBinding,body))
+    | not $ isLeaf body
+    , not $ isLet body
+    , S.disjoint (getBoundHereDnTy body) (setOf (_2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) letBinding)
+    -> purer $
+        PushLetType
+          { binding = first getID letBinding
+          , intoTy = body
+          , origTy = orig
+          }
+    | letTypeBindingName' (snd letBinding) `S.notMember` freeVarsTy body
+    , isLeaf body
+    -> purer $
+        ElideLetInType
+          { letBindingDrop = first getID letBinding
+          , body
+          , orig
+          }
   orig@(TForall meta origBinder kind body) -> do
     avoid <- cxtToAvoidTy
     pure $
@@ -820,6 +805,10 @@ viewRedexType = \case
               }
         else Nothing
   _ -> pure Nothing
+ where
+   isLeaf = null . children
+   isLet = isJust . viewLetTy
+   letTypeBindingName' (LetTypeBind n _) = n
 
 -- Get the let-bound definition of this variable, if some such exists
 -- and is substitutible in the current context. (We also return the
@@ -880,26 +869,26 @@ runRedex = \case
             , isTypeVar = False
             }
     pure (expr', LocalVarInline details)
-  PushLet{bindings, expr, orig} -> do
-    let binds = snd <$> bindings
-    expr' <- descendM (addLets binds) =<< traverseOf typesInExpr (addLetTypes binds) expr
+  PushLet{binding, expr, orig} -> do
+    let bind = snd binding
+    expr' <- descendM (addLet bind) =<< traverseOf typesInExpr (addTLet bind) expr
     let details =
           PushLetDetail
             { before = orig
             , after = expr'
-            , letIDs = toList $ fst <$> bindings
-            , letBindingNames = toList $ letBindingName <$> binds
+            , letID = fst binding
+            , letBindingName = letBindingName bind
             , intoID = getID expr
             }
     pure (expr', PushLetDown details)
   -- let(rec/type) x = e in t  ~>  t  if e does not appear in t
-  ElideLet{body, letBinding, orig} -> do
+  ElideLet{body, letBindingDrop, orig} -> do
     let details =
           LetRemovalDetail
             { before = orig
             , after = body
-            , bindingName = letBindingName letBinding
-            , letID = getID orig
+            , bindingName = letBindingName . snd $ letBindingDrop
+            , letID = fst letBindingDrop
             , bodyID = getID body
             }
     pure (body, LetRemoval details)
@@ -1100,19 +1089,59 @@ runRedex = \case
             , argIDs = map getID args
             }
     pure (expr', Primer.Eval.Detail.ApplyPrimFun details)
-  where
-    addLet :: LetBinding -> Expr -> m Expr
-    addLet (LetBind v e) b = let_ v (regenerateExprIDs e) (pure b)
-    addLet (LetrecBind v t ty) b = letrec v (regenerateExprIDs t) (regenerateTypeIDs ty) (pure b)
-    addLet (LetTyBind (LetTypeBind v ty)) b = letType v (regenerateTypeIDs ty) (pure b)
-    addLets :: NonEmpty LetBinding -> Expr -> m Expr
-    addLets ls e = foldrM addLet e ls
-    addLetType :: LetBinding -> Type -> m Type
-    addLetType (LetTyBind (LetTypeBind v ty)) b = tlet v (regenerateTypeIDs ty) (pure b)
-    -- drop let bindings of term variables
-    addLetType _ b = pure b
-    addLetTypes :: NonEmpty LetBinding -> Type -> m Type
-    addLetTypes ls t = foldrM addLetType t ls
+
+addLet :: MonadFresh ID m => LetBinding -> Expr -> m Expr
+addLet (LetBind v e) b = let_ v (regenerateExprIDs e) (pure b)
+addLet (LetrecBind v t ty) b = letrec v (regenerateExprIDs t) (regenerateTypeIDs ty) (pure b)
+addLet (LetTyBind (LetTypeBind v ty)) b = letType v (regenerateTypeIDs ty) (pure b)
+
+addTLet :: MonadFresh ID m => LetBinding -> Type -> m Type
+addTLet (LetTyBind (LetTypeBind v ty)) b = tlet v (regenerateTypeIDs ty) (pure b)
+addTLet _ b = pure b -- drop let bindings of term variables
+
+filterLets :: NonEmpty LetBinding -> Expr -> [LetBinding]
+filterLets ls e = filterLets' (toList ls) (freeVars e)
+
+filterLetsTy :: NonEmpty LetBinding -> Type -> [LetBinding]
+filterLetsTy ls t = filterLets' (toList ls) (S.map unLocalName $ freeVarsTy t)
+
+filterLets' :: [LetBinding] -> Set Name -> [LetBinding]
+filterLets' ls fvs =
+  fst $
+    foldr
+      ( \l (ls', fvs') ->
+          let ln = letBindingName l
+           in if ln `S.member` fvs'
+                then (l : ls', S.delete ln fvs' `S.union` setOf _freeVarsLetBinding l)
+                else (ls', fvs')
+      )
+      ([], fvs)
+      ls
+
+-- | Partitions lets into used and unused in a given term
+-- note that some of the unused may be used in later unused, but not in later used or in the term
+partitionLets :: [(a, LetBinding)] -> Expr -> ([(a, LetBinding)],[(a, LetBinding)])
+partitionLets ls e = fst $ foldr
+     ( \l ((used,unused), fvs') ->
+          let ln = letBindingName $ snd l
+           in if ln `S.member` fvs'
+                then ((l : used, unused), S.delete ln fvs' `S.union` setOf (_2 % _freeVarsLetBinding) l)
+                else ((used, l:unused), fvs')
+      )
+     (([],[]),freeVars e)
+     ls
+
+-- | Partitions lets into used and unused in a given term
+-- note that some of the unused may be used in later unused, but not in later used or in the term
+partitionLetsTy :: [(a, LetTypeBinding)] -> Type -> ([(a, LetTypeBinding)],[(a, LetTypeBinding)])
+partitionLetsTy ls t = fst $ foldr
+     ( \l@(_,LetTypeBind n l') ((used,unused), fvs') ->
+           if n `S.member` fvs'
+                then ((l : used, unused), S.delete n fvs' `S.union` freeVarsTy l')
+                else ((used, l:unused), fvs')
+      )
+     (([],[]),freeVarsTy t)
+     ls
 
 runRedexTy :: MonadEval l m => RedexType -> m (Type, EvalDetail)
 runRedexTy (InlineLetInType{ty, letID, varID, var}) = do
@@ -1126,30 +1155,25 @@ runRedexTy (InlineLetInType{ty, letID, varID, var}) = do
           , isTypeVar = True
           }
   pure (ty, LocalTypeVarInline details)
-runRedexTy (PushLetType{bindings, intoTy, origTy, bindingIDs}) = do
-  let addTLet :: MonadFresh ID m => LetTypeBinding -> Type -> m Type
-      addTLet (LetTypeBind v ty) b = tlet v (regenerateTypeIDs ty) (pure b)
-      addTLets ls t = foldrM addTLet t ls
-  ty' <- descendM (addTLets bindings) intoTy
+runRedexTy (PushLetType{binding, intoTy, origTy}) = do
+  ty' <- descendM (addTLet $ LetTyBind . snd $ binding) intoTy
   let details =
         PushLetDetail
           { before = origTy
-          , -- \^ the expression before reduction
-            after = ty'
-          , letIDs = toList bindingIDs
-          , -- \^ the ID of each let
-            letBindingNames = map letTypeBindingName $ toList bindings
+          , after = ty'
+          , letID = fst binding
+          , letBindingName = letTypeBindingName . snd $ binding
           , intoID = getID intoTy
           }
   pure (ty', PushLetDownTy details)
 -- let a = s in t  ~>  t  if a does not appear in t
-runRedexTy (ElideLetInType{body, orig, letBinding = (LetTypeBind v _)}) = do
+runRedexTy (ElideLetInType{body, orig, letBindingDrop}) = do
   let details =
         LetRemovalDetail
           { before = orig
           , after = body
-          , bindingName = unLocalName v
-          , letID = getID orig
+            , bindingName = letTypeBindingName $ snd letBindingDrop
+            , letID = fst letBindingDrop
           , bodyID = getID body
           }
   pure (body, TLetRemoval details)
