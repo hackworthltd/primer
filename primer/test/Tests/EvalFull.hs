@@ -1582,7 +1582,7 @@ unit_case_prim =
 
 -- * Utilities
 
-evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
   let optsV = ViewRedexOptions { pushMulti = True }
   let optsR = RunRedexOptions { }
@@ -1591,7 +1591,7 @@ evalFullTest id_ tydefs globals n d e = do
   distinctIDs r
   pure r
 
-evalFullTestExactSteps :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO Expr
+evalFullTestExactSteps :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO Expr
 evalFullTestExactSteps id_ tydefs globals n d e = do
     s <- evalFullTest id_ tydefs globals (n-1) d e
     case s of
