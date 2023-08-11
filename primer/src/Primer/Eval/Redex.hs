@@ -184,6 +184,7 @@ import Primer.Zipper.Type (
 
 data ViewRedexOptions = ViewRedexOptions
   { pushMulti :: Bool
+  , aggressiveElision :: Bool
   }
 
 data RunRedexOptions = RunRedexOptions
@@ -692,6 +693,8 @@ viewRedex opts tydefs globals dir = \case
     | not opts.pushMulti
     , not $ isLeaf expr'
     , null letBindings
+    , n <- letBindingName $ snd letBinding1
+    , not opts.aggressiveElision || n `S.member` freeVars expr'
     , S.disjoint (getBoundHereDn expr') (setOf (_2 % (_freeVarsLetBinding `summing` to letBindingName)) letBinding1)
     -> pure $
         PushLet
@@ -701,6 +704,8 @@ viewRedex opts tydefs globals dir = \case
           }
     | opts.pushMulti
     , not $ isLeaf body
+    , (_, unused) <- partitionLets (letBinding1 : letBindings) body
+    , not opts.aggressiveElision || null unused
     , S.disjoint (getBoundHereDn body) (setOf (folded % _2 % (_freeVarsLetBinding `summing` to letBindingName)) $ letBinding1 : letBindings)
     -> pure $
         PushLet
@@ -713,17 +718,17 @@ viewRedex opts tydefs globals dir = \case
     -- https://github.com/hackworthltd/primer/issues/733
     | not opts.pushMulti
     , letBindingName (snd letBinding1) `S.notMember` freeVars expr'
-    , isLeaf expr'
+    , opts.aggressiveElision || isLeaf expr'
     -> pure $
         ElideLet
           { letBindingsDrop = pure $ first getID letBinding1
-          , letBindingsKeep = mempty
+          , letBindingsKeep = []
           , body = expr'
           , orig
           }
     | opts.pushMulti
     , (letBindingsKeep, nonEmpty -> Just letBindingsDrop) <- partitionLets (letBinding1 : letBindings) body
-    , isLeaf body
+    , opts.aggressiveElision || isLeaf body
     -> pure $
         ElideLet
           { letBindingsDrop = first getID <$> letBindingsDrop
@@ -854,6 +859,7 @@ viewRedexType opts = \case
     | not opts.pushMulti
     , not $ isLeaf ty'
     , null letBindings
+    , not opts.aggressiveElision || letTypeBindingName' (snd letBinding1) `S.member` freeVarsTy ty'
     , S.disjoint (getBoundHereDnTy ty') (setOf (_2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) letBinding1)
     -> purer $
         PushLetType
@@ -863,7 +869,9 @@ viewRedexType opts = \case
           }
     | opts.pushMulti
     , not $ isLeaf body
-    , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) $ letBinding1 : letBindings)
+    , (_, unused) <- partitionLetsTy (letBinding1 : letBindings) body
+    , not opts.aggressiveElision || null unused
+    , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) (letBinding1 : letBindings))
     -> purer $
         PushLetType
           { bindings = first getID <$> letBinding1 :| letBindings
@@ -872,17 +880,17 @@ viewRedexType opts = \case
           }
     | not opts.pushMulti
     , letTypeBindingName' (snd letBinding1) `S.notMember` freeVarsTy ty'
-    , isLeaf ty'
+    , opts.aggressiveElision || isLeaf ty'
     -> purer $
         ElideLetInType
           { letBindingsDrop = pure $ first getID letBinding1
-          , letBindingsKeep = mempty
+          , letBindingsKeep = []
           , body = ty'
           , orig
           }
     | opts.pushMulti
     , (letBindingsKeep, nonEmpty -> Just letBindingsDrop) <- partitionLetsTy (letBinding1 : letBindings) body
-    , isLeaf body
+    , opts.aggressiveElision || isLeaf body
     -> purer $
         ElideLetInType
           { letBindingsDrop = first getID <$> letBindingsDrop

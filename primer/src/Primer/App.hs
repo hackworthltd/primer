@@ -592,7 +592,7 @@ handleEvalFullRequest ::
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   app <- ask
   let prog = appProg app
-  let optsV = ViewRedexOptions { pushMulti = True}
+  let optsV = ViewRedexOptions { pushMulti = True, aggressiveElision = True }
   let optsR = RunRedexOptions { }
   result <- runFreshM app $ evalFull optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
