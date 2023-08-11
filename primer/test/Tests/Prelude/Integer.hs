@@ -20,13 +20,13 @@ tasty_min_prop :: Property
 tasty_min_prop = property $ do
   n <- forAll $ G.integral_ (Range.constant (-10) 10)
   m <- forAll $ G.integral_ (Range.constant (-10) 10)
-  functionOutput P.min [int n, int m] 30 <===> Right (create' $ int $ min m n)
+  functionOutput P.min [int n, int m] 20 <===> Right (create' $ int $ min m n)
 
 tasty_max_prop :: Property
 tasty_max_prop = property $ do
   n <- forAll $ G.integral_ (Range.constant (-10) 10)
   m <- forAll $ G.integral_ (Range.constant (-10) 10)
-  functionOutput P.max [int n, int m] 30 <===> Right (create' $ int $ max m n)
+  functionOutput P.max [int n, int m] 20 <===> Right (create' $ int $ max m n)
 
 tasty_negate_prop :: Property
 tasty_negate_prop = property $ do

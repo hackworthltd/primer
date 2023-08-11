@@ -22,7 +22,7 @@ import Primer.App (
 import Primer.App.Utils (forgetProgTypecache)
 import Primer.Eval (
   RunRedexOptions (RunRedexOptions),
-  ViewRedexOptions (ViewRedexOptions),
+  ViewRedexOptions (ViewRedexOptions, groupedLets),
  )
 import Primer.EvalFull (
   Dir (Syn),
@@ -104,7 +104,7 @@ benchmarks =
       ]
   ]
   where
-    evalOptionsV = ViewRedexOptions{}
+    evalOptionsV = ViewRedexOptions{groupedLets = True}
     evalOptionsR = RunRedexOptions{}
     evalTestMPureLogs e maxEvals =
       evalTestM (maxID e) $
