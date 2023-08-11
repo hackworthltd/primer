@@ -140,12 +140,11 @@ unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
         e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall "b" (KType ()) (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let a' = "a48" -- NB: fragile name
-        let b' = "a53" -- NB: fragile name
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall a' (KType ()) (tvar a') `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
+        let b' = "a48" -- NB: fragile name
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTestExactSteps maxID mempty mempty 21 Syn expr
+        s <- evalFullTestExactSteps maxID mempty mempty 18 Syn expr
         s ~== expected
 
 -- Check we don't have shadowing issues in terms
@@ -153,12 +152,11 @@ unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
         e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        let a' = "a24" -- NB: fragile name
-        let b' = "a29" -- NB: fragile name
-        expect <- con' ["M"] "C" [lvar "b", lam a' (lvar a'), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
+        let b' = "a24" -- NB: fragile name
+        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
-        s <- evalFullTestExactSteps maxID mempty mempty 14 Syn expr
+        s <- evalFullTestExactSteps maxID mempty mempty 11 Syn expr
         s ~== expected
 
 -- This test is slightly unfortunate.
@@ -723,27 +721,34 @@ unit_type_preservation_BETA_regression =
             lam "x" $
               let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Push the lets
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (lettype a = b Bool in a)) : (b Bool))
+        -- Elide a pointless let
+        -- Λb. λx. ((lettype a = b Bool in (? : a)) : (b Bool))
         expectA7 <-
           lAM "b" $
             lam "x" $
-              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
+              letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a")
+                `ann` (tvar "b" `tapp` tcon tBool)
+        -- Push the let
+        -- Λb. λx. (((lettype a = b Bool in ?) : (lettype a = b Bool in a)) : (b Bool))
+        expectA8 <-
+          lAM "b" $
+            lam "x" $
+              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
                   `ann` tlet "a" (tvar "b" `tapp` tcon tBool) (tvar "a")
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Inline a let
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (b Bool)) : (b Bool))
-        expectA8 <-
+        -- Λb. λx. (((lettype a = b Bool in ?) : (b Bool)) : (b Bool))
+        expectA9 <-
           lAM "b" $
             lam "x" $
-              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
+              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
                   `ann` (tvar "b" `tapp` tcon tBool)
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Elide pointless lets
+        -- Elide a pointless let
         -- Λb. λx. ((? : (b Bool)) : (b Bool))
-        expectA9 <-
+        expectA10 <-
           lAM "b" $
             lam "x" $
               ( emptyHole
@@ -764,9 +769,9 @@ unit_type_preservation_BETA_regression =
           lAM "b" $
             letType "a" (tcon tChar) (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
               `ann` tlet "b" (tcon tChar) (tcon tNat)
-        -- Drop annotation, push lettype to leaves and then elide all lettypes
+        -- Drop annotation, elide lettype
         -- Λb. foo @(b Bool)
-        expectB7 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
+        expectB3 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
         -- Note that the reduction of eA and eB take slightly
         -- different paths: we do not remove the annotation in eA
         -- because it has an occurrence of a type variable and is thus
@@ -785,9 +790,10 @@ unit_type_preservation_BETA_regression =
                 , expectA7
                 , expectA8
                 , expectA9
+                , expectA10
                 ]
             )
-          , (eB, [(1, expectB1), (7, expectB7)])
+          , (eB, [(1, expectB1), (3, expectB3)])
           )
       sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
       sB n = evalFullTest maxID builtinTypes mempty n Chk exprB
@@ -1444,7 +1450,7 @@ unit_prim_partial_map =
             <*> pure (M.singleton mapName mapDef)
             <*> primDefs
    in do
-        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 130 Syn e
+        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 135 Syn e
         s ~== r
 -- TODO/REVIEW:
 -- I NEED TO WRITE A [note] about this!
