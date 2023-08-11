@@ -181,7 +181,7 @@ import Primer.Def (
 import Primer.Def.Utils (globalInUse, typeInUse)
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
-import Primer.Eval.Redex (EvalLog, RunRedexOptions (RunRedexOptions), ViewRedexOptions (ViewRedexOptions))
+import Primer.Eval.Redex (EvalLog, RunRedexOptions (RunRedexOptions), ViewRedexOptions (ViewRedexOptions, pushMulti))
 import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Log (ConvertLogMessage)
@@ -592,7 +592,7 @@ handleEvalFullRequest ::
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   app <- ask
   let prog = appProg app
-  let optsV = ViewRedexOptions { }
+  let optsV = ViewRedexOptions { pushMulti = True}
   let optsR = RunRedexOptions { }
   result <- runFreshM app $ evalFull optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of

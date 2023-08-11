@@ -69,7 +69,7 @@ import Primer.Eval.Redex (
   runRedex,
   runRedexTy,
   viewRedex,
-  viewRedexType, RunRedexOptions (RunRedexOptions), ViewRedexOptions (ViewRedexOptions),
+  viewRedexType, RunRedexOptions (RunRedexOptions), ViewRedexOptions (ViewRedexOptions, pushMulti),
  )
 import Primer.Log (ConvertLogMessage)
 import Primer.TypeDef (TypeDefMap)
@@ -122,7 +122,7 @@ findNodeByID i =
 -- We hardcode a permissive set of options for the interactive eval
 -- (i.e. these see more redexes)
 evalOpts :: ViewRedexOptions
-evalOpts = ViewRedexOptions {}
+evalOpts = ViewRedexOptions {pushMulti = True }
 
 -- | Return the IDs of nodes which are reducible.
 -- We assume that the expression is well scoped. There are no

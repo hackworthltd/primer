@@ -22,10 +22,10 @@ data LetRemovalDetail t = LetRemovalDetail
   -- ^ the let expression before reduction
   , after :: t
   -- ^ the resulting expression after reduction
-  , bindingName :: Name
-  -- ^ the name of the unused bound variable (either term or type variable)
-  , letID :: ID
-  -- ^ the full let expression
+  , bindingNames :: NonEmpty Name
+  -- ^ the names of the unused bound variables (either term or type variable)
+  , letIDs :: NonEmpty ID
+  -- ^ the dropped let expressions
   , bodyID :: ID
   -- ^ the right hand side of the let
   }
