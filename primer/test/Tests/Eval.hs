@@ -1222,7 +1222,7 @@ unit_redexes_tlet_2 =
 
 unit_redexes_tlet_3 :: Assertion
 unit_redexes_tlet_3 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [4]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [2, 4]
 
 unit_redexes_tlet_4 :: Assertion
 unit_redexes_tlet_4 = do
