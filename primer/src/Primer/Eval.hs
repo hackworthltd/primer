@@ -66,7 +66,7 @@ import Primer.Eval.Redex (
   EvalLog (..),
   MonadEval,
   RunRedexOptions (RunRedexOptions),
-  ViewRedexOptions (ViewRedexOptions, groupedLets),
+  ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
   getNonCapturedLocal,
   runRedex,
   runRedexTy,
@@ -124,7 +124,11 @@ findNodeByID i =
 -- We hardcode a permissive set of options for the interactive eval
 -- (i.e. these see more redexes)
 evalOpts :: ViewRedexOptions
-evalOpts = ViewRedexOptions{groupedLets = True}
+evalOpts =
+  ViewRedexOptions
+    { groupedLets = True
+    , aggressiveElision = True
+    }
 
 -- | Return the IDs of nodes which are reducible.
 -- We assume that the expression is well scoped. There are no

@@ -179,13 +179,18 @@ import Primer.Zipper.Type (
   letTypeBindingName,
  )
 
-{- HLINT ignore ViewRedexOptions "Use newtype instead of data" -}
 data ViewRedexOptions = ViewRedexOptions
   { groupedLets :: Bool
   -- ^ Whether to treat all adjacent let bindings as a group. E.g. in
   -- @let x=e1 in let y=e2 in C s t@, we would take one step to push
   -- both @x@ and @y@ under the constructor (rather than one step
   -- for @y@ and then a second for @x@).
+  , aggressiveElision :: Bool
+  -- ^ Whether to elide as early as possible (@True@), or wait until the
+  -- body of a @let@ is a leaf (and thus the @let@ cannot be pushed
+  -- down) (@False@). E.g. in @let x=e in C s t@ (where @s@ and @t@
+  -- do not refer to @x@) whether we reduce to @C s t@ or
+  -- @C (let x = e in s) (let x = e in t)@.
   }
 
 data RunRedexOptions = RunRedexOptions
@@ -677,6 +682,8 @@ viewRedex opts tydefs globals dir = \case
     | not opts.groupedLets
     , not $ isLeaf expr'
     , null letBindings
+    , n <- letBindingName $ snd letBinding1
+    , not opts.aggressiveElision || n `S.member` freeVars expr'
     , S.disjoint (getBoundHereDn expr') (setOf (_2 % (_freeVarsLetBinding `summing` to letBindingName)) letBinding1) ->
         pure $
           PushLet
@@ -686,6 +693,8 @@ viewRedex opts tydefs globals dir = \case
             }
     | opts.groupedLets
     , not $ isLeaf body
+    , (_, unused) <- partitionLets (letBinding1 : letBindings) body
+    , not opts.aggressiveElision || null unused
     , S.disjoint (getBoundHereDn body) (setOf (folded % _2 % (_freeVarsLetBinding `summing` to letBindingName)) $ letBinding1 : letBindings) ->
         pure $
           PushLet
@@ -698,7 +707,7 @@ viewRedex opts tydefs globals dir = \case
     -- https://github.com/hackworthltd/primer/issues/733
     | not opts.groupedLets
     , letBindingName (snd letBinding1) `S.notMember` freeVars expr'
-    , isLeaf expr' ->
+    , opts.aggressiveElision || isLeaf expr' ->
         pure $
           ElideLet
             { letBindingsDrop = pure $ first getID letBinding1
@@ -708,7 +717,7 @@ viewRedex opts tydefs globals dir = \case
             }
     | opts.groupedLets
     , (letBindingsKeep, nonEmpty -> Just letBindingsDrop) <- partitionLets (letBinding1 : letBindings) body
-    , isLeaf body ->
+    , opts.aggressiveElision || isLeaf body ->
         pure $
           ElideLet
             { letBindingsDrop = first getID <$> letBindingsDrop
@@ -840,6 +849,7 @@ viewRedexType opts = \case
     | not opts.groupedLets
     , not $ isLeaf ty'
     , null letBindings
+    , not opts.aggressiveElision || letTypeBindingName' (snd letBinding1) `S.member` freeVarsTy ty'
     , S.disjoint (getBoundHereDnTy ty') (setOf (_2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) letBinding1) ->
         purer $
           PushLetType
@@ -849,7 +859,9 @@ viewRedexType opts = \case
             }
     | opts.groupedLets
     , not $ isLeaf body
-    , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) $ letBinding1 : letBindings) ->
+    , (_, unused) <- partitionLetsTy (letBinding1 : letBindings) body
+    , not opts.aggressiveElision || null unused
+    , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) (letBinding1 : letBindings)) ->
         purer $
           PushLetType
             { bindings = first getID <$> letBinding1 :| letBindings
@@ -858,7 +870,7 @@ viewRedexType opts = \case
             }
     | not opts.groupedLets
     , letTypeBindingName' (snd letBinding1) `S.notMember` freeVarsTy ty'
-    , isLeaf ty' ->
+    , opts.aggressiveElision || isLeaf ty' ->
         purer $
           ElideLetInType
             { letBindingsDrop = pure $ first getID letBinding1
@@ -868,7 +880,7 @@ viewRedexType opts = \case
             }
     | opts.groupedLets
     , (letBindingsKeep, nonEmpty -> Just letBindingsDrop) <- partitionLetsTy (letBinding1 : letBindings) body
-    , isLeaf body ->
+    , opts.aggressiveElision || isLeaf body ->
         purer $
           ElideLetInType
             { letBindingsDrop = first getID <$> letBindingsDrop

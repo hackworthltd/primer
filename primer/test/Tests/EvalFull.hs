@@ -90,6 +90,10 @@ import Primer.Primitives.DSL (pfun)
 import Primer.Test.App (
   runAppTestM,
  )
+import Primer.Test.Expected (
+  Expected (defMap, expectedResult, expr, maxID),
+  mapEven,
+ )
 import Primer.Test.TestM (
   evalTestM,
  )
@@ -139,12 +143,11 @@ unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
         e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall "b" (KType ()) (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let a' = "a48" -- NB: fragile name
-        let b' = "a53" -- NB: fragile name
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall a' (KType ()) (tvar a') `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
+        let b' = "a48" -- NB: fragile name
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTestExactSteps maxID mempty mempty 21 Syn expr
+        s <- evalFullTestExactSteps maxID mempty mempty 18 Syn expr
         s ~== expected
 
 -- Check we don't have shadowing issues in terms
@@ -152,12 +155,11 @@ unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
         e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        let a' = "a24" -- NB: fragile name
-        let b' = "a29" -- NB: fragile name
-        expect <- con' ["M"] "C" [lvar "b", lam a' (lvar a'), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
+        let b' = "a24" -- NB: fragile name
+        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
-        s <- evalFullTestExactSteps maxID mempty mempty 14 Syn expr
+        s <- evalFullTestExactSteps maxID mempty mempty 11 Syn expr
         s ~== expected
 
 -- This test is slightly unfortunate.
@@ -203,39 +205,37 @@ unit_7 =
         s <- evalFullTest maxID mempty mempty 100 Syn e
         s <~==> Right e
 
--- Temporarily disabled for performance reasons
--- unit_8 :: Assertion
--- unit_8 =
---   let n = 10
---       e = mapEven n
---    in do
---         evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e) >>= \case
---           Left (TimedOut _) -> pure ()
---           x -> assertFailure $ show x
---         s <- evalFullTest (maxID e) builtinTypes (defMap e) 4000 Syn (expr e)
---         s <~==> Right (expectedResult e)
+unit_8 :: Assertion
+unit_8 =
+  let n = 10
+      e = mapEven n
+   in do
+        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
+          Left (TimedOut _) -> pure ()
+          x -> assertFailure $ show x
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
+        s <~==> Right (expectedResult e)
 
--- Temporarily disabled for performance reasons
----- A worker/wrapper'd map
--- unit_9 :: Assertion
--- unit_9 =
---  let n = 10
---      modName = mkSimpleModuleName "TestModule"
---      ((globals, e, expected), maxID) = create $ do
---        (mapName, mapDef) <- Examples.map' modName
---        (evenName, evenDef) <- Examples.even modName
---        (oddName, oddDef) <- Examples.odd modName
---        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
---        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
---        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
---        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
---        pure (globs, expr, expect)
---   in do
---        evalFullTest maxID builtinTypes (M.fromList globals) 4000 Syn e >>= \case
---          Left (TimedOut _) -> pure ()
---          x -> assertFailure $ show x
---        s <- evalFullTest maxID builtinTypes (M.fromList globals) 8000 Syn e
---        s <~==> Right expected
+-- A worker/wrapper'd map
+unit_9 :: Assertion
+unit_9 =
+  let n = 10
+      modName = mkSimpleModuleName "TestModule"
+      ((globals, e, expected), maxID) = create $ do
+        (mapName, mapDef) <- Examples.map' modName
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
+        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
+        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
+        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        pure (globs, expr, expect)
+   in do
+        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
+          Left (TimedOut _) -> pure ()
+          x -> assertFailure $ show x
+        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
+        s <~==> Right expected
 
 {- Note [Pushing down lets and the static argument transformation]
 Our strategy of "pushing down lets" (which is effectively an explicit
@@ -602,7 +602,7 @@ tasty_resume = withDiscards 2000 $
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
-  let optsV = ViewRedexOptions{groupedLets = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
   let optsR = RunRedexOptions{}
   let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
@@ -798,27 +798,34 @@ unit_type_preservation_BETA_regression =
             lam "x" $
               let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Push the lets
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (lettype a = b Bool in a)) : (b Bool))
+        -- Elide a pointless let
+        -- Λb. λx. ((lettype a = b Bool in (? : a)) : (b Bool))
         expectA7 <-
           lAM "b" $
             lam "x" $
-              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
+              letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a")
+                `ann` (tvar "b" `tapp` tcon tBool)
+        -- Push the let
+        -- Λb. λx. (((lettype a = b Bool in ?) : (lettype a = b Bool in a)) : (b Bool))
+        expectA8 <-
+          lAM "b" $
+            lam "x" $
+              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
                   `ann` tlet "a" (tvar "b" `tapp` tcon tBool) (tvar "a")
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Inline a let
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (b Bool)) : (b Bool))
-        expectA8 <-
+        -- Λb. λx. (((lettype a = b Bool in ?) : (b Bool)) : (b Bool))
+        expectA9 <-
           lAM "b" $
             lam "x" $
-              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
+              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
                   `ann` (tvar "b" `tapp` tcon tBool)
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Elide pointless lets
+        -- Elide a pointless let
         -- Λb. λx. ((? : (b Bool)) : (b Bool))
-        expectA9 <-
+        expectA10 <-
           lAM "b" $
             lam "x" $
               ( emptyHole
@@ -839,9 +846,9 @@ unit_type_preservation_BETA_regression =
           lAM "b" $
             letType "a" (tcon tChar) (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
               `ann` tlet "b" (tcon tChar) (tcon tNat)
-        -- Drop annotation, push lettype to leaves and then elide all lettypes
+        -- Drop annotation, elide lettype
         -- Λb. foo @(b Bool)
-        expectB7 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
+        expectB3 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
         -- Note that the reduction of eA and eB take slightly
         -- different paths: we do not remove the annotation in eA
         -- because it has an occurrence of a type variable and is thus
@@ -860,9 +867,10 @@ unit_type_preservation_BETA_regression =
                 , expectA7
                 , expectA8
                 , expectA9
+                , expectA10
                 ]
             )
-          , (eB, [(1, expectB1), (7, expectB7)])
+          , (eB, [(1, expectB1), (3, expectB3)])
           )
       sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
       sB n = evalFullTest maxID builtinTypes mempty n Chk exprB
@@ -1054,7 +1062,7 @@ tasty_type_preservation :: Property
 tasty_type_preservation = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let optsV = ViewRedexOptions{groupedLets = True}
+      let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
       let optsR = RunRedexOptions{}
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
@@ -1522,7 +1530,7 @@ unit_prim_partial_map =
             <*> pure (M.singleton mapName mapDef)
             <*> primDefs
    in do
-        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 130 Syn e
+        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 135 Syn e
         s ~== r
 
 -- Test that handleEvalFullRequest will reduce imported terms
@@ -1587,7 +1595,7 @@ tasty_unique_ids :: Property
 tasty_unique_ids = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let optsV = ViewRedexOptions{groupedLets = True}
+      let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
       let optsR = RunRedexOptions{}
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
@@ -1663,7 +1671,7 @@ unit_case_prim =
 
 evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
-  let optsV = ViewRedexOptions{groupedLets = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
   let optsR = RunRedexOptions{}
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
@@ -1683,7 +1691,7 @@ evalFullTestExactSteps id_ tydefs globals n d e = do
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
-  let optsV = ViewRedexOptions{groupedLets = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
   let optsR = RunRedexOptions{}
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
   testNoSevereLogs logs

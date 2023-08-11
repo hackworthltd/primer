@@ -9,7 +9,7 @@ import Primer.Core (Expr, GVarName, Type)
 import Primer.Core.DSL (apps', create', gvar)
 import Primer.Eval (
   RunRedexOptions (RunRedexOptions),
-  ViewRedexOptions (ViewRedexOptions, groupedLets),
+  ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
  )
 import Primer.EvalFull (Dir (Chk), EvalFullError, EvalLog, TerminationBound, evalFull)
 import Primer.Log (runPureLogT)
@@ -53,7 +53,7 @@ functionOutput f args = functionOutput' f (map Left args)
 -- Tests a prelude function with a combination of Expr/Type arguments to be applied
 functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> TerminationBound -> Either EvalFullError Expr
 functionOutput' f args depth =
-  let optsV = ViewRedexOptions{groupedLets = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
       optsR = RunRedexOptions{}
       (r, logs) = evalTestM 0 $ runPureLogT $ do
         e <- apps' (gvar f) $ bimap lift lift <$> args
