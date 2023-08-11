@@ -2,6 +2,7 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
+import Primer.Pretty
 import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
@@ -1586,6 +1587,48 @@ unit_case_prim =
         s3 <~==> Right expect3
         s4 <- evalFullTest maxID4 mempty mempty 6 Syn e4
         s4 <~==> Right expect4
+
+-- TODO/REVIEW: remove me!
+tmp :: Bool -> Assertion
+tmp ae =
+  let modName = mkSimpleModuleName "TestModule"
+      ((e, r, gs, prims), maxID) =
+        create $ do
+          (mapName, mapDef) <- Examples.map' modName
+          (,,,)
+            <$> gvar mapName
+            `aPP` tcon tChar
+            `aPP` tcon tChar
+            `app` pfun ToUpper
+            `app` list_
+              [ char 'a'
+              , char 'b'
+              , char 'c'
+              ]
+            <*> list_
+              [ char 'A'
+              , char 'B'
+              , char 'C'
+              ]
+            `ann` (tcon tList `tapp` tcon tChar)
+            <*> pure (M.singleton mapName mapDef)
+            <*> primDefs
+      evalFullTest' :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+      evalFullTest' id_ tydefs globals n d e = do
+        let optsV = ViewRedexOptions { pushMulti = True, aggressiveElision = ae}
+        let optsR = RunRedexOptions { }
+        let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
+        assertNoSevereLogs logs
+        distinctIDs r
+        pure r
+   in for_ @[] [0..] $ \n -> do
+        s <- evalFullTest' maxID builtinTypes (gs <> prims) n Syn e
+        case s of
+            Left (TimedOut t) -> prettyPrintExpr compact t
+            Right t -> putStrLn @Text "\n\n NORMAL FORM \n\n" >> prettyPrintExpr compact t
+        putStrLn @Text $ "\n\nn=" <> show n
+        putStrLn @Text "------------------\n\n"
+        getLine
 
 -- * Utilities
 
