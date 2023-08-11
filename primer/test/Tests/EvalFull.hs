@@ -1457,7 +1457,7 @@ unit_prim_partial_map =
             <*> pure (M.singleton mapName mapDef)
             <*> primDefs
    in do
-        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 67 Syn e
+        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 580 Syn e
         s ~== r
 
 -- Test that handleEvalFullRequest will reduce imported terms
