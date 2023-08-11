@@ -407,7 +407,7 @@ unit_case_let_capture =
         e5 <-
           case_
             emptyHole
-            [ branch' (["M"], "C") [(w, Nothing)] (rnx $ lvar "x")
+            [ branch' (["M"], "C") [(w, Nothing)] (l $ lvar w)
             , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
             ]
         e6 <-
@@ -447,11 +447,11 @@ unit_letrec_body_first =
           "xs"
           (con cCons [lvar "x", lvar "xs"])
           (tcon tList `tapp` tEmptyHole)
-      ls = lx . lxs
-      (expr, maxID) = create $ ls (lvar "xs")
-      expected1 = create' $ ls $ con cCons [lvar "x", lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
-      expected2 = create' $ ls (con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
-      expected3 = create' $ con cCons [ls $ lvar "x", ls $ lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
+      (expr, maxID) = create $ lx $ lxs (lvar "xs")
+      expected1 = create' $ lx $ lxs $ con cCons [lvar "x", lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
+      expected2 = create' $ lx $ (lxs $ con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
+      expected3 = create' $ (lx $ lxs $ con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
+      expected4 = create' $ (lx $ con cCons [lxs $ lvar "x", lxs $ lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
    in do
         e1 <- evalFullTest maxID builtinTypes mempty 1 Syn expr
         e1 <~==> Left (TimedOut expected1)
@@ -459,6 +459,8 @@ unit_letrec_body_first =
         e2 <~==> Left (TimedOut expected2)
         e3 <- evalFullTest maxID builtinTypes mempty 3 Syn expr
         e3 <~==> Left (TimedOut expected3)
+        e4 <- evalFullTest maxID builtinTypes mempty 4 Syn expr
+        e4 <~==> Left (TimedOut expected4)
 
 -- tlet x = C in D x x
 --   ==>
