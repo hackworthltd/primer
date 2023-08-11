@@ -138,11 +138,12 @@ unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
         e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall "b" (KType ()) (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let b' = "a48" -- NB: fragile name
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
+        let a' = "a48" -- NB: fragile name
+        let b' = "a53" -- NB: fragile name
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall a' (KType ()) (tvar a') `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTestExactSteps maxID mempty mempty 7 Syn expr
+        s <- evalFullTestExactSteps maxID mempty mempty 24 Syn expr
         s ~== expected
 
 -- Check we don't have shadowing issues in terms
@@ -150,11 +151,12 @@ unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
         e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        let b' = "a24" -- NB: fragile name
-        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
+        let a' = "a24" -- NB: fragile name
+        let b' = "a29" -- NB: fragile name
+        expect <- con' ["M"] "C" [lvar "b", lam a' (lvar a'), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
-        s <- evalFullTestExactSteps maxID mempty mempty 7 Syn expr
+        s <- evalFullTestExactSteps maxID mempty mempty 15 Syn expr
         s ~== expected
 
 -- This test is slightly unfortunate.
@@ -277,7 +279,7 @@ unit_11 =
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
-        s <- evalFullTestExactSteps maxID builtinTypes (M.fromList globals) 13 Syn e
+        s <- evalFullTestExactSteps maxID builtinTypes (M.fromList globals) 22 Syn e
         s ~== expected
 
 unit_12 :: Assertion
@@ -295,7 +297,7 @@ unit_12 =
         expect <- con0 cTrue `ann` tcon tBool
         pure (expr, expect)
    in do
-        s <- evalFullTestExactSteps maxID builtinTypes mempty 15 Syn e
+        s <- evalFullTestExactSteps maxID builtinTypes mempty 21 Syn e
         s ~== expected
 
 unit_13 :: Assertion
@@ -322,10 +324,11 @@ unit_14 =
 --   let x = y in λy.C x y
 --   let x = y in λz. let y = z in C x y
 --   λz. let x = y in let y = z in C x y
+--   λz. let x = y in C (let y = z in x) (let y = z in y)
 --   λz. C (let x = y in let y = z in x) (let x = y in let y = z in y)
 --   λz. C (let x = y in x) (let x = y in let y = z in y)
 --   λz. C y (let x = y in let y = z in y)
---   λz. C y (let y = z in y)
+--   λz. C y (let x = y in z)
 --   λz. C y z
 unit_15 :: Assertion
 unit_15 =
@@ -333,16 +336,17 @@ unit_15 =
         let l = let_ "x" (lvar "y")
         let c a b = con' ["M"] "C" [a, b]
         e0 <- l $ lam "y" $ c (lvar "x") (lvar "y")
-        let y' = "a62"
+        let y' = "a72"
         let rny = let_ "y" (lvar y')
         e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
         e2 <- lam y' $ l $ rny $ c (lvar "x") (lvar "y")
-        e3 <- lam y' $ c (l $ rny $ lvar "x") (l $ rny $ lvar "y")
-        e4 <- lam y' $ c (l $ lvar "x") (l $ rny $ lvar "y")
-        e5 <- lam y' $ c (lvar "y") (l $ rny $ lvar "y")
-        e6 <- lam y' $ c (lvar "y") (rny $ lvar "y")
-        e7 <- lam y' $ c (lvar "y") (lvar y')
-        pure (e0, [e0, e1, e2, e3, e4, e5, e6, e7], e7)
+        e3 <- lam y' $ l $ c (rny $ lvar "x") (rny $ lvar "y")
+        e4 <- lam y' $ c (l $ rny $ lvar "x") (l $ rny $ lvar "y")
+        e5 <- lam y' $ c (l $ lvar "x") (l $ rny $ lvar "y")
+        e6 <- lam y' $ c (lvar "y") (l $ rny $ lvar "y")
+        e7 <- lam y' $ c (lvar "y") (l $ lvar y')
+        e8 <- lam y' $ c (lvar "y") (lvar y')
+        pure (e0, [e0, e1, e2, e3, e4, e5, e6, e7, e8], e8)
    in do
         si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
         zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
