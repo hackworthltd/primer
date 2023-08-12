@@ -91,6 +91,10 @@ import Primer.Primitives.DSL (pfun)
 import Primer.Test.App (
   runAppTestM,
  )
+import Primer.Test.Expected (
+  Expected (defMap, expectedResult, expr, maxID),
+  mapEven,
+ )
 import Primer.Test.TestM (
   evalTestM,
  )
@@ -202,39 +206,37 @@ unit_7 =
         s <- evalFullTest maxID mempty mempty 100 Syn e
         s <~==> Right e
 
--- Temporarily disabled for performance reasons
--- unit_8 :: Assertion
--- unit_8 =
---   let n = 10
---       e = mapEven n
---    in do
---         evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
---           Left (TimedOut _) -> pure ()
---           x -> assertFailure $ show x
---         s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
---         s <~==> Right (expectedResult e)
+unit_8 :: Assertion
+unit_8 =
+  let n = 10
+      e = mapEven n
+   in do
+        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
+          Left (TimedOut _) -> pure ()
+          x -> assertFailure $ show x
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
+        s <~==> Right (expectedResult e)
 
--- Temporarily disabled for performance reasons
----- A worker/wrapper'd map
---unit_9 :: Assertion
---unit_9 =
---  let n = 10
---      modName = mkSimpleModuleName "TestModule"
---      ((globals, e, expected), maxID) = create $ do
---        (mapName, mapDef) <- Examples.map' modName
---        (evenName, evenDef) <- Examples.even modName
---        (oddName, oddDef) <- Examples.odd modName
---        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
---        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
---        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
---        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
---        pure (globs, expr, expect)
---   in do
---        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
---          Left (TimedOut _) -> pure ()
---          x -> assertFailure $ show x
---        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
---        s <~==> Right expected
+-- A worker/wrapper'd map
+unit_9 :: Assertion
+unit_9 =
+  let n = 10
+      modName = mkSimpleModuleName "TestModule"
+      ((globals, e, expected), maxID) = create $ do
+        (mapName, mapDef) <- Examples.map' modName
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
+        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
+        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
+        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        pure (globs, expr, expect)
+   in do
+        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
+          Left (TimedOut _) -> pure ()
+          x -> assertFailure $ show x
+        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
+        s <~==> Right expected
 
 -- A case redex must have an scrutinee which is an annotated constructor.
 -- Plain constructors are not well-typed here, for bidirectionality reasons,
