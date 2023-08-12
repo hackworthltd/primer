@@ -996,7 +996,7 @@ runRedex opts = \case
         details =
           LetRemovalDetail
             { before = orig
-            , after = body
+            , after = expr
             , bindingNames = letBindingName . snd <$> letBindingsDrop
             , letIDs = fst <$> letBindingsDrop
             , bodyID = getID body
@@ -1289,7 +1289,7 @@ runRedexTy _opts (ElideLetInType{body, orig, letBindingsKeep, letBindingsDrop}) 
       details =
         LetRemovalDetail
           { before = orig
-          , after = body
+          , after = ty
             , bindingNames = letTypeBindingName . snd <$> letBindingsDrop
             , letIDs = fst <$> letBindingsDrop
           , bodyID = getID body
