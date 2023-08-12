@@ -193,8 +193,12 @@ data ViewRedexOptions = ViewRedexOptions
   -- @C (let x = e in s) (let x = e in t)@.
   }
 
-data RunRedexOptions = RunRedexOptions
-  {
+newtype RunRedexOptions = RunRedexOptions
+  { pushAndElide :: Bool
+  -- ^ Whether to push @let@s into branches they are not used in.
+  -- E.g. in @let x=e in C x t@ where @t@ does not refer to @x@, whether
+  -- (@True@) to reduce to @C (let x=e in x) t@ or to also push the @x@
+  -- into the @t@ branch (@False@).
   }
 
 data EvalLog
@@ -269,6 +273,11 @@ data Redex
     --  nor any free variable of @e@ (to avoid capture)]
     -- [We actually do this rule for a whole sequence of let bindings at once]
     -- [If we push into an annotation, we drop term variables:  let x = e in (t : T)  ~> (let x = e in t) : T]
+    -- [We actually drop all "pointless" variables:
+    --   let x = e in f s  ~>  (let x = e in f) (let x = e in s)    if @x@ is free in @f@, and free in @s@
+    --   let x = e in f s  ~>  f (let x = e in s)                   if @x@ is not free in @f@, but free in @s@
+    --   let x = e in f s  ~>  (let x = e in f) s                   if @x@ is free in @f@, but not free in @s@
+    --   let x = e in f s  ~>  f s                                  if @x@ is not free in @f@, and not free in @s@
     PushLet
       { bindings :: NonEmpty (ID, LetBinding)
       -- ^ The bindings we push
@@ -940,7 +949,7 @@ cxtToAvoidTy = do
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: forall l m. MonadEval l m => RunRedexOptions -> Redex -> m (Expr, EvalDetail)
-runRedex _opts = \case
+runRedex opts = \case
   InlineGlobal{def, orig} -> do
     after <- ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
     let details = GlobalVarInlineDetail{def, var = orig, after}
@@ -970,7 +979,7 @@ runRedex _opts = \case
     pure (expr', LocalVarInline details)
   PushLet{bindings, expr, orig} -> do
     let binds = snd <$> bindings
-    expr' <- descendM (addLets binds) =<< traverseOf typesInExpr (addTLets binds) expr
+    expr' <- descendM (addLets opts binds) =<< traverseOf typesInExpr (addTLets opts binds) expr
     let details =
           PushLetDetail
             { before = orig
@@ -1190,21 +1199,40 @@ runRedex _opts = \case
             }
     pure (expr', Primer.Eval.Detail.ApplyPrimFun details)
 
-addLets :: MonadFresh ID m => NonEmpty LetBinding -> Expr -> m Expr
-addLets ls expr = foldrM addLet expr $ toList ls
+addLets :: MonadFresh ID m => RunRedexOptions -> NonEmpty LetBinding -> Expr -> m Expr
+addLets opts ls expr = foldrM addLet expr $ if opts.pushAndElide then filterLets ls expr else toList ls
   where
     addLet :: MonadFresh ID m => LetBinding -> Expr -> m Expr
     addLet (LetBind v e) b = let_ v (regenerateExprIDs e) (pure b)
     addLet (LetrecBind v t ty) b = letrec v (regenerateExprIDs t) (regenerateTypeIDs ty) (pure b)
     addLet (LetTyBind (LetTypeBind v ty)) b = letType v (regenerateTypeIDs ty) (pure b)
 
-addTLets :: MonadFresh ID m => NonEmpty LetBinding -> Type -> m Type
-addTLets ls t = foldrM addTLet t $ toList ls
+addTLets :: MonadFresh ID m => RunRedexOptions -> NonEmpty LetBinding -> Type -> m Type
+addTLets opts ls t = foldrM addTLet t $ if opts.pushAndElide then filterLetsTy ls t else toList ls
   where
     addTLet :: MonadFresh ID m => LetBinding -> Type -> m Type
     -- drop let bindings of term variables
     addTLet (LetTyBind (LetTypeBind v ty)) b = tlet v (regenerateTypeIDs ty) (pure b)
     addTLet _ b = pure b
+
+filterLets :: NonEmpty LetBinding -> Expr -> [LetBinding]
+filterLets ls e = filterLets' (toList ls) (freeVars e)
+
+filterLetsTy :: NonEmpty LetBinding -> Type -> [LetBinding]
+filterLetsTy ls t = filterLets' (toList ls) (S.map unLocalName $ freeVarsTy t)
+
+filterLets' :: [LetBinding] -> Set Name -> [LetBinding]
+filterLets' ls fvs =
+  fst $
+    foldr
+      ( \l (ls', fvs') ->
+          let ln = letBindingName l
+           in if ln `S.member` fvs'
+                then (l : ls', S.delete ln fvs' `S.union` setOf _freeVarsLetBinding l)
+                else (ls', fvs')
+      )
+      ([], fvs)
+      ls
 
 -- | Partitions lets into used and unused in a given term
 -- note that some of the unused may be used in later unused, but not in later used or in the term
@@ -1247,8 +1275,8 @@ runRedexTy _opts (InlineLetInType{ty, letID, varID, var}) = do
           , isTypeVar = True
           }
   pure (ty, LocalTypeVarInline details)
-runRedexTy _opts (PushLetType{bindings, intoTy, origTy}) = do
-  ty' <- descendM (addTLets $ LetTyBind . snd <$> bindings) intoTy
+runRedexTy opts (PushLetType{bindings, intoTy, origTy}) = do
+  ty' <- descendM (addTLets opts $ LetTyBind . snd <$> bindings) intoTy
   let details =
         PushLetDetail
           { before = origTy

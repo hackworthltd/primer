@@ -65,7 +65,7 @@ import Primer.Eval.Redex (
   Dir (..),
   EvalLog (..),
   MonadEval,
-  RunRedexOptions (RunRedexOptions),
+  RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
   getNonCapturedLocal,
   runRedex,
@@ -159,7 +159,15 @@ redexes tydefs globals =
 
 -- We hardcode a particular set of reduction options for the interactive evaluator
 reductionOpts :: RunRedexOptions
-reductionOpts = RunRedexOptions{}
+reductionOpts =
+  RunRedexOptions
+    { -- For intearctive use, we think combining these two steps is too confusing.
+      -- The choice of hardcoding this makes this feature slightly harder to test,
+      -- see https://github.com/hackworthltd/primer/pull/736#discussion_r1293290757
+      -- for some tests that we would like to have added, if it were simple to test
+      -- a single step of pushAndElide.
+      pushAndElide = False
+    }
 
 -- | Given a context of local and global variables and an expression, try to reduce that expression.
 -- Expects that the expression is redex and will throw an error if not.

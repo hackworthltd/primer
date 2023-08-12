@@ -8,7 +8,7 @@ import Optics (over)
 import Primer.Core (Expr, GVarName, Type)
 import Primer.Core.DSL (apps', create', gvar)
 import Primer.Eval (
-  RunRedexOptions (RunRedexOptions),
+  RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
  )
 import Primer.EvalFull (Dir (Chk), EvalFullError, EvalLog, TerminationBound, evalFull)
@@ -54,7 +54,7 @@ functionOutput f args = functionOutput' f (map Left args)
 functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> TerminationBound -> Either EvalFullError Expr
 functionOutput' f args depth =
   let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
-      optsR = RunRedexOptions{}
+      optsR = RunRedexOptions{pushAndElide = True}
       (r, logs) = evalTestM 0 $ runPureLogT $ do
         e <- apps' (gvar f) $ bimap lift lift <$> args
         evalFull @EvalLog optsV optsR ty def n d e

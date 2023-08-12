@@ -7,6 +7,7 @@ import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as Range
 import Primer.Builtins.DSL (
   bool_,
+  list_,
  )
 import Primer.Core.DSL (
   create',
@@ -36,7 +37,7 @@ tasty_negate_prop = property $ do
 tasty_abs_prop :: Property
 tasty_abs_prop = property $ do
   n <- forAll $ G.integral_ (Range.constant (-10) 10)
-  functionOutput P.abs [int n] 65 <===> Right (create' $ int $ abs n)
+  functionOutput P.abs [int n] 45 <===> Right (create' $ int $ abs n)
 
 -- NOTE: Termination bound is experimental, do not know how it varies with n, m
 tasty_gcd_prop :: Property
@@ -60,15 +61,14 @@ tasty_even_prop = property $ do
 tasty_odd_prop :: Property
 tasty_odd_prop = property $ do
   n <- forAll $ G.integral_ (Range.constant (-10) 10)
-  functionOutput P.odd [int n] 40 <===> Right (create' $ bool_ $ odd n)
+  functionOutput P.odd [int n] 25 <===> Right (create' $ bool_ $ odd n)
 
--- Temporarily disabled for performance reasons
--- tasty_sum_prop :: Property
--- tasty_sum_prop = property $ do
---  ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant (-10) 10))
---  functionOutput P.sum [list_ $ map int ns] 2000 <===> Right (create' $ int $ sum ns)
---
--- tasty_product_prop :: Property
--- tasty_product_prop = property $ do
---  ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant 1 10))
---  functionOutput P.product [list_ $ map int ns] 2000 <===> Right (create' $ int $ product ns)
+tasty_sum_prop :: Property
+tasty_sum_prop = property $ do
+  ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant (-10) 10))
+  functionOutput P.sum [list_ $ map int ns] 2000 <===> Right (create' $ int $ sum ns)
+
+tasty_product_prop :: Property
+tasty_product_prop = property $ do
+  ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant 1 10))
+  functionOutput P.product [list_ $ map int ns] 2000 <===> Right (create' $ int $ product ns)

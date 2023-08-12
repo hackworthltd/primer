@@ -21,7 +21,7 @@ import Primer.App (
  )
 import Primer.App.Utils (forgetProgTypecache)
 import Primer.Eval (
-  RunRedexOptions (RunRedexOptions),
+  RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
  )
 import Primer.EvalFull (
@@ -79,14 +79,14 @@ benchmarks =
       [ Group
           "pure logs"
           [ benchExpectedPureLogs (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedPureLogs (mapEvenEnv 10) "mapEven 10" 2000
+          , benchExpectedPureLogs (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
           -- , benchExpectedPureLogs (mapEvenEnv 100) "mapEven 100" 10000
           ]
       , Group
           "discard logs"
           [ benchExpectedDiscardLogs (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedDiscardLogs (mapEvenEnv 10) "mapEven 10" 2000
+          , benchExpectedDiscardLogs (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
           -- , benchExpectedDiscardLogs (mapEvenEnv 100) "mapEven 100" 10000
           ]
@@ -103,7 +103,7 @@ benchmarks =
   ]
   where
     evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
-    evalOptionsR = RunRedexOptions{}
+    evalOptionsR = RunRedexOptions{pushAndElide = True}
     evalTestMPureLogs e maxEvals =
       evalTestM (maxID e) $
         runPureLogT $

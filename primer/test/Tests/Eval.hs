@@ -292,6 +292,7 @@ unit_tryReduce_lettype = do
     _ -> assertFailure $ show result
 
 -- let type x = x in ? :: x ==> (let type x = x in ?) :: (tlet x = x in x)
+-- NB: the single-step evaluator does not use the push-and-elide optimisation
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
