@@ -69,7 +69,7 @@ import Primer.Eval.Redex (
   runRedex,
   runRedexTy,
   viewRedex,
-  viewRedexType, RunRedexOptions (RunRedexOptions), ViewRedexOptions (ViewRedexOptions,aggressiveElision, pushMulti),
+  viewRedexType, RunRedexOptions (RunRedexOptions,pushAndElide), ViewRedexOptions (ViewRedexOptions,aggressiveElision, pushMulti),
  )
 import Primer.Log (ConvertLogMessage)
 import Primer.TypeDef (TypeDefMap)
@@ -154,7 +154,7 @@ redexes tydefs globals =
 
 -- We hardcode a particular set of reduction options for the interactive evaluator
 reductionOpts :: RunRedexOptions
-reductionOpts = RunRedexOptions {}
+reductionOpts = RunRedexOptions {pushAndElide = True}
 
 -- | Given a context of local and global variables and an expression, try to reduce that expression.
 -- Expects that the expression is redex and will throw an error if not.

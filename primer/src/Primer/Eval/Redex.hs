@@ -188,7 +188,7 @@ data ViewRedexOptions = ViewRedexOptions
   }
 
 data RunRedexOptions = RunRedexOptions
-  {
+  { pushAndElide :: Bool
   }
 
 data EvalLog
@@ -263,6 +263,11 @@ data Redex
     --  nor any free variable of @e@ (to avoid capture)]
     -- [We actually do this rule for a whole sequence of let bindings at once]
     -- [If we push into an annotation, we drop term variables:  let x = e in (t : T)  ~> (let x = e in t) : T]
+    -- [We actually drop all "pointless" variables:
+    --   let x = e in f s  ~>  (let x = e in f) (let x = e in s)    if @x@ is free in @f@, and free in @s@
+    --   let x = e in f s  ~>  f (let x = e in s)                   if @x@ is not free in @f@, but free in @s@
+    --   let x = e in f s  ~>  (let x = e in f) s                   if @x@ is free in @f@, but not free in @s@
+    --   let x = e in f s  ~>  f s                                  if @x@ is not free in @f@, and not free in @s@
     PushLet
       { bindings :: NonEmpty (ID, LetBinding)
       -- ^ The bindings we push
@@ -980,7 +985,7 @@ runRedex opts = \case
     pure (expr', LocalVarInline details)
   PushLet{bindings, expr, orig} -> do
     let binds = snd <$> bindings
-    expr' <- descendM (addLets binds) =<< traverseOf typesInExpr (addTLets binds) expr
+    expr' <- descendM (addLets opts binds) =<< traverseOf typesInExpr (addTLets opts binds) expr
     let details =
           PushLetDetail
             { before = orig
@@ -1200,16 +1205,16 @@ runRedex opts = \case
             }
     pure (expr', Primer.Eval.Detail.ApplyPrimFun details)
 
-addLets :: MonadFresh ID m => NonEmpty LetBinding -> Expr -> m Expr
-addLets ls expr = foldrM addLet expr $ toList ls
+addLets :: MonadFresh ID m => RunRedexOptions -> NonEmpty LetBinding -> Expr -> m Expr
+addLets opts ls expr = foldrM addLet expr $ if opts.pushAndElide then filterLets ls expr else toList ls
   where
     addLet :: MonadFresh ID m => LetBinding -> Expr -> m Expr
     addLet (LetBind v e) b = let_ v (regenerateExprIDs e) (pure b)
     addLet (LetrecBind v t ty) b = letrec v (regenerateExprIDs t) (regenerateTypeIDs ty) (pure b)
     addLet (LetTyBind (LetTypeBind v ty)) b = letType v (regenerateTypeIDs ty) (pure b)
 
-addTLets :: MonadFresh ID m => NonEmpty LetBinding -> Type -> m Type
-addTLets ls t = foldrM addTLet t $ toList ls
+addTLets :: MonadFresh ID m => RunRedexOptions -> NonEmpty LetBinding -> Type -> m Type
+addTLets opts ls t = foldrM addTLet t $ if opts.pushAndElide then filterLetsTy ls t else toList ls
   where
     addTLet :: MonadFresh ID m => LetBinding -> Type -> m Type
     -- drop let bindings of term variables
@@ -1273,7 +1278,7 @@ runRedexTy _opts (InlineLetInType{ty, letID, varID, var}) = do
           }
   pure (ty, LocalTypeVarInline details)
 runRedexTy opts (PushLetType{bindings, intoTy, origTy}) = do
-  ty' <- descendM (addTLets $ LetTyBind . snd <$> bindings) intoTy
+  ty' <- descendM (addTLets opts $ LetTyBind . snd <$> bindings) intoTy
   let details =
         PushLetDetail
           { before = origTy
