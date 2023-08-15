@@ -85,7 +85,7 @@ compact =
     }
 
 -- | Pretty prints @Expr'@ using Prettyprinter library
-prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
+prettyExpr :: PrettyOptions -> Expr' a b c -> Doc AnsiStyle
 prettyExpr opts = \case
   Hole _ e -> (if inlineHoles opts then group else identity) (brac Curly Red (pE e))
   EmptyHole _ -> col Red "?"
@@ -232,7 +232,7 @@ col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
 col = annotate . color
 
 -- | Pretty prints @Type'@ using Prettyprinter library
-prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
+prettyType :: PrettyOptions -> Type' b c -> Doc AnsiStyle
 prettyType opts typ = case typ of
   TEmptyHole _ -> col Red "?"
   THole _ t -> (if inlineHoles opts then group else identity) (brac Curly Red (pT t))
