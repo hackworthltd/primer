@@ -25,6 +25,7 @@ module Primer.Core (
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
+  _exprKindMeta,
   bindName,
   _bindMeta,
   typesInExpr,
@@ -85,6 +86,7 @@ import Primer.Core.Type (
   TypeMeta,
   _kindMeta,
   _kindMetaLens,
+  _typeKindMeta,
   _typeMeta,
   _typeMetaLens,
  )
@@ -100,8 +102,8 @@ import Primer.JSON
 -- one is better for their needs, rather than having the choice forced upon
 -- them.
 data TypeCache
-  = TCSynthed (Type' ())
-  | TCChkedAt (Type' ())
+  = TCSynthed (Type' () ())
+  | TCChkedAt (Type' () ())
   | TCEmb TypeCacheBoth
   deriving stock (Eq, Ord, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCache
@@ -111,7 +113,7 @@ data TypeCache
 -- second We don't inline this into TypeCache because then we would get partial
 -- functions from tcChkedAt and tcSynthed. We really want to name these fields
 -- though, to make it clear what each one is!
-data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
+data TypeCacheBoth = TCBoth {tcChkedAt :: Type' () (), tcSynthed :: Type' () ()}
   deriving stock (Eq, Ord, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCacheBoth
   deriving anyclass (NFData)
@@ -121,11 +123,11 @@ data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
 -- See https://github.com/well-typed/optics/pull/393
 
 -- | An affine fold getting TCChkedAt or TCEmb's chked-at field
-_chkedAt :: AffineFold TypeCache (Type' ())
+_chkedAt :: AffineFold TypeCache (Type' () ())
 _chkedAt = #_TCChkedAt `afailing` (#_TCEmb % #tcChkedAt)
 
 -- | An affine fold getting TCSynthed or TCEmb's synthed field
-_synthed :: AffineFold TypeCache (Type' ())
+_synthed :: AffineFold TypeCache (Type' () ())
 _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 
 -- Expression metadata. Each expression is annotated with a type (populated by
@@ -142,31 +144,31 @@ type ExprMeta = Meta (Maybe TypeCache)
 --  tuple '(ID, Maybe Value)'. The first element is the ID of the node, and the
 --  second element is an optional JSON object of metadata owned by the frontend,
 --  which we treat as opaque.
-type Expr = Expr' ExprMeta TypeMeta
+type Expr = Expr' ExprMeta TypeMeta ()
 
 -- | The generic expression type.
 -- a is the type of annotations that are placed on every expression node.
 -- b is the type of annotations that are placed on every type node.
 -- Most of the backend fixes a ~ b ~ ID.
 -- The typechecker produces a ~ (ID, Type' ()), b ~ ID.
-data Expr' a b
-  = Hole a (Expr' a b) -- See Note [Holes and bidirectionality]
+data Expr' a b c
+  = Hole a (Expr' a b c) -- See Note [Holes and bidirectionality]
   | EmptyHole a
-  | Ann a (Expr' a b) (Type' b)
-  | App a (Expr' a b) (Expr' a b)
-  | APP a (Expr' a b) (Type' b)
-  | Con a ValConName [Expr' a b] -- See Note [Checkable constructors]
-  | Lam a LVarName (Expr' a b)
-  | LAM a TyVarName (Expr' a b)
+  | Ann a (Expr' a b c) (Type' b c)
+  | App a (Expr' a b c) (Expr' a b c)
+  | APP a (Expr' a b c) (Type' b c)
+  | Con a ValConName [Expr' a b c] -- See Note [Checkable constructors]
+  | Lam a LVarName (Expr' a b c)
+  | LAM a TyVarName (Expr' a b c)
   | Var a TmVarRef
   | Let
       a
       -- | bound variable
       LVarName
       -- | value the variable is bound to
-      (Expr' a b)
+      (Expr' a b c)
       -- | expression the binding scopes over
-      (Expr' a b)
+      (Expr' a b c)
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
@@ -175,23 +177,23 @@ data Expr' a b
       -- | bound variable
       TyVarName
       -- | value the variable is bound to
-      (Type' b)
+      (Type' b c)
       -- | expression the binding scopes over
-      (Expr' a b)
+      (Expr' a b c)
   | Letrec
       a
       -- | bound variable
       LVarName
       -- | value the variable is bound to; the variable itself is in scope, as this is a recursive let
-      (Expr' a b)
+      (Expr' a b c)
       -- | type of the bound variable (variable is not in scope in this type)
-      (Type' b)
+      (Type' b c)
       -- | body of the let; binding scopes over this
-      (Expr' a b)
-  | Case a (Expr' a b) [CaseBranch' a b] (CaseFallback' a b) -- See Note [Case]
+      (Expr' a b c)
+  | Case a (Expr' a b c) [CaseBranch' a b c] (CaseFallback' a b c) -- See Note [Case]
   | PrimCon a PrimCon
   deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b c)
   deriving anyclass (NFData)
 
 -- Note [Holes and bidirectionality]
@@ -295,22 +297,27 @@ data Expr' a b
 -- branch if we don't mention all constructors).
 
 -- | A traversal over the metadata of an expression.
-_exprMeta :: forall a b c. Traversal (Expr' a b) (Expr' c b) a c
-_exprMeta = param @1
+_exprMeta :: forall a a' b c. Traversal (Expr' a b c) (Expr' a' b c) a a'
+_exprMeta = param @2
 
 -- | A lens on to the metadata of an expression.
 -- Note that unlike '_exprMeta', this is shallow i.e. it does not recurse in to sub-expressions.
 -- And for this reason, it cannot be type-changing.
-_exprMetaLens :: Lens' (Expr' a b) a
+_exprMetaLens :: Lens' (Expr' a b c) a
 _exprMetaLens = position @1
 
 -- | A traversal over the type metadata of an expression
-_exprTypeMeta :: forall a b c. Traversal (Expr' a b) (Expr' a c) b c
-_exprTypeMeta = param @0
+_exprTypeMeta :: forall a b b' c. Traversal (Expr' a b c) (Expr' a b' c) b b'
+_exprTypeMeta = param @1
 
-type CaseBranch = CaseBranch' ExprMeta TypeMeta
+-- | A traversal over the kind metadata of an expression
+-- (Note that kinds appear in foralls which appear in types)
+_exprKindMeta :: forall a b c c'. Traversal (Expr' a b c) (Expr' a b c') c c'
+_exprKindMeta = param @0
 
-data CaseBranch' a b
+type CaseBranch = CaseBranch' ExprMeta TypeMeta ()
+
+data CaseBranch' a b c
   = CaseBranch
       -- | constructor
       Pattern
@@ -319,24 +326,24 @@ data CaseBranch' a b
       -- bindings. Unfortunately that breaks generic traversals like '_exprMeta'.
       [Bind' a]
       -- | right hand side
-      (Expr' a b)
+      (Expr' a b c)
   deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b c)
   deriving anyclass (NFData)
 
-caseBranchName :: CaseBranch' a b -> Pattern
+caseBranchName :: CaseBranch' a b c -> Pattern
 caseBranchName (CaseBranch n _ _) = n
 
-type CaseFallback = CaseFallback' ExprMeta TypeMeta
+type CaseFallback = CaseFallback' ExprMeta TypeMeta ()
 
-data CaseFallback' a b
+data CaseFallback' a b c
   = CaseExhaustive
-  | CaseFallback (Expr' a b)
+  | CaseFallback (Expr' a b c)
   deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (CaseFallback' a b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (CaseFallback' a b c)
   deriving anyclass (NFData)
 
-traverseFallback :: Applicative f => (Expr' a b -> f (Expr' a' b')) -> CaseFallback' a b -> f (CaseFallback' a' b')
+traverseFallback :: Applicative f => (Expr' a b c -> f (Expr' a' b' c')) -> CaseFallback' a b c -> f (CaseFallback' a' b' c')
 traverseFallback f = \case
   CaseExhaustive -> pure CaseExhaustive
   CaseFallback e -> CaseFallback <$> f e
@@ -359,7 +366,7 @@ _bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
 _bindMeta = position @1
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
-typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
+typesInExpr :: AffineTraversal' (Expr' a b c) (Type' b c)
 typesInExpr = atraversalVL $ \point f -> \case
   Ann m e ty -> Ann m e <$> f ty
   APP m e ty -> APP m e <$> f ty
@@ -367,13 +374,13 @@ typesInExpr = atraversalVL $ \point f -> \case
   Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
   e -> point e
 
-instance HasID a => HasID (Expr' a b) where
+instance HasID a => HasID (Expr' a b c) where
   _id = position @1 % _id
 
 instance HasID a => HasID (Bind' a) where
   _id = position @1 % _id
 
-instance HasMetadata (Expr' ExprMeta b) where
+instance HasMetadata (Expr' ExprMeta b c) where
   _metadata = position @1 % typed @(Maybe Value)
 
 instance HasMetadata (Bind' ExprMeta) where

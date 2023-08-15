@@ -328,7 +328,7 @@ tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
       InstAPP t -> Just t
       _ -> Nothing
 
-isHole :: Type' a -> Bool
+isHole :: Type' a b -> Bool
 isHole (TEmptyHole _) = True
 isHole (THole _ _) = True
 isHole _ = False

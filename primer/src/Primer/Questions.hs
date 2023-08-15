@@ -60,14 +60,14 @@ data Question a where
     ID ->
     Question
       ( ( [(TyVarName, Kind' ())]
-        , [(LVarName, Type' ())]
+        , [(LVarName, Type' () ())]
         )
-      , [(GVarName, Type' ())]
+      , [(GVarName, Type' () ())]
       )
   GenerateName ::
     GVarName ->
     ID ->
-    Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+    Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
     Question [Name]
 
 -- | Collect the typing context for the focused node.
@@ -79,7 +79,7 @@ data Question a where
 variablesInScopeExpr ::
   DefMap ->
   Loc ->
-  ([(TyVarName, Kind' ())], [(LVarName, Type' ())], [(GVarName, Type' ())])
+  ([(TyVarName, Kind' ())], [(LVarName, Type' () ())], [(GVarName, Type' () ())])
 variablesInScopeExpr defs loc =
   let locals = case loc of
         InExpr ze -> extractLocalsExprZ ze
@@ -91,7 +91,7 @@ variablesInScopeExpr defs loc =
 
 generateNameExpr ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
   Loc ->
   m [Name]
 -- NB: it makes perfect sense to ask for a type variable (Either is Right)
@@ -102,7 +102,7 @@ generateNameExpr tk z = uniquifyMany <$> getAvoidSet z <*> baseNames tk
 
 generateNameTy ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
   TypeZip ->
   m [Name]
 generateNameTy = generateNameTyAvoiding []
@@ -110,7 +110,7 @@ generateNameTy = generateNameTyAvoiding []
 generateNameTyAvoiding ::
   MonadReader Cxt m =>
   [Name] ->
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
   TypeZip ->
   m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
@@ -120,7 +120,7 @@ generateNameTyAvoiding avoiding tk z =
 
 baseNames ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
   m [Name]
 baseNames tk = do
   tys <- asks typeDefs

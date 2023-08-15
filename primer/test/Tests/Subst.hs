@@ -116,10 +116,10 @@ tasty_subst_counter_indep = withDiscards 300 $ propertyWT [] $ inExtendedLocalCx
   j <- forAllT $ ID <$> Gen.int (Range.linear 0 100)
   Alpha (subst i) === Alpha (subst j)
 
-create_ :: S (Type' a) -> Type' ()
+create_ :: S (Type' a b) -> Type' () ()
 create_ = forgetTypeMetadata . create'
 
-substTy' :: TyVarName -> Type' () -> Type' () -> Type' ()
+substTy' :: TyVarName -> Type' () () -> Type' () () -> Type' () ()
 substTy' n s t = evalTestM 0 $ substTy n s t
 
 -- Pick an element from this set, without throwing an error if it is empty

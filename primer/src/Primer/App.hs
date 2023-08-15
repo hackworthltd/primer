@@ -714,7 +714,7 @@ applyProgAction prog = \case
                   TCEmb (TCBoth t1 t2) -> TCEmb (TCBoth (updateType t1) (updateType t2))
             )
       updateName n = if n == old then new else n
-      updateType :: Data a => Type' a -> Type' a
+      updateType :: (Data a, Data b) => Type' a b -> Type' a b
       updateType = transform $ over (#_TCon % _2) updateName
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -1831,7 +1831,7 @@ alterTypeDef f type_ m = do
 transformCaseBranches ::
   MonadEdit m ProgError =>
   TyConName ->
-  (Maybe (Type' ()) -> ([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
+  (Maybe (Type' () ()) -> ([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
   Expr ->
   m Expr
 transformCaseBranches type_ f = transformM $ \case
@@ -1852,7 +1852,7 @@ transformCaseBranches type_ f = transformM $ \case
 transformNamedCaseBranches ::
   MonadEdit m ProgError =>
   TyConName ->
-  (Maybe (Type' ()) -> [CaseBranch] -> m [CaseBranch]) ->
+  (Maybe (Type' () ()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
 transformNamedCaseBranches type_ f = transformCaseBranches type_ (\m (bs, fb) -> (,fb) <$> f m bs)
@@ -1864,7 +1864,7 @@ transformNamedCaseBranch ::
   TyConName ->
   ValConName ->
   -- This only supports ADT case branches, since we cannot edit primitives
-  (Maybe (Type' ()) -> CaseBranch -> m CaseBranch) ->
+  (Maybe (Type' () ()) -> CaseBranch -> m CaseBranch) ->
   Expr ->
   m Expr
 transformNamedCaseBranch type_ con f = transformNamedCaseBranches type_ $ \m ->

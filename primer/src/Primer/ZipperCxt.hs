@@ -54,9 +54,9 @@ data ShadowedVarsExpr
       -- | Local type variables
       [(TyVarName, Kind' ())]
       -- | Local term variables
-      [(LVarName, Type' ())]
+      [(LVarName, Type' () ())]
       -- | Global variables
-      [(GVarName, Type' ())]
+      [(GVarName, Type' () ())]
   deriving stock (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where
@@ -81,7 +81,7 @@ instance Monoid ShadowedVarsExpr where
 -- Note that type/kind information is extracted from the TypeCache.
 localVariablesInScopeExpr ::
   Either ExprZ TypeZ ->
-  ([(TyVarName, Kind' ())], [(LVarName, Type' ())])
+  ([(TyVarName, Kind' ())], [(LVarName, Type' () ())])
 localVariablesInScopeExpr exprOrTy =
   let M tyvars tmvars _globs = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
    in (reverse tyvars, reverse tmvars) -- keep most-global first
@@ -123,14 +123,14 @@ extractLocalsExprZ = foldAbove getBoundHere
       _ -> mempty
 
     -- If a node has no type annotation we assign it type TEmptyHole
-    typeOrHole :: Meta (Maybe TypeCache) -> Type' ()
+    typeOrHole :: Meta (Maybe TypeCache) -> Type' () ()
     typeOrHole (Meta _ t _) = typeOrHole' t
 
-    typeOrHole' :: Maybe TypeCache -> Type' ()
+    typeOrHole' :: Maybe TypeCache -> Type' () ()
     typeOrHole' = maybe (TEmptyHole ()) uncache
 
     -- Extract a Type from a TypeCache
-    uncache :: TypeCache -> Type' ()
+    uncache :: TypeCache -> Type' () ()
     uncache (TCSynthed t) = t
     uncache (TCChkedAt t) = t
     uncache (TCEmb TCBoth{tcSynthed = t}) = t

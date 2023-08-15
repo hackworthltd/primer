@@ -46,7 +46,7 @@ import Test.Tasty.HUnit (Assertion, (@?=))
 --  * whether the term is synthesisable or checkable
 --
 --  * the type of the term
-genDirTm :: PropertyT WT (Dir, Expr, Type' ())
+genDirTm :: PropertyT WT (Dir, Expr, Type' () ())
 genDirTm = do
   dir <- forAllT $ Gen.element @[] [Chk, Syn]
   (t', ty) <- case dir of
