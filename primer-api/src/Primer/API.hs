@@ -179,6 +179,7 @@ import Primer.Core (
   _exprMetaLens,
   _kindMeta,
   _type,
+  _typeKindMeta,
   _typeMeta,
   _typeMetaLens,
  )
@@ -404,8 +405,8 @@ data APILog
   | GetProgram' (ReqResp SessionId Prog)
   | GetProgram (ReqResp SessionId App.Prog)
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
-  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
-  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ())))) (Either ProgError [Name.Name]))
+  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' () ())]), [(GVarName, Type' () ())])))
+  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' () ())) (Maybe (Kind' ())))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
   | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
@@ -746,7 +747,7 @@ viewProg p =
                           astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
                             ValCon
                               { name = nameCon
-                              , fields = viewTreeType' . over _typeMeta (show . view _id) <$> argsCon
+                              , fields = viewTreeType' . over _typeKindMeta (const @_ @() "") . over _typeMeta (show . view _id) <$> argsCon
                               }
                   }
             )
@@ -762,10 +763,11 @@ viewProg p =
                         Def.DefPrim d' -> viewTreeType' $ labelNodes $ primDefType d'
                           where
                             labelNodes =
-                              flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do
-                                n <- get
-                                put $ n + 1
-                                pure $ "primtype_" <> Name.unName (Core.baseName name) <> "_" <> show n
+                              let f () = do
+                                    n <- get
+                                    put $ n + 1
+                                    pure $ "primtype_" <> Name.unName (Core.baseName name) <> "_" <> show n
+                               in flip evalState (0 :: Int) . (traverseOf _typeKindMeta f <=< traverseOf _typeMeta f)
                   }
             )
               <$> Map.assocs (moduleDefsQualified m)
@@ -950,11 +952,11 @@ viewTreeExpr e0 = case e0 of
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType = viewTreeType' . over _typeMeta (show . view _id)
+viewTreeType = viewTreeType' . over _typeKindMeta (const @_ @() "") . over _typeMeta (show . view _id)
 
 -- | Like 'viewTreeType', but with the flexibility to accept arbitrary textual node identifiers,
 -- rather than using the type's numeric IDs.
-viewTreeType' :: Type' Text -> Tree
+viewTreeType' :: Type' Text Text -> Tree
 viewTreeType' t0 = case t0 of
   TEmptyHole _ ->
     Tree
@@ -1068,14 +1070,14 @@ variablesInScope ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   (GVarName, ID) ->
-  PrimerM m (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+  PrimerM m (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' () ())]), [(GVarName, Type' () ())]))
 variablesInScope = curry $ logAPI (leftResultError VariablesInScope) $ \(sid, (defname, exprid)) ->
   liftQueryAppM (handleQuestion (App.VariablesInScope defname exprid)) sid
 
 generateNames ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
-  ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ()))) ->
+  ((GVarName, ID), Either (Maybe (Type' () ())) (Maybe (Kind' ()))) ->
   PrimerM m (Either ProgError [Name.Name])
 generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defname, exprid), tk)) ->
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
@@ -1371,12 +1373,12 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     viewExprType = Type . fromMaybe trivialTree . viewExprType'
     viewExprType' :: ExprMeta -> Maybe Tree
     viewExprType' = preview $ _type % _Just % to (viewTreeType' . mkIds . getAPIType)
-    isHole :: Type' a -> Bool
+    isHole :: Type' a b -> Bool
     isHole = \case
       THole{} -> True
       TEmptyHole{} -> True
       _ -> False
-    getAPIType :: TypeCache -> Type' ()
+    getAPIType :: TypeCache -> Type' () ()
     getAPIType = \case
       TCSynthed t -> t
       TCChkedAt t -> t
@@ -1388,8 +1390,8 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         -- if neither is a hole (in which case the two are consistent), we choose the synthed type
         | otherwise -> tcSynthed
     -- We prefix ids to keep them unique from other ids in the emitted program
-    mkIds :: Type' () -> Type' Text
-    mkIds = over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
+    mkIds :: Type' () () -> Type' Text Text
+    mkIds = over _typeKindMeta (const @_ @() "") . over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
     mkIdsK :: Kind' () -> Kind' Text
     mkIdsK = over _kindMeta (("selkind-" <>) . show . getID) . create' . generateKindIDs
     viewTypeKind :: TypeMeta -> TypeOrKind

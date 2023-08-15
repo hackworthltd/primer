@@ -218,7 +218,7 @@ import Primer.Typecheck.Utils (
 -- synthesised type, not the checked one. For example, when checking that
 -- @Int -> ?@ accepts @\x . x@, we record that the variable node has type
 -- @Int@, rather than @?@.
-type ExprT = Expr' (Meta TypeCache) (Meta (Kind' ()))
+type ExprT = Expr' (Meta TypeCache) (Meta (Kind' ())) ()
 
 assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
@@ -381,7 +381,7 @@ checkTypeDefs tds = do
       local (extendLocalCxtTys params) $
         traverseOf astTypeDefConArgs (checkKind' (KType ())) td
 
-astTypeDefConArgs :: Traversal (ASTTypeDef a c) (ASTTypeDef b c) (Type' a) (Type' b)
+astTypeDefConArgs :: Traversal (ASTTypeDef a c) (ASTTypeDef b c) (Type' a ()) (Type' b ())
 astTypeDefConArgs = #astTypeDefConstructors % traversed % #valConArgs % traversed
 
 distinct :: Ord a => [a] -> Bool
@@ -848,7 +848,7 @@ isSorted :: Ord a => [a] -> Bool
 isSorted [] = True
 isSorted xxs@(_ : xs) = and $ zipWith (<=) xxs xs
 
-addChkMetaT :: Type' () -> ExprT -> ExprT
+addChkMetaT :: Type' () () -> ExprT -> ExprT
 addChkMetaT = addChkMeta' equality
 
 -- NB: recurse over Let{,rec,Type}, as these have different typing
@@ -856,7 +856,7 @@ addChkMetaT = addChkMeta' equality
 -- currently have a typing rule, but only because it is awkward to
 -- nicely handle the type equality it introduces -- it will be roughly
 -- the same as Let when it is implemented)
-addChkMeta' :: Is k A_Setter => Optic' k NoIx a TypeCache -> Type' () -> Expr' (Meta a) b -> Expr' (Meta a) b
+addChkMeta' :: Is k A_Setter => Optic' k NoIx a TypeCache -> Type' () () -> Expr' (Meta a) b c -> Expr' (Meta a) b c
 addChkMeta' set t e =
   let e' = case e of
         Let m v s b -> Let m v s $ addChkMeta' set t b
@@ -880,11 +880,11 @@ addChkMeta' set t e =
 -- initially had typecaches @TCChkedAt (Bool -> Int)@ on @e@ and @TCChkedAt Int@
 -- on @e'@, then we would return @{? λx.e' ?}@ where the @e'@ still has its
 -- typecache, but that is wrong for its anticipated new context.
-enholeT :: MonadFresh ID m => Type' () -> ExprT -> m ExprT
+enholeT :: MonadFresh ID m => Type' () () -> ExprT -> m ExprT
 enholeT = enhole' equality
 
 -- | A generic helper for 'enholeT' and (a hypothetical) @enhole = enhole' _Just@
-enhole' :: (Is k A_Prism, MonadFresh ID m) => Optic' k NoIx a TypeCache -> Type' () -> Expr' (Meta a) b -> m (Expr' (Meta a) b)
+enhole' :: (Is k A_Prism, MonadFresh ID m) => Optic' k NoIx a TypeCache -> Type' () () -> Expr' (Meta a) b c -> m (Expr' (Meta a) b c)
 enhole' p' t e =
   let p = castOptic @A_Prism p'
    in Hole
@@ -898,9 +898,9 @@ checkBranch ::
   forall e m.
   TypeM e m =>
   Type ->
-  (ValConName, [Type' ()]) -> -- The constructor and its instantiated parameter types
-  CaseBranch' ExprMeta TypeMeta ->
-  m (CaseBranch' (Meta TypeCache) (Meta (Kind' ())))
+  (ValConName, [Type' () ()]) -> -- The constructor and its instantiated parameter types
+  CaseBranch' ExprMeta TypeMeta () ->
+  m (CaseBranch' (Meta TypeCache) (Meta (Kind' ())) ())
 checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
   do
     -- We check an invariant due to paranoia
@@ -922,7 +922,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
     rhs' <- local (extendLocalCxts (map (first bindName) fixedPats)) $ check t fixedRHS
     pure $ CaseBranch nb (map fst fixedPats) rhs'
   where
-    createBinding :: S.Set Name -> Type' () -> m (Bind' (Meta TypeCache), Type' ())
+    createBinding :: S.Set Name -> Type' () () -> m (Bind' (Meta TypeCache), Type' () ())
     createBinding namesInScope ty = do
       -- Avoid automatically generated names shadowing anything
       name <- freshLocalName' namesInScope
@@ -980,7 +980,7 @@ consistentTypes x y = uncurry eqType $ holepunch x y
     holepunch s t = (s, t)
 
 -- | Compare two types for alpha equality, ignoring their IDs
-eqType :: Type' a -> Type' b -> Bool
+eqType :: Type' a c -> Type' b d -> Bool
 eqType t1 t2 = forgetTypeMetadata t1 `alphaEqTy` forgetTypeMetadata t2
 
 -- | Convert @Expr (Meta Type) (Meta Kind)@ to @Expr (Meta (Maybe Type)) (Meta (Maybe Kind))@
@@ -988,8 +988,8 @@ exprTtoExpr :: ExprT -> Expr
 exprTtoExpr = over _exprTypeMeta (fmap Just) . over _exprMeta (fmap Just)
 
 -- | Convert @Type (Meta Kind)@ to @Type (Meta (Maybe Kind))@
-typeTtoType :: TypeT -> Type' TypeMeta
+typeTtoType :: TypeT -> Type' TypeMeta ()
 typeTtoType = over _typeMeta (fmap Just)
 
-checkKind' :: TypeM e m => Kind' () -> Type' (Meta a) -> m TypeT
+checkKind' :: TypeM e m => Kind' () -> Type' (Meta a) () -> m TypeT
 checkKind' k t = modifyError' KindError (checkKind k t)

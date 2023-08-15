@@ -125,9 +125,9 @@ types/expressions, but it is easy to have a post-processing step of adding IDs
 and empty TypeCaches to everything.
 -}
 
-type TypeG = Type' ()
+type TypeG = Type' () ()
 
-type ExprG = Expr' () ()
+type ExprG = Expr' () () ()
 
 newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
   deriving newtype

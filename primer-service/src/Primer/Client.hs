@@ -149,13 +149,13 @@ edit sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.edit
 variablesInScope ::
   SessionId ->
   (GVarName, ID) ->
-  ClientM (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+  ClientM (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' () ())]), [(GVarName, Type' () ())]))
 variablesInScope sid ctx = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.questionAPI // API.variablesInScope /: ctx
 
 -- | As 'Primer.API.generateNames'.
 generateNames ::
   SessionId ->
-  ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ()))) ->
+  ((GVarName, ID), Either (Maybe (Type' () ())) (Maybe (Kind' ()))) ->
   ClientM (Either ProgError [Name])
 generateNames sid ctx = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.questionAPI // API.generateNames /: ctx
 

@@ -128,8 +128,8 @@ tasty_shadow_monoid_expr = property $ do
 
 data STE'
   = TyVar (TyVarName, Kind' ())
-  | TmVar (LVarName, Type' ())
-  | Global (GVarName, Type' ())
+  | TmVar (LVarName, Type' () ())
+  | Global (GVarName, Type' () ())
   deriving stock (Show)
 
 nameSTE' :: STE' -> Name
@@ -245,7 +245,7 @@ unit_variablesInScope_shadowed = do
 -- | Test that if we walk 'path' to some node in 'expr', that node will have
 -- 'expected' in-scope variables.
 -- We start by typechecking the expression, so it is annotated with types.
-hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Type' ())] -> Assertion
+hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Type' () ())] -> Assertion
 hasVariables expr path expected = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
@@ -255,7 +255,7 @@ hasVariables expr path expected = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for type variables inside terms also
-hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind' ())] -> [(LVarName, Type' ())] -> Assertion
+hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind' ())] -> [(LVarName, Type' () ())] -> Assertion
 hasVariablesTyTm expr path expectedTy expectedTm = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of

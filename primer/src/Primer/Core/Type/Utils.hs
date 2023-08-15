@@ -47,28 +47,31 @@ import Primer.Core.Type (
   Type,
   Type' (..),
   _kindMeta,
+  _typeKindMeta,
   _typeMeta,
  )
 import Primer.Zipper.Type (getBoundHereDnTy)
 
 -- | Regenerate all IDs, not changing any other metadata
-regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a -> m (Type' a)
-regenerateTypeIDs = regenerateTypeIDs' (set _id)
+regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a () -> m (Type' a ())
+regenerateTypeIDs = regenerateTypeIDs' (set _id) (const . const ())
 
-regenerateTypeIDs' :: MonadFresh ID m => (ID -> a -> b) -> Type' a -> m (Type' b)
-regenerateTypeIDs' s = traverseOf _typeMeta (\a -> flip s a <$> fresh)
+regenerateTypeIDs' :: MonadFresh ID m => (ID -> a -> a') -> (ID -> b -> b') -> Type' a b -> m (Type' a' b')
+regenerateTypeIDs' st sk =
+  traverseOf _typeMeta (\a -> flip st a <$> fresh)
+    >=> traverseOf _typeKindMeta (\a -> flip sk a <$> fresh)
 
 -- | Adds 'ID's and trivial metadata
-generateTypeIDs :: MonadFresh ID m => Type' () -> m Type
-generateTypeIDs = regenerateTypeIDs' $ const . trivialMeta
+generateTypeIDs :: MonadFresh ID m => Type' () () -> m Type
+generateTypeIDs = regenerateTypeIDs' (const . trivialMeta) (const . const ())
 
 generateKindIDs :: MonadFresh ID m => Kind' () -> m Kind
 generateKindIDs = traverseOf _kindMeta $ \() -> kmeta
 
--- | Replace all 'ID's in a Type with unit.
+-- | Replace all 'ID's in a Type (including in embedded kinds) with unit.
 -- Technically this replaces all annotations, regardless of what they are.
-forgetTypeMetadata :: Type' a -> Type' ()
-forgetTypeMetadata = set _typeMeta ()
+forgetTypeMetadata :: Type' a b -> Type' () ()
+forgetTypeMetadata = set _typeMeta () . set _typeKindMeta ()
 
 -- | Replace all metadata in a Kind with unit.
 forgetKindMetadata :: Kind' a -> Kind' ()
@@ -76,7 +79,7 @@ forgetKindMetadata = set _kindMeta ()
 
 -- | Test whether an type contains any holes
 -- (empty or non-empty, or inside a kind)
-noHoles :: Data a => Type' a -> Bool
+noHoles :: (Data a, Data b) => Type' a b -> Bool
 noHoles t = flip all (universe t) $ \case
   THole{} -> False
   TEmptyHole{} -> False
@@ -85,15 +88,15 @@ noHoles t = flip all (universe t) $ \case
     _ -> True
   _ -> True
 
-freeVarsTy :: Type' a -> Set TyVarName
+freeVarsTy :: Type' a b -> Set TyVarName
 freeVarsTy = setOf (getting _freeVarsTy % _2)
 
-_freeVarsTy :: Traversal (Type' a) (Type' a) (a, TyVarName) (Type' a)
+_freeVarsTy :: Traversal (Type' a b) (Type' a b) (a, TyVarName) (Type' a b)
 _freeVarsTy = traversalVL $ traverseFreeVarsTy mempty
 
 -- Helper for _freeVarsTy and _freeTyVars
 -- Takes a set of considered-to-be-bound variables
-traverseFreeVarsTy :: Applicative f => Set TyVarName -> ((a, TyVarName) -> f (Type' a)) -> Type' a -> f (Type' a)
+traverseFreeVarsTy :: Applicative f => Set TyVarName -> ((a, TyVarName) -> f (Type' a b)) -> Type' a b -> f (Type' a b)
 traverseFreeVarsTy = go
   where
     go bound f = \case
@@ -108,7 +111,7 @@ traverseFreeVarsTy = go
       TForall m a k s -> TForall m a k <$> go (S.insert a bound) f s
       TLet m a t b -> TLet m a <$> go bound f t <*> go (S.insert a bound) f b
 
-boundVarsTy :: (Data a, Eq a) => Type' a -> Set TyVarName
+boundVarsTy :: (Data a, Eq a, Data b, Eq b) => Type' a b -> Set TyVarName
 boundVarsTy = foldMap' getBoundHereDnTy . universe
 
 -- Check two types for alpha equality
@@ -119,7 +122,7 @@ boundVarsTy = foldMap' getBoundHereDnTy . universe
 --
 -- Note that we do not expand TLets, they must be structurally
 -- the same (perhaps with a different named binding)
-alphaEqTy :: Type' () -> Type' () -> Bool
+alphaEqTy :: Type' () () -> Type' () () -> Bool
 alphaEqTy = go (0, mempty, mempty)
   where
     go _ (TEmptyHole _) (TEmptyHole _) = True
@@ -140,9 +143,9 @@ alphaEqTy = go (0, mempty, mempty)
       -- in the map.
     new (c, p, q) n m = (c + 1 :: Int, M.insert n c p, M.insert m c q)
 
-concreteTy :: Data b => Type' b -> Bool
+concreteTy :: (Data b, Data c) => Type' b c -> Bool
 concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
 
 -- | Traverse the 'ID's in a 'Type''.
-typeIDs :: HasID a => Traversal' (Type' a) ID
+typeIDs :: HasID a => Traversal' (Type' a b) ID
 typeIDs = _typeMeta % _id

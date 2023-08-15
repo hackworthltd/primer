@@ -45,7 +45,7 @@ data ActionError
   | CaseBranchAlreadyExists Pattern
   | CaseBranchNotExist Pattern
   | -- | Attempted to add a branch for an unexpected ctor
-    CaseBranchNotCon Pattern (Type' ())
+    CaseBranchNotCon Pattern (Type' () ())
   | -- TODO: semantic errors.
     -- https://github.com/hackworthltd/primer/issues/8
     SaturatedApplicationError (Either Text TypeError)
@@ -62,7 +62,7 @@ data ActionError
     -- The extra unit is to avoid having two constructors with a single
     -- TypeError field, breaking our MonadNestedError machinery...
     ImportFailed () TypeError
-  | NeedTFun (Type' ())
+  | NeedTFun (Type' () ())
   | NeedType SomeNode
   | NeedGlobal Available.Option
   | NeedLocal Available.Option

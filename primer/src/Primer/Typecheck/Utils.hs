@@ -46,14 +46,14 @@ import Primer.Typecheck.Cxt (Cxt, Kind, globalCxt, typeDefs)
 -- | Given a 'TypeDefMap', for each value constructor of a
 -- non-primitive typedef in the map, tuple the value constructor up
 -- with its type constructor name and its corresponding AST.
-allNonPrimValCons :: TypeDefMap -> [(ValCon (), TyConName, ASTTypeDef () ())]
+allNonPrimValCons :: TypeDefMap -> [(ValCon () (), TyConName, ASTTypeDef () ())]
 allNonPrimValCons tydefs = do
   (tc, TypeDefAST td) <- M.assocs tydefs
   vc <- astTypeDefConstructors td
   pure (vc, tc, td)
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon (), TyConName, ASTTypeDef () ())
+lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon () (), TyConName, ASTTypeDef () ())
 lookupConstructor tyDefs c = find ((== c) . valConName . fst3) $ allNonPrimValCons tyDefs
 
 data TypeDefError
@@ -63,12 +63,12 @@ data TypeDefError
   | TDIUnknown TyConName -- not in scope
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
-data TypeDefInfo a = TypeDefInfo [Type' a] TyConName (TypeDef () ()) -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
+data TypeDefInfo a b = TypeDefInfo [Type' a b] TyConName (TypeDef () ()) -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
 
-getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
+getTypeDefInfo :: MonadReader Cxt m => Type' a b -> m (Either TypeDefError (TypeDefInfo a b))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
 
-getTypeDefInfo' :: TypeDefMap -> Type' a -> Either TypeDefError (TypeDefInfo a)
+getTypeDefInfo' :: TypeDefMap -> Type' a b -> Either TypeDefError (TypeDefInfo a b)
 getTypeDefInfo' _ (TEmptyHole _) = Left TDIHoleType
 getTypeDefInfo' _ (THole _ _) = Left TDIHoleType
 getTypeDefInfo' tydefs ty =
@@ -89,8 +89,8 @@ getTypeDefInfo' tydefs ty =
 -- (e.g. @Nil : List Nat ; Cons : Nat -> List Nat -> List Nat@)
 instantiateValCons ::
   (MonadFresh NameCounter m, MonadReader Cxt m) =>
-  Type' () ->
-  m (Either TypeDefError (TyConName, ASTTypeDef () (), [(ValConName, [Type' ()])]))
+  Type' () () ->
+  m (Either TypeDefError (TyConName, ASTTypeDef () (), [(ValConName, [Type' () ()])]))
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
@@ -113,15 +113,15 @@ instantiateValCons t = do
 -- context into an argument
 instantiateValCons' ::
   TypeDefMap ->
-  Type' () ->
-  Either TypeDefError (TyConName, ASTTypeDef () (), [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])])
+  Type' () () ->
+  Either TypeDefError (TyConName, ASTTypeDef () (), [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' () ())])])
 instantiateValCons' tyDefs t =
   getTypeDefInfo' tyDefs t
     >>= \(TypeDefInfo params tc def) -> case def of
       TypeDefPrim _ -> Left $ TDIPrim tc
       TypeDefAST tda -> do
         let defparams = map fst $ astTypeDefParameters tda
-            f :: ValCon () -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])
+            f :: ValCon () () -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' () ())])
             -- eta expand to deal with shallow subsumption
             {- HLINT ignore instantiateValCons' "Avoid lambda" -}
             f c = (valConName c, map (\a -> substTySimul (M.fromList $ zip defparams params) (forgetTypeMetadata a)) $ valConArgs c)
@@ -132,11 +132,11 @@ maybeTypeOf :: Expr -> Maybe TypeCache
 maybeTypeOf = view _typecache
 
 -- | A lens for the type annotation of an 'Expr' or 'ExprT'
-_typecache :: Lens' (Expr' (Meta a) b) a
+_typecache :: Lens' (Expr' (Meta a) b c) a
 _typecache = _exprMetaLens % _type
 
 -- | Get the type of an 'ExprT'
-typeOf :: Expr' (Meta TypeCache) (Meta Kind) -> TypeCache
+typeOf :: Expr' (Meta TypeCache) (Meta Kind) () -> TypeCache
 typeOf = view _typecache
 
 -- Helper to create fresh names
