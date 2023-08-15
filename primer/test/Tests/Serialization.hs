@@ -181,7 +181,7 @@ fixtures =
       , mkFixture "movement" Child1
       , mkFixture "action" (SetCursor id0)
       , mkFixture "actionerror" actionError
-      , mkFixture "type" (TEmptyHole typeMeta)
+      , mkFixture "type" (TEmptyHole @TypeMeta @() typeMeta)
       , mkFixture "typecache" (TCSynthed $ TEmptyHole ())
       , mkFixture "typecacheboth" (TCBoth (TEmptyHole ()) (TEmptyHole ()))
       , mkFixture "expr" expr
@@ -205,6 +205,6 @@ fixtures =
               , evalRespDetail = reductionDetail
               }
           )
-      , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
-      , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
+      , mkFixture "prim_char" $ PrimCon @() @() @() () $ PrimChar 'a'
+      , mkFixture "prim_int" $ PrimCon @() @() @() () $ PrimInt 42
       ]

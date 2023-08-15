@@ -50,7 +50,7 @@ type KindM e m =
   , MonadNestedError KindError e m -- can throw kind errors
   )
 
-type TypeT = Type' (Meta Kind)
+type TypeT = Type' (Meta Kind) ()
 
 lookupLocalTy :: TyVarName -> Cxt -> Either KindError Kind
 lookupLocalTy v cxt = case Map.lookup (unLocalName v) $ localCxt cxt of
@@ -83,7 +83,7 @@ extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x
 -- A similar thing would happen with
 --   synthKind $ TApp 0 (TCon 1 List) (THole 2 (TCon 3 List))
 -- because we do not have checkKind KType List
-synthKind :: KindM e m => Type' (Meta a) -> m (Kind, TypeT)
+synthKind :: KindM e m => Type' (Meta a) () -> m (Kind, TypeT)
 synthKind = \case
   TEmptyHole m -> pure (KHole (), TEmptyHole (annotate (KHole ()) m))
   THole m t -> do
@@ -130,7 +130,7 @@ synthKind = \case
     pure (KType (), TForall (annotate (KType ()) m) n k t')
   TLet{} -> throwError' TLetUnsupported
 
-checkKind :: KindM e m => Kind -> Type' (Meta a) -> m TypeT
+checkKind :: KindM e m => Kind -> Type' (Meta a) () -> m TypeT
 checkKind k (THole m t) = do
   -- If we didn't have this special case, we might remove this hole (in a
   -- recursive call), only to reintroduce it again with a different ID

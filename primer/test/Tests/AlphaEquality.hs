@@ -102,11 +102,11 @@ tasty_alpha = property $ do
   where
     f v = create_ $ tforall v (KType ()) $ tvar v
 
-create_ :: S (Type' a) -> Alpha
+create_ :: S (Type' a b) -> Alpha
 create_ = Alpha . forgetTypeMetadata . create'
 
 -- | Like @Type' ()@, but 'Eq' only compares up to alpha-equality.
-newtype Alpha = Alpha (Type' ())
+newtype Alpha = Alpha (Type' () ())
   deriving stock (Show)
 
 instance Eq Alpha where

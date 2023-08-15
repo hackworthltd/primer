@@ -147,7 +147,7 @@ data NodeSelection a = NodeSelection
 instance HasID a => HasID (NodeSelection a) where
   _id = lens (getID . (.meta)) (flip $ over #meta . set _id)
 
-getTypeDefConFieldType :: ASTTypeDef a b -> ValConName -> Int -> Maybe (Type' a)
+getTypeDefConFieldType :: ASTTypeDef a b -> ValConName -> Int -> Maybe (Type' a ())
 getTypeDefConFieldType def con index =
   flip atMay index . valConArgs
     =<< find ((== con) . valConName) (astTypeDefConstructors def)
