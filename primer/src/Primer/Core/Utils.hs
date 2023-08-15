@@ -84,7 +84,7 @@ import Primer.Core.Type.Utils (
  )
 import Primer.Name (Name)
 
--- | Regenerate all IDs, not changing any other metadata
+-- | Regenerate all IDs (including in types), not changing any other metadata
 regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b -> m (Expr' a b)
 regenerateExprIDs = regenerateExprIDs' (set _id) (set _id)
 
