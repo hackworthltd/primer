@@ -32,7 +32,7 @@ data Def
   deriving (FromJSON, ToJSON) via PrimerJSON Def
   deriving anyclass (NFData)
 
-defType :: Def -> Type' ()
+defType :: Def -> Type' () ()
 defType = \case
   DefPrim d -> primDefType d
   DefAST d -> forgetTypeMetadata $ astDefType d

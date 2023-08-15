@@ -186,7 +186,7 @@ data EvalLog
   | -- | Found something that may have been a case redex,
     -- but the scrutinee's type is either under or over saturated.
     -- This should not happen if the expression is type correct.
-    CaseRedexNotSaturated (Type' ())
+    CaseRedexNotSaturated (Type' () ())
   | -- | Found something that may have been a case redex,
     -- but the scrutinee's head (value) constructor does not construct a member of the scrutinee's type.
     -- This should not happen if the expression is type correct.
@@ -195,7 +195,7 @@ data EvalLog
     -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
-    CaseRedexWrongArgNum Pattern [Expr] [Type' ()] [LVarName]
+    CaseRedexWrongArgNum Pattern [Expr] [Type' () ()] [LVarName]
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
@@ -300,10 +300,10 @@ data Redex
       -- ^ The head of the scrutinee
       , args :: [Expr]
       -- ^ The arguments of the scrutinee
-      , argTys :: [Type' ()]
+      , argTys :: [Type' () ()]
       -- ^ The type of each scrutinee's argument, directly from the constructor's definition
       -- (thus is not well formed in the current scope)
-      , params :: [(TyVarName, Type' ())]
+      , params :: [(TyVarName, Type' () ())]
       -- ^ The parameters of the constructor's datatype, and their
       -- instantiations from inspecting the type annotation on the scrutinee.
       , binders :: Maybe [Bind]
@@ -467,10 +467,10 @@ _LetTyBind = afolding $ \case LetTyBind b -> pure b; _ -> Nothing
 _LetTypeBind :: AffineFold LetTypeBinding (TyVarName, Type)
 _LetTypeBind = afolding $ \case LetTypeBind n t -> pure (n, t)
 
-_freeVars' :: Fold (Expr' a b) Name
+_freeVars' :: Fold (Expr' a b c) Name
 _freeVars' = _freeVars % to (either (unLocalName . snd) (unLocalName . snd))
 
-_freeVarsTy' :: Fold (Type' b) Name
+_freeVarsTy' :: Fold (Type' b c) Name
 _freeVarsTy' = getting _freeVarsTy % _2 % to unLocalName
 
 -- | Fold over the free variables in the unfolding of this definition.
@@ -598,8 +598,8 @@ viewCaseRedex tydefs = \case
               else Just $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     formCaseRedex ::
       Pattern ->
-      [Type' ()] ->
-      [(TyVarName, Type' ())] ->
+      [Type' () ()] ->
+      [(TyVarName, Type' () ())] ->
       [Expr] ->
       Maybe [Bind] ->
       Expr ->

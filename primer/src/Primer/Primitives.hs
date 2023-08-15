@@ -59,7 +59,7 @@ data PrimFunError
     PrimFunError
       PrimDef
       -- | Arguments
-      [Expr' () ()]
+      [Expr' () () ()]
   deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
 
@@ -136,10 +136,10 @@ primDefName = \case
   IntToNat -> "Int.toNat"
   IntFromNat -> "Int.fromNat"
 
-primDefType :: PrimDef -> Type' ()
+primDefType :: PrimDef -> Type' () ()
 primDefType = uncurry (flip $ foldr $ TFun ()) . primFunTypes
 
-primFunTypes :: PrimDef -> ([Type' ()], Type' ())
+primFunTypes :: PrimDef -> ([Type' () ()], Type' () ())
 primFunTypes = \case
   ToUpper -> ([c tChar], c tChar)
   IsSpace -> ([c tChar], c tBool)
@@ -165,7 +165,7 @@ primFunTypes = \case
     c = TCon ()
     a = TApp ()
 
-primFunDef :: PrimDef -> [Expr' () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
+primFunDef :: PrimDef -> [Expr' () () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
 primFunDef def args = case def of
   ToUpper -> case args of
     [PrimCon _ (PrimChar c)] ->

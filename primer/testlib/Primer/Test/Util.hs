@@ -92,19 +92,19 @@ gvn :: NonEmpty Name -> Name -> GVarName
 gvn = qualifyName . ModuleName
 
 -- | Replace all 'ID's in an Expr with 0.
-zeroIDs :: (HasID a, HasID b) => Expr' a b -> Expr' a b
+zeroIDs :: (HasID a, HasID b) => Expr' a b () -> Expr' a b ()
 zeroIDs = set exprIDs 0
 
 -- | Replace all 'ID's in a Type with 0.
-zeroTypeIDs :: HasID a => Type' a -> Type' a
+zeroTypeIDs :: HasID a => Type' a () -> Type' a ()
 zeroTypeIDs = over _typeMeta (setID 0)
 
 -- | Clear the backend-created metadata (IDs and cached types) in the given expression
-clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
+clearMeta :: Expr' ExprMeta TypeMeta () -> Expr' (Maybe Value) (Maybe Value) ()
 clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
 
 -- | Clear the backend-created metadata (IDs and cached types) in the given expression
-clearTypeMeta :: Type' TypeMeta -> Type' (Maybe Value)
+clearTypeMeta :: Type' TypeMeta () -> Type' (Maybe Value) ()
 clearTypeMeta = over _typeMeta (view _metadata)
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()

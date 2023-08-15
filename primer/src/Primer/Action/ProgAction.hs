@@ -44,7 +44,7 @@ data ProgAction
   | -- | Delete the value constructor with the given name, from the given type
     DeleteCon TyConName ValConName
   | -- | Add a new field, at the given index, to the given constructor
-    AddConField TyConName ValConName Int (Type' ())
+    AddConField TyConName ValConName Int (Type' () ())
   | -- | Delete the field at the given index of the given value constructor, in the given type
     DeleteConField TyConName ValConName Int
   | -- | Add a parameter at the given position, with the given name and kind, in the given type

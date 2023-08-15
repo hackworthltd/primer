@@ -293,14 +293,14 @@ afterRename' rename normalise fromVar toVar input output = do
 
 unit_unfoldApp_1 :: Assertion
 unit_unfoldApp_1 =
-  let expr :: Expr' () ()
+  let expr :: Expr' () () ()
       expr = App () (App () (App () (EmptyHole ()) (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
       v = Var () . LocalVarRef
    in unfoldApp expr @?= (EmptyHole (), [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
 
 unit_unfoldApp_2 :: Assertion
 unit_unfoldApp_2 =
-  let expr :: Expr' () ()
+  let expr :: Expr' () () ()
       expr = Con () (vcn ["M"] "C") [v "x", v "y"]
       v = Var () . LocalVarRef
    in unfoldApp expr @?= (expr, [])

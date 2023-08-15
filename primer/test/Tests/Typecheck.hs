@@ -723,11 +723,11 @@ unit_smartholes_idempotent_created_hole_typecache =
           ty'' @?= ty'
           e'' @?= e'
 
-forgetKindCache :: Type' (Meta b) -> Type
+forgetKindCache :: Type' (Meta b) () -> Type
 forgetKindCache = set (_typeMeta % _type) Nothing
 
 -- Also clears the kind cache in any embedded types
-forgetTypeCache :: Expr' (Meta a) (Meta b) -> Expr
+forgetTypeCache :: Expr' (Meta a) (Meta b) () -> Expr
 forgetTypeCache = set (_exprMeta % _type) Nothing . set (_exprTypeMeta % _type) Nothing
 
 -- Regression test: in the past, the inside of non-empty holes needed to be synthesisable.
@@ -819,7 +819,7 @@ instance (Eq (TypeCacheAlpha a), Eq (TypeCacheAlpha b)) => Eq (TypeCacheAlpha (E
   TypeCacheAlpha (Left a1) == TypeCacheAlpha (Left a2) = TypeCacheAlpha a1 == TypeCacheAlpha a2
   TypeCacheAlpha (Right b1) == TypeCacheAlpha (Right b2) = TypeCacheAlpha b1 == TypeCacheAlpha b2
   _ == _ = False
-instance (Eq (TypeCacheAlpha a), Eq b) => Eq (TypeCacheAlpha (Expr' (Meta a) b)) where
+instance (Eq (TypeCacheAlpha a), Eq b, Eq c) => Eq (TypeCacheAlpha (Expr' (Meta a) b c)) where
   (==) = (==) `on` ((_exprMeta % _type) %~ TypeCacheAlpha) . unTypeCacheAlpha
 instance Eq (TypeCacheAlpha Def) where
   TypeCacheAlpha (DefAST (ASTDef e1 t1)) == TypeCacheAlpha (DefAST (ASTDef e2 t2)) =
@@ -1024,10 +1024,10 @@ smartSynthGives eIn eExpect =
   where
     -- We want eGot and eExpect' to have the same type annotations, but they
     -- may differ on whether they were synthed or checked, and this is OK
-    normaliseAnnotations :: ExprT -> Expr' (Meta (Type' ())) (Meta (Kind' ()))
+    normaliseAnnotations :: ExprT -> Expr' (Meta (Type' () ())) (Meta (Kind' ())) ()
     normaliseAnnotations = over (_exprMeta % _type) f
       where
-        f :: TypeCache -> Type' ()
+        f :: TypeCache -> Type' () ()
         f = \case
           TCSynthed t -> t
           TCChkedAt t -> t

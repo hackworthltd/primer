@@ -64,10 +64,10 @@ import Primer.Core.Type (
 
 type KindZip' c = Zipper (Kind' c) (Kind' c)
 
-type TypeZip' b = Zipper (Type' b) (Type' b)
+type TypeZip' b c = Zipper (Type' b c) (Type' b c)
 
 -- | An ordinary zipper for 'Type's
-type TypeZip = TypeZip' TypeMeta
+type TypeZip = TypeZip' TypeMeta ()
 
 -- | We want to use up, down, left, right, etc. on 'ExprZ' and 'TypeZ',
 -- despite them being very different types. This class enables that, by proxying
@@ -131,20 +131,22 @@ focusOnKind' i = fmap snd . search matchesID
       | getID (target z) == i = Just z
       | otherwise = Nothing
 
+-- TODO (foralls) this should focus in a kind also
+
 -- | Focus on the node with the given 'ID', if it exists in the type
 focusOnTy ::
-  (Data b, HasID b) =>
+  (Data b, HasID b, Data c) =>
   ID ->
-  Type' b ->
-  Maybe (TypeZip' b)
+  Type' b c ->
+  Maybe (TypeZip' b c)
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
 focusOnTy' ::
-  (Data b, HasID b) =>
+  (Data b, HasID b, Data c) =>
   ID ->
-  TypeZip' b ->
-  Maybe (TypeZip' b)
+  TypeZip' b c ->
+  Maybe (TypeZip' b c)
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z
@@ -200,25 +202,25 @@ bindersAboveTy = foldAbove getBoundHereUpTy
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: (Data a, Eq a) => TypeZip' a -> S.Set TyVarName
+bindersBelowTy :: (Data a, Eq a, Data b, Eq b) => TypeZip' a b -> S.Set TyVarName
 bindersBelowTy = foldBelow getBoundHereDnTy
 
 -- Get the names bound by this layer of an type for a given child.
-getBoundHereUpTy :: Eq a => FoldAbove (Type' a) -> S.Set TyVarName
+getBoundHereUpTy :: (Eq a, Eq b) => FoldAbove (Type' a b) -> S.Set TyVarName
 getBoundHereUpTy e = getBoundHereTy (current e) (Just $ prior e)
 
 -- Get all names bound by this layer of an type, for any child.
-getBoundHereDnTy :: Eq a => Type' a -> S.Set TyVarName
+getBoundHereDnTy :: (Eq a, Eq b) => Type' a b -> S.Set TyVarName
 getBoundHereDnTy e = getBoundHereTy e Nothing
 
-getBoundHereTy :: Eq a => Type' a -> Maybe (Type' a) -> S.Set TyVarName
+getBoundHereTy :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> S.Set TyVarName
 getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> n) <$> getBoundHereTy' t prev
 
-data LetTypeBinding' a = LetTypeBind TyVarName (Type' a)
+data LetTypeBinding' a b = LetTypeBind TyVarName (Type' a b)
   deriving stock (Eq, Show)
-type LetTypeBinding = LetTypeBinding' TypeMeta
+type LetTypeBinding = LetTypeBinding' TypeMeta ()
 
-getBoundHereTy' :: Eq a => Type' a -> Maybe (Type' a) -> [Either TyVarName (LetTypeBinding' a)]
+getBoundHereTy' :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> [Either TyVarName (LetTypeBinding' a b)]
 getBoundHereTy' t prev = case t of
   TForall _ v _ _ -> [Left v]
   TLet _ v rhs b ->
