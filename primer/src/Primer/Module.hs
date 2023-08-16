@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLabels #-}
-
 module Primer.Module (
   Module (..),
   qualifyTyConName,
@@ -26,7 +24,6 @@ import Data.List.Extra (enumerate)
 import Data.Map (delete, insert, mapKeys, member)
 import Data.Map qualified as M
 import Data.Semigroup (Max (Max, getMax))
-import Optics (Field2 (_2), traverseOf, traversed, (%))
 import Primer.Builtins (
   boolDef,
   builtinModuleName,
@@ -53,7 +50,6 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (generateKindIDs, generateTypeIDs)
 import Primer.Def (
   Def (..),
   DefMap,
@@ -67,7 +63,7 @@ import Primer.JSON (
  )
 import Primer.Name (Name)
 import Primer.Primitives (allPrimTypeDefs, primDefName, primitiveModuleName)
-import Primer.TypeDef (ASTTypeDef (..), PrimTypeDef (..), TypeDef (..), TypeDefMap, forgetTypeDefMetadata, _typedefFields)
+import Primer.TypeDef (TypeDef (..), TypeDefMap, forgetTypeDefMetadata, generateTypeDefIDs)
 
 data Module = Module
   { moduleName :: ModuleName
@@ -136,22 +132,22 @@ nextModuleID m =
 -- It contains all primitive types and terms.
 primitiveModule :: MonadFresh ID m => m Module
 primitiveModule = do
-  allPrimTypeDefs' <- traverse (traverseOf (#primTypeDefParameters % traversed % _2) generateKindIDs) allPrimTypeDefs
+  allPrimTypeDefs' <- traverse (generateTypeDefIDs . TypeDefPrim) allPrimTypeDefs
   pure
     Module
       { moduleName = primitiveModuleName
-      , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs'
+      , moduleTypes = M.mapKeys baseName allPrimTypeDefs'
       , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
       }
 
 builtinModule :: MonadFresh ID m => m Module
 builtinModule = do
-  boolDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST boolDef
-  natDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST natDef
-  listDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs listDef
-  maybeDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs maybeDef
-  pairDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs pairDef
-  eitherDef' <- traverseOf _typedefFields generateTypeIDs . TypeDefAST =<< traverseOf (#astTypeDefParameters % traversed % _2) generateKindIDs eitherDef
+  boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+  natDef' <- generateTypeDefIDs $ TypeDefAST natDef
+  listDef' <- generateTypeDefIDs $ TypeDefAST listDef
+  maybeDef' <- generateTypeDefIDs $ TypeDefAST maybeDef
+  pairDef' <- generateTypeDefIDs $ TypeDefAST pairDef
+  eitherDef' <- generateTypeDefIDs $ TypeDefAST eitherDef
   pure $
     Module
       { moduleName = builtinModuleName
