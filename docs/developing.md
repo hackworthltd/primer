@@ -136,5 +136,5 @@ However, in this scenario, you'll need to have first created and/or
 migrated the local SQLite database by running `primer-sqitch`
 yourself. `primer-service` doesn't know how to deploy or migrate the
 database on its own. See the
-[`primer-service-entrypoint.sh`](../nix/pkgs/scripts/primer-service-entrypoint.sh)
+[`primer-service-entrypoint.bash`](../nix/pkgs/scripts/primer-service-entrypoint.bash)
 shell script for the commands that the Docker entrypoint runs.
