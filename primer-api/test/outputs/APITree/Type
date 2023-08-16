@@ -32,6 +32,12 @@ Tree
                 )
             , childTrees =
                 [ Tree
+                    { nodeId = "3"
+                    , body = NoBody KType
+                    , childTrees = []
+                    , rightChild = Nothing
+                    }
+                , Tree
                     { nodeId = "4"
                     , body = NoBody TApp
                     , childTrees =

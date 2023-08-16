@@ -564,6 +564,12 @@ Tree
                                         )
                                     , childTrees =
                                         [ Tree
+                                            { nodeId = "51"
+                                            , body = NoBody KType
+                                            , childTrees = []
+                                            , rightChild = Nothing
+                                            }
+                                        , Tree
                                             { nodeId = "52"
                                             , body = NoBody TApp
                                             , childTrees =
