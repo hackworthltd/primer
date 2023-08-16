@@ -50,7 +50,7 @@ let
       primer-sqitch
     ];
     # Use `builtins.readFile` here so that we get a shellcheck.
-    text = builtins.readFile ./primer-service-entrypoint.sh;
+    text = builtins.readFile ./primer-service-entrypoint.bash;
   };
 
   # Run `primer-service` locally against a SQLite database. This

@@ -246,14 +246,19 @@
             inherit weeder openapi-validate;
             inherit primer-sqitch-test-sqlite;
           }
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
-            (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
-              {
-                hostPkgs = pkgs;
-                defaults.imports = [ inputs.self.nixosModules.default ];
-              }
-            )
-          )
+
+          # Temporarily disabled due to a failure in nixpkgs.
+          # See:
+          # https://github.com/hackworthltd/primer/issues/1114
+
+          # // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
+          #   (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
+          #     {
+          #       hostPkgs = pkgs;
+          #       defaults.imports = [ inputs.self.nixosModules.default ];
+          #     }
+          #   )
+          # )
 
           # Broken on NixOS. See:
           # https://github.com/hackworthltd/primer/issues/632
