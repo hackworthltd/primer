@@ -11,7 +11,6 @@ module Primer.TypeDef (
   ASTTypeDef (..),
   PrimTypeDef (..),
   valConType,
-  _typedefFields,
   forgetTypeDefMetadata,
   generateTypeDefIDs,
 ) where
@@ -20,7 +19,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
-import Optics (Field2 (_2), Traversal, over, traversalVL, traverseOf, traversed, (%))
+import Optics (Field2 (_2), mapped, over, traverseOf, traversed, (%))
 import Primer.Core.Meta (
   ID,
   TyConName,
@@ -106,26 +105,21 @@ typeDefAST = \case
 typeDefKind :: TypeDef b () -> Kind' ()
 typeDefKind = foldr (KFun () . snd) (KType ()) . typeDefParameters
 
--- | A traversal over the contstructor fields in an typedef.
-_typedefFields :: Traversal (TypeDef b c) (TypeDef b' c) (Type' b ()) (Type' b' ())
-_typedefFields =
-  #_TypeDefAST
-    % #astTypeDefConstructors
-    % traversed
-    % #valConArgs
-    % traversed
-
-_typedefParamKinds :: Traversal (TypeDef b c) (TypeDef b c') (Kind' c) (Kind' c')
-_typedefParamKinds = traversalVL $ \f -> \case
-  TypeDefPrim td -> TypeDefPrim <$> traverseOf (#primTypeDefParameters % traversed % _2) f td
-  TypeDefAST td -> TypeDefAST <$> traverseOf (#astTypeDefParameters % traversed % _2) f td
-
 forgetTypeDefMetadata :: TypeDef b c -> TypeDef () ()
-forgetTypeDefMetadata =
-  over _typedefFields forgetTypeMetadata
-    . over _typedefParamKinds forgetKindMetadata
+forgetTypeDefMetadata (TypeDefPrim td) = TypeDefPrim $ over (#primTypeDefParameters % mapped % _2) forgetKindMetadata td
+forgetTypeDefMetadata (TypeDefAST (ASTTypeDef ps cs hs)) =
+  TypeDefAST $
+    ASTTypeDef
+      (over (mapped % _2) forgetKindMetadata ps)
+      (over (mapped % #valConArgs % mapped) forgetTypeMetadata cs)
+      hs
 
 generateTypeDefIDs :: MonadFresh ID m => TypeDef () () -> m (TypeDef TypeMeta KindMeta)
-generateTypeDefIDs =
-  traverseOf _typedefFields generateTypeIDs
-    <=< traverseOf _typedefParamKinds generateKindIDs
+generateTypeDefIDs (TypeDefPrim td) = TypeDefPrim <$> traverseOf (#primTypeDefParameters % traversed % _2) generateKindIDs td
+generateTypeDefIDs (TypeDefAST (ASTTypeDef ps cs hs)) =
+  TypeDefAST
+    <$> liftA3
+      ASTTypeDef
+      (traverseOf (traversed % _2) generateKindIDs ps)
+      (traverseOf (traversed % #valConArgs % traversed) generateTypeIDs cs)
+      (pure hs)
