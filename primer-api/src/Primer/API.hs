@@ -174,7 +174,6 @@ import Primer.Core (
   ValConName,
   getID,
   unLocalName,
-  unsafeMkLocalName,
   _bindMeta,
   _exprMetaLens,
   _kindMeta,
@@ -1003,17 +1002,10 @@ viewTreeType' t0 = case t0 of
   TForall _ n k t ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.TForall $ localName $ unsafeMkLocalName $ withKindAnn $ Name.unName $ unLocalName n
-      , childTrees = [viewTreeType' t]
+      , body = TextBody $ RecordPair Flavor.TForall $ localName n
+      , childTrees = [viewTreeKind' k, viewTreeType' t]
       , rightChild = Nothing
       }
-    where
-      -- TODO this is a placeholder
-      -- for now we expect all kinds in student programs to be `KType`
-      -- but we show something for other kinds, in order to keep rendering injective
-      withKindAnn = case k of
-        KType _ -> identity
-        _ -> (<> (" :: " <> show k))
   TLet _ n t b ->
     Tree
       { nodeId
