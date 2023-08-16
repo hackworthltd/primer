@@ -48,7 +48,7 @@ import Test.Tasty.HUnit (Assertion, (@?=))
 --  * the type of the term
 genDirTm :: PropertyT WT (Dir, Expr, Type' ())
 genDirTm = do
-  dir <- forAllT $ Gen.element [Chk, Syn]
+  dir <- forAllT $ Gen.element @[] [Chk, Syn]
   (t', ty) <- case dir of
     Chk -> do
       ty' <- forAllT $ genWTType $ KType ()

@@ -150,7 +150,7 @@ genSTE' =
         Right (ty, True) -> Global (qualifyName m n, ty)
    in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genModuleName <*> genName <*> g
   where
-    genModuleName = ModuleName <$> Gen.element [["M"], ["M1"]]
+    genModuleName = ModuleName <$> Gen.element @[] [["M"], ["M1"]]
 
 genSTE :: Gen ShadowedVarsExpr
 genSTE = deal . nubOrdOn nameSTE' <$> genSTE'
