@@ -165,6 +165,7 @@ data NoInputAction
   | DeleteTypeParam
   | MakeKType
   | MakeKFun
+  -- TODO: RaiseKind?
   | DeleteKind
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
