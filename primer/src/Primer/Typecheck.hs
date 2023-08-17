@@ -814,6 +814,10 @@ check t = \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       (Hole _ (Ann _ _ ty), SmartHoles)
+        -- TODO/REVIEW: when testing editable-forall-kinds, I noticed that we would not elide the hole in
+        --   foo : ∀a:*.? ; foo = {? ? : ∀a:*.? ?}
+        -- but this is odd -- the annotations are identical (so not acting as a typechange)!
+        -- (also, note that we keep hole-wrapped-holey-anns around because of the below even when we would accept the non-wrapped version (indeed, have an action that will do that!)
         | not (noHoles ty) ->
             -- Don't want to, e.g., remove {? λx.x : ? ?} to get λx.x : ?
             -- Since holey annotations behave like non-empty holes, we will
