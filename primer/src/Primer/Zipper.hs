@@ -64,6 +64,7 @@ module Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
   findType,
+  findTypeOrKind,
 ) where
 
 import Foreword
@@ -477,6 +478,8 @@ findNodeWithParent id x = do
       , Just $ maybe (TypeNode $ target $ unfocusKind kz) (KindNode . target) $ up kz
       )
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
+    InKind kz -> (KindNode $ target kz
+        , Just $ maybe (TypeNode $ target $ mergeNest kz) (KindNode . target) $ up kz)
 
 -- | Find a sub-type or kind in a larger type by its ID.
 findTypeOrKind :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
@@ -484,6 +487,7 @@ findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
 
 -- | Find a sub-type in a larger type by its ID.
 findType :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Type' a b)
+-- TODO: Do I still neeed this?  Make clear will not find a kind!
 findType id ty = findTypeOrKind id ty >>= leftToMaybe
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.

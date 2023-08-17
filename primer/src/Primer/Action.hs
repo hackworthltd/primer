@@ -86,7 +86,7 @@ import Primer.Core (
   unsafeMkLocalName,
   _chkedAt,
   _exprMetaLens,
-  _type,
+  _type, Kind' (KHole),
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -113,7 +113,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   tvar,
-  var,
+  var, khole, kfun,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
 import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
@@ -149,6 +149,7 @@ import Primer.Typecheck (
   synth,
  )
 import Primer.Typecheck qualified as TC
+import Primer.Zipper.Nested (mergeNest)
 import Primer.Zipper (
   BindLoc' (..),
   CaseBindZ,
@@ -175,7 +176,7 @@ import Primer.Zipper (
   unfocusType,
   up,
   updateCaseBind,
-  _target,
+  _target, KindZ, KindTZ,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
 
@@ -216,17 +217,17 @@ applyActionsToTypeSig ::
   -- | This must be one of the definitions in the @Module@, with its correct name
   (Name, ASTDef) ->
   [Action] ->
-  m (Either ActionError ([Module], TypeZ))
+  m (Either ActionError ([Module], Either TypeZ KindZ))
 applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m ([Module], TypeZ)
+    go :: ActionM m => m ([Module], Either TypeZ KindZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldlM (flip applyActionAndSynth) (InType zt) actions)
-      let t = target (top zt)
+      let t = target (top $ either identity mergeNest zt)
       e <- check (forgetTypeMetadata t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
           mod' = insertDef mod defName (DefAST def')
@@ -241,7 +242,8 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
-    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
+    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m (Either TypeZ KindZ)
+    -- TODO/REVIEW: the type of withWrappedType seems odd (before my changes!) I'd have expected it to return a TypeZip, or maybe a Type
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
       let unwrapError = throwError $ InternalFailure "applyActionsToTypeSig: failed to unwrap type"
@@ -252,11 +254,12 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
         Nothing -> wrapError
         Just wrappedTy ->
           f wrappedTy >>= \case
-            InType zt -> pure zt
+            InType zt -> pure $ Left zt
+            InKind zk -> pure $ Right zk
             -- This probably shouldn't happen, but it may be the case that an action accidentally
             -- exits the type and ends up in the outer expression that we have created as a wrapper.
             -- In this case we just refocus on the top of the type.
-            z -> maybe unwrapError pure (focusType (unfocusLoc z))
+            z -> maybe unwrapError (pure . Left) (focusType (unfocusLoc z))
 
 applyActionsToField ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
@@ -325,6 +328,7 @@ refocus Refocus{pre, post} = do
           InType t -> candidateIDsType t
           InKind _ v -> absurd v
           InBind (BindCase ze) -> [getID ze]
+          InKind k -> [getID k]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
     candidateIDsExpr e =
@@ -429,6 +433,7 @@ applyAction' a = case a of
     InType zt -> InType . flip replace zt <$> tEmptyHole
     InKind zk v -> pure $ InKind (replace (C.KHole ()) zk) v
     InBind _ -> throwError $ CustomFailure Delete "Cannot delete a binding"
+    InKind zk -> InKind . flip replace zk <$> khole
   SetMetadata d -> \case
     InExpr ze -> pure $ InExpr $ setMetadata d ze
     InType zt -> pure $ InType $ setMetadata d zt
@@ -474,14 +479,17 @@ applyAction' a = case a of
   RenameCaseBinding x -> \case
     InBind (BindCase z) -> InBind . BindCase <$> renameCaseBinding x z
     _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
-  ConstructKType -> const $ throwError $ CustomFailure ConstructKType "kind edits currently only allowed in typedefs"
-  ConstructKFun -> const $ throwError $ CustomFailure ConstructKFun "kind edits currently only allowed in typedefs"
+  ConstructKType -> kindAction constructKType "cannot construct the kind 'Type' - not in kind"
+  ConstructKFun -> kindAction constructKFun "cannot construct the arrow kind - not in kind"
   where
     termAction f s = \case
       InExpr ze -> InExpr <$> f ze
       _ -> throwError $ CustomFailure a s
     typeAction f s = \case
       InType zt -> InType <$> f zt
+      _ -> throwError $ CustomFailure a s
+    kindAction f s = \case
+      InKind zt -> InKind <$> f zt
       _ -> throwError $ CustomFailure a s
 
 setCursor :: MonadError ActionError m => ID -> ExprZ -> m Loc
@@ -1066,6 +1074,14 @@ renameForall b zt = case target zt of
             throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
+
+constructKType :: (MonadFresh ID m, MonadError ActionError m) => KindZ -> m KindZ
+constructKType zk = case target zk of
+  KHole _ -> flip replace zk <$> ktype
+  _ -> throwError $ CustomFailure ConstructKType "can only construct the kind 'Type' in hole"
+
+constructKFun :: MonadFresh ID m => KindZ -> m KindZ
+constructKFun zk = flip replace zk <$> ktype `kfun` (pure $ target zk)
 
 -- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
 toProgActionNoInput ::

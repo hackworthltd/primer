@@ -89,7 +89,7 @@ import Primer.Core (
   _exprMetaLens,
   _synthed,
   _type,
-  _typeMetaLens,
+  _typeMetaLens, Kind,
  )
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, freeVars, _freeVarsTy)
@@ -129,7 +129,7 @@ import Primer.Zipper (
   findType,
   focusOn,
   focusOnTy,
-  target,
+  target, findTypeOrKind,
  )
 
 -- | An offered action.
@@ -243,6 +243,9 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
   Just (KindNode _, _) -> [] -- For now we cannot even select kind nodes, so don't bother exposing any actions yet
   Just (CaseBindNode _, _) ->
     [Input RenamePattern]
+  Just (KindNode k, p) ->
+  	-- TODO: here is where we would put a raise action
+  	forKind l k
 
 forSig ::
   Level ->
@@ -251,11 +254,12 @@ forSig ::
   ID ->
   [Action]
 forSig _ NonEditable _ _ = mempty
-forSig l Editable ty id = sortByPriority l $ case findType id ty of
+forSig l Editable ty id = sortByPriority l $ case findTypeOrKind id ty of
   Nothing -> mempty
-  Just t ->
+  Just (Left t) ->
     forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
+  Just (Right k) -> forKind l k  -- TODO: here is where we would put a raise action
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
 forExpr tydefs l expr =
@@ -356,6 +360,12 @@ forType l type_ =
           ]
     delete = [NoInput DeleteType]
 
+forKind :: Level -> Kind -> [Action]
+forKind l k =
+    [NoInput MakeKFun] <> case k of
+       KHole _ -> [NoInput MakeKType]
+       _ -> [NoInput DeleteKind]
+
 forTypeDef ::
   Level ->
   Editable ->
@@ -419,10 +429,9 @@ forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
   sortByPriority
     l
     $ mwhen (not $ typeInUse tdName td tydefs defs)
-    $ [NoInput MakeKFun] <> case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
+    $ case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
       Nothing -> []
-      Just (KHole _) -> [NoInput MakeKType]
-      Just _ -> [NoInput DeleteKind]
+      Just k -> forKind l k
   where
       -- TODO: findKind should be removed in favor of something else...
     findKind i k =

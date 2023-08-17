@@ -240,7 +240,7 @@ import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
 import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefKind, typeDefNameHints, typeDefParameters)
 import Primer.TypeDef qualified as TypeDef
-import Primer.Zipper (SomeNode (..), findNodeWithParent, findType)
+import Primer.Zipper (SomeNode (..), findNodeWithParent, findType, findTypeOrKind)
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -1329,10 +1329,12 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
               ExprNode e -> viewExprType $ e ^. _exprMetaLens
               TypeNode t -> viewTypeKind $ t ^. _typeMetaLens
               CaseBindNode b -> viewExprType $ b ^. _bindMeta
+              KindNode k -> Kind $ viewTreeKind' $ KType "kind" -- see below about this lie!
           -- sig node selected - get kind from metadata
           SigNode ->
-            maybe (throw' $ NodeIDNotFound id) pure (findType id $ astDefType def) <&> \t ->
-              viewTypeKind $ t ^. _typeMetaLens
+            maybe (throw' $ NodeIDNotFound id) pure (findTypeOrKind id $ astDefType def) <&> \case
+             Left t -> viewTypeKind $ t ^. _typeMetaLens
+             Right k -> Kind $ viewTreeKind' $ KType "kind" -- see below about this lie!
     SelectionTypeDef sel -> do
       def <- snd <$> findASTTypeDef allTypeDefs sel.def
       case sel.node of
