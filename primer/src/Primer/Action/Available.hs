@@ -423,6 +423,7 @@ forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
       Just (KHole _) -> [NoInput MakeKType]
       Just _ -> [NoInput DeleteKind]
   where
+      -- TODO: findKind should be removed in favor of something else...
     findKind i k =
       if getID k == i
         then Just k
