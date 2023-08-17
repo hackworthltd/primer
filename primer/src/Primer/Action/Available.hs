@@ -166,6 +166,7 @@ data NoInputAction
   | DeleteTypeParam
   | MakeKType
   | MakeKFun
+  -- TODO: RaiseKind?
   | DeleteKind
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
@@ -359,6 +360,7 @@ forType l type_ =
 
 forKind :: Level -> Kind -> [Action]
 forKind _ k =
+  -- TODO: here is where we would put a raise action
   [NoInput MakeKFun] <> case k of
     KHole _ -> [NoInput MakeKType]
     _ -> [NoInput DeleteKind]
