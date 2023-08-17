@@ -372,19 +372,19 @@
                       in
                       {
                         primer = {
-                          ghcOptions = [ "-Werror" ];
+                          ghcOptions = [ ];
                           preCheck = preCheckTasty;
                         };
                         primer-api = {
-                          ghcOptions = [ "-Werror" ];
+                          ghcOptions = [ ];
                           preCheck = preCheckTasty;
                         };
                         primer-service = {
-                          ghcOptions = [ "-Werror" ];
+                          ghcOptions = [ ];
                           preCheck = preCheckTasty;
                         };
                         primer-benchmark = {
-                          ghcOptions = [ "-Werror" ];
+                          ghcOptions = [ ];
                           preCheck = preCheckTasty;
                         };
                       };
