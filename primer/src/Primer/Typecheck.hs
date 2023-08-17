@@ -980,6 +980,10 @@ consistentTypes x y = uncurry eqType $ holepunch x y
     holepunch (TForall _ n k s) (TForall _ m l t) =
       let (hs, ht) = holepunch s t
        in -- Perhaps we need to compare the kinds up to holes also?
+          -- TODO: this needs revisiting, as we can now write
+          --     foo : ∀a:*.?  ; foo = ? : ∀a:?.?
+          --   and SH puts the def into a hole, as the kinds on the foralls do not exactly match.
+          --   I'm not yet sure what the right thing to do is, I need to think about the metatheory!
           (TForall () n k hs, TForall () m l ht)
     holepunch s t = (s, t)
 
