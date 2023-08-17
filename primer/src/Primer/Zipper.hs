@@ -115,18 +115,30 @@ import Primer.Core (
  )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
+import Primer.Zipper.Nested (
+  IsZipper (..),
+  ZipNest (ZipNest),
+  down,
+  focus,
+  innerZipNest,
+  left,
+  replace,
+  right,
+  target,
+  top,
+  unfocusNest,
+  up,
+  _target,
+ )
 import Primer.Zipper.Type (
   FoldAbove,
   FoldAbove' (..),
-  IsZipper (..),
   LetTypeBinding' (LetTypeBind),
   TypeZip,
   TypeZip',
   bindersAboveTy,
   bindersBelowTy,
-  down,
   farthest,
-  focus,
   focusOnKind,
   focusOnTy,
   foldAbove,
@@ -134,14 +146,7 @@ import Primer.Zipper.Type (
   getBoundHereDnTy,
   getBoundHereTy,
   getBoundHereUpTy,
-  left,
-  replace,
-  right,
   search,
-  target,
-  top,
-  up,
-  _target,
  )
 
 type ExprZ' a b c = Zipper (Expr' a b c) (Expr' a b c)
@@ -154,13 +159,9 @@ type ExprZ = ExprZ' ExprMeta TypeMeta ()
 -- to navigate around them without losing our place in the wider expression.
 -- This type contains a Zipper for a 'Type' and a function that will place the
 -- unzippered type back into the wider expression zipper, keeping its place.
-data TypeZ' a b c = TypeZ (TypeZip' b c) (Type' b c -> ExprZ' a b c)
-  deriving stock (Generic)
+type TypeZ' a b c = ZipNest (ExprZ' a b c) (TypeZip' b c) (Type' b c)
 
 type TypeZ = TypeZ' ExprMeta TypeMeta ()
-
-instance HasID b => HasID (TypeZ' a b c) where
-  _id = position @1 % _id
 
 -- | A zipper for variable bindings in case branches.
 -- This type focuses on a particular binding in a particular branch.
@@ -258,7 +259,7 @@ focusType z = case target z of
   Con{} -> Nothing
   _ -> do
     t <- z ^? singular l
-    pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
+    pure $ ZipNest (zipper t) $ \t' -> z & l .~ t'
   where
     l = _target % typesInExpr
 
@@ -285,15 +286,12 @@ findInCaseBinds i z = do
     branchRHS = position @3
 
 -- | Switch from a 'Type' zipper back to an 'Expr' zipper.
-unfocusType :: TypeZ' a b c -> ExprZ' a b c
-unfocusType (TypeZ zt f) = f (fromZipper zt)
+unfocusType :: (Data b, Data c) => TypeZ' a b c -> ExprZ' a b c
+unfocusType = unfocusNest
 
 -- | Forget the surrounding expression context
 focusOnlyType :: TypeZ' a b c -> TypeZip' b c
-focusOnlyType (TypeZ zt _) = zt
-
-instance (Data b, Data c) => IsZipper (TypeZ' a b c) (Type' b c) where
-  asZipper = position @1
+focusOnlyType = innerZipNest
 
 -- 'CaseBindZ' is sort of a fake zipper which can only focus on one thing: the case binding.
 -- It's a bit fiddly to make it appear as a zipper like this, but it's convenient to have a
