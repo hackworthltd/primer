@@ -13,7 +13,8 @@ import Primer.Subst (substTy, substTySimul)
 import Primer.Typecheck.Cxt (Cxt)
 import Primer.Typecheck.Kindcheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
-import Primer.Zipper.Type (bindersBelowTy, focus)
+import Primer.Zipper.Nested (focus)
+import Primer.Zipper.Type (bindersBelowTy)
 
 data Inst
   = InstApp TC.Type
