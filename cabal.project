@@ -9,6 +9,8 @@ packages:
 
 optimization: 0
 
+allow-newer: hedgehog-classes:hedgehog
+
 package *
   ghc-options: -fwrite-ide-info
   benchmarks: True

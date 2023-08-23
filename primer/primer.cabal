@@ -156,13 +156,13 @@ library primer-hedgehog
     , base
     , containers
     , extra
-    , hedgehog        ^>=1.1
+    , hedgehog        ^>=1.4
     , mmorph          ^>=1.2.0
     , mtl
     , primer
     , primer-testlib
     , tasty-discover  ^>=5.0
-    , tasty-hedgehog  ^>=1.3
+    , tasty-hedgehog  ^>=1.4.0.2
 
 library primer-testlib
   visibility:         public
@@ -269,7 +269,7 @@ test-suite primer-test
       , extra
       , filepath
       , hedgehog
-      , hedgehog-classes             ^>=0.2.5.3
+      , hedgehog-classes             ^>=0.2.5.4
       , logging-effect
       , mtl
       , optics

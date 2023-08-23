@@ -354,7 +354,7 @@ tasty_available_actions_accepted = withTests 500 $
                                           KHole m -> [getID m]
                                           KType m -> [getID m]
                                           KFun m k1 k2 -> [getID m] <> allKindIDs k1 <> allKindIDs k2
-                                    id <- Gen.element $ allKindIDs k
+                                    id <- Gen.element @[] $ allKindIDs k
                                     pure
                                       ( "forTypeDefParamKindNode"
                                       ,
