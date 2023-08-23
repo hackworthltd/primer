@@ -243,7 +243,9 @@
           // primerFlake.packages;
 
           checks = {
-            inherit weeder openapi-validate;
+            # Disabled, as it doesn't currently build with Nix.
+            #inherit weeder;
+            inherit openapi-validate;
             inherit primer-sqitch-test-sqlite;
           }
 
@@ -464,7 +466,8 @@
                     cabal = "latest";
                     hlint = "latest";
 
-                    weeder = weederVersion;
+                    # Disabled, as it doesn't currently build with Nix.
+                    #weeder = weederVersion;
 
                     fourmolu = fourmoluVersion;
 
