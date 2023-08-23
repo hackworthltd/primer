@@ -40,7 +40,7 @@ library
 
   build-depends:
     , aeson                      >=2.0      && <2.2
-    , base                       >=4.12     && <4.18
+    , base                       >=4.12     && <4.19
     , containers                 >=0.6.0.1  && <0.7
     , deriving-aeson             >=0.2      && <0.3.0
     , exceptions                 >=0.10.4   && <0.11.0
@@ -103,7 +103,7 @@ executable primer-service
     , primer-api
     , primer-selda            ^>=0.7.2
     , primer-service
-    , prometheus-client       ^>=1.1.0
+    , prometheus-client       ^>=1.1.1
     , prometheus-metrics-ghc  ^>=1.0.1.2
     , stm
     , stm-containers

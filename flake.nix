@@ -40,11 +40,11 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc945";
+      ghcVersion = "ghc962";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
-      weederVersion = "2.5.0";
+      weederVersion = "2.6.0";
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
@@ -243,7 +243,9 @@
           // primerFlake.packages;
 
           checks = {
-            inherit weeder openapi-validate;
+            # Disabled, as it doesn't currently build with Nix.
+            #inherit weeder;
+            inherit openapi-validate;
             inherit primer-sqitch-test-sqlite;
           }
 
@@ -464,7 +466,8 @@
                     cabal = "latest";
                     hlint = "latest";
 
-                    weeder = weederVersion;
+                    # Disabled, as it doesn't currently build with Nix.
+                    #weeder = weederVersion;
 
                     fourmolu = fourmoluVersion;
 

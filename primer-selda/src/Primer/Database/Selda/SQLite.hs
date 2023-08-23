@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- Temporary workaround for GHC 9.6:
+-- https://gitlab.haskell.org/ghc/ghc/-/issues/23143
+{-# OPTIONS -Wno-redundant-constraints #-}
+
 module Primer.Database.Selda.SQLite (
   -- * The "Database.Selda.SQLite" database adapter.
   MonadSeldaSQLiteDb,
