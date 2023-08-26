@@ -30,7 +30,7 @@ jobs:
         uses: hashicorp/vault-action@v2.7.3
         id: secrets
         with:
-          url: https://secrets.hackworth-corp.com
+          url: https://vault.hackworth-corp.com
           path: "github-actions"
           role: primer-workflow-benchmark-regressions
           method: jwt
