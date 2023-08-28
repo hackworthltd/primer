@@ -518,6 +518,11 @@
                   coreutils
                   lsof
                   procps
+
+                  # Required for `kubectl cp`, which is potentially
+                  # useful for getting databases into and out of the
+                  # pod.
+                  gnutar
                 ]);
 
                 config =
