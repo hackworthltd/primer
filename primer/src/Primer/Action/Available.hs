@@ -130,7 +130,6 @@ import Primer.Zipper (
   focusOn,
   focusOnKind,
   focusOnTy,
-  locToEither,
   target,
  )
 
@@ -671,7 +670,7 @@ options typeDefs defs cxt level def0 sel0 = \case
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of
-        BodyNode -> Left . locToEither <$> focusOn nodeSel.meta (astDefExpr def)
+        BodyNode -> Left <$> focusOn nodeSel.meta (astDefExpr def)
         SigNode -> fmap Right $ focusOnTy nodeSel.meta $ astDefType def
     conField sel = do
       (con, field) <- case sel of

@@ -166,7 +166,6 @@ import Primer.Zipper (
   focusOn,
   focusOnlyType,
   focusType,
-  locToEither,
   replace,
   right,
   target,
@@ -381,10 +380,9 @@ applyActionAndCheck ty action z = do
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
 -- We take a list of the modules that should be in scope for the test.
-applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
+applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError Loc)
 applyActionsToExpr sh modules expr actions =
   foldlM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
-    <&> locToEither
     & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT -- catch any errors
 
