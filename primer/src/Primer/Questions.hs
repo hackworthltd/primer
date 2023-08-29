@@ -35,9 +35,11 @@ import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidFor
 import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck.Cxt (Cxt, typeDefs)
 import Primer.Zipper (
-  ExprZ,
-  TypeZ,
+  BindLoc' (BindCase),
+  Loc,
+  Loc' (InBind, InExpr, InType),
   TypeZip,
+  unfocusCaseBind,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
@@ -76,10 +78,13 @@ data Question a where
 -- the third is globals.
 variablesInScopeExpr ::
   DefMap ->
-  Either ExprZ TypeZ ->
+  Loc ->
   ([(TyVarName, Kind' ())], [(LVarName, Type' ())], [(GVarName, Type' ())])
-variablesInScopeExpr defs exprOrTy =
-  let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
+variablesInScopeExpr defs loc =
+  let locals = case loc of
+        InExpr ze -> extractLocalsExprZ ze
+        InType zt -> extractLocalsTypeZ zt
+        InBind (BindCase zb) -> extractLocalsExprZ $ unfocusCaseBind zb
       globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
@@ -87,10 +92,10 @@ variablesInScopeExpr defs exprOrTy =
 generateNameExpr ::
   MonadReader Cxt m =>
   Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
-  Either ExprZ TypeZ ->
+  Loc ->
   m [Name]
--- NB: it makes perfect sense to ask for a type variable (first Either is Right)
--- in a term context (second Either is Left): we could be inserting a LAM.
+-- NB: it makes perfect sense to ask for a type variable (Either is Right)
+-- in a term context (Loc is InExpr): we could be inserting a LAM.
 -- It doesn't make sense to ask for a term variable in a type context,
 -- but it also doesn't harm to support it.
 generateNameExpr tk z = uniquifyMany <$> getAvoidSet z <*> baseNames tk
@@ -132,10 +137,11 @@ baseNames tk = do
   where
     headCon = fmap fst . decomposeTAppCon
 
-getAvoidSet :: MonadReader Cxt m => Either ExprZ TypeZ -> m (Set.Set Name)
+getAvoidSet :: MonadReader Cxt m => Loc -> m (Set.Set Name)
 getAvoidSet = \case
-  Left ze -> mkAvoidForFreshName ze
-  Right zt -> mkAvoidForFreshNameTypeZ zt
+  InExpr ze -> mkAvoidForFreshName ze
+  InType zt -> mkAvoidForFreshNameTypeZ zt
+  InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
 
 -- | Adds a numeric suffix to a name to be distinct from a given set.
 -- (If the name is already distinct then return it unmodified.)
