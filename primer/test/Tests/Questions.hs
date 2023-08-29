@@ -42,7 +42,7 @@ import Primer.Typecheck (
   exprTtoExpr,
   synth,
  )
-import Primer.Zipper (ExprZ, TypeZip, down, focus, right)
+import Primer.Zipper (ExprZ, Loc' (InExpr), TypeZip, down, focus, right)
 import Tasty (Property, property)
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
@@ -251,7 +251,7 @@ hasVariables expr path expected = do
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
     Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
-      Just z' -> let (_, locals, _) = variablesInScopeExpr mempty (Left z') in locals @?= expected
+      Just z' -> let (_, locals, _) = variablesInScopeExpr mempty (InExpr z') in locals @?= expected
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for type variables inside terms also
@@ -262,7 +262,7 @@ hasVariablesTyTm expr path expectedTy expectedTm = do
     Left err -> assertFailure $ show err
     Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
       Just z' -> do
-        let (tyvars, tmvars, _) = variablesInScopeExpr mempty (Left z')
+        let (tyvars, tmvars, _) = variablesInScopeExpr mempty (InExpr z')
         tyvars @?= expectedTy
         tmvars @?= expectedTm
       Nothing -> assertFailure ""
@@ -314,7 +314,7 @@ hasGeneratedNamesExpr :: S Expr -> Maybe (S Type) -> (ExprZ -> Maybe ExprZ) -> [
 hasGeneratedNamesExpr expr ty path expected = do
   let (e, t) = create' $ (,) <$> expr <*> sequence ty
   case path $ focus e of
-    Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeMetadata t) (Left z)) defCxt @?= expected
+    Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeMetadata t) (InExpr z)) defCxt @?= expected
     Nothing -> assertFailure ""
 
 hasGeneratedNamesTy :: S Type -> Maybe (Kind' ()) -> (TypeZip -> Maybe TypeZip) -> [Name] -> Assertion
