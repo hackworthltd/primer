@@ -105,6 +105,9 @@ typeDefAST = \case
 typeDefKind :: TypeDef b () -> Kind' ()
 typeDefKind = foldr (KFun () . snd) (KType ()) . typeDefParameters
 
+-- TODO/REVIEW: I cannot see how to do this nice and lens-y (see old code
+-- above) because we cannot change metadata in params indep to in ctors,
+-- as both controlled by same `c`
 forgetTypeDefMetadata :: TypeDef b c -> TypeDef () ()
 forgetTypeDefMetadata (TypeDefPrim td) = TypeDefPrim $ over (#primTypeDefParameters % mapped % _2) forgetKindMetadata td
 forgetTypeDefMetadata (TypeDefAST (ASTTypeDef ps cs hs)) =
