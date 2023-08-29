@@ -54,7 +54,7 @@ import Primer.Zipper (
   focus,
   target,
   unfocusExpr,
-  unfocusType,
+  unfocusLoc,
  )
 import Tasty (Property, property)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
@@ -1328,7 +1328,7 @@ actionTestExpectFail f sh expr actions =
 -- given value. Fails if the actions fail.
 runTestActions :: SmartHoles -> ID -> Expr -> [Action] -> Either ActionError Expr
 runTestActions sh i expr actions =
-  either unfocusExpr (unfocusExpr . unfocusType)
+  unfocusExpr . unfocusLoc
     <$> evalTestM
       (i + 1)
       ( do
