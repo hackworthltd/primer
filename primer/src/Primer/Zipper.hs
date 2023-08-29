@@ -10,6 +10,7 @@ module Primer.Zipper (
   updateCaseBind,
   unfocusCaseBind,
   caseBindZFocus,
+  caseBindZMeta,
   IsZipper (asZipper),
   Loc,
   Loc' (..),
@@ -40,7 +41,6 @@ module Primer.Zipper (
   foldBelow,
   unfocusExpr,
   unfocusLoc,
-  locToEither,
   bindersAbove,
   bindersBelow,
   LetBinding' (..),
@@ -110,6 +110,7 @@ import Primer.Core (
   bindName,
   getID,
   typesInExpr,
+  _bindMeta,
  )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
@@ -204,6 +205,9 @@ updateCaseBind (CaseBindZ z bind rhs bindings update) f =
 
 instance HasID a => HasID (CaseBindZ' a b) where
   _id = #caseBindZFocus % _id
+
+caseBindZMeta :: Lens' (CaseBindZ' a b) a
+caseBindZMeta = #caseBindZFocus % _bindMeta
 
 -- | A specific location in our AST.
 -- This can either be in an expression, type, or binding.
@@ -313,15 +317,6 @@ unfocusLoc :: Loc -> ExprZ
 unfocusLoc (InExpr z) = z
 unfocusLoc (InType z) = unfocusType z
 unfocusLoc (InBind (BindCase z)) = unfocusCaseBind z
-
--- | Convert a 'Loc' to 'Either ExprZ TypeZ'.
--- If the 'Loc' is in a case bind, we shift focus to the parent case expression.
--- This function is mainly to keep compatibility with code which still expects 'Either ExprZ TypeZ'
--- as a representation of an AST location.
-locToEither :: Loc' a b -> Either (ExprZ' a b) (TypeZ' a b)
-locToEither (InBind (BindCase z)) = Left $ unfocusCaseBind z
-locToEither (InExpr z) = Left z
-locToEither (InType z) = Right z
 
 -- | Convert a 'Loc' to an 'Expr'.
 -- This shifts focus right up to the top, so the result is the whole expression.
