@@ -111,15 +111,15 @@ focusOnTy ::
   (Data b, HasID b) =>
   ID ->
   Type' b ->
-  Maybe (Zipper (Type' b) (Type' b))
+  Maybe (TypeZip' b)
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
 focusOnTy' ::
   (Data b, HasID b) =>
   ID ->
-  Zipper (Type' b) (Type' b) ->
-  Maybe (Zipper (Type' b) (Type' b))
+  TypeZip' b ->
+  Maybe (TypeZip' b)
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z
@@ -175,7 +175,7 @@ bindersAboveTy = foldAbove getBoundHereUpTy
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: (Data a, Eq a) => Zipper (Type' a) (Type' a) -> S.Set TyVarName
+bindersBelowTy :: (Data a, Eq a) => TypeZip' a -> S.Set TyVarName
 bindersBelowTy = foldBelow getBoundHereDnTy
 
 -- Get the names bound by this layer of an type for a given child.
