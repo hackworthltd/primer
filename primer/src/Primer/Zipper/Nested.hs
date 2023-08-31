@@ -6,6 +6,7 @@ module Primer.Zipper.Nested (
   unfocusNest,
   mergeNest,
   innerZipNest,
+  withNested,
   HasID (..),
   IsZipper (..),
   target,
@@ -61,6 +62,12 @@ mergeNest (ZipNest (ZipNest z f) g) = ZipNest (f $ unfocus z) g
 
 innerZipNest :: ZipNest largeZip smallZip small -> smallZip
 innerZipNest (ZipNest zs _) = zs
+
+withNested :: ( Monad m,IsZipper mediumZip medium) =>
+    ZipNest largeZip mediumZip medium -> (mediumZip -> m (ZipNest mediumZip smallZip small)) -> m (ZipNest largeZip smallZip small)
+withNested (ZipNest z f) g = do
+   ZipNest z' f' <- g z
+   pure $ ZipNest z' $ f . unfocus . f'
 
 -- | We want to use zipper-style up, down, left, right, etc. on various
 -- 'Zipper's and 'ZipNest's, despite them being very different types.
