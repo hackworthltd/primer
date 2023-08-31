@@ -1128,7 +1128,7 @@ runRedexTy (RenameSelfLetInType{letBinding = LetTypeBind a s, body, orig}) = do
   pure (result, TBindRename details)
 -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
 runRedexTy (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
-  newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
+  newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (Left $ focus body))
   insertedLet <- tlet origBinder (tvar newBinder) (pure body)
   let result = TForall meta newBinder kind insertedLet
   let details =
