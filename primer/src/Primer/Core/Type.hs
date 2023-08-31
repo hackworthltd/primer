@@ -99,7 +99,7 @@ _kindMeta = param @0
 
 -- | A lens on to the metadata of a kind.
 -- Note that unlike '_kindMeta', this is shallow i.e. it does not recurse in to sub-expressions.
--- And for this reason, it cannot be kind-changing.
+-- And for this reason, it cannot be type-changing.
 _kindMetaLens :: Lens' (Kind' a) a
 _kindMetaLens = position @1
 
