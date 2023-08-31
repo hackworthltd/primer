@@ -584,7 +584,7 @@ options typeDefs defs cxt level def0 sel0 = \case
     freeVar <$> genNames (Right Nothing)
   RenameForall -> do
     TypeNode (TForall _ _ k _) <- findNode
-    freeVar <$> genNames (Right $ Just k)
+    freeVar <$> genNames (Right $ Just $ forgetKindMetadata k)
   RenameDef ->
     pure $ freeVar []
   RenameType ->

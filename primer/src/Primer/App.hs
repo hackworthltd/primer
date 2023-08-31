@@ -941,7 +941,7 @@ applyProgAction prog = \case
         let meta = case z of
               InExpr ze -> Left $ ze ^. _target % _exprMetaLens
               InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
-              InKind _ v -> absurd v
+              InKind zk -> Right $ Right $ zk ^. _target % _kindMetaLens
               InBind (BindCase zb) -> Left $ zb ^. caseBindZMeta
         pure
           ( insertDef m defName (DefAST def')

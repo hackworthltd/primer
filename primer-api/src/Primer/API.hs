@@ -747,7 +747,7 @@ viewProg p =
                           astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
                             ValCon
                               { name = nameCon
-                              , fields = viewTreeType' . over _typeKindMeta (const @_ @() "") . over _typeMeta (show . view _id) <$> argsCon
+                              , fields = viewTreeType' . over _typeKindMeta (show . view _id) . over _typeMeta (show . view _id) <$> argsCon
                               }
                   }
             )
@@ -952,7 +952,7 @@ viewTreeExpr e0 = case e0 of
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType = viewTreeType' . over _typeKindMeta (const @_ @() "") . over _typeMeta (show . view _id)
+viewTreeType = viewTreeType' . over _typeKindMeta (show . view _id) . over _typeMeta (show . view _id)
 
 -- | Like 'viewTreeType', but with the flexibility to accept arbitrary textual node identifiers,
 -- rather than using the type's numeric IDs.
@@ -1391,7 +1391,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         | otherwise -> tcSynthed
     -- We prefix ids to keep them unique from other ids in the emitted program
     mkIds :: Type' () () -> Type' Text Text
-    mkIds = over _typeKindMeta (const @_ @() "") . over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
+    mkIds = over _typeKindMeta (show . view _id) . over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
     mkIdsK :: Kind' () -> Kind' Text
     mkIdsK = over _kindMeta (("selkind-" <>) . show . getID) . create' . generateKindIDs
     viewTypeKind :: TypeMeta -> TypeOrKind

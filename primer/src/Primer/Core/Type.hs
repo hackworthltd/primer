@@ -35,7 +35,7 @@ import Primer.JSON
 --  Type variables are currently represented as text, and we have no compile-time
 --  checks on scoping. We may want to introduce de Bruijn indices or use
 --  bound/unbound in the future.
-type Type = Type' TypeMeta ()
+type Type = Type' TypeMeta KindMeta
 
 -- | Type metadata. Each type is optionally annotated with a kind.
 -- Currently we don't fill these in during typechecking.

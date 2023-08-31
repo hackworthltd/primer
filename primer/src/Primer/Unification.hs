@@ -14,6 +14,7 @@ import Primer.Core.Meta (
 import Primer.Core.Type (
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   _typeMeta,
+  _typeKindMeta,
  )
 import Primer.Core.Type.Utils (_freeVarsTy)
 import Primer.Name (NameCounter)
@@ -77,7 +78,7 @@ unify cxt unificationVars s t = do
       -- checkKind succeeded, and not the result. Thus we just add some dummy
       -- ones.
       -- TODO: this is a bit of a code smell!
-      let addPointlessMeta = set _typeMeta $ trivialMeta 0
+      let addPointlessMeta = set _typeKindMeta (trivialMeta 0) . set _typeMeta (trivialMeta 0)
       let f v vt = case lookupLocalTy v cxt of
             Right k -> All . isRight <$> runExceptT @KindError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
             -- this catchall should never happen: sb should only contain

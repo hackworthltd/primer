@@ -161,7 +161,7 @@ import Primer.Zipper.Type (
 type ExprZ' a b c = Zipper (Expr' a b c) (Expr' a b c)
 
 -- | An ordinary zipper for 'Expr's
-type ExprZ = ExprZ' ExprMeta TypeMeta ()
+type ExprZ = ExprZ' ExprMeta TypeMeta KindMeta
 
 -- | A zipper for 'Type's embedded in expressions.
 -- For such types, we need a way
@@ -170,7 +170,7 @@ type ExprZ = ExprZ' ExprMeta TypeMeta ()
 -- unzippered type back into the wider expression zipper, keeping its place.
 type TypeZ' a b c = ZipNest (ExprZ' a b c) (TypeZip' b c) (Type' b c)
 
-type TypeZ = TypeZ' ExprMeta TypeMeta ()
+type TypeZ = TypeZ' ExprMeta TypeMeta KindMeta
 
 -- | A zipper for 'Kind's embedded in expressions (which will always be inside a 'Type').
 type KindZ' a b c = ZipNest (ExprZ' a b c) (KindTZ' b c) (Type' b c)
@@ -199,7 +199,7 @@ data CaseBindZ' a b c = CaseBindZ
   }
   deriving stock (Generic)
 
-type CaseBindZ = CaseBindZ' ExprMeta TypeMeta ()
+type CaseBindZ = CaseBindZ' ExprMeta TypeMeta KindMeta
 
 -- Apply an update function to the focus of a case binding, optionally modifying the rhs of the branch too.
 -- The update function is given three arguments:
@@ -242,7 +242,7 @@ data Loc' a b c
     InBind (BindLoc' a b c)
   deriving stock (Generic)
 
-type Loc = Loc' ExprMeta TypeMeta ()
+type Loc = Loc' ExprMeta TypeMeta KindMeta
 
 instance (HasID a, HasID b) => HasID (Loc' a b c) where
   _id = lens getter setter
@@ -350,11 +350,11 @@ unfocus :: Loc -> Expr
 unfocus = unfocusExpr . unfocusLoc
 
 -- | Focus on the node with the given 'ID', if it exists in the expression
-focusOn :: (Data a, Data b, Eq a, HasID a, HasID b, c ~ ()) => ID -> Expr' a b c -> Maybe (Loc' a b c)
+focusOn :: (Data a, Data b, Data c, Eq a, HasID a, HasID b, HasID c) => ID -> Expr' a b c -> Maybe (Loc' a b c)
 focusOn i = focusOn' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed expression
-focusOn' :: (Data a, Data b, Eq a, HasID a, HasID b, c ~ ()) => ID -> ExprZ' a b c -> Maybe (Loc' a b c)
+focusOn' :: (Data a, Data b, Data c, Eq a, HasID a, HasID b, HasID c) => ID -> ExprZ' a b c -> Maybe (Loc' a b c)
 focusOn' i = fmap snd . search matchesID
   where
     matchesID z
@@ -425,7 +425,7 @@ data LetBinding' a b c
   | LetrecBind LVarName (Expr' a b c) (Type' b c)
   | LetTyBind (LetTypeBinding' b c)
   deriving stock (Eq, Show)
-type LetBinding = LetBinding' ExprMeta TypeMeta ()
+type LetBinding = LetBinding' ExprMeta TypeMeta KindMeta
 
 letBindingName :: LetBinding' a b c -> Name
 letBindingName = \case
@@ -477,18 +477,18 @@ findNodeWithParent id x = do
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
 
 -- | Find a sub-type or kind in a larger type by its ID.
-findTypeOrKind :: (Data a, HasID a, b ~ ()) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
-findTypeOrKind id ty = bimap target (target . fst) <$> focusOnTy id ty
+findTypeOrKind :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
+findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
 
 -- | Find a sub-type in a larger type by its ID.
-findType :: (Data a, HasID a, b ~ ()) => ID -> Type' a b -> Maybe (Type' a b)
+findType :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Type' a b)
 findType id ty = findTypeOrKind id ty >>= leftToMaybe
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 data SomeNode
   = ExprNode Expr
   | TypeNode Type
-  | KindNode (Kind' ())
+  | KindNode Kind
   | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
     CaseBindNode Bind
   deriving stock (Eq, Show, Read, Generic)
