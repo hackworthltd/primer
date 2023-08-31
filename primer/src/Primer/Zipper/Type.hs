@@ -98,6 +98,7 @@ focusOnKind' i = fmap snd . search matchesID
       | getID (target z) == i = Just z
       | otherwise = Nothing
 
+-- TODO (foralls) this should focus in a kind also
 -- | Focus on the node with the given 'ID', if it exists in the type
 focusOnTy ::
   (Data b, HasID b, Data c, HasID c) =>
@@ -168,14 +169,14 @@ foldBelow f z = f (target z) <> maybe mempty (go . farthest left) (down z)
   where
     go z' = f (target z') <> maybe mempty (go . farthest left) (down z') <> maybe mempty go (right z')
 
-bindersAboveTy :: TypeZip -> S.Set TyVarName
-bindersAboveTy = foldAbove getBoundHereUpTy
+bindersAboveTy :: Either TypeZip KindTZ -> S.Set TyVarName
+bindersAboveTy = foldAbove getBoundHereUpTy . either identity unfocusNest -- no binders in kinds
 
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: (Data a, Eq a, Data b, Eq b) => TypeZip' a b -> S.Set TyVarName
-bindersBelowTy = foldBelow getBoundHereDnTy
+bindersBelowTy :: (Data a, Eq a, Data b, Eq b) => Either (TypeZip' a b) (KindTZ' a b) -> S.Set TyVarName
+bindersBelowTy = either (foldBelow getBoundHereDnTy) (const mempty) -- no binders in kinds
 
 -- Get the names bound by this layer of an type for a given child.
 getBoundHereUpTy :: (Eq a, Eq b) => FoldAbove (Type' a b) -> S.Set TyVarName
