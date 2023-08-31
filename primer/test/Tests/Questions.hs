@@ -272,7 +272,7 @@ hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind' (
 hasVariablesType ty path expected = do
   let t = create' ty
   case path $ focus t of
-    Just z -> variablesInScopeTy z @?= expected
+    Just z -> variablesInScopeTy (Left z) @?= expected
     Nothing -> assertFailure ""
 
 -- Test type-directed names
@@ -321,5 +321,5 @@ hasGeneratedNamesTy :: S Type -> Maybe (Kind' ()) -> (TypeZip -> Maybe TypeZip) 
 hasGeneratedNamesTy ty k path expected = do
   let t = create' ty
   case path $ focus t of
-    Just z -> runReader (generateNameTy (Right k) z) defCxt @?= expected
+    Just z -> runReader (generateNameTy (Right k) (Left z)) defCxt @?= expected
     Nothing -> assertFailure ""

@@ -4,7 +4,13 @@ module Primer.Zipper.Type (
   TypeZip,
   TypeZip',
   focusOnKind,
+  KindZip',
+  KindZip,
+  KindTZ',
+  KindTZ,
+  unfocusKindT,
   focusOnTy,
+  focusOnTy',
   farthest,
   search,
   FoldAbove,
@@ -45,20 +51,34 @@ import Primer.Core.Type (
 import Primer.Name (Name)
 import Primer.Zipper.Nested (
   IsZipper,
+  ZipNest,
   down,
   focus,
   left,
   right,
   target,
+  unfocusNest,
   up,
  )
 
 type KindZip' c = Zipper (Kind' c) (Kind' c)
 
+-- | An ordinary zipper for 'Kind's
+type KindZip = KindZip' ()
+
 type TypeZip' b c = Zipper (Type' b c) (Type' b c)
 
 -- | An ordinary zipper for 'Type's
 type TypeZip = TypeZip' TypeMeta ()
+
+-- | A zipper for kinds inside types
+type KindTZ' b c = ZipNest (TypeZip' b c) (KindZip' c) (Kind' c)
+
+type KindTZ = KindTZ' TypeMeta ()
+
+-- | Switch from a 'Kind'-in-'Type' zipper back to an 'Type' zipper.
+unfocusKindT :: Data c => KindTZ' b c -> TypeZip' b c
+unfocusKindT = unfocusNest
 
 -- | Focus on the node with the given 'ID', if it exists in the kind
 focusOnKind ::
@@ -84,24 +104,29 @@ focusOnKind' i = fmap snd . search matchesID
 -- | Focus on the node with the given 'ID', if it exists in the type
 -- TODO: this does not currently focus on kind nodes (since we do not have @HasID c@)
 focusOnTy ::
-  (Data b, HasID b, Data c) =>
+  (Data b, HasID b, c ~ ()) =>
   ID ->
   Type' b c ->
-  Maybe (TypeZip' b c)
+  Maybe (Either (TypeZip' b c) (KindTZ' b c, Void))
+-- The 'Void' is here for the same reason as in @Loc'@
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
+-- Note that this may be (@Left@) a type or (@Right@) a kind (inside a 'TForall')
 -- TODO: this does not currently focus on kind nodes (since we do not have @HasID c@)
 focusOnTy' ::
-  (Data b, HasID b, Data c) =>
+  (Data b, HasID b, c ~ ()) =>
   ID ->
   TypeZip' b c ->
-  Maybe (TypeZip' b c)
+  Maybe (Either (TypeZip' b c) (KindTZ' b c, Void))
+-- The 'Void' is here for the same reason as in @Loc'@
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z
       -- If the current target has the correct ID, return that
-      | getID (target z) == i = Just z
+      | getID (target z) == i = Just $ Left z
+      -- TODO: If the current target has a nested kind, search that
+      -- i.e. add a branch  | TForall m a k t <- target z = ...
       | otherwise = Nothing
 
 -- | Search for a node for which @f@ returns @Just@ something.
