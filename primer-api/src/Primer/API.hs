@@ -1344,6 +1344,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
             maybe (throw' $ NodeIDNotFound id) (pure . fst) (findNodeWithParent id $ astDefExpr def) <&> \case
               ExprNode e -> viewExprType $ e ^. _exprMetaLens
               TypeNode t -> viewTypeKind $ t ^. _typeMetaLens
+              KindNode _ v -> absurd v
               CaseBindNode b -> viewExprType $ b ^. _bindMeta
           -- sig node selected - get kind from metadata
           SigNode ->

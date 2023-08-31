@@ -35,6 +35,7 @@ import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
+  KindTZ,
   TypeZ,
   TypeZip,
   asZipper,
@@ -43,6 +44,7 @@ import Primer.Zipper (
   prior,
   unfocusType,
  )
+import Primer.Zipper.Nested (unfocusNest)
 
 -- Helper for variablesInScopeExpr: collect variables, most local first,
 -- eliding shadowed variables
@@ -88,7 +90,7 @@ localVariablesInScopeExpr exprOrTy =
 
 extractLocalsTypeZ :: TypeZ -> ShadowedVarsExpr
 extractLocalsTypeZ z =
-  let x = variablesInScopeTy $ z ^. asZipper
+  let x = variablesInScopeTy $ Left $ z ^. asZipper
       y = unfocusType z
    in -- walkUpExpr will extract binders strictly containing y
       -- (i.e. if y=λs.t, then 's' won't be reported). Since no
@@ -156,9 +158,9 @@ instance Monoid ShadowedVarsTy where
 -- | As for 'variablesInScopeExpr', but when you are focussed somewhere inside
 -- a type, rather than somewhere inside an expr
 -- Note that kind information is extracted from the cached kind (for 'TLet')
-variablesInScopeTy :: TypeZip -> [(TyVarName, Kind' ())]
-variablesInScopeTy e =
-  let N vs = foldAbove getBoundHere e
+variablesInScopeTy :: Either TypeZip KindTZ -> [(TyVarName, Kind' ())]
+variablesInScopeTy z =
+  let N vs = foldAbove getBoundHere $ either identity unfocusNest z -- no bindings in kinds
    in reverse vs -- keep most-global first
   where
     getBoundHere :: FoldAbove Type -> ShadowedVarsTy
