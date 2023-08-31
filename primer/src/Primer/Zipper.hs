@@ -134,6 +134,7 @@ import Primer.Zipper.Nested (
   top,
   unfocusNest,
   up,
+  withNested,
   _target,
  )
 import Primer.Zipper.Type (
@@ -144,6 +145,7 @@ import Primer.Zipper.Type (
   LetTypeBinding' (LetTypeBind),
   TypeZip,
   TypeZip',
+  KindZip',
   bindersAboveTy,
   bindersBelowTy,
   farthest,

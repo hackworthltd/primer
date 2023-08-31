@@ -44,7 +44,7 @@ import Primer.Zipper (
   prior,
   unfocusType,
  )
-import Primer.Zipper.Nested (unfocusNest)
+import Primer.Zipper.Nested (mergeNest, unfocusNest)
 
 -- Helper for variablesInScopeExpr: collect variables, most local first,
 -- eliding shadowed variables
