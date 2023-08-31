@@ -417,7 +417,7 @@ unit_case_badType =
 -- than a simultaneous one, resulting in believing @x:b@ and @y:b@!
 unit_case_subst :: Assertion
 unit_case_subst = do
-  let ty x = tforall "a" (KType ()) $ tforall "b" (KType ()) $ (tvar x `tfun` (tvar "b" `tfun` tcon tNat)) `tfun` tcon tNat
+  let ty x = tforall "a" ktype $ tforall "b" ktype $ (tvar x `tfun` (tvar "b" `tfun` tcon tNat)) `tfun` tcon tNat
   let expr a b =
         lAM a $
           lAM b $
@@ -564,7 +564,7 @@ unit_poly =
   expectTyped $
     ann
       (lam "id" $ lAM "a" $ aPP (lvar "id") (tvar "a"))
-      (tforall "c" (KType ()) (tvar "c" `tfun` tvar "c") `tfun` tforall "b" (KType ()) (tvar "b" `tfun` tvar "b"))
+      (tforall "c" ktype (tvar "c" `tfun` tvar "c") `tfun` tforall "b" ktype (tvar "b" `tfun` tvar "b"))
 
 unit_poly_head_Nat :: Assertion
 unit_poly_head_Nat =
@@ -599,7 +599,7 @@ unit_type_hole_4 :: Assertion
 unit_type_hole_4 = tapp (tcon tMaybeT) tEmptyHole `expectKinded` KFun () (KType ()) (KType ())
 
 unit_type_hole_5 :: Assertion
-unit_type_hole_5 = tforall "a" (KType ()) tEmptyHole `expectKinded` KType ()
+unit_type_hole_5 = tforall "a" ktype tEmptyHole `expectKinded` KType ()
 
 unit_type_hole_6 :: Assertion
 unit_type_hole_6 = thole (tcon tBool) `expectKinded` KHole ()
@@ -611,8 +611,8 @@ unit_smart_type_not_arrow =
 
 unit_smart_type_forall :: Assertion
 unit_smart_type_forall =
-  tforall "a" (KType ()) (tcon tList)
-    `smartSynthKindGives` tforall "a" (KType ()) (thole $ tcon tList)
+  tforall "a" ktype (tcon tList)
+    `smartSynthKindGives` tforall "a" ktype (thole $ tcon tList)
 
 unit_smart_type_not_type :: Assertion
 unit_smart_type_not_type =
@@ -646,8 +646,8 @@ unit_smart_type_remove_1 =
 
 unit_smart_type_remove_2 :: Assertion
 unit_smart_type_remove_2 =
-  tforall "a" (KType ()) (thole $ tcon tBool)
-    `smartSynthKindGives` tforall "a" (KType ()) (tcon tBool)
+  tforall "a" ktype (thole $ tcon tBool)
+    `smartSynthKindGives` tforall "a" ktype (tcon tBool)
 
 unit_smart_type_remove_3 :: Assertion
 unit_smart_type_remove_3 =
@@ -723,11 +723,11 @@ unit_smartholes_idempotent_created_hole_typecache =
           ty'' @?= ty'
           e'' @?= e'
 
-forgetKindCache :: Type' (Meta b) () -> Type
+forgetKindCache :: Type' (Meta b) (Meta ()) -> Type
 forgetKindCache = set (_typeMeta % _type) Nothing
 
 -- Also clears the kind cache in any embedded types
-forgetTypeCache :: Expr' (Meta a) (Meta b) () -> Expr
+forgetTypeCache :: Expr' (Meta a) (Meta b) (Meta ()) -> Expr
 forgetTypeCache = set (_exprMeta % _type) Nothing . set (_exprTypeMeta % _type) Nothing
 
 -- Regression test: in the past, the inside of non-empty holes needed to be synthesisable.
@@ -781,7 +781,7 @@ unit_smartholes_idempotent_holey_ann =
 unit_smartholes_idempotent_alpha_typecache :: Assertion
 unit_smartholes_idempotent_alpha_typecache =
   let x = runTypecheckTestM SmartHoles $ do
-        ty <- tforall "a" (KType ()) $ tforall "foo" (KType ()) $ tvar "a" `tfun` tvar "foo"
+        ty <- tforall "a" ktype $ tforall "foo" ktype $ tvar "a" `tfun` tvar "foo"
         e <- lAM "foo" emptyHole -- Important that this is the "inner" name: i.e. must be exactly "foo" given ty
         ty' <- checkKind (KType ()) ty
         e' <- check (forgetTypeMetadata ty') e
@@ -921,8 +921,8 @@ unit_tcWholeProg_notice_type_updates =
           <*> t'
           <*> e'
           <*> tcon tBool
-      d0 = mkDefs (gvar' ["M"] "foo") (thole $ tforall "a" (KType ()) $ tvar "a")
-      d1 = mkDefs (hole $ gvar' ["M"] "foo") (tforall "a" (KType ()) $ tvar "a")
+      d0 = mkDefs (gvar' ["M"] "foo") (thole $ tforall "a" ktype $ tvar "a")
+      d1 = mkDefs (hole $ gvar' ["M"] "foo") (tforall "a" ktype $ tvar "a")
       mkProg ds = do
         builtinModule' <- builtinModule
         ds' <- ds
@@ -1024,7 +1024,7 @@ smartSynthGives eIn eExpect =
   where
     -- We want eGot and eExpect' to have the same type annotations, but they
     -- may differ on whether they were synthed or checked, and this is OK
-    normaliseAnnotations :: ExprT -> Expr' (Meta (Type' () ())) (Meta (Kind' ())) ()
+    normaliseAnnotations :: ExprT -> Expr' (Meta (Type' () ())) (Meta (Kind' ())) (Meta ())
     normaliseAnnotations = over (_exprMeta % _type) f
       where
         f :: TypeCache -> Type' () ()

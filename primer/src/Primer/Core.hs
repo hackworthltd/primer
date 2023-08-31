@@ -71,8 +71,8 @@ import Primer.Core.Meta (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  setID,
   trivialMeta,
+  trivialMetaUnit,
   unsafeMkGlobalName,
   unsafeMkLocalName,
   _type,
@@ -144,7 +144,7 @@ type ExprMeta = Meta (Maybe TypeCache)
 --  tuple '(ID, Maybe Value)'. The first element is the ID of the node, and the
 --  second element is an optional JSON object of metadata owned by the frontend,
 --  which we treat as opaque.
-type Expr = Expr' ExprMeta TypeMeta ()
+type Expr = Expr' ExprMeta TypeMeta KindMeta
 
 -- | The generic expression type.
 -- a is the type of annotations that are placed on every expression node.
@@ -315,7 +315,7 @@ _exprTypeMeta = param @1
 _exprKindMeta :: forall a b c c'. Traversal (Expr' a b c) (Expr' a b c') c c'
 _exprKindMeta = param @0
 
-type CaseBranch = CaseBranch' ExprMeta TypeMeta ()
+type CaseBranch = CaseBranch' ExprMeta TypeMeta KindMeta
 
 data CaseBranch' a b c
   = CaseBranch
@@ -334,7 +334,7 @@ data CaseBranch' a b c
 caseBranchName :: CaseBranch' a b c -> Pattern
 caseBranchName (CaseBranch n _ _) = n
 
-type CaseFallback = CaseFallback' ExprMeta TypeMeta ()
+type CaseFallback = CaseFallback' ExprMeta TypeMeta KindMeta
 
 data CaseFallback' a b c
   = CaseExhaustive

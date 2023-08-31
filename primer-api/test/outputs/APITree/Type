@@ -32,19 +32,19 @@ Tree
                 )
             , childTrees =
                 [ Tree
-                    { nodeId = "3"
+                    { nodeId = "4"
                     , body = NoBody TApp
                     , childTrees =
                         [ Tree
-                            { nodeId = "4"
+                            { nodeId = "5"
                             , body = NoBody THole
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "5"
+                                    { nodeId = "6"
                                     , body = NoBody TApp
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = "6"
+                                            { nodeId = "7"
                                             , body = TextBody
                                                 ( RecordPair
                                                     { fst = TCon
@@ -61,7 +61,7 @@ Tree
                                             , rightChild = Nothing
                                             }
                                         , Tree
-                                            { nodeId = "7"
+                                            { nodeId = "8"
                                             , body = NoBody TEmptyHole
                                             , childTrees = []
                                             , rightChild = Nothing
@@ -73,7 +73,7 @@ Tree
                             , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = "8"
+                            { nodeId = "9"
                             , body = TextBody
                                 ( RecordPair
                                     { fst = TVar

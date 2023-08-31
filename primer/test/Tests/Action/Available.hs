@@ -113,6 +113,8 @@ import Primer.Core.DSL (
   emptyHole,
   gvar,
   hole,
+  kfun,
+  ktype,
   lAM,
   lam,
   let_,
@@ -799,32 +801,32 @@ unit_rename_lam_names =
 unit_make_LAM_names :: Assertion
 unit_make_LAM_names = do
   offeredNamesTest
-    (emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
+    (emptyHole `ann` tforall "a" ktype (tcon tBool))
     (InExpr [Child1])
     MakeLAM
     "α"
-    (lAM "α" emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
+    (lAM "α" emptyHole `ann` tforall "a" ktype (tcon tBool))
   offeredNamesTest
-    (emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
+    (emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
     (InExpr [Child1])
     MakeLAM
     "f"
-    (lAM "f" emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
+    (lAM "f" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
 
 unit_rename_LAM_names :: Assertion
 unit_rename_LAM_names = do
   offeredNamesTest
-    (lAM "x" emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
+    (lAM "x" emptyHole `ann` tforall "a" ktype (tcon tBool))
     (InExpr [Child1])
     RenameLAM
     "α"
-    (lAM "α" emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
+    (lAM "α" emptyHole `ann` tforall "a" ktype (tcon tBool))
   offeredNamesTest
-    (lAM "x" emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
+    (lAM "x" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
     (InExpr [Child1])
     RenameLAM
     "f"
-    (lAM "f" emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
+    (lAM "f" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
 
 -- nb: renaming let cares about the type of the bound var, not of the let
 unit_rename_let_names :: Assertion
@@ -869,17 +871,17 @@ unit_rename_letrec_names =
 unit_rename_forall_names :: Assertion
 unit_rename_forall_names = do
   offeredNamesTest
-    (emptyHole `ann` tforall "a" (KType ()) (tcon tBool))
+    (emptyHole `ann` tforall "a" ktype (tcon tBool))
     ([] `InType` [])
     RenameForall
     "α"
-    (emptyHole `ann` tforall "α" (KType ()) (tcon tBool))
+    (emptyHole `ann` tforall "α" ktype (tcon tBool))
   offeredNamesTest
-    (emptyHole `ann` tforall "a" (KFun () (KType ()) (KType ())) (tcon tBool))
+    (emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
     ([] `InType` [])
     RenameForall
     "f"
-    (emptyHole `ann` tforall "f" (KFun () (KType ()) (KType ())) (tcon tBool))
+    (emptyHole `ann` tforall "f" (kfun ktype ktype) (tcon tBool))
 
 {-
 -- TODO: reinstate once the TC handles let type!
