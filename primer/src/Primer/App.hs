@@ -78,6 +78,7 @@ import Data.List.Extra (anySame, disjoint)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics (
+    afolding,
   Field1 (_1),
   Field2 (_2),
   Field3 (_3),
@@ -231,8 +232,9 @@ import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   BindLoc' (BindCase),
   ExprZ,
+  KindTZ,
   Loc,
-  Loc' (InBind, InExpr, InType),
+  Loc' (InBind, InExpr, InKind, InType),
   TypeZ,
   TypeZip,
   caseBindZMeta,
@@ -509,14 +511,14 @@ handleQuestion = \case
     defs <- asks $ allDefs . appProg
     let (tyvars, termvars, globals) = case node of
           Left zE -> variablesInScopeExpr defs zE
-          Right zT -> (variablesInScopeTy zT, [], [])
+          Right zT -> (variablesInScopeTy $ fst <$> zT, [], [])
     pure ((tyvars, termvars), globals)
   GenerateName defid nodeid typeKind -> do
     prog <- asks appProg
     names <-
       focusNode' defid nodeid <&> \case
         Left zE -> generateNameExpr typeKind zE
-        Right zT -> generateNameTy typeKind zT
+        Right zT -> generateNameTy typeKind $ fst <$> zT
     pure $ runReader names $ progCxt prog
   where
     focusNode' defname nodeid = do
@@ -524,14 +526,14 @@ handleQuestion = \case
       focusNode prog defname nodeid
 
 -- This only looks in the editable modules, not in any imports
-focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeZip)
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
 focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeZip)
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc TypeZip)
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
@@ -941,6 +943,7 @@ applyProgAction prog = \case
         let meta = case z of
               InExpr ze -> Left $ ze ^. _target % _exprMetaLens
               InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
+              InKind _ v -> absurd v
               InBind (BindCase zb) -> Left $ zb ^. caseBindZMeta
         pure
           ( insertDef m defName (DefAST def')
@@ -1500,8 +1503,10 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   c <- case c' of
     Left (InExpr _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
     Left (InType zt) -> pure $ Left zt
+    Left (InKind _ v) -> absurd v
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
-    Right zt -> pure $ Right zt
+    Right (Left zt) -> pure $ Right zt
+    Right (Right (_, v)) -> absurd v
   let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
@@ -1610,8 +1615,10 @@ tcWholeProg p = do
             (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ case x of
               InExpr ze -> Left $ view _exprMetaLens $ target ze
               InType zt -> Right $ Left $ view _typeMetaLens $ target zt
+              InKind _ v -> Right $ Right $ absurd v
               InBind (BindCase zb) -> Left $ view caseBindZMeta zb
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
+            (SigNode, Right (Right (Left x))) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
+            (SigNode, Right (Right (Right (_,v)))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ absurd v
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
@@ -1646,12 +1653,12 @@ tcWholeProg p = do
                     conSel & over #field \case
                       Nothing -> Nothing
                       Just fieldSel ->
-                        flip (set #meta) fieldSel . (Right . Left . (^. _typeMetaLens)) <$> do
+                        flip (set #meta) fieldSel . Right <$> do
                           ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
                           id <- case fieldSel.meta of
                             Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
                             Right m -> pure $ getID m
-                          target <$> focusOnTy id ty
+                          bimap (view $ _target % _typeMetaLens) (absurd . snd) <$> focusOnTy id ty
       pure $
         Just $
           SelectionTypeDef $
@@ -1680,8 +1687,10 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src <- case src' of
     Left (InExpr e) -> pure $ Left e
     Left (InType t) -> pure $ Right (Left t)
+    Left (InKind _ v) -> absurd v
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
-    Right t -> pure $ Right (Right t)
+    Right (Left t) -> pure $ Right (Right t)
+    Right (Right (_, v)) -> absurd v
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     -- We manually use the low-level applyAction', as we do not want to
     -- typecheck intermediate states. There are two reasons for this, both
@@ -1712,6 +1721,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
     case (src, tgt) of
       (_, InBind _) -> throwError $ CopyPasteError "tried to paste an expression into a binder"
       (Left _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
+      (Left _, InKind _ _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
       (Right _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
       (Right srcT, InType tgtT) -> do
         let sharedScope =
@@ -1789,6 +1799,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         let newDef = oldDef{astDefExpr = unfocusExpr pasted}
         let newSel = NodeSelection BodyNode $ Left $ pasted ^. _target % _exprMetaLens
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
+      (Right _, InKind _ _) -> throwError $ CopyPasteError "tried to paste a type into an kind"
   liftError ActionError $ tcWholeProg finalProg
 
 lookupASTDef :: GVarName -> DefMap -> Maybe ASTDef

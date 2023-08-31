@@ -324,6 +324,7 @@ refocus Refocus{pre, post} = do
         TC.SmartHoles -> case pre of
           InExpr e -> candidateIDsExpr $ target e
           InType t -> candidateIDsType t
+          InKind _ v -> absurd v
           InBind (BindCase ze) -> [getID ze]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
@@ -418,6 +419,7 @@ applyAction' a = case a of
   Move m -> \case
     InExpr z -> InExpr <$> moveExpr m z
     InType z -> InType <$> moveType m z
+    InKind _ v -> absurd v
     z@(InBind _) -> case m of
       -- If we're moving up from a binding, then shift focus to the nearest parent expression.
       -- This is exactly what 'unfocusLoc' does if the 'Loc' is a binding.
@@ -426,10 +428,12 @@ applyAction' a = case a of
   Delete -> \case
     InExpr ze -> InExpr . flip replace ze <$> emptyHole
     InType zt -> InType . flip replace zt <$> tEmptyHole
+    InKind zk v -> pure $ InKind (replace (C.KHole ()) zk) v
     InBind _ -> throwError $ CustomFailure Delete "Cannot delete a binding"
   SetMetadata d -> \case
     InExpr ze -> pure $ InExpr $ setMetadata d ze
     InType zt -> pure $ InType $ setMetadata d zt
+    InKind _ v -> absurd v
     InBind (BindCase zb) -> pure $ InBind $ BindCase $ setMetadata d zb
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
@@ -517,7 +521,7 @@ moveExpr Child2 z
       throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
 moveExpr m z = move m z
 
--- | Apply a movement to a zipper
+-- | Apply a movement to a type zipper
 moveType :: MonadError ActionError m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
 moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
@@ -792,6 +796,7 @@ getFocusType ze = case maybeTypeOf $ target ze of
      in synthZ (InExpr ze) `catchError` handler >>= \case
           Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
           Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
+          Just (InKind _ _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a kind after typechecking"
           Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
           Just (InExpr ze') -> case maybeTypeOf $ target ze' of
             Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
