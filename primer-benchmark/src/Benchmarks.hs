@@ -20,6 +20,10 @@ import Primer.App (
   tcWholeProgWithImports,
  )
 import Primer.App.Utils (forgetProgTypecache)
+import Primer.Eval (
+  RunRedexOptions (RunRedexOptions, pushAndElide),
+  ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
+ )
 import Primer.EvalFull (
   Dir (Syn),
   EvalLog,
@@ -98,14 +102,16 @@ benchmarks =
       ]
   ]
   where
+    evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+    evalOptionsR = RunRedexOptions{pushAndElide = True}
     evalTestMPureLogs e maxEvals =
       evalTestM (maxID e) $
         runPureLogT $
-          evalFull @EvalLog builtinTypes (defMap e) maxEvals Syn (expr e)
+          evalFull @EvalLog evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMDiscardLogs e maxEvals =
       evalTestM (maxID e) $
         runDiscardLogT $
-          evalFull @EvalLog builtinTypes (defMap e) maxEvals Syn (expr e)
+          evalFull @EvalLog evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
 
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF

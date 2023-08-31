@@ -185,7 +185,7 @@ import Primer.Def (
 import Primer.Def.Utils (globalInUse, typeInUse)
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
-import Primer.Eval.Redex (EvalLog)
+import Primer.Eval.Redex (EvalLog, RunRedexOptions (RunRedexOptions, pushAndElide), ViewRedexOptions (ViewRedexOptions, groupedLets))
 import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Log (ConvertLogMessage)
@@ -596,7 +596,9 @@ handleEvalFullRequest ::
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   app <- ask
   let prog = appProg app
-  result <- runFreshM app $ evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+  let optsR = RunRedexOptions{pushAndElide = True}
+  result <- runFreshM app $ evalFull optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
