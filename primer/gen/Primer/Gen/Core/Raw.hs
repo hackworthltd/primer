@@ -51,7 +51,6 @@ import Primer.Core (
   ValConName,
   qualifyName,
  )
-import Primer.Core.Utils (forgetKindMetadata)
 import Primer.Name (Name, unsafeMkName)
 
 type ExprGen a = StateT ID Gen a
@@ -178,7 +177,7 @@ genType =
     [ THole <$> genMeta <*> genType
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
-    , TForall <$> genMeta <*> genTyVarName <*> (forgetKindMetadata <$> genKind) <*> genType
+    , TForall <$> genMeta <*> genTyVarName <*> genKind <*> genType
     , TLet <$> genMeta <*> genTyVarName <*> genType <*> genType
     ]
 

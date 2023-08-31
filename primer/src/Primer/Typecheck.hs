@@ -218,7 +218,7 @@ import Primer.Typecheck.Utils (
 -- synthesised type, not the checked one. For example, when checking that
 -- @Int -> ?@ accepts @\x . x@, we record that the variable node has type
 -- @Int@, rather than @?@.
-type ExprT = Expr' (Meta TypeCache) (Meta (Kind' ())) ()
+type ExprT = Expr' (Meta TypeCache) (Meta (Kind' ())) (Meta ())
 
 assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
@@ -381,7 +381,7 @@ checkTypeDefs tds = do
       local (extendLocalCxtTys params) $
         traverseOf astTypeDefConArgs (checkKind' (KType ())) td
 
-astTypeDefConArgs :: Traversal (ASTTypeDef a c) (ASTTypeDef b c) (Type' a ()) (Type' b ())
+astTypeDefConArgs :: Traversal (ASTTypeDef a c) (ASTTypeDef b c) (Type' a c) (Type' b c)
 astTypeDefConArgs = #astTypeDefConstructors % traversed % #valConArgs % traversed
 
 distinct :: Ord a => [a] -> Bool
@@ -899,8 +899,8 @@ checkBranch ::
   TypeM e m =>
   Type ->
   (ValConName, [Type' () ()]) -> -- The constructor and its instantiated parameter types
-  CaseBranch' ExprMeta TypeMeta () ->
-  m (CaseBranch' (Meta TypeCache) (Meta (Kind' ())) ())
+  CaseBranch' ExprMeta TypeMeta KindMeta ->
+  m (CaseBranch' (Meta TypeCache) (Meta (Kind' ())) (Meta ()))
 checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
   do
     -- We check an invariant due to paranoia
@@ -988,8 +988,8 @@ exprTtoExpr :: ExprT -> Expr
 exprTtoExpr = over _exprTypeMeta (fmap Just) . over _exprMeta (fmap Just)
 
 -- | Convert @Type (Meta Kind)@ to @Type (Meta (Maybe Kind))@
-typeTtoType :: TypeT -> Type' TypeMeta ()
+typeTtoType :: TypeT -> Type' TypeMeta KindMeta
 typeTtoType = over _typeMeta (fmap Just)
 
-checkKind' :: TypeM e m => Kind' () -> Type' (Meta a) () -> m TypeT
+checkKind' :: TypeM e m => Kind' () -> Type' (Meta a) (Meta b) -> m TypeT
 checkKind' k t = modifyError' KindError (checkKind k t)

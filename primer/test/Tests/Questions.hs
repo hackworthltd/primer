@@ -218,7 +218,7 @@ unit_variablesInScope_case = do
 
 unit_variablesInScope_type :: Assertion
 unit_variablesInScope_type = do
-  let ty = tforall "a" (KType ()) $ tfun (tvar "a") (tapp tEmptyHole tEmptyHole)
+  let ty = tforall "a" ktype $ tfun (tvar "a") (tapp tEmptyHole tEmptyHole)
   hasVariablesType ty pure []
   hasVariablesType ty down [("a", KType ())]
   hasVariablesType ty (down >=> down) [("a", KType ())]
@@ -227,7 +227,7 @@ unit_variablesInScope_type = do
 
 unit_variablesInScope_shadowed :: Assertion
 unit_variablesInScope_shadowed = do
-  let ty = tforall "a" (KFun () (KType ()) (KType ())) $ tforall "b" (KType ()) $ tcon tNat `tfun` tforall "a" (KType ()) (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
+  let ty = tforall "a" (kfun ktype ktype) $ tforall "b" ktype $ tcon tNat `tfun` tforall "a" ktype (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
       expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ emptyHole `ann` (tcon tList `tapp` tvar "d")
       expr = ann expr' ty
   hasVariablesType ty pure []
@@ -293,7 +293,7 @@ unit_hasGeneratedNames_2 = do
   hasGeneratedNamesTy tEmptyHole Nothing pure ["α", "β", "γ"]
   hasGeneratedNamesTy tEmptyHole (Just (KType ())) pure ["α", "β", "γ"]
   hasGeneratedNamesTy tEmptyHole (Just $ KFun () (KType ()) (KType ())) pure ["f", "m", "t"]
-  let ty = tforall "α" (KType ()) tEmptyHole
+  let ty = tforall "α" ktype tEmptyHole
   hasGeneratedNamesTy ty Nothing pure ["β", "γ", "α1"]
   hasGeneratedNamesTy ty (Just (KType ())) pure ["β", "γ", "α1"]
   hasGeneratedNamesTy ty (Just $ KFun () (KType ()) (KType ())) pure ["f", "m", "t"]

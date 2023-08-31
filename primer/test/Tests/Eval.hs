@@ -30,7 +30,7 @@ import Primer.Core (
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind' (KFun, KType),
+  Kind' (KType),
   LocalName,
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
@@ -183,9 +183,9 @@ unit_tryReduce_BETA = do
           b <- con cNil []
           l <- lAM "x" (pure b)
           a <- tcon tBool
-          let k_ = KFun () (KType ()) (KType ())
+          k_ <- kfun ktype ktype
           ty_ <- tEmptyHole
-          i <- aPP (pure l `ann` tforall "a" k_ (pure ty_)) (pure a)
+          i <- aPP (pure l `ann` tforall "a" (pure k_) (pure ty_)) (pure a)
           r <- letType "x" (pure a) (pure b) `ann` tlet "a" (pure a) (pure ty_)
           pure (b, l, a, i, r, k_, ty_)
   result <- runTryReduce tydefs mempty mempty (input, maxid)
@@ -960,7 +960,7 @@ unit_findNodeByID_capture_type :: Assertion
 unit_findNodeByID_capture_type =
   let ((expr, varOcc), maxID) = create $ do
         v <- tvar "x"
-        e <- letType "x" (tvar "y") (emptyHole `ann` tlet "z" (tvar "y") (tforall "y" (KType ()) (pure v)))
+        e <- letType "x" (tvar "y") (emptyHole `ann` tlet "z" (tvar "y") (tforall "y" ktype (pure v)))
         pure (e, getID v)
    in do
         case findNodeByID varOcc Syn expr of
@@ -1105,7 +1105,7 @@ unit_redexes_LAM_2 :: Assertion
 unit_redexes_LAM_2 =
   let e mkAnn =
         aPP
-          (lAM "a" (con0' ["M"] "C") `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "C"))
+          (lAM "a" (con0' ["M"] "C") `mkAnn` tforall "a" ktype (tcon' ["M"] "C"))
           (tcon' ["M"] "A")
    in do
         redexesOf (e noAnn) <@?=> mempty
@@ -1117,7 +1117,7 @@ unit_redexes_LAM_3 =
         lAM
           "a"
           ( aPP
-              (lAM "b" (con0' ["M"] "X") `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "C"))
+              (lAM "b" (con0' ["M"] "X") `mkAnn` tforall "a" ktype (tcon' ["M"] "C"))
               (tcon' ["M"] "T")
           )
    in do
@@ -1134,7 +1134,7 @@ unit_redexes_LAM_4 =
               "a"
               ( aPP
                   ( lAM "b" (lvar "x")
-                      `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "C")
+                      `mkAnn` tforall "a" ktype (tcon' ["M"] "C")
                   )
                   (tcon' ["M"] "T")
               )
@@ -1172,7 +1172,7 @@ unit_redexes_let_capture =
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
   -- We should rename the forall and not inline the variable
-  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" (KType ()) (tvar "x"))) <@?=> Set.singleton 4
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" ktype (tvar "x"))) <@?=> Set.singleton 4
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
@@ -1219,7 +1219,7 @@ unit_redexes_letrec_APP_1 =
               "e"
               (con0' ["M"] "C")
               (tcon' ["M"] "T")
-              (lAM "x" (lvar "e") `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "T"))
+              (lAM "x" (lvar "e") `mkAnn` tforall "a" ktype (tcon' ["M"] "T"))
           )
           (tcon' ["M"] "D")
    in do
@@ -1347,13 +1347,13 @@ unit_redexes_case_prim = do
 -- The body of a let has the same directionality as the let itself
 unit_redexes_let_upsilon :: Assertion
 unit_redexes_let_upsilon = do
-  let t = tforall "a" (KType ()) (tvar "a")
+  let t = tforall "a" ktype (tvar "a")
   redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
-  redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 7]
+  redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 8]
   redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
-  redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) <@?=> Set.fromList [1, 4]
+  redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) <@?=> Set.fromList [1, 5]
   redexesOf (letrec "x" (lam "x" emptyHole `ann` t) t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 1]
-  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 9]
+  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 11]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =

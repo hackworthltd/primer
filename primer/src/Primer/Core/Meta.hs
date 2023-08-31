@@ -26,6 +26,7 @@ module Primer.Core.Meta (
   Value,
   Meta (Meta),
   trivialMeta,
+  trivialMetaUnit,
   _type,
   PrimCon (..),
   Pattern (..),
@@ -75,6 +76,9 @@ _type = position @2
 
 trivialMeta :: ID -> Meta (Maybe a)
 trivialMeta id = Meta id Nothing Nothing
+
+trivialMetaUnit :: ID -> Meta ()
+trivialMetaUnit id = Meta id () Nothing
 
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving stock (Eq, Ord, Show, Read, Data, Generic)
