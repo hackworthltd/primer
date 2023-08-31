@@ -85,6 +85,8 @@ import Primer.Core.Type (
   Type' (..),
   TypeMeta,
   _kindMeta,
+  _kindMetaLens,
+  _typeMeta,
   _typeKindMeta,
   _typeMeta,
   _typeMetaLens,

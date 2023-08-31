@@ -34,12 +34,16 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
 import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck.Cxt (Cxt, typeDefs)
+import Primer.Zipper.Nested (ZipNest(ZipNest),unfocusNest, unfocus, mergeNest)
 import Primer.Zipper (
   BindLoc' (BindCase),
   Loc,
-  Loc' (InBind, InExpr, InType),
+  Loc' (InBind, InExpr, InKind, InType),
+  TypeZ,
   TypeZip,
   unfocusCaseBind,
+  KindTZ,
+  KindZ, BindLoc' (BindCase), unfocusKind, unfocusKindT,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
@@ -84,6 +88,7 @@ variablesInScopeExpr defs loc =
   let locals = case loc of
         InExpr ze -> extractLocalsExprZ ze
         InType zt -> extractLocalsTypeZ zt
+        InKind zk -> extractLocalsTypeZ $ unfocusKind zk
         InBind (BindCase zb) -> extractLocalsExprZ $ unfocusCaseBind zb
       globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
@@ -103,7 +108,7 @@ generateNameExpr tk z = uniquifyMany <$> getAvoidSet z <*> baseNames tk
 generateNameTy ::
   MonadReader Cxt m =>
   Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
-  TypeZip ->
+  Either TypeZip KindTZ ->
   m [Name]
 generateNameTy = generateNameTyAvoiding []
 
@@ -111,12 +116,12 @@ generateNameTyAvoiding ::
   MonadReader Cxt m =>
   [Name] ->
   Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
-  TypeZip ->
+  Either TypeZip KindTZ ->
   m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
 generateNameTyAvoiding avoiding tk z =
-  uniquifyMany <$> ((Set.fromList avoiding <>) <$> mkAvoidForFreshNameTy z) <*> baseNames tk
+  uniquifyMany <$> ((Set.fromList avoiding <>) <$> getAvoidSetTy z) <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>
@@ -141,7 +146,13 @@ getAvoidSet :: MonadReader Cxt m => Loc -> m (Set.Set Name)
 getAvoidSet = \case
   InExpr ze -> mkAvoidForFreshName ze
   InType zt -> mkAvoidForFreshNameTypeZ zt
+  InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
   InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
+
+getAvoidSetTy :: MonadReader Cxt m => Either TypeZip KindTZ -> m (Set.Set Name)
+getAvoidSetTy = \case
+  Left zt -> mkAvoidForFreshNameTy zt
+  Right zk -> mkAvoidForFreshNameTy $ unfocusKindT zk
 
 -- | Adds a numeric suffix to a name to be distinct from a given set.
 -- (If the name is already distinct then return it unmodified.)

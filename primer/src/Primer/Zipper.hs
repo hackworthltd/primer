@@ -6,6 +6,8 @@ module Primer.Zipper (
   ExprZ,
   TypeZip,
   TypeZ,
+  KindZ,
+  KindTZ,
   CaseBindZ,
   updateCaseBind,
   unfocusCaseBind,
@@ -19,6 +21,8 @@ module Primer.Zipper (
   focusType,
   focusLoc,
   unfocusType,
+  unfocusKind,
+  unfocusKindT,
   focusOnlyType,
   focus,
   unfocus,
@@ -111,6 +115,7 @@ import Primer.Core (
   getID,
   typesInExpr,
   _bindMeta,
+  KindMeta, Kind',
  )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
@@ -121,6 +126,7 @@ import Primer.Zipper.Nested (
   focus,
   innerZipNest,
   left,
+  mergeNest,
   replace,
   right,
   target,
@@ -135,16 +141,19 @@ import Primer.Zipper.Type (
   LetTypeBinding' (LetTypeBind),
   TypeZip,
   TypeZip',
+  KindTZ',
+  KindTZ,
   bindersAboveTy,
   bindersBelowTy,
   farthest,
   focusOnTy,
+  focusOnTy',
   foldAbove,
   foldBelow,
   getBoundHereDnTy,
   getBoundHereTy,
   getBoundHereUpTy,
-  search,
+  search, unfocusKindT,
  )
 
 type ExprZ' a b c = Zipper (Expr' a b c) (Expr' a b c)
@@ -160,6 +169,11 @@ type ExprZ = ExprZ' ExprMeta TypeMeta ()
 type TypeZ' a b c = ZipNest (ExprZ' a b c) (TypeZip' b c) (Type' b c)
 
 type TypeZ = TypeZ' ExprMeta TypeMeta ()
+
+-- | A zipper for 'Kind's embedded in expressions (which will always be inside a 'Type').
+type KindZ' a b c = ZipNest (ExprZ' a b c) (KindTZ' b c) (Type' b c)
+
+type KindZ = KindZ' ExprMeta TypeMeta KindMeta
 
 -- | A zipper for variable bindings in case branches.
 -- This type focuses on a particular binding in a particular branch.
@@ -217,22 +231,26 @@ data Loc' a b c
     InExpr (ExprZ' a b c)
   | -- | A type
     InType (TypeZ' a b c)
+  | -- | A kind
+    InKind (KindZ' a b c)
   | -- | A binding (currently just case bindings)
     InBind (BindLoc' a b c)
   deriving stock (Generic)
 
 type Loc = Loc' ExprMeta TypeMeta ()
 
-instance (HasID a, HasID b) => HasID (Loc' a b c) where
+instance (HasID a, HasID b, HasID c) => HasID (Loc' a b c) where
   _id = lens getter setter
     where
       getter = \case
         InExpr e -> view _id e
         InType l -> view _id l
+        InKind k -> view _id k
         InBind l -> view _id l
       setter l i = case l of
         InExpr e -> InExpr $ set _id i e
         InType t -> InType $ set _id i t
+        InKind k -> InKind $ set _id i k
         InBind t -> InBind $ set _id i t
 
 -- | A location of a binding.
@@ -287,6 +305,10 @@ findInCaseBinds i z = do
 unfocusType :: (Data b, Data c) => TypeZ' a b c -> ExprZ' a b c
 unfocusType = unfocusNest
 
+-- | Switch from a 'Kind'-in-'Type'-in-'Expr' zipper back to an 'Type'-in-'Expr' zipper.
+unfocusKind :: Data c => KindZ' a b c -> TypeZ' a b c
+unfocusKind = mergeNest
+
 -- | Forget the surrounding expression context
 focusOnlyType :: TypeZ' a b c -> TypeZip' b c
 focusOnlyType = innerZipNest
@@ -310,11 +332,12 @@ unfocusExpr :: ExprZ' a b c -> Expr' a b c
 unfocusExpr = fromZipper
 
 -- | Convert a 'Loc' to an 'ExprZ'.
--- If we're in a type or case binding, we'll shift focus up to the nearest enclosing expression.
+-- If we're in a type or kind or case binding, we'll shift focus up to the nearest enclosing expression.
 unfocusLoc :: Loc -> ExprZ
 unfocusLoc (InExpr z) = z
 unfocusLoc (InType z) = unfocusType z
 unfocusLoc (InBind (BindCase z)) = unfocusCaseBind z
+unfocusLoc (InKind k) = unfocusType $ unfocusKind k
 
 -- | Convert a 'Loc' to an 'Expr'.
 -- This shifts focus right up to the top, so the result is the whole expression.
@@ -322,11 +345,11 @@ unfocus :: Loc -> Expr
 unfocus = unfocusExpr . unfocusLoc
 
 -- | Focus on the node with the given 'ID', if it exists in the expression
-focusOn :: (Data a, Data b, Data c, Eq a, HasID a, HasID b) => ID -> Expr' a b c -> Maybe (Loc' a b c)
+focusOn :: (Data a, Data b, Eq a, HasID a, HasID b, c~()) => ID -> Expr' a b c -> Maybe (Loc' a b c)
 focusOn i = focusOn' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed expression
-focusOn' :: (Data a, Data b, Data c, Eq a, HasID a, HasID b) => ID -> ExprZ' a b c -> Maybe (Loc' a b c)
+focusOn' :: (Data a, Data b, Eq a, HasID a, HasID b,c~()) => ID -> ExprZ' a b c -> Maybe (Loc' a b c)
 focusOn' i = fmap snd . search matchesID
   where
     matchesID z
@@ -335,7 +358,11 @@ focusOn' i = fmap snd . search matchesID
       -- If the target has an embedded type, search the type for a match.
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
-          let inType = focusType z >>= search (guarded (== i) . getID . target) <&> InType . fst
+          let inType = do
+                  ZipNest tz f <- focusType z
+                  focusOnTy' i tz <&> \case
+                    Left tz' -> InType $ ZipNest tz' f
+                    Right kz -> InKind $  ZipNest kz f
               inCaseBinds = findInCaseBinds i z
            in inType <|> inCaseBinds
 
@@ -438,16 +465,23 @@ findNodeWithParent id x = do
             (TypeNode . target)
             (up tz)
       )
+    InKind kz -> (KindNode $ target kz
+                 , Just $ maybe (TypeNode $ target $ unfocusKind kz) (KindNode . target) $ up kz)
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
 
+-- | Find a sub-type or kind in a larger type by its ID.
+findTypeOrKind :: (Data a, HasID a, b~()) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
+findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
+
 -- | Find a sub-type in a larger type by its ID.
-findType :: (Data a, HasID a, Data b) => ID -> Type' a b -> Maybe (Type' a b)
-findType id ty = target <$> focusOnTy id ty
+findType :: (Data a, HasID a, b~()) => ID -> Type' a b -> Maybe (Type' a b)
+findType id ty = findTypeOrKind id ty >>= leftToMaybe
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 data SomeNode
   = ExprNode Expr
   | TypeNode Type
+  | KindNode (Kind' ())
   | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
     CaseBindNode Bind
   deriving stock (Eq, Show, Read, Generic)

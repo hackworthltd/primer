@@ -651,24 +651,26 @@ options typeDefs defs cxt level def0 sel0 = \case
           BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
           SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
       SelectionTypeDef sel -> do
-        (_, zT) <- conField sel
-        pure $ TypeNode $ target zT
+        (_, z) <- conField sel
+        case z of
+            Left zT -> pure $ TypeNode $ target zT
+            Right zK -> pure $ KindNode $ target zK
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do
           z <- focusNode =<< sel.node
-          pure $ case z of
-            Left zE -> generateNameExpr typeOrKind zE
-            Right zT -> generateNameTy typeOrKind zT
+          case z of
+            Left zE -> pure $ generateNameExpr typeOrKind zE
+            Right zT -> pure $ generateNameTy typeOrKind zT
         SelectionTypeDef sel -> do
           (def, zT) <- conField sel
           pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind zT
     varsInScope = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
-        focusNode nodeSel <&> \case
-          Left zE -> variablesInScopeExpr defs zE
-          Right zT -> (variablesInScopeTy zT, [], [])
+        focusNode nodeSel >>= \case
+          Left zE -> pure $ variablesInScopeExpr defs zE
+          Right zT -> pure $ (variablesInScopeTy zT, [], [])
       SelectionTypeDef sel -> do
         (def, zT) <- conField sel
         pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy zT, [], [])

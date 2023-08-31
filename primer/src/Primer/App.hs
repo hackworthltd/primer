@@ -167,6 +167,7 @@ import Primer.Core (
   _synthed,
   _type,
   _typeMetaLens,
+  _kindMetaLens,
  )
 import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
@@ -230,7 +231,7 @@ import Primer.Zipper (
   BindLoc' (BindCase),
   ExprZ,
   Loc,
-  Loc' (InBind, InExpr, InType),
+  Loc' (InBind, InExpr, InType, InKind),
   TypeZ,
   TypeZip,
   caseBindZMeta,
@@ -248,8 +249,9 @@ import Primer.Zipper (
   target,
   unfocusExpr,
   unfocusType,
-  _target,
+  _target, KindTZ,
  )
+import Data.Either.Extra (fromLeft')
 
 -- | The full program state.
 data Prog = Prog
@@ -522,14 +524,14 @@ handleQuestion = \case
       focusNode prog defname nodeid
 
 -- This only looks in the editable modules, not in any imports
-focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeZip)
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeZip)
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc TypeZip)
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
@@ -1503,7 +1505,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     Left (InExpr _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
     Left (InType zt) -> pure $ Left zt
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
-    Right zt -> pure $ Right zt
+    Right (Left zt) -> pure $ Right zt
   let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
@@ -1613,7 +1615,7 @@ tcWholeProg p = do
               InExpr ze -> Left $ view _exprMetaLens $ target ze
               InType zt -> Right $ Left $ view _typeMetaLens $ target zt
               InBind (BindCase zb) -> Left $ view caseBindZMeta zb
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
+            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ (fromLeft' x) ^. _target % _typeMetaLens
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
@@ -1636,7 +1638,7 @@ tcWholeProg p = do
                 id <- case fieldSel.meta of
                   Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
                   Right m -> pure $ getID m
-                target <$> focusOnTy id ty
+                target . fromLeft' <$> focusOnTy id ty
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
@@ -1694,10 +1696,10 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
       (Right srcT, InType tgtT) -> do
         let sharedScope =
               if fromDefName == toDefName
-                then getSharedScopeTy srcT $ Left tgtT
+                then getSharedScopeTy (fmap fromLeft' srcT) $ Left tgtT -- TODO: this is roughly what want when use loc but before select kinds. NB: 'fromLeft' is partial and essentially says "ignore (i.e. crash on) kinds"
                 else mempty
         -- Delete unbound vars. TODO: we may want to let-bind them?
-        let srcSubtree = either target target srcT
+        let srcSubtree = either target target (fmap fromLeft' srcT)
             f (m, n) =
               if Set.member (unLocalName n) sharedScope
                 then pure $ TVar m n
