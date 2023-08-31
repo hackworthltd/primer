@@ -42,7 +42,7 @@ refine ::
   m (Maybe ([Inst], TC.Type))
 refine cxt tgtTy srcTy = go [] srcTy
   where
-    boundNames = bindersBelowTy (focus tgtTy) <> bindersBelowTy (focus srcTy)
+    boundNames = bindersBelowTy (Left $ focus tgtTy) <> bindersBelowTy (Left $ focus srcTy)
     avoidNames = Map.keysSet (TC.localTyVars cxt) <> boundNames
     go :: [Either TC.Type (TyVarName, TC.Kind)] -> TC.Type -> m (Maybe ([Inst], TC.Type))
     go instantiation tmTy =

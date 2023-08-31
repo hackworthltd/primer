@@ -26,7 +26,7 @@ import Primer.Zipper (
   bindersAboveTypeZ,
   bindersBelow,
   bindersBelowTy,
-  focusOnlyType,
+  focusOnlyType, KindTZ,
  )
 
 -- Check that a name is fresh for an expression. I.e. it does not
@@ -64,7 +64,7 @@ isFreshTy v t = unLocalName v `S.notMember` S.map unLocalName (freeVarsTy t)
 mkFreshName :: (MonadFresh NameCounter m, MonadReader Cxt m) => ExprZ -> m (LocalName k)
 mkFreshName e = LocalName <$> (freshName =<< mkAvoidForFreshName e)
 
-mkAvoidForFreshNameTy :: MonadReader Cxt m => TypeZip -> m (S.Set Name)
+mkAvoidForFreshNameTy :: MonadReader Cxt m => Either TypeZip KindTZ -> m (S.Set Name)
 mkAvoidForFreshNameTy t = do
   let moreGlobal = S.map unLocalName $ bindersAboveTy t
       moreLocal = S.map unLocalName $ bindersBelowTy t
@@ -74,7 +74,7 @@ mkAvoidForFreshNameTy t = do
 mkAvoidForFreshNameTypeZ :: MonadReader Cxt m => TypeZ -> m (S.Set Name)
 mkAvoidForFreshNameTypeZ t = do
   let moreGlobal = bindersAboveTypeZ t
-      moreLocal = S.map unLocalName $ bindersBelowTy $ focusOnlyType t
+      moreLocal = S.map unLocalName $ bindersBelowTy $ Left $ focusOnlyType t
   globals <- getGlobalBaseNames
   pure $ S.unions [moreGlobal, moreLocal, globals]
 

@@ -42,7 +42,6 @@ import Primer.Zipper (
   TypeZip,
   unfocusCaseBind,
   unfocusKind,
-  unfocusKindT,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
@@ -120,7 +119,7 @@ generateNameTyAvoiding ::
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
 generateNameTyAvoiding avoiding tk z =
-  uniquifyMany <$> ((Set.fromList avoiding <>) <$> getAvoidSetTy z) <*> baseNames tk
+  uniquifyMany <$> ((Set.fromList avoiding <>) <$> mkAvoidForFreshNameTy z) <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>
@@ -147,11 +146,6 @@ getAvoidSet = \case
   InType zt -> mkAvoidForFreshNameTypeZ zt
   InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
   InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
-
-getAvoidSetTy :: MonadReader Cxt m => Either TypeZip KindTZ -> m (Set.Set Name)
-getAvoidSetTy = \case
-  Left zt -> mkAvoidForFreshNameTy zt
-  Right zk -> mkAvoidForFreshNameTy $ unfocusKindT zk
 
 -- | Adds a numeric suffix to a name to be distinct from a given set.
 -- (If the name is already distinct then return it unmodified.)
