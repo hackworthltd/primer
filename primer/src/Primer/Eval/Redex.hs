@@ -96,7 +96,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Type (Kind')
+import Primer.Core.Type (Kind)
 import Primer.Core.Utils (
   concreteTy,
   forgetTypeMetadata,
@@ -271,7 +271,7 @@ data Redex
       -- ^ The body of the Λ
       , forallVar :: TyVarName
       -- ^ The annotation on the Λ must be a ∀, which binds this variable
-      , forallKind :: Kind' ()
+      , forallKind :: Kind
       -- ^ The kind of the ∀ bound variable (used for details)
       , tgtTy :: Type
       -- ^ The body of the ∀ in the annotation
@@ -445,7 +445,7 @@ data RedexType
       -- ^ metadata on forall (used for reduction)
       , origBinder :: TyVarName
       -- ^ original name, which we want to freshen (used for reduction, and finding normal-order redex)
-      , kind :: Kind' ()
+      , kind :: Kind
       -- ^ kind of bound var (used for reduction)
       , body :: Type
       -- ^ body of forall (used for reduction)

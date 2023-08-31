@@ -136,7 +136,7 @@ _typecache :: Lens' (Expr' (Meta a) b c) a
 _typecache = _exprMetaLens % _type
 
 -- | Get the type of an 'ExprT'
-typeOf :: Expr' (Meta TypeCache) (Meta Kind) () -> TypeCache
+typeOf :: Expr' (Meta TypeCache) (Meta Kind) (Meta ()) -> TypeCache
 typeOf = view _typecache
 
 -- Helper to create fresh names

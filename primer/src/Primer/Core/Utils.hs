@@ -63,6 +63,8 @@ import Primer.Core (
   bindName,
   traverseFallback,
   trivialMeta,
+  trivialMetaUnit,
+  _exprMeta,
   _exprKindMeta,
   _exprMeta,
   _exprTypeMeta,
@@ -85,9 +87,9 @@ import Primer.Core.Type.Utils (
  )
 import Primer.Name (Name)
 
--- | Regenerate all IDs (including in types), not changing any other metadata
-regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b () -> m (Expr' a b ())
-regenerateExprIDs = regenerateExprIDs' (set _id) (set _id) (const . const ())
+-- | Regenerate all IDs (including in types and kinds), not changing any other metadata
+regenerateExprIDs :: (HasID a, HasID b, HasID c, MonadFresh ID m) => Expr' a b c -> m (Expr' a b c)
+regenerateExprIDs = regenerateExprIDs' (set _id) (set _id) (set _id)
 
 regenerateExprIDs' ::
   MonadFresh ID m =>
@@ -103,7 +105,7 @@ regenerateExprIDs' se st sk =
 
 -- | Like 'generateTypeIDs', but for expressions
 generateIDs :: MonadFresh ID m => Expr' () () () -> m Expr
-generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta) (const . const ())
+generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta) (const . trivialMetaUnit)
 
 -- | Like 'forgetTypeMetadata', but for expressions
 forgetMetadata :: Expr' a b c -> Expr' () () ()
@@ -189,5 +191,5 @@ freeGlobalVars :: (Data a, Data b, Data c) => Expr' a b c -> Set GVarName
 freeGlobalVars e = S.fromList [v | Var _ (GlobalVarRef v) <- universe e]
 
 -- | Traverse the 'ID's in an 'Expr''.
-exprIDs :: (HasID a, HasID b) => Traversal' (Expr' a b c) ID
-exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
+exprIDs :: (HasID a, HasID b, HasID c) => Traversal' (Expr' a b c) ID
+exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id) `adjoin` (_exprKindMeta % _id)

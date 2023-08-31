@@ -178,7 +178,7 @@ genType =
     [ THole <$> genMeta <*> genType
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
-    , TForall <$> genMeta <*> genTyVarName <*> (forgetKindMetadata <$> genKind) <*> genType
+    , TForall <$> genMeta <*> genTyVarName <*> genKind <*> genType
     , TLet <$> genMeta <*> genTyVarName <*> genType <*> genType
     ]
 

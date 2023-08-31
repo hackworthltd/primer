@@ -98,7 +98,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   thole,
-  tvar,
+  tvar, ktype,
  )
 import Primer.Def (
   ASTDef (ASTDef),
@@ -138,7 +138,7 @@ map :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map modName =
   let this = qualifyName modName "map"
    in do
-        type_ <- tforall "a" (KType ()) $ tforall "b" (KType ()) $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+        type_ <- tforall "a" ktype $ tforall "b" ktype $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
         term <-
           lAM "a" $
             lAM "b" $
@@ -157,7 +157,7 @@ map modName =
 -- 'listDef'), implemented using a worker.
 map' :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map' modName = do
-  type_ <- tforall "a" (KType ()) $ tforall "b" (KType ()) $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+  type_ <- tforall "a" ktype $ tforall "b" ktype $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
         lam "xs" $
           case_
@@ -235,7 +235,7 @@ comprehensive' typeable modName = do
       (tcon B.tNat)
       ( tforall
           "a"
-          (KType ())
+          ktype
           ( tapp
               ( thole
                   ( tapp
@@ -274,7 +274,7 @@ comprehensive' typeable modName = do
                                     lAM "b" (lam "x" $ con B.cLeft [lvar "x"])
                                       `ann` tforall
                                         "b"
-                                        (KType ())
+                                        ktype
                                         ( tcon B.tBool
                                             `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b")
                                         )
@@ -319,7 +319,7 @@ comprehensive' typeable modName = do
                   (tcon B.tNat)
                   ( tforall
                       "α"
-                      (KType ())
+                      ktype
                       ( tapp
                           ( tapp
                               (tcon B.tEither)

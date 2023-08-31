@@ -11,7 +11,7 @@ Output
         ]
     , bodyActions =
         [
-            ( 9
+            ( 10
             ,
                 [ Input MakeLam
                     ( Options
@@ -63,7 +63,7 @@ Output
                 ]
             )
         ,
-            ( 10
+            ( 11
             ,
                 [ Input MakeLam
                     ( Options
@@ -94,7 +94,7 @@ Output
                 ]
             )
         ,
-            ( 11
+            ( 12
             ,
                 [ Input MakeLam
                     ( Options
@@ -124,7 +124,7 @@ Output
                 ]
             )
         ,
-            ( 13
+            ( 14
             ,
                 [ Input MakeLam
                     ( Options
@@ -181,7 +181,7 @@ Output
                 ]
             )
         ,
-            ( 14
+            ( 15
             ,
                 [ Input MakeLam
                     ( Options
@@ -212,7 +212,7 @@ Output
                 ]
             )
         ,
-            ( 15
+            ( 16
             ,
                 [ Input MakeLam
                     ( Options
@@ -244,7 +244,7 @@ Output
                 ]
             )
         ,
-            ( 16
+            ( 17
             ,
                 [ Input MakeLam
                     ( Options
@@ -270,36 +270,6 @@ Output
                     )
                 , NoInput MakeCase
                 , NoInput MakeApp
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 17
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeApp
-                , NoInput Raise
                 , NoInput DeleteExpr
                 ]
             )
@@ -328,179 +298,13 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , Input MakeVar
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "x"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "comprehensive"
-                                , context = Just
-                                    ( "M" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , NoInput MakeCase
-                , Input MakeCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "True"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "False"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Left"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Right"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Cons"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Nothing"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Just"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Zero"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Succ"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "MakePair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , Input MakeVarSat
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "comprehensive"
-                                , context = Just
-                                    ( "M" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , Input MakeInt
-                    ( Options
-                        { opts = []
-                        , free = FreeInt
-                        }
-                    )
-                , Input MakeChar
-                    ( Options
-                        { opts = []
-                        , free = FreeChar
-                        }
-                    )
-                , Input MakeLet
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , Input MakeLetRec
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
                 , NoInput MakeApp
                 , NoInput Raise
-                , NoInput EnterHole
+                , NoInput DeleteExpr
                 ]
             )
         ,
-            ( 22
+            ( 19
             ,
                 [ Input MakeLam
                     ( Options
@@ -696,7 +500,203 @@ Output
                 ]
             )
         ,
-            ( 25
+            ( 23
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , Input MakeVar
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "x"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , NoInput MakeCase
+                , Input MakeCon
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MakePair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , Input MakeVarSat
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
+                , Input MakeLet
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , Input MakeLetRec
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput EnterHole
+                ]
+            )
+        ,
+            ( 26
             ,
                 [ Input MakeLam
                     ( Options
@@ -731,7 +731,7 @@ Output
                 ]
             )
         ,
-            ( 26
+            ( 27
             ,
                 [ Input MakeLam
                     ( Options
@@ -793,36 +793,6 @@ Output
                 ]
             )
         ,
-            ( 27
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
             ( 28
             ,
                 [ Input MakeLam
@@ -847,7 +817,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -878,6 +847,7 @@ Output
                         , free = FreeVarName
                         }
                     )
+                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -950,6 +920,36 @@ Output
                     ( Options
                         { opts =
                             [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 33
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
                                 { option = "p"
                                 , context = Nothing
                                 , matchesType = False
@@ -986,36 +986,6 @@ Output
                 ]
             )
         ,
-            ( 33
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
             ( 34
             ,
                 [ Input MakeLam
@@ -1040,63 +1010,13 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
                 ]
             )
         ,
-            ( 44
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , Input DeleteBranch
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "Zero"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Succ"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 45
+            ( 35
             ,
                 [ Input MakeLam
                     ( Options
@@ -1151,6 +1071,25 @@ Output
                         , free = FreeVarName
                         }
                     )
+                , Input DeleteBranch
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -1158,6 +1097,67 @@ Output
             )
         ,
             ( 47
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 48
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 49
             ,
                 [ Input RenamePattern
                     ( Options
@@ -1189,7 +1189,7 @@ Output
                 ]
             )
         ,
-            ( 48
+            ( 50
             ,
                 [ Input MakeLam
                     ( Options
@@ -1239,68 +1239,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 49
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeCase
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 50
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -1362,185 +1300,10 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , Input MakeVar
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "x"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "i"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "n"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "comprehensive"
-                                , context = Just
-                                    ( "M" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
                 , NoInput MakeCase
-                , Input MakeCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "True"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "False"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Left"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Right"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Cons"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Nothing"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Just"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Zero"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "Succ"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "MakePair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , Input MakeVarSat
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "comprehensive"
-                                , context = Just
-                                    ( "M" :| [] )
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , Input MakeInt
-                    ( Options
-                        { opts = []
-                        , free = FreeInt
-                        }
-                    )
-                , Input MakeChar
-                    ( Options
-                        { opts = []
-                        , free = FreeChar
-                        }
-                    )
-                , Input MakeLet
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , Input MakeLetRec
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                , matchesType = False
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
                 , NoInput MakeApp
                 , NoInput Raise
-                , NoInput EnterHole
+                , NoInput DeleteExpr
                 ]
             )
         ,
@@ -1599,6 +1362,212 @@ Output
                         , free = FreeVarName
                         }
                     )
+                , Input MakeVar
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "x"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "i"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "n"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , NoInput MakeCase
+                , Input MakeCon
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MakePair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , Input MakeVarSat
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
+                , Input MakeLet
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , Input MakeLetRec
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput EnterHole
+                ]
+            )
+        ,
+            ( 55
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
                 , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
@@ -1606,7 +1575,38 @@ Output
                 ]
             )
         ,
-            ( 55
+            ( 56
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                , matchesType = False
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 57
             ,
                 [ Input MakeLam
                     ( Options
@@ -1812,14 +1812,7 @@ Output
                 ]
             )
         ,
-            ( 12
-            ,
-                [ NoInput MakeFun
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 19
+            ( 13
             ,
                 [ NoInput MakeFun
                 , NoInput DeleteType
@@ -1829,12 +1822,19 @@ Output
             ( 20
             ,
                 [ NoInput MakeFun
-                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
         ,
             ( 21
+            ,
+                [ NoInput MakeFun
+                , NoInput Raise
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 22
             ,
                 [ NoInput MakeFun
                 , Input MakeTCon
@@ -1896,24 +1896,17 @@ Output
                 ]
             )
         ,
-            ( 23
-            ,
-                [ NoInput MakeFun
-                , NoInput DeleteType
-                ]
-            )
-        ,
             ( 24
             ,
                 [ NoInput MakeFun
-                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
         ,
-            ( 35
+            ( 25
             ,
                 [ NoInput MakeFun
+                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
@@ -1921,16 +1914,6 @@ Output
             ( 36
             ,
                 [ NoInput MakeFun
-                , NoInput AddInput
-                , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 37
-            ,
-                [ NoInput MakeFun
-                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
@@ -1938,6 +1921,7 @@ Output
             ( 38
             ,
                 [ NoInput MakeFun
+                , NoInput AddInput
                 , NoInput Raise
                 , NoInput DeleteType
                 ]
@@ -1978,22 +1962,22 @@ Output
             ( 43
             ,
                 [ NoInput MakeFun
+                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
         ,
-            ( 56
-            ,
-                [ NoInput MakeFun
-                , NoInput AddInput
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 57
+            ( 44
             ,
                 [ NoInput MakeFun
                 , NoInput Raise
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 45
+            ,
+                [ NoInput MakeFun
                 , NoInput DeleteType
                 ]
             )
@@ -2001,7 +1985,7 @@ Output
             ( 58
             ,
                 [ NoInput MakeFun
-                , NoInput Raise
+                , NoInput AddInput
                 , NoInput DeleteType
                 ]
             )
@@ -2015,14 +1999,6 @@ Output
             )
         ,
             ( 60
-            ,
-                [ NoInput MakeFun
-                , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 61
             ,
                 [ NoInput MakeFun
                 , NoInput Raise
@@ -2045,6 +2021,38 @@ Output
                 , NoInput DeleteType
                 ]
             )
+        ,
+            ( 64
+            ,
+                [ NoInput MakeFun
+                , NoInput Raise
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 65
+            ,
+                [ NoInput MakeFun
+                , NoInput Raise
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 66
+            ,
+                [ NoInput MakeFun
+                , NoInput Raise
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 37
+            , []
+            )
+        ,
+            ( 61
+            , []
+            )
         ]
     , sigActions =
         [
@@ -2065,14 +2073,6 @@ Output
             )
         ,
             ( 2
-            ,
-                [ NoInput MakeFun
-                , NoInput RaiseType
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 3
             ,
                 [ NoInput MakeFun
                 , NoInput RaiseType
@@ -2105,6 +2105,14 @@ Output
             )
         ,
             ( 7
+            ,
+                [ NoInput MakeFun
+                , NoInput RaiseType
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 8
             ,
                 [ NoInput MakeFun
                 , Input MakeTCon
@@ -2166,7 +2174,7 @@ Output
                 ]
             )
         ,
-            ( 8
+            ( 9
             ,
                 [ NoInput MakeFun
                 , NoInput RaiseType
