@@ -654,8 +654,8 @@ options typeDefs defs cxt level def0 sel0 = \case
       SelectionTypeDef sel -> do
         (_, z) <- conField sel
         case z of
-            Left zT -> pure $ TypeNode $ target zT
-            Right (zK, _) -> pure $ KindNode $ target zK
+          Left zT -> pure $ TypeNode $ target zT
+          Right (zK, _) -> pure $ KindNode $ target zK
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do
@@ -669,9 +669,9 @@ options typeDefs defs cxt level def0 sel0 = \case
     varsInScope = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
-        focusNode nodeSel >>= \case
-          Left zE -> pure $ variablesInScopeExpr defs zE
-          Right zT -> pure $ (variablesInScopeTy $ fst <$> zT, [], [])
+        focusNode nodeSel <&> \case
+          Left zE -> variablesInScopeExpr defs zE
+          Right zT -> (variablesInScopeTy $ fst <$> zT, [], [])
       SelectionTypeDef sel -> do
         (def, zT) <- conField sel
         pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy (fst <$> zT), [], [])

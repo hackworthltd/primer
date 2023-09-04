@@ -3,7 +3,10 @@
 module Primer.Zipper.Type (
   TypeZip,
   TypeZip',
-  KindZip',KindZip,KindTZ',KindTZ,
+  KindZip',
+  KindZip,
+  KindTZ',
+  KindTZ,
   unfocusKindT,
   focusOnTy,
   focusOnTy',
@@ -38,18 +41,21 @@ import Primer.Core.Meta (
   getID,
  )
 import Primer.Core.Type (
+  Kind',
   Type' (TForall, TLet),
-  TypeMeta, Kind',
+  TypeMeta,
  )
 import Primer.Zipper.Nested (
   IsZipper,
+  ZipNest,
   down,
   focus,
   left,
   right,
   target,
+  unfocusNest,
   up,
-  unfocusNest, ZipNest)
+ )
 
 type KindZip' c = Zipper (Kind' c) (Kind' c)
 
@@ -73,22 +79,22 @@ unfocusKindT = unfocusNest
 -- | Focus on the node with the given 'ID', if it exists in the type
 -- (TODO: this does not yet actually find kinds)
 focusOnTy ::
-  (Data b, HasID b, c~()) =>
+  (Data b, HasID b, c ~ ()) =>
   ID ->
   Type' b c ->
   Maybe (Either (TypeZip' b c) (KindTZ' b c, Void))
-  -- The 'Void' is here for the same reason as in @Loc'@
+-- The 'Void' is here for the same reason as in @Loc'@
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
 -- Note that this may be (@Left@) a type or (@Right@) a kind (inside a 'TForall')
 -- (TODO: this does not yet actually find kinds)
 focusOnTy' ::
-  (Data b, HasID b, c~()) =>
+  (Data b, HasID b, c ~ ()) =>
   ID ->
   TypeZip' b c ->
   Maybe (Either (TypeZip' b c) (KindTZ' b c, Void))
-  -- The 'Void' is here for the same reason as in @Loc'@
+-- The 'Void' is here for the same reason as in @Loc'@
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z

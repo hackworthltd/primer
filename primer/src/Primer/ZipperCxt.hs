@@ -35,13 +35,14 @@ import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
+  KindTZ,
   TypeZ,
   TypeZip,
   asZipper,
   current,
   foldAbove,
   prior,
-  unfocusType, KindTZ,
+  unfocusType,
  )
 import Primer.Zipper.Nested (unfocusNest)
 
@@ -159,7 +160,7 @@ instance Monoid ShadowedVarsTy where
 -- Note that kind information is extracted from the cached kind (for 'TLet')
 variablesInScopeTy :: Either TypeZip KindTZ -> [(TyVarName, Kind' ())]
 variablesInScopeTy z =
-  let N vs = foldAbove getBoundHere $ either identity  unfocusNest z -- no bindings in kinds
+  let N vs = foldAbove getBoundHere $ either identity unfocusNest z -- no bindings in kinds
    in reverse vs -- keep most-global first
   where
     getBoundHere :: FoldAbove Type -> ShadowedVarsTy

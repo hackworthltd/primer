@@ -106,6 +106,8 @@ import Primer.Core (
   ExprMeta,
   HasID (..),
   ID,
+  Kind',
+  KindMeta,
   LVarName,
   LocalName (unLocalName),
   Type,
@@ -115,7 +117,6 @@ import Primer.Core (
   getID,
   typesInExpr,
   _bindMeta,
-  KindMeta, Kind',
  )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
@@ -138,11 +139,11 @@ import Primer.Zipper.Nested (
 import Primer.Zipper.Type (
   FoldAbove,
   FoldAbove' (..),
+  KindTZ,
+  KindTZ',
   LetTypeBinding' (LetTypeBind),
   TypeZip,
   TypeZip',
-  KindTZ',
-  KindTZ,
   bindersAboveTy,
   bindersBelowTy,
   farthest,
@@ -153,7 +154,8 @@ import Primer.Zipper.Type (
   getBoundHereDnTy,
   getBoundHereTy,
   getBoundHereUpTy,
-  search, unfocusKindT,
+  search,
+  unfocusKindT,
  )
 
 type ExprZ' a b c = Zipper (Expr' a b c) (Expr' a b c)
@@ -348,11 +350,11 @@ unfocus :: Loc -> Expr
 unfocus = unfocusExpr . unfocusLoc
 
 -- | Focus on the node with the given 'ID', if it exists in the expression
-focusOn :: (Data a, Data b, Eq a, HasID a, HasID b, c~()) => ID -> Expr' a b c -> Maybe (Loc' a b c)
+focusOn :: (Data a, Data b, Eq a, HasID a, HasID b, c ~ ()) => ID -> Expr' a b c -> Maybe (Loc' a b c)
 focusOn i = focusOn' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed expression
-focusOn' :: (Data a, Data b, Eq a, HasID a, HasID b,c~()) => ID -> ExprZ' a b c -> Maybe (Loc' a b c)
+focusOn' :: (Data a, Data b, Eq a, HasID a, HasID b, c ~ ()) => ID -> ExprZ' a b c -> Maybe (Loc' a b c)
 focusOn' i = fmap snd . search matchesID
   where
     matchesID z
@@ -362,10 +364,10 @@ focusOn' i = fmap snd . search matchesID
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
           let inType = do
-                  ZipNest tz f <- focusType z
-                  focusOnTy' i tz <&> \case
-                    Left tz' -> InType $ ZipNest tz' f
-                    Right (kz, v) -> InKind (ZipNest kz f) v
+                ZipNest tz f <- focusType z
+                focusOnTy' i tz <&> \case
+                  Left tz' -> InType $ ZipNest tz' f
+                  Right (kz, v) -> InKind (ZipNest kz f) v
               inCaseBinds = findInCaseBinds i z
            in inType <|> inCaseBinds
 
@@ -468,16 +470,18 @@ findNodeWithParent id x = do
             (TypeNode . target)
             (up tz)
       )
-    InKind kz _ -> (KindNode $ target kz
-                 , Just $ maybe (TypeNode $ target $ unfocusKind kz) (KindNode . target) $ up kz)
+    InKind kz _ ->
+      ( KindNode $ target kz
+      , Just $ maybe (TypeNode $ target $ unfocusKind kz) (KindNode . target) $ up kz
+      )
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
 
 -- | Find a sub-type or kind in a larger type by its ID.
-findTypeOrKind :: (Data a, HasID a, b~()) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
+findTypeOrKind :: (Data a, HasID a, b ~ ()) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
 findTypeOrKind id ty = bimap target (target . fst) <$> focusOnTy id ty
 
 -- | Find a sub-type in a larger type by its ID.
-findType :: (Data a, HasID a, b~()) => ID -> Type' a b -> Maybe (Type' a b)
+findType :: (Data a, HasID a, b ~ ()) => ID -> Type' a b -> Maybe (Type' a b)
 findType id ty = findTypeOrKind id ty >>= leftToMaybe
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.

@@ -53,8 +53,10 @@ instance HasID smallZip => HasID (ZipNest largeZip smallZip small) where
 unfocusNest :: IsZipper smallZip small => ZipNest largeZip smallZip small -> largeZip
 unfocusNest (ZipNest zs f) = f (unfocus zs)
 
-mergeNest :: IsZipper smallZip small => ZipNest largeZip (ZipNest mediumZip smallZip small) medium
-  -> ZipNest largeZip mediumZip medium
+mergeNest ::
+  IsZipper smallZip small =>
+  ZipNest largeZip (ZipNest mediumZip smallZip small) medium ->
+  ZipNest largeZip mediumZip medium
 mergeNest (ZipNest (ZipNest z f) g) = ZipNest (f $ unfocus z) g
 
 innerZipNest :: ZipNest largeZip smallZip small -> smallZip

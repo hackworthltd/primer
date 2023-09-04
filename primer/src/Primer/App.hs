@@ -69,6 +69,7 @@ import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
 import Control.Monad.Trans (MonadTrans)
 import Data.Data (Data)
+import Data.Either.Extra (fromLeft')
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -229,8 +230,9 @@ import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   BindLoc' (BindCase),
   ExprZ,
+  KindTZ,
   Loc,
-  Loc' (InBind, InExpr, InType, InKind),
+  Loc' (InBind, InExpr, InKind, InType),
   TypeZ,
   TypeZip,
   caseBindZMeta,
@@ -248,9 +250,8 @@ import Primer.Zipper (
   target,
   unfocusExpr,
   unfocusType,
-  _target, KindTZ,
+  _target,
  )
-import Data.Either.Extra (fromLeft')
 
 -- | The full program state.
 data Prog = Prog
@@ -523,14 +524,14 @@ handleQuestion = \case
       focusNode prog defname nodeid
 
 -- This only looks in the editable modules, not in any imports
-focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ,Void)))
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
 focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ,Void)))
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ,Void)))
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname

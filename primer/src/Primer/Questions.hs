@@ -36,12 +36,13 @@ import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck.Cxt (Cxt, typeDefs)
 import Primer.Zipper (
   BindLoc' (BindCase),
+  KindTZ,
   Loc,
   Loc' (InBind, InExpr, InKind, InType),
   TypeZip,
   unfocusCaseBind,
-  KindTZ,
-  BindLoc' (BindCase), unfocusKind, unfocusKindT,
+  unfocusKind,
+  unfocusKindT,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
