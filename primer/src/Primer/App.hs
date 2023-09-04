@@ -1619,7 +1619,8 @@ tcWholeProg p = do
               InType zt -> Right $ Left $ view _typeMetaLens $ target zt
               InKind _ v -> Right $ Right $ absurd v
               InBind (BindCase zb) -> Left $ view caseBindZMeta zb
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ (fromLeft' x) ^. _target % _typeMetaLens
+            (SigNode, Right (Right (Left x))) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
+            (SigNode, Right (Right (Right (_,v)))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ absurd v
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
