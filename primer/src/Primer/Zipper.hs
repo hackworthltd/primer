@@ -232,25 +232,28 @@ data Loc' a b c
   | -- | A type
     InType (TypeZ' a b c)
   | -- | A kind
-    InKind (KindZ' a b c)
+    -- (This temporarily has an extra 'Void' field, as we cannot yet construct them.
+    -- This acts to stub out some definitions that do not yet make sense as we currently
+    -- set @c~()@ in 'Loc'; in particular, we want @HasID Loc@.)
+    InKind (KindZ' a b c) Void
   | -- | A binding (currently just case bindings)
     InBind (BindLoc' a b c)
   deriving stock (Generic)
 
 type Loc = Loc' ExprMeta TypeMeta ()
 
-instance (HasID a, HasID b, HasID c) => HasID (Loc' a b c) where
+instance (HasID a, HasID b) => HasID (Loc' a b c) where
   _id = lens getter setter
     where
       getter = \case
         InExpr e -> view _id e
         InType l -> view _id l
-        InKind k -> view _id k
+        InKind _ v -> absurd v
         InBind l -> view _id l
       setter l i = case l of
         InExpr e -> InExpr $ set _id i e
         InType t -> InType $ set _id i t
-        InKind k -> InKind $ set _id i k
+        InKind _ v -> absurd v
         InBind t -> InBind $ set _id i t
 
 -- | A location of a binding.
@@ -337,7 +340,7 @@ unfocusLoc :: Loc -> ExprZ
 unfocusLoc (InExpr z) = z
 unfocusLoc (InType z) = unfocusType z
 unfocusLoc (InBind (BindCase z)) = unfocusCaseBind z
-unfocusLoc (InKind k) = unfocusType $ unfocusKind k
+unfocusLoc (InKind k _) = unfocusType $ unfocusKind k
 
 -- | Convert a 'Loc' to an 'Expr'.
 -- This shifts focus right up to the top, so the result is the whole expression.
@@ -362,7 +365,7 @@ focusOn' i = fmap snd . search matchesID
                   ZipNest tz f <- focusType z
                   focusOnTy' i tz <&> \case
                     Left tz' -> InType $ ZipNest tz' f
-                    Right kz -> InKind $  ZipNest kz f
+                    Right (kz, v) -> InKind (ZipNest kz f) v
               inCaseBinds = findInCaseBinds i z
            in inType <|> inCaseBinds
 
@@ -465,13 +468,13 @@ findNodeWithParent id x = do
             (TypeNode . target)
             (up tz)
       )
-    InKind kz -> (KindNode $ target kz
+    InKind kz _ -> (KindNode $ target kz
                  , Just $ maybe (TypeNode $ target $ unfocusKind kz) (KindNode . target) $ up kz)
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
 
 -- | Find a sub-type or kind in a larger type by its ID.
 findTypeOrKind :: (Data a, HasID a, b~()) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
-findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
+findTypeOrKind id ty = bimap target (target . fst) <$> focusOnTy id ty
 
 -- | Find a sub-type in a larger type by its ID.
 findType :: (Data a, HasID a, b~()) => ID -> Type' a b -> Maybe (Type' a b)

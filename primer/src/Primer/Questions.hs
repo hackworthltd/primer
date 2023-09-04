@@ -34,16 +34,14 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
 import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck.Cxt (Cxt, typeDefs)
-import Primer.Zipper.Nested (ZipNest(ZipNest),unfocusNest, unfocus, mergeNest)
 import Primer.Zipper (
   BindLoc' (BindCase),
   Loc,
   Loc' (InBind, InExpr, InKind, InType),
-  TypeZ,
   TypeZip,
   unfocusCaseBind,
   KindTZ,
-  KindZ, BindLoc' (BindCase), unfocusKind, unfocusKindT,
+  BindLoc' (BindCase), unfocusKind, unfocusKindT,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
@@ -88,7 +86,7 @@ variablesInScopeExpr defs loc =
   let locals = case loc of
         InExpr ze -> extractLocalsExprZ ze
         InType zt -> extractLocalsTypeZ zt
-        InKind zk -> extractLocalsTypeZ $ unfocusKind zk
+        InKind zk _ -> extractLocalsTypeZ $ unfocusKind zk
         InBind (BindCase zb) -> extractLocalsExprZ $ unfocusCaseBind zb
       globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
@@ -146,7 +144,7 @@ getAvoidSet :: MonadReader Cxt m => Loc -> m (Set.Set Name)
 getAvoidSet = \case
   InExpr ze -> mkAvoidForFreshName ze
   InType zt -> mkAvoidForFreshNameTypeZ zt
-  InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
+  InKind zk _ -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
   InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
 
 getAvoidSetTy :: MonadReader Cxt m => Either TypeZip KindTZ -> m (Set.Set Name)

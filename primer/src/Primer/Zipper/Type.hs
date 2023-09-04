@@ -49,7 +49,7 @@ import Primer.Zipper.Nested (
   right,
   target,
   up,
-  unfocusNest)
+  unfocusNest, ZipNest)
 
 type KindZip' c = Zipper (Kind' c) (Kind' c)
 
@@ -76,7 +76,8 @@ focusOnTy ::
   (Data b, HasID b, c~()) =>
   ID ->
   Type' b c ->
-  Maybe (Either (TypeZip' b c) (KindTZ' b c))
+  Maybe (Either (TypeZip' b c) (KindTZ' b c, Void))
+  -- The 'Void' is here for the same reason as in @Loc'@
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
@@ -86,7 +87,8 @@ focusOnTy' ::
   (Data b, HasID b, c~()) =>
   ID ->
   TypeZip' b c ->
-  Maybe (Either (TypeZip' b c) (KindTZ' b c))
+  Maybe (Either (TypeZip' b c) (KindTZ' b c, Void))
+  -- The 'Void' is here for the same reason as in @Loc'@
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z

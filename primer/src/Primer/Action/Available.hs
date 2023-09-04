@@ -239,6 +239,7 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
      in forType l t <> raiseAction
+  Just (KindNode _, _) -> [] -- For now we cannot even select kind nodes, so don't bother exposing any actions yet
   Just (CaseBindNode _, _) ->
     [Input RenamePattern]
 
@@ -654,26 +655,26 @@ options typeDefs defs cxt level def0 sel0 = \case
         (_, z) <- conField sel
         case z of
             Left zT -> pure $ TypeNode $ target zT
-            Right zK -> pure $ KindNode $ target zK
+            Right (zK, _) -> pure $ KindNode $ target zK
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do
           z <- focusNode =<< sel.node
           case z of
             Left zE -> pure $ generateNameExpr typeOrKind zE
-            Right zT -> pure $ generateNameTy typeOrKind zT
+            Right zT -> pure $ generateNameTy typeOrKind $ fst <$> zT
         SelectionTypeDef sel -> do
           (def, zT) <- conField sel
-          pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind zT
+          pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind $ fst <$> zT
     varsInScope = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
         focusNode nodeSel >>= \case
           Left zE -> pure $ variablesInScopeExpr defs zE
-          Right zT -> pure $ (variablesInScopeTy zT, [], [])
+          Right zT -> pure $ (variablesInScopeTy $ fst <$> zT, [], [])
       SelectionTypeDef sel -> do
         (def, zT) <- conField sel
-        pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy zT, [], [])
+        pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy (fst <$> zT), [], [])
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of
