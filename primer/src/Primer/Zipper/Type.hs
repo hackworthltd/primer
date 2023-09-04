@@ -10,6 +10,7 @@ module Primer.Zipper.Type (
   target,
   _target,
   replace,
+  focusOnKind,
   focusOnTy,
   top,
   up,
@@ -56,9 +57,12 @@ import Primer.Core.Meta (
   getID,
  )
 import Primer.Core.Type (
+  Kind',
   Type' (TForall, TLet),
   TypeMeta,
  )
+
+type KindZip' c = Zipper (Kind' c) (Kind' c)
 
 type TypeZip' b = Zipper (Type' b) (Type' b)
 
@@ -105,6 +109,27 @@ focus = zipper
 -- | Replace the node at the cursor with the given value.
 replace :: (IsZipper za a) => a -> za -> za
 replace = over asZipper . replaceHole
+
+-- | Focus on the node with the given 'ID', if it exists in the kind
+focusOnKind ::
+  (Data c, HasID c) =>
+  ID ->
+  Kind' c ->
+  Maybe (KindZip' c)
+focusOnKind i = focusOnKind' i . focus
+
+-- | Focus on the node with the given 'ID', if it exists in the focussed kind
+focusOnKind' ::
+  (Data c, HasID c) =>
+  ID ->
+  KindZip' c ->
+  Maybe (KindZip' c)
+focusOnKind' i = fmap snd . search matchesID
+  where
+    matchesID z
+      -- If the current target has the correct ID, return that
+      | getID (target z) == i = Just z
+      | otherwise = Nothing
 
 -- | Focus on the node with the given 'ID', if it exists in the type
 focusOnTy ::

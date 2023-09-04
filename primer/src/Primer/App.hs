@@ -234,6 +234,7 @@ import Primer.Zipper (
   current,
   focusLoc,
   focusOn,
+  focusOnKind,
   focusOnTy,
   focusOnlyType,
   foldAbove,
@@ -1019,13 +1020,9 @@ applyProgAction prog = \case
         >>= either (throwError . ActionError) pure
     pure (mods', Nothing)
     where
-      modifyKind f k =
-        if getID k == id
-          then f k
-          else case k of
-            KHole _ -> pure k
-            KType _ -> pure k
-            KFun m k1 k2 -> KFun m <$> modifyKind f k1 <*> modifyKind f k2
+      modifyKind f k = fromMaybe (pure k) $ do
+        k' <- focusOnKind id k
+        pure $ fromZipper . flip replace k' <$> f (target k')
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
