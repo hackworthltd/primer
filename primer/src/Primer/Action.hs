@@ -525,6 +525,16 @@ moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch un
 moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
 moveType m z = move m z
 
+{-
+-- TODO: this will be useful later, but for now don't have a KindZ (as that has KindMeta, not ())
+-- | Apply a movement to a kind zipper
+moveKind :: MonadError ActionError m => Movement -> KindZ -> m KindZ
+moveKind m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in kinds (there are no cases in kinds!)"
+moveKind m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in kinds (there are no constructors in kinds)"
+moveKind m z = move m z
+-- TODO: we should have enter/exit kind actions
+-}
+
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch, or into an argument of a constructor
 move :: forall m za a. (MonadError ActionError m, IsZipper za a, HasID za) => Movement -> za -> m za
