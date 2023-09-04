@@ -82,6 +82,7 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   Fold,
+  afolding,
   elemOf,
   folded,
   getting,
@@ -164,6 +165,7 @@ import Primer.Core (
   _chkedAt,
   _exprMeta,
   _exprMetaLens,
+  _kindMetaLens,
   _synthed,
   _type,
   _typeMetaLens,
@@ -1609,22 +1611,46 @@ tcWholeProg p = do
             { def = defName_
             , node = updatedNode
             }
-    Just (SelectionTypeDef s) ->
-      pure . Just . SelectionTypeDef $
-        s & over (#node % mapped % #_TypeDefConsNodeSelection) \conSel ->
-          conSel & over #field \case
+    Just (SelectionTypeDef s) -> do
+      let defName_ = s.def
+      -- If something goes wrong in finding the metadata, we just don't set a field selection.
+      -- This is similar to what we do when selection is in a term, above.
+      let updatedNode = case liftA2 (,) s.node (typeDefAST =<< Map.lookup s.def (allTypesMeta p)) of
             Nothing -> Nothing
-            Just fieldSel ->
-              flip (set #meta) fieldSel . (Right . Left . (^. _typeMetaLens)) <$> do
-                -- If something goes wrong in finding the metadata, we just don't set a field selection.
-                -- This is similar to what we do when selection is in a term, above.
-                td <- Map.lookup s.def $ allTypesMeta p
-                tda <- typeDefAST td
-                ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
-                id <- case fieldSel.meta of
-                  Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
-                  Right m -> pure $ getID m
-                target <$> focusOnTy id ty
+            Just (sn, tda) -> case sn of
+              TypeDefParamNodeSelection paramSel ->
+                Just $
+                  TypeDefParamNodeSelection $
+                    paramSel
+                      & #kindMeta %~ \case
+                        Just (Right (Right m)) -> do
+                          k <-
+                            tda
+                              ^? #astTypeDefParameters
+                              % afolding
+                                (find ((== paramSel.param) . fst))
+                              % _2
+                          Right . Right . view _kindMetaLens . target <$> focusOnKind (getID m) k
+                        _ -> Nothing
+              TypeDefConsNodeSelection conSel ->
+                Just $
+                  TypeDefConsNodeSelection $
+                    conSel & over #field \case
+                      Nothing -> Nothing
+                      Just fieldSel ->
+                        flip (set #meta) fieldSel . (Right . Left . (^. _typeMetaLens)) <$> do
+                          ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
+                          id <- case fieldSel.meta of
+                            Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
+                            Right m -> pure $ getID m
+                          target <$> focusOnTy id ty
+      pure $
+        Just $
+          SelectionTypeDef $
+            TypeDefSelection
+              { def = defName_
+              , node = updatedNode
+              }
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
