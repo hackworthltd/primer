@@ -511,14 +511,14 @@ handleQuestion = \case
     defs <- asks $ allDefs . appProg
     let (tyvars, termvars, globals) = case node of
           Left zE -> variablesInScopeExpr defs zE
-          Right zT -> (variablesInScopeTy $ fst <$> zT, [], [])
+          Right zT -> (variablesInScopeTy zT, [], [])
     pure ((tyvars, termvars), globals)
   GenerateName defid nodeid typeKind -> do
     prog <- asks appProg
     names <-
       focusNode' defid nodeid <&> \case
         Left zE -> generateNameExpr typeKind zE
-        Right zT -> generateNameTy typeKind $ fst <$> zT
+        Right zT -> generateNameTy typeKind zT
     pure $ runReader names $ progCxt prog
   where
     focusNode' defname nodeid = do
@@ -526,14 +526,14 @@ handleQuestion = \case
       focusNode prog defname nodeid
 
 -- This only looks in the editable modules, not in any imports
-focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip (KindTZ, Void)))
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
@@ -1615,10 +1615,10 @@ tcWholeProg p = do
             (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ case x of
               InExpr ze -> Left $ view _exprMetaLens $ target ze
               InType zt -> Right $ Left $ view _typeMetaLens $ target zt
-              InKind _ v -> Right $ Right $ absurd v
+              InKind zk -> Right $ Right $ view _kindMetaLens $ target zk
               InBind (BindCase zb) -> Left $ view caseBindZMeta zb
             (SigNode, Right (Right (Left x))) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
-            (SigNode, Right (Right (Right (_,v)))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ absurd v
+            (SigNode, Right (Right (Right zk))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ zk ^. _target % _kindMetaLens
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
@@ -1658,7 +1658,7 @@ tcWholeProg p = do
                           id <- case fieldSel.meta of
                             Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
                             Right m -> pure $ getID m
-                          bimap (view $ _target % _typeMetaLens) (absurd . snd) <$> focusOnTy id ty
+                          bimap (view $ _target % _typeMetaLens) (view $ _target % _kindMetaLens) <$> focusOnTy id ty
       pure $
         Just $
           SelectionTypeDef $
