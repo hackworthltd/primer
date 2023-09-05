@@ -318,7 +318,7 @@ unfocusKind = mergeNest
 focusOnlyType :: TypeZ' a b c -> TypeZip' b c
 focusOnlyType = innerZipNest
 
--- | Forget the surrounding type context
+-- | Forget the surrounding expression context
 focusOnlyKind :: KindZ' a b c -> KindTZ' b c
 focusOnlyKind = innerZipNest
 
