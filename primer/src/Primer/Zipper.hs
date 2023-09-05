@@ -19,6 +19,7 @@ module Primer.Zipper (
   BindLoc,
   BindLoc' (..),
   focusType,
+  focusKind,
   focusLoc,
   unfocusType,
   unfocusKind,
@@ -112,7 +113,7 @@ import Primer.Core (
   LVarName,
   LocalName (unLocalName),
   Type,
-  Type' (),
+  Type' (TForall),
   TypeMeta,
   bindName,
   getID,
@@ -282,6 +283,19 @@ focusType z = case target z of
     pure $ ZipNest (zipper t) $ \t' -> z & l .~ t'
   where
     l = _target % typesInExpr
+
+-- | Switch from an 'Type' zipper to a 'Kind' zipper, focusing on the kind in
+-- the current target. This expects that the target is an @TForall@ node
+-- (as this is the only one that contain a @Kind@).
+focusKind :: (Data b, Data c) => TypeZ' a b c -> Maybe (KindZ' a b c)
+focusKind (ZipNest z f) = case target z of
+  TForall m n k t -> pure $ ZipNest
+                       (ZipNest
+                          (focus k)
+                          $ \k' -> replace (TForall m n k' t) z
+                       ) f
+   --pure $ ZipNest (zipper t) $ \t' -> z & l .~ t'
+  _ -> Nothing
 
 -- | If the currently focused expression is a case expression, search the bindings of its branches
 -- to find one matching the given ID, and return the 'Loc' for that binding.
