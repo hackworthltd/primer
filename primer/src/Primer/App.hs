@@ -78,6 +78,7 @@ import Data.List.Extra (anySame, disjoint)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics (
+    _Left,
     afolding,
   Field1 (_1),
   Field2 (_2),
@@ -174,7 +175,9 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
-import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars,
+  regenerateKindIDs,
+  generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -230,6 +233,8 @@ import Primer.Typecheck (
  )
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
+    unfocusKind,
+    unfocusKindT,
   BindLoc' (BindCase),
   ExprZ,
   KindTZ,
@@ -254,6 +259,7 @@ import Primer.Zipper (
   unfocusType,
   _target,
  )
+import Data.Bitraversable (bitraverse)
 
 -- | The full program state.
 data Prog = Prog
@@ -1502,11 +1508,11 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   c' <- focusNodeImports p fromDefName fromTyId
   c <- case c' of
     Left (InExpr _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
-    Left (InType zt) -> pure $ Left zt
-    Left (InKind _ v) -> absurd v
+    Left (InType zt) -> pure $ Left $ Left zt
+    Left (InKind zk) -> pure $ Right $ Left zk
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
-    Right (Left zt) -> pure $ Right zt
-    Right (Right (_, v)) -> absurd v
+    Right (Left zt) -> pure $ Left $ Right zt
+    Right (Right zk) -> pure $ Right $ Right zk
   let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
@@ -1522,16 +1528,18 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
       Right (_, tgt) -> pure tgt
     let sharedScope =
           if fromDefName == toDefName
-            then getSharedScopeTy c $ Right tgt
+            then
+              -- We rely here on the fact that there are no binders in kinds
+              getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c) $ Right tgt
             else mempty
-    -- Delete unbound vars
-    let cTgt = either target target c
+    -- Delete unbound vars (nb: no vars in kinds)
+    let cTgt = bimap (either target target) (either target target) c
         f (m, n) =
           if Set.member (unLocalName n) sharedScope
             then pure $ TVar m n
             else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
-    cScoped <- traverseOf _freeVarsTy f cTgt
-    freshCopy <- regenerateTypeIDs cScoped
+    cScoped <- traverseOf (_Left % _freeVarsTy) f cTgt
+    freshCopy <- bitraverse regenerateTypeIDs regenerateKindIDs cScoped
     pasted <- case target tgt of
       TEmptyHole _ -> pure $ replace freshCopy tgt
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
@@ -1687,10 +1695,10 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src <- case src' of
     Left (InExpr e) -> pure $ Left e
     Left (InType t) -> pure $ Right (Left t)
-    Left (InKind _ v) -> absurd v
+    --Left (InKind _ v) -> absurd v
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
     Right (Left t) -> pure $ Right (Right t)
-    Right (Right (_, v)) -> absurd v
+    --Right (Right (_, v)) -> absurd v
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     -- We manually use the low-level applyAction', as we do not want to
     -- typecheck intermediate states. There are two reasons for this, both
@@ -1721,7 +1729,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
     case (src, tgt) of
       (_, InBind _) -> throwError $ CopyPasteError "tried to paste an expression into a binder"
       (Left _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
-      (Left _, InKind _ _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
+      --(Left _, InKind _ _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
       (Right _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
       (Right srcT, InType tgtT) -> do
         let sharedScope =
@@ -1799,7 +1807,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         let newDef = oldDef{astDefExpr = unfocusExpr pasted}
         let newSel = NodeSelection BodyNode $ Left $ pasted ^. _target % _exprMetaLens
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
-      (Right _, InKind _ _) -> throwError $ CopyPasteError "tried to paste a type into an kind"
+      --(Right _, InKind _ _) -> throwError $ CopyPasteError "tried to paste a type into an kind"
   liftError ActionError $ tcWholeProg finalProg
 
 lookupASTDef :: GVarName -> DefMap -> Maybe ASTDef

@@ -5,6 +5,7 @@ module Primer.Core.Utils (
   typeIDs,
   generateTypeIDs,
   regenerateTypeIDs,
+  regenerateKindIDs,
   generateKindIDs,
   forgetTypeMetadata,
   forgetKindMetadata,
@@ -83,7 +84,7 @@ import Primer.Core.Type.Utils (
   regenerateTypeIDs,
   traverseFreeVarsTy,
   typeIDs,
-  _freeVarsTy,
+  _freeVarsTy, regenerateKindIDs,
  )
 import Primer.Name (Name)
 

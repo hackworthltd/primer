@@ -2,6 +2,7 @@ module Primer.Core.Type.Utils (
   typeIDs,
   generateTypeIDs,
   regenerateTypeIDs,
+  regenerateKindIDs,
   generateKindIDs,
   forgetTypeMetadata,
   forgetKindMetadata,
@@ -60,6 +61,9 @@ regenerateTypeIDs' :: MonadFresh ID m => (ID -> a -> a') -> (ID -> b -> b') -> T
 regenerateTypeIDs' st sk =
   traverseOf _typeMeta (\a -> flip st a <$> fresh)
     >=> traverseOf _typeKindMeta (\a -> flip sk a <$> fresh)
+
+regenerateKindIDs :: (HasID a, MonadFresh ID m) => Kind' a -> m (Kind' a)
+regenerateKindIDs = traverseOf _kindMeta (\a -> flip (set _id) a <$> fresh)
 
 -- | Adds 'ID's and trivial metadata
 generateTypeIDs :: MonadFresh ID m => Type' () () -> m Type
