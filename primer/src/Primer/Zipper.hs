@@ -6,7 +6,6 @@ module Primer.Zipper (
   ExprZ,
   TypeZip,
   TypeZ,
-  KindZ,
   KindTZ,
   CaseBindZ,
   updateCaseBind,
@@ -108,7 +107,6 @@ import Primer.Core (
   HasID (..),
   ID,
   Kind',
-  KindMeta,
   LVarName,
   LocalName (unLocalName),
   Type,
@@ -177,7 +175,6 @@ type TypeZ = TypeZ' ExprMeta TypeMeta ()
 -- | A zipper for 'Kind's embedded in expressions (which will always be inside a 'Type').
 type KindZ' a b c = ZipNest (ExprZ' a b c) (KindTZ' b c) (Type' b c)
 
-type KindZ = KindZ' ExprMeta TypeMeta KindMeta
 
 -- | A zipper for variable bindings in case branches.
 -- This type focuses on a particular binding in a particular branch.
