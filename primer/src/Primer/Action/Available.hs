@@ -71,6 +71,7 @@ import Primer.Core (
   HasID (_id),
   ID,
   Kind' (..),
+  Kind,
   KindMeta,
   ModuleName (unModuleName),
   Pattern (PatCon, PatPrim),
@@ -356,6 +357,12 @@ forType l type_ =
           ]
     delete = [NoInput DeleteType]
 
+forKind :: Level -> Kind -> [Action]
+forKind _ k =
+    [NoInput MakeKFun] <> case k of
+       KHole _ -> [NoInput MakeKType]
+       _ -> [NoInput DeleteKind]
+
 forTypeDef ::
   Level ->
   Editable ->
@@ -419,10 +426,9 @@ forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
   sortByPriority
     l
     $ mwhen (not $ typeInUse tdName td tydefs defs)
-    $ [NoInput MakeKFun] <> case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
-      Nothing -> []
-      Just (KHole _) -> [NoInput MakeKType]
-      Just _ -> [NoInput DeleteKind]
+    $ case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
+       Nothing -> []
+       Just k -> forKind l k
   where
     findKind i k = target <$> focusOnKind i k
 
