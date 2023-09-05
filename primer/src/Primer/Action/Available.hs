@@ -127,7 +127,6 @@ import Primer.Typecheck (
 import Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
-  findType,
   focusOn,
   focusOnKind,
   focusOnTy,
@@ -463,8 +462,11 @@ forTypeDefConsFieldNode ::
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
   sortByPriority l $
-    maybe mempty (forType l) (findType id =<< fieldType)
-      <> mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+   mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+  <> case findTypeOrKind id =<< fieldType of
+       Nothing -> mempty
+       Just (Left t) -> forType l t
+       Just (Right k) -> forKind l k
   where
     fieldType = getTypeDefConFieldType td con index
 
@@ -652,7 +654,7 @@ options typeDefs defs cxt level def0 sel0 = \case
         def <- eitherToMaybe def0
         case nodeSel.nodeType of
           BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
-          SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
+          SigNode -> either TypeNode KindNode <$> findTypeOrKind nodeSel.meta (astDefType def)
       SelectionTypeDef sel -> do
         (_, z) <- conField sel
         case z of
