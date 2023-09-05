@@ -240,7 +240,7 @@ import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
 import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefKind, typeDefNameHints, typeDefParameters)
 import Primer.TypeDef qualified as TypeDef
-import Primer.Zipper (SomeNode (..), findNodeWithParent, findType, findTypeOrKind)
+import Primer.Zipper (SomeNode (..), findNodeWithParent, findTypeOrKind, focusOnKind, target)
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -1328,30 +1328,26 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
             maybe (throw' $ NodeIDNotFound id) (pure . fst) (findNodeWithParent id $ astDefExpr def) <&> \case
               ExprNode e -> viewExprType $ e ^. _exprMetaLens
               TypeNode t -> viewTypeKind $ t ^. _typeMetaLens
-              KindNode _ -> Kind $ viewTreeKind' $ KType "kind" -- see below about this lie!
+              KindNode k -> viewKindOfKind k
               CaseBindNode b -> viewExprType $ b ^. _bindMeta
           -- sig node selected - get kind from metadata
           SigNode ->
             maybe (throw' $ NodeIDNotFound id) pure (findTypeOrKind id $ astDefType def) <&> \case
              Left t -> viewTypeKind $ t ^. _typeMetaLens
-             Right _ -> Kind $ viewTreeKind' $ KType "kind" -- see below about this lie!
+             Right k -> viewKindOfKind k
     SelectionTypeDef sel -> do
       def <- snd <$> findASTTypeDef allTypeDefs sel.def
       case sel.node of
         -- type def itself selected - return its kind
         Nothing -> pure $ Kind $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
-        -- param name node selected - return its kind
-        Just (TypeDefParamNodeSelection (TypeDefParamSelection p Nothing)) ->
-          maybe (throw' $ ParamNotFound p) (pure . Kind . viewTreeKind . snd) $
-            find ((== p) . fst) (astTypeDefParameters def)
-        -- param kind node selected - just return `KType`
-        -- This is a slight lie, effectively reporting that kinds are types,
-        -- when this isn't true in Primer (as it is in Haskell with modern GHC's `TypeInType`).
-        -- But Primer also doesn't (explicitly) have an Agda-style infinite hierarchy of types
-        -- `True : Bool : Type0 : Type1 : Type2 : ...` (we don't go beyond `Type0` i.e. `KType`),
-        -- so this is the best that we can easily do.
-        Just (TypeDefParamNodeSelection (TypeDefParamSelection _ (Just _))) ->
-          pure $ Kind $ viewTreeKind' $ KType "kind"
+        Just (TypeDefParamNodeSelection (TypeDefParamSelection p s)) -> do
+          k <- maybe (throw' $ ParamNotFound p) (pure . snd) $ find ((== p) . fst) (astTypeDefParameters def)
+          case s of
+              Nothing -> -- param name node selected - return its kind
+                         pure . Kind . viewTreeKind $ k
+              Just i -> do
+                  k' <- maybe (throw' $ NodeIDNotFound i) pure $ focusOnKind i k
+                  pure $ viewKindOfKind $ target k'
         -- constructor node selected - return the type to which it belongs
         Just (TypeDefConsNodeSelection (TypeDefConsSelection _ Nothing)) ->
           pure . Type . viewTreeType' . mkIds $
@@ -1359,8 +1355,8 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         -- field node selected - return its kind
         Just (TypeDefConsNodeSelection (TypeDefConsSelection c (Just s))) -> do
           t0 <- maybe (throw' $ TypeDefConFieldNotFound sel.def c s.index) pure $ getTypeDefConFieldType def c s.index
-          t <- maybe (throw' $ NodeIDNotFound s.meta) pure $ findType s.meta t0
-          pure $ viewTypeKind $ t ^. _typeMetaLens
+          t <- maybe (throw' $ NodeIDNotFound s.meta) pure $ findTypeOrKind s.meta t0
+          pure $ either (viewTypeKind . view _typeMetaLens) viewKindOfKind t
   where
     trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
     viewExprType :: ExprMeta -> TypeOrKind
@@ -1392,3 +1388,11 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
     viewTypeKind' :: TypeMeta -> Maybe Tree
     viewTypeKind' = preview $ _type % _Just % to (viewTreeKind' . mkIdsK)
+    -- If a kind node is selected we just return `KType`
+    -- This is a slight lie, effectively reporting that kinds are types,
+    -- when this isn't true in Primer (as it is in Haskell with modern GHC's `TypeInType`).
+    -- But Primer also doesn't (explicitly) have an Agda-style infinite hierarchy of types
+    -- `True : Bool : Type0 : Type1 : Type2 : ...` (we don't go beyond `Type0` i.e. `KType`),
+    -- so this is the best that we can easily do.
+    viewKindOfKind :: Kind -> TypeOrKind
+    viewKindOfKind _ =  Kind $ viewTreeKind' $ KType "kind"
