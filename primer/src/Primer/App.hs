@@ -1688,17 +1688,30 @@ tcWholeProgWithImports p = do
   imports <- checkEverything (progSmartHoles p) CheckEverything{trusted = mempty, toCheck = progImports p}
   tcWholeProg $ p & #progImports .~ imports
 
+data CPB
+  = ExprInBody ExprZ
+  | Type CPBT
+data CPBT
+  = TypeInBody TypeZ
+  | TypeInSig TypeZip
+cpbtToEither :: CPBT -> Either TypeZ TypeZip
+cpbtToEither = \case
+  TypeInBody t ->  Left t
+  TypeInSig t ->  Right t
+cpbtTarget :: CPBT -> Type
+cpbtTarget = \case
+  TypeInBody t ->  target t
+  TypeInSig t ->  target t
+
 copyPasteBody :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src' <- focusNodeImports p fromDefName fromId
-  -- unpack and reassociate so get Expr+(Type+Type), rather than Loc+Type
+  -- unpack and reassociate
   src <- case src' of
-    Left (InExpr e) -> pure $ Left e
-    Left (InType t) -> pure $ Right (Left t)
-    --Left (InKind _ v) -> absurd v
+    Left (InExpr e) -> pure $ ExprInBody e
+    Left (InType t) -> pure $ Type (TypeInBody t)
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
-    Right (Left t) -> pure $ Right (Right t)
-    --Right (Right (_, v)) -> absurd v
+    Right (Left t) -> pure $ Type (TypeInSig t)
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     -- We manually use the low-level applyAction', as we do not want to
     -- typecheck intermediate states. There are two reasons for this, both
@@ -1728,16 +1741,16 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         & flip runReaderT (buildTypingContextFromModules (progAllModules p) NoSmartHoles)
     case (src, tgt) of
       (_, InBind _) -> throwError $ CopyPasteError "tried to paste an expression into a binder"
-      (Left _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
+      (ExprInBody _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
       --(Left _, InKind _ _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
-      (Right _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
-      (Right srcT, InType tgtT) -> do
+      (Type _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
+      (Type srcT, InType tgtT) -> do
         let sharedScope =
               if fromDefName == toDefName
-                then getSharedScopeTy srcT $ Left tgtT
+                then getSharedScopeTy (cpbtToEither srcT) $ Left tgtT
                 else mempty
         -- Delete unbound vars. TODO: we may want to let-bind them?
-        let srcSubtree = either target target srcT
+        let srcSubtree = cpbtTarget srcT
             f (m, n) =
               if Set.member (unLocalName n) sharedScope
                 then pure $ TVar m n
@@ -1750,7 +1763,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
         let newSel = NodeSelection BodyNode $ Right $ Left $ pasted ^. _target % _typeMetaLens
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
-      (Left srcE, InExpr tgtE) -> do
+      (ExprInBody srcE, InExpr tgtE) -> do
         let sharedScope =
               if fromDefName == toDefName
                 then getSharedScope srcE tgtE
