@@ -106,9 +106,9 @@ import Data.Tuple.Extra (curry3)
 import Optics (ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
-import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
+import Primer.Action (ActionError (ParamNotFound), ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
-import Primer.Action.ProgError (ProgError (NodeIDNotFound, ParamNotFound, TypeDefConFieldNotFound))
+import Primer.Action.ProgError (ProgError (ActionError, NodeIDNotFound, TypeDefConFieldNotFound))
 import Primer.App (
   App,
   DefSelection (..),
@@ -1351,7 +1351,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         -- type def itself selected - return its kind
         Nothing -> pure $ Kind $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
         Just (TypeDefParamNodeSelection (TypeDefParamSelection p s)) -> do
-          k <- maybe (throw' $ ParamNotFound p) (pure . snd) $ find ((== p) . fst) (astTypeDefParameters def)
+          k <- maybe (throw' $ ActionError $ ParamNotFound p) (pure . snd) $ find ((== p) . fst) (astTypeDefParameters def)
           case s of
             Nothing ->
               -- param name node selected - return its kind
