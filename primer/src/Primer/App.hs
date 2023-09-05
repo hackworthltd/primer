@@ -1016,7 +1016,7 @@ applyProgAction prog = \case
                 ( traverseOf _2 $
                     flip
                       ( foldlM $ flip \case
-                          ConstructKType -> modifyKind $ const ktype
+                          ConstructKType -> modifyKind $ const ktype -- TODO: this should be commoned up with main kind action handling
                           ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
                           Delete -> modifyKind $ const khole
                           a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
