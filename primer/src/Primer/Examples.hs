@@ -65,7 +65,6 @@ import Primer.Builtins.DSL (
 import Primer.Core (
   GVarName,
   ID,
-  Kind' (KType),
   ModuleName (unModuleName),
   mkSimpleModuleName,
   qualifyName,
