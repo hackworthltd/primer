@@ -600,6 +600,8 @@ moveKind m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch un
 moveKind m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in kinds (there are no constructors in kinds)"
 moveKind m z = move m z
 
+-- TODO: we should have enter/exit kind actions
+
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch, or into an argument of a constructor
 move :: forall m za a. (MonadError ActionError m, IsZipper za a, HasID za) => Movement -> za -> m za
