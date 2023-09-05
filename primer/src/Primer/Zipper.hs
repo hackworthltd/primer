@@ -487,6 +487,7 @@ findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
 
 -- | Find a sub-type in a larger type by its ID.
 findType :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Type' a b)
+-- TODO: Do I still neeed this?  Make clear will not find a kind!
 findType id ty = findTypeOrKind id ty >>= leftToMaybe
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
