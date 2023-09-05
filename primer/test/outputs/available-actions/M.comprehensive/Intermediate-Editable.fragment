@@ -2047,11 +2047,17 @@ Output
             )
         ,
             ( 37
-            , []
+            ,
+                [ NoInput MakeKFun
+                , NoInput DeleteKind
+                ]
             )
         ,
             ( 61
-            , []
+            ,
+                [ NoInput MakeKFun
+                , NoInput DeleteKind
+                ]
             )
         ]
     , sigActions =
