@@ -151,6 +151,7 @@ import Primer.Core (
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   Type,
+  Kind,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -257,7 +258,7 @@ import Primer.Zipper (
   target,
   unfocusExpr,
   unfocusType,
-  _target,
+  _target, KindZ,
  )
 import Data.Bitraversable (bitraverse)
 
@@ -1530,7 +1531,8 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
           if fromDefName == toDefName
             then
               -- We rely here on the fact that there are no binders in kinds
-              getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c) $ Right tgt
+              getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c)
+                           $ Right $ either identity unfocusKindT tgt
             else mempty
     -- Delete unbound vars (nb: no vars in kinds)
     let cTgt = bimap (either target target) (either target target) c
@@ -1540,11 +1542,15 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
             else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
     cScoped <- traverseOf (_Left % _freeVarsTy) f cTgt
     freshCopy <- bitraverse regenerateTypeIDs regenerateKindIDs cScoped
-    pasted <- case target tgt of
-      TEmptyHole _ -> pure $ replace freshCopy tgt
+    pasted <- case (tgt, freshCopy) of
+      (Left _, Right _) -> throwError $ CopyPasteError "tried to paste a kind into a type"
+      (Right _, Left _) -> throwError $ CopyPasteError "tried to paste a type into a kind"
+      (Left tgt'@(target -> TEmptyHole _), Left fc) -> pure $ Left $ replace fc tgt'
+      (Right tgt'@(target -> KHole _), Right fc) -> pure $ Right $ replace fc tgt'
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-    let newDef = oldDef{astDefType = fromZipper pasted}
-    let newSel = NodeSelection SigNode (Right $ Left $ pasted ^. _target % _typeMetaLens)
+    let newDef = oldDef{astDefType = either fromZipper (fromZipper . unfocusKindT) pasted}
+    let newSel = NodeSelection SigNode (Right $ bimap (view $ _target % _typeMetaLens)
+                                                      (view $ _target % _kindMetaLens) pasted )
     pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
   liftError ActionError $ tcWholeProg finalProg
 
@@ -1691,9 +1697,13 @@ tcWholeProgWithImports p = do
 data CPB
   = ExprInBody ExprZ
   | Type CPBT
+  | Kind CPBK
 data CPBT
   = TypeInBody TypeZ
   | TypeInSig TypeZip
+data CPBK
+  = KindInBody KindZ
+  | KindInSig KindTZ
 cpbtToEither :: CPBT -> Either TypeZ TypeZip
 cpbtToEither = \case
   TypeInBody t ->  Left t
@@ -1702,6 +1712,10 @@ cpbtTarget :: CPBT -> Type
 cpbtTarget = \case
   TypeInBody t ->  target t
   TypeInSig t ->  target t
+cpbkTarget :: CPBK -> Kind
+cpbkTarget = \case
+  KindInBody k ->  target k
+  KindInSig k ->  target k
 
 copyPasteBody :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
@@ -1710,8 +1724,10 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src <- case src' of
     Left (InExpr e) -> pure $ ExprInBody e
     Left (InType t) -> pure $ Type (TypeInBody t)
+    Left (InKind k) -> pure $ Kind (KindInBody k)
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
     Right (Left t) -> pure $ Type (TypeInSig t)
+    Right (Right k) -> pure $ Kind (KindInSig k)
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     -- We manually use the low-level applyAction', as we do not want to
     -- typecheck intermediate states. There are two reasons for this, both
@@ -1740,10 +1756,22 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         -- SH not important here, cxt only used to lookup global vars and ctors
         & flip runReaderT (buildTypingContextFromModules (progAllModules p) NoSmartHoles)
     case (src, tgt) of
-      (_, InBind _) -> throwError $ CopyPasteError "tried to paste an expression into a binder"
+      (_, InBind _) -> throwError $ CopyPasteError "tried to paste into a binder"
       (ExprInBody _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
-      --(Left _, InKind _ _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
+      (ExprInBody _, InKind _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
       (Type _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
+      (Type _, InKind _) -> throwError $ CopyPasteError "tried to paste a type into an kind"
+      (Kind _, InExpr _) -> throwError $ CopyPasteError "tried to paste a kind into an expression"
+      (Kind _, InType _) -> throwError $ CopyPasteError "tried to paste a kind into an type"
+      (Kind srcK, InKind tgtK) -> case target tgtK of
+        KHole _ -> do
+          -- Since there are no binders or variables in kinds, we can simply duplicate into the target
+          freshCopy <- regenerateKindIDs $ cpbkTarget srcK
+          let pasted = replace freshCopy tgtK
+          let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType $ unfocusKind pasted}
+          let newSel = NodeSelection BodyNode $ Right $ Right $ pasted ^. _target % _kindMetaLens
+          pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
+        _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
       (Type srcT, InType tgtT) -> do
         let sharedScope =
               if fromDefName == toDefName
