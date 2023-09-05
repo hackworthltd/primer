@@ -239,7 +239,6 @@ import Primer.Zipper (
   focusLoc,
   focusOn,
   focusOnTy,
-  focusOnlyType,
   foldAbove,
   foldAboveTypeZ,
   getBoundHere,
@@ -1516,7 +1515,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     doneSetup <- applyActionsToTypeSig smartHoles (progImports p) (mod, otherModules) (toDefBaseName, oldDef) setup
     tgt <- case doneSetup of
       Left err -> throwError $ ActionError err
-      Right (_, tgt) -> pure $ focusOnlyType tgt
+      Right (_, tgt) -> pure tgt
     let sharedScope =
           if fromDefName == toDefName
             then getSharedScopeTy c $ Right tgt

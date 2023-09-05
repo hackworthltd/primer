@@ -157,12 +157,14 @@ import Primer.Zipper (
   Loc' (..),
   SomeNode (..),
   TypeZ,
+  TypeZip,
   down,
   findNodeWithParent,
   findType,
   focus,
   focusLoc,
   focusOn,
+  focusOnlyType,
   focusType,
   locToEither,
   replace,
@@ -216,14 +218,14 @@ applyActionsToTypeSig ::
   -- | This must be one of the definitions in the @Module@, with its correct name
   (Name, ASTDef) ->
   [Action] ->
-  m (Either ActionError ([Module], TypeZ))
+  m (Either ActionError ([Module], TypeZip))
 applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m ([Module], TypeZ)
+    go :: ActionM m => m ([Module], TypeZip)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldlM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
@@ -241,7 +243,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
-    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
+    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZip
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
       let unwrapError = throwError $ InternalFailure "applyActionsToTypeSig: failed to unwrap type"
@@ -252,11 +254,11 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
         Nothing -> wrapError
         Just wrappedTy ->
           f wrappedTy >>= \case
-            InType zt -> pure zt
+            InType zt -> pure $ focusOnlyType zt
             -- This probably shouldn't happen, but it may be the case that an action accidentally
             -- exits the type and ends up in the outer expression that we have created as a wrapper.
             -- In this case we just refocus on the top of the type.
-            z -> maybe unwrapError pure (focusType (unfocusLoc z))
+            z -> maybe unwrapError (pure . focusOnlyType) (focusType (unfocusLoc z))
 
 applyActionsToField ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
