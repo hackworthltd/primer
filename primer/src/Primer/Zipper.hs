@@ -65,7 +65,6 @@ module Primer.Zipper (
   bindersBelowTy,
   SomeNode (..),
   findNodeWithParent,
-  findType,
   findTypeOrKind,
 ) where
 
@@ -483,10 +482,6 @@ findNodeWithParent id x = do
 -- | Find a sub-type or kind in a larger type by its ID.
 findTypeOrKind :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
 findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
-
--- | Find a sub-type in a larger type by its ID.
-findType :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Type' a b)
-findType id ty = findTypeOrKind id ty >>= leftToMaybe
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 data SomeNode

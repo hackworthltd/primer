@@ -162,7 +162,6 @@ import Primer.Zipper (
   TypeZip,
   down,
   findNodeWithParent,
-  findType,
   focus,
   focusLoc,
   focusOn,
@@ -182,6 +181,7 @@ import Primer.Zipper (
   _target,
   KindZ,
    KindTZ, unfocusKindT,
+  findTypeOrKind,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
 
@@ -1126,13 +1126,15 @@ toProgActionNoInput defs def0 sel0 = \case
         let id = field.meta
         vc <- maybeToEither (ValConNotFound tName vcName) $ find ((== vcName) . valConName) $ astTypeDefConstructors def
         t <- maybeToEither (FieldIndexOutOfBounds vcName field.index) $ flip atMay field.index $ valConArgs vc
-        case findType id t of
-          Just t' -> pure $ forgetTypeMetadata t'
+        case findTypeOrKind id t of
+          Just (Left t') -> pure $ forgetTypeMetadata t'
+          Just (Right k) -> Left $ NeedType $ KindNode k
           Nothing -> Left $ IDNotFound id
       Right def -> do
         id <- nodeID
-        forgetTypeMetadata <$> case findType id $ astDefType def of
-          Just t -> pure t
+        forgetTypeMetadata <$> case findTypeOrKind id $ astDefType def of
+          Just (Left t) -> pure t
+          Just (Right k) -> Left $ NeedType $ KindNode k
           Nothing -> case map fst $ findNodeWithParent id $ astDefExpr def of
             Just (TypeNode t) -> pure t
             Just sm -> Left $ NeedType sm
