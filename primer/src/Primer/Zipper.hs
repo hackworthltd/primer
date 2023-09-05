@@ -22,6 +22,7 @@ module Primer.Zipper (
   unfocusType,
   unfocusKind,
   unfocusKindT,
+  focusOnlyKind,
   focusOnlyType,
   focus,
   unfocus,
@@ -315,6 +316,10 @@ unfocusKind = mergeNest
 -- | Forget the surrounding expression context
 focusOnlyType :: TypeZ' a b c -> TypeZip' b c
 focusOnlyType = innerZipNest
+
+-- | Forget the surrounding expression context
+focusOnlyKind :: KindZ' a b c -> KindTZ' b c
+focusOnlyKind = innerZipNest
 
 -- 'CaseBindZ' is sort of a fake zipper which can only focus on one thing: the case binding.
 -- It's a bit fiddly to make it appear as a zipper like this, but it's convenient to have a

@@ -967,8 +967,8 @@ applyProgAction prog = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (mod', zt) -> do
-        let node = target zt
-            meta = view _typeMetaLens node
+        let node = bimap target (absurd . snd) zt
+            meta = bimap (view _typeMetaLens) (view _kindMetaLens) node
          in pure
               ( mod'
               , Just . SelectionDef $
@@ -976,7 +976,7 @@ applyProgAction prog = \case
                     Just
                       NodeSelection
                         { nodeType = SigNode
-                        , meta = Right $ Left meta
+                        , meta = Right meta
                         }
               )
   ConFieldAction tyName con index actions -> editModuleOfCrossType (Just tyName) prog $ \ms defName def -> do
@@ -1528,7 +1528,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     doneSetup <- applyActionsToTypeSig smartHoles (progImports p) (mod, otherModules) (toDefBaseName, oldDef) setup
     tgt <- case doneSetup of
       Left err -> throwError $ ActionError err
-      Right (_, tgt) -> pure tgt
+      Right (_, tgt) -> pure $ either identity (absurd . snd) tgt
     let sharedScope =
           if fromDefName == toDefName
             then getSharedScopeTy c $ Right tgt
