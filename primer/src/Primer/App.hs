@@ -114,7 +114,7 @@ import Primer.Action (
   applyActionsToBody,
   applyActionsToField,
   applyActionsToTypeSig,
-  insertSubseqBy,
+  insertSubseqBy, applyActionsToParam,
  )
 import Primer.Action.ProgError (ProgError (..))
 import Primer.App.Base (
@@ -173,7 +173,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars,
@@ -764,7 +764,7 @@ applyProgAction prog = \case
         def
           & traverseOf
             #astTypeDefParameters
-            ( maybe (throwError $ ParamNotFound old) pure
+            ( maybe (throwError $ ActionError $ ParamNotFound old) pure
                 . findAndAdjust ((== old) . fst) (_1 .~ new)
             )
       updateConstructors =
@@ -932,7 +932,7 @@ applyProgAction prog = \case
               ( \ps -> do
                   unless
                     (paramName `elem` map fst ps)
-                    (throwError $ ParamNotFound paramName)
+                    (throwError $ ActionError $ ParamNotFound paramName)
                   pure $ filter ((/= paramName) . fst) ps
               )
               td
@@ -1005,40 +1005,23 @@ applyProgAction prog = \case
                             }
                   }
           )
-  ParamKindAction tyName paramName id actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
-    def' <-
-      def
-        & traverseOf
-          #astTypeDefParameters
-          ( maybe (throwError $ ParamNotFound paramName) pure
-              <=< findAndAdjustA
-                ((== paramName) . fst)
-                ( traverseOf _2 $
-                    flip
-                      ( foldlM $ flip \case
-                          ConstructKType -> modifyKind $ const ktype -- TODO: this should be commoned up with main kind action handling
-                          ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
-                          Delete -> modifyKind $ const khole
-                          a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
-                      )
-                      actions
-                )
-          )
-    let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
-        imports = progImports prog
-        smartHoles = progSmartHoles prog
-    mods' <-
-      runExceptT
-        ( runReaderT
-            (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
-            (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
-        )
-        >>= either (throwError . ActionError) pure
-    pure (mods', Nothing)
-    where
-      modifyKind f k = fromMaybe (pure k) $ do
-        k' <- focusOnKind id k
-        pure $ fromZipper . flip replace k' <$> f (target k')
+  ParamKindAction tyName paramName actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
+    let smartHoles = progSmartHoles prog
+    res <- applyActionsToParam smartHoles (paramName,def) actions
+    case res of
+        Left err -> throwError $ ActionError err
+        Right (def',kz) -> do
+          let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
+              imports = progImports prog
+          mods' <-
+            runExceptT
+              ( runReaderT
+                  (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
+                  (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+              )
+              >>= either (throwError . ActionError) pure
+          pure (mods', Just $
+                       SelectionTypeDef $ TypeDefSelection tyName $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection {param=paramName, kindMeta=Just $ Right $ Right $ kz ^. _target % _kindMetaLens} )
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of

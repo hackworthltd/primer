@@ -13,7 +13,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Movement (Movement)
-import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Pattern, TyConName, Type', ValConName)
+import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Pattern, TyConName, Type', ValConName, TyVarName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Typecheck.TypeError (TypeError)
 import Primer.Zipper (SomeNode)
@@ -79,6 +79,7 @@ data ActionError
   | NeedTypeDefParamKindSelection
   | NoNodeSelection
   | ValConNotFound TyConName ValConName
+  | ParamNotFound TyVarName
   | FieldIndexOutOfBounds ValConName Int
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionError

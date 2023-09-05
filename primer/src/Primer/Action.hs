@@ -20,6 +20,7 @@ module Primer.Action (
   uniquifyDefName,
   toProgActionInput,
   toProgActionNoInput,
+  applyActionsToParam,
   applyActionsToField,
   insertSubseqBy,
 ) where
@@ -39,7 +40,8 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Tuple.Extra ((&&&))
-import Optics (over, set, traverseOf, (%), (?~), (^.), (^?), _Just)
+import Optics (over, set, traverseOf, (%), (?~), (^.), (^?), _Just, findOf, folded, traversed, isnd, indices
+ , (%&))
 import Primer.Action.Actions (Action (..), BranchMove (Fallback, Pattern), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
@@ -86,7 +88,7 @@ import Primer.Core (
   unsafeMkLocalName,
   _chkedAt,
   _exprMetaLens,
-  _type, Kind' (KHole),
+  _type, Kind' (KHole), Kind,
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -146,7 +148,7 @@ import Primer.Typecheck (
   lookupConstructor,
   lookupVar,
   maybeTypeOf,
-  synth,
+  synth, initialCxt,
  )
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
@@ -177,9 +179,11 @@ import Primer.Zipper (
   unfocusType,
   up,
   updateCaseBind,
-  _target, KindZ, KindTZ, unfocusKindT, findTypeOrKind,
+  _target, KindZ, KindTZ, unfocusKindT, findTypeOrKind, focusKind,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
+import Primer.Zipper.Type (KindZip, focusOnlyKindT)
+import Data.Generics.Uniplate.Zipper (fromZipper)
 
 -- | Given a definition name and a program, return a unique variant of
 -- that name (within the specified module). Note that if no definition
@@ -260,6 +264,36 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
             -- exits the type and ends up in the outer expression that we have created as a wrapper.
             -- In this case we just refocus on the top of the type.
             z -> maybe unwrapError (pure . Left . focusOnlyType) (focusType (unfocusLoc z))
+
+applyActionsToParam ::
+  (MonadFresh ID m, MonadFresh NameCounter m) =>
+  SmartHoles ->
+  (TyVarName, ASTTypeDef TypeMeta KindMeta) ->
+  [Action] ->
+  m (Either ActionError (ASTTypeDef TypeMeta KindMeta, KindZip))
+applyActionsToParam sh (paramName, def) actions = runExceptT $ do
+    zk <- case findOf (#astTypeDefParameters % folded) ((== paramName) . fst) def of
+      Nothing -> throwError $ ParamNotFound paramName
+      Just (_, k) -> -- no action in kinds should care about the context
+                     flip runReaderT (initialCxt sh) $
+                     withWrappedKind k $ \zk' ->
+                     foldlM (flip applyActionAndSynth) (InKind zk') actions
+    let def' = set (#astTypeDefParameters % traversed % isnd %& indices (== paramName))
+                   (fromZipper zk) def
+    pure (def',zk)
+  where
+    withWrappedKind :: (MonadError ActionError m, MonadFresh ID m) => Kind -> (KindZ -> m Loc) -> m KindZip
+    withWrappedKind k f = do
+      wrappedKind <- ann emptyHole (tforall "a" (pure k) tEmptyHole)
+      let unwrapError = throwError $ InternalFailure "applyActionsToParam: failed to unwrap kind"
+          wrapError = throwError $ InternalFailure "applyActionsToParam: failed to wrap kind"
+          focusedKind = focusKind <=< focusType $ focus wrappedKind
+      case focusedKind of
+        Nothing -> wrapError
+        Just wrappedK ->
+          f wrappedK >>= \case
+            InKind zk -> pure $ focusOnlyKindT $ focusOnlyKind zk
+            z -> maybe unwrapError pure (fmap (focusOnlyKindT . focusOnlyKind) . focusKind <=< focusType $ unfocusLoc z)
 
 applyActionsToField ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
@@ -1226,7 +1260,7 @@ toProgActionNoInput defs def0 sel0 = \case
         SelectionTypeDef sel -> case sel.node of
           Just (TypeDefParamNodeSelection _) -> do
             (t, p, id) <- typeParamKindSel
-            pure [ParamKindAction t p id actions]
+            pure [ParamKindAction t p $ SetCursor id : actions]
           Just (TypeDefConsNodeSelection _) -> do
             (t, c, f) <- conFieldSel
             pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
