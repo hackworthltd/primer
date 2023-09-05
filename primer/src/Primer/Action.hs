@@ -86,7 +86,7 @@ import Primer.Core (
   unsafeMkLocalName,
   _chkedAt,
   _exprMetaLens,
-  _type,
+  _type, Kind' (KHole),
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -113,7 +113,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   tvar,
-  var,
+  var, khole, kfun,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
 import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
@@ -481,14 +481,17 @@ applyAction' a = case a of
   RenameCaseBinding x -> \case
     InBind (BindCase z) -> InBind . BindCase <$> renameCaseBinding x z
     _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
-  ConstructKType -> const $ throwError $ CustomFailure ConstructKType "kind edits currently only allowed in typedefs"
-  ConstructKFun -> const $ throwError $ CustomFailure ConstructKFun "kind edits currently only allowed in typedefs"
+  ConstructKType -> kindAction constructKType "cannot construct the kind 'Type' - not in kind"
+  ConstructKFun -> kindAction constructKFun "cannot construct the arrow kind - not in kind"
   where
     termAction f s = \case
       InExpr ze -> InExpr <$> f ze
       _ -> throwError $ CustomFailure a s
     typeAction f s = \case
       InType zt -> InType <$> f zt
+      _ -> throwError $ CustomFailure a s
+    kindAction f s = \case
+      InKind zt -> InKind <$> f zt
       _ -> throwError $ CustomFailure a s
 
 setCursor :: MonadError ActionError m => ID -> ExprZ -> m Loc
@@ -1069,6 +1072,14 @@ renameForall b zt = case target zt of
             throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
+
+constructKType :: (MonadFresh ID m, MonadError ActionError m) => KindZ -> m KindZ
+constructKType zk = case target zk of
+  KHole _ -> flip replace zk <$> ktype
+  _ -> throwError $ CustomFailure ConstructKType "can only construct the kind 'Type' in hole"
+
+constructKFun :: MonadFresh ID m => KindZ -> m KindZ
+constructKFun zk = flip replace zk <$> ktype `kfun` (pure $ target zk)
 
 -- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
 toProgActionNoInput ::
