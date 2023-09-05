@@ -127,7 +127,6 @@ import Primer.Typecheck (
 import Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
-  findType,
   findTypeOrKind,
   focusOn,
   focusOnKind,
@@ -242,7 +241,7 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
      in forType l t <> raiseAction
-  Just (KindNode _, _) -> [] -- TODO: replace this with @forKind l k@ when we support running actions in this position
+  Just (KindNode k, _) -> forKind l k
   Just (CaseBindNode _, _) ->
     [Input RenamePattern]
 
@@ -258,7 +257,7 @@ forSig l Editable ty id = sortByPriority l $ case findTypeOrKind id ty of
   Just (Left t) ->
     forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
-  Just (Right _) -> [] -- TODO: replace this with @forKind l k@ when we support running actions in this position
+  Just (Right k) -> forKind l k
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
 forExpr tydefs l expr =
@@ -464,8 +463,11 @@ forTypeDefConsFieldNode ::
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
   sortByPriority l $
-    maybe mempty (forType l) (findType id =<< fieldType)
-      <> mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+    mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+      <> case findTypeOrKind id =<< fieldType of
+        Nothing -> mempty
+        Just (Left t) -> forType l t
+        Just (Right k) -> forKind l k
   where
     fieldType = getTypeDefConFieldType td con index
 
@@ -653,7 +655,7 @@ options typeDefs defs cxt level def0 sel0 = \case
         def <- eitherToMaybe def0
         case nodeSel.nodeType of
           BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
-          SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
+          SigNode -> either TypeNode KindNode <$> findTypeOrKind nodeSel.meta (astDefType def)
       SelectionTypeDef sel -> do
         (_, z) <- conField sel
         pure $ case z of
