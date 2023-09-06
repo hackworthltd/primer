@@ -1,5 +1,6 @@
 module Primer.Core.Type.Utils (
   typeIDs,
+  kindIDs,
   generateTypeIDs,
   regenerateTypeIDs,
   generateKindIDs,
@@ -146,3 +147,7 @@ concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
 -- | Traverse the 'ID's in a 'Type''.
 typeIDs :: HasID a => Traversal' (Type' a) ID
 typeIDs = _typeMeta % _id
+
+-- | Traverse the 'ID's in a 'Type''.
+kindIDs :: HasID a => Traversal' (Kind' a) ID
+kindIDs = _kindMeta % _id

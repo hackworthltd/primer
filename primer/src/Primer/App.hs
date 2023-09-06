@@ -169,8 +169,6 @@ import Primer.Core (
   _chkedAt,
   _exprMeta,
   _exprMetaLens,
-  _id,
-  _kindMeta,
   _synthed,
   _type,
   _typeMetaLens,
@@ -178,6 +176,7 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
+import Primer.Core.Type.Utils (kindIDs)
 import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
@@ -1028,7 +1027,7 @@ applyProgAction prog = \case
     pure (mods', Nothing)
     where
       modifyKind f k
-        | notElemOf (_kindMeta % _id) id k = throwError' $ IDNotFound id
+        | notElemOf kindIDs id k = throwError' $ IDNotFound id
         | otherwise = modifyKind' f k
       modifyKind' f k =
         if getID k == id
