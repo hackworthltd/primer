@@ -91,6 +91,7 @@ import Optics (
   getting,
   ifoldMap,
   mapped,
+  notElemOf,
   over,
   set,
   summing,
@@ -168,6 +169,8 @@ import Primer.Core (
   _chkedAt,
   _exprMeta,
   _exprMetaLens,
+  _id,
+  _kindMeta,
   _synthed,
   _type,
   _typeMetaLens,
@@ -1025,13 +1028,16 @@ applyProgAction prog = \case
         >>= either (throwError . ActionError) pure
     pure (mods', Nothing)
     where
-      modifyKind f k =
+      modifyKind f k
+        | notElemOf (_kindMeta % _id) id k = throwError' $ IDNotFound id
+        | otherwise = modifyKind' f k
+      modifyKind' f k =
         if getID k == id
           then f k
           else case k of
             KHole _ -> pure k
             KType _ -> pure k
-            KFun m k1 k2 -> KFun m <$> modifyKind f k1 <*> modifyKind f k2
+            KFun m k1 k2 -> KFun m <$> modifyKind' f k1 <*> modifyKind' f k2
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
