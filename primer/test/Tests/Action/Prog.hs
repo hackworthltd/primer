@@ -26,7 +26,7 @@ import Primer.Action (
     Move,
     RemoveAnn
   ),
-  ActionError (ImportNameClash),
+  ActionError (CustomFailure, ImportNameClash),
   BranchMove (Pattern),
   Movement (
     Branch,
@@ -1200,12 +1200,22 @@ unit_ParamKindAction_2 =
     [ ParamKindAction tT pB 30 [ConstructKFun]
     , ParamKindAction tT pB 5 [ConstructKType]
     ]
+    $ expectError (@?= ActionError (CustomFailure ConstructKType "can only construct this kind in a hole"))
+
+unit_ParamKindAction_2b :: Assertion
+unit_ParamKindAction_2b =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ ParamKindAction tT pB 30 [ConstructKFun]
+    , ParamKindAction tT pB 5 [Delete]
+    ]
     $ expectSuccess
     $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefParameters td
         @?= [ ("a", KType ())
-            , ("b", KFun () (KType ()) (KType ()))
+            , ("b", KFun () (KHole ()) (KType ()))
             ]
 
 unit_ParamKindAction_3 :: Assertion
