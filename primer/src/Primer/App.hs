@@ -242,7 +242,6 @@ import Primer.Zipper (
   focusOn,
   focusOnKind,
   focusOnTy,
-  focusOnlyType,
   foldAbove,
   foldAboveTypeZ,
   getBoundHere,
@@ -1008,7 +1007,7 @@ applyProgAction prog = \case
                 ( traverseOf _2 $
                     flip
                       ( foldlM $ flip \case
-                          ConstructKType -> modifyKind $ const ktype
+                          ConstructKType -> modifyKind $ replaceHole ConstructKType ktype
                           ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
                           Delete -> modifyKind $ const khole
                           a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
@@ -1031,6 +1030,9 @@ applyProgAction prog = \case
       modifyKind f k = fromMaybe (pure k) $ do
         k' <- focusOnKind id k
         pure $ fromZipper . flip replace k' <$> f (target k')
+      replaceHole a r = \case
+        KHole{} -> r
+        _ -> throwError' $ CustomFailure a "can only construct this kind in a hole"
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
@@ -1515,7 +1517,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     doneSetup <- applyActionsToTypeSig smartHoles (progImports p) (mod, otherModules) (toDefBaseName, oldDef) setup
     tgt <- case doneSetup of
       Left err -> throwError $ ActionError err
-      Right (_, tgt) -> pure $ focusOnlyType tgt
+      Right (_, tgt) -> pure tgt
     let sharedScope =
           if fromDefName == toDefName
             then getSharedScopeTy c $ Right tgt
