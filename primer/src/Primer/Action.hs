@@ -519,7 +519,7 @@ moveExpr Child2 z
       throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
 moveExpr m z = move m z
 
--- | Apply a movement to a zipper
+-- | Apply a movement to a type zipper
 moveType :: MonadError ActionError m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
 moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
