@@ -1198,7 +1198,7 @@ unit_ParamKindAction_2 =
     ( defaultProgEditableTypeDefs (pure [])
     )
     [ ParamKindAction tT pB 30 [ConstructKFun]
-    , ParamKindAction tT pB 5 [ConstructKType]
+    , ParamKindAction tT pB 32 [ConstructKType]
     ]
     $ expectSuccess
     $ \_ prog' -> do
