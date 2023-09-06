@@ -26,7 +26,7 @@ import Primer.Action (
     Move,
     RemoveAnn
   ),
-  ActionError (CustomFailure, ImportNameClash),
+  ActionError (CustomFailure, IDNotFound, ImportNameClash),
   BranchMove (Pattern),
   Movement (
     Branch,
@@ -1232,6 +1232,16 @@ unit_ParamKindAction_3 =
         @?= [ ("a", KHole ())
             , ("b", KType ())
             ]
+
+unit_ParamKindAction_bad_id :: Assertion
+unit_ParamKindAction_bad_id =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ ParamKindAction tT pB 30 [ConstructKFun]
+    , ParamKindAction tT pB 0 [ConstructKType]
+    ]
+    $ expectError (@?= ActionError (IDNotFound 0))
 
 -- Check that we see name hints from imported modules
 -- (This differs from the tests in Tests.Question by testing the actual action,
