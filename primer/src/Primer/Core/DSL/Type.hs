@@ -13,9 +13,6 @@ module Primer.Core.DSL.Type (
   khole,
   ktype,
   kfun,
-  khole',
-  ktype',
-  kfun',
 ) where
 
 import Foreword
@@ -74,12 +71,3 @@ ktype = KType <$> kmeta
 
 kfun :: MonadFresh ID m => m Kind -> m Kind -> m Kind
 kfun a b = KFun <$> kmeta <*> a <*> b
-
-khole' :: MonadFresh ID m => m Kind
-khole' = khole
-
-ktype' :: MonadFresh ID m => m Kind
-ktype' = ktype
-
-kfun' :: MonadFresh ID m => m Kind -> m Kind -> m Kind
-kfun' = kfun

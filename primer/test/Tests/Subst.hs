@@ -33,19 +33,19 @@ unit_1 =
 
 unit_2 :: Assertion
 unit_2 =
-  create_ (tforall "a" ktype' $ tvar "a")
+  create_ (tforall "a" ktype $ tvar "a")
     @=? substTy'
       "a"
       (create_ $ tcon tBool)
-      (create_ $ tforall "a" ktype' $ tvar "a")
+      (create_ $ tforall "a" ktype $ tvar "a")
 
 unit_3 :: Assertion
 unit_3 =
-  create_ (tforall "b" ktype' $ tcon tList `tapp` tcon tBool)
+  create_ (tforall "b" ktype $ tcon tList `tapp` tcon tBool)
     @=? substTy'
       "a"
       (create_ $ tcon tBool)
-      (create_ $ tforall "b" ktype' $ tcon tList `tapp` tvar "a")
+      (create_ $ tforall "b" ktype $ tcon tList `tapp` tvar "a")
 
 -- Substituting a variable that does not occur free is the identity
 tasty_subst_non_free_id :: Property

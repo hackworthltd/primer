@@ -29,7 +29,7 @@ import Primer.Core.DSL (
   case_,
   con,
   gvar,
-  ktype',
+  ktype,
   lAM,
   lam,
   lvar,
@@ -45,7 +45,7 @@ id = qualifyName modName "id"
 
 idDef :: MonadFresh ID m => m Def
 idDef = do
-  type_ <- tforall "a" ktype' $ tvar "a" `tfun` tvar "a"
+  type_ <- tforall "a" ktype $ tvar "a" `tfun` tvar "a"
   term <- lAM "a" $ lam "x" (lvar "x")
   pure $ DefAST $ ASTDef term type_
 
@@ -54,7 +54,7 @@ const = qualifyName modName "const"
 
 constDef :: MonadFresh ID m => m Def
 constDef = do
-  type_ <- tforall "a" ktype' $ tvar "a" `tfun` tforall "b" ktype' (tvar "b" `tfun` tvar "a")
+  type_ <- tforall "a" ktype $ tvar "a" `tfun` tforall "b" ktype (tvar "b" `tfun` tvar "a")
   term <- lAM "a" $ lam "x" $ lAM "b" $ lam "y" (lvar "x")
   pure $ DefAST $ ASTDef term type_
 
@@ -64,8 +64,8 @@ map = qualifyName modName "map"
 mapDef :: MonadFresh ID m => m Def
 mapDef = do
   type_ <-
-    tforall "a" ktype' $
-      tforall "b" ktype' $
+    tforall "a" ktype $
+      tforall "b" ktype $
         (tvar "a" `tfun` tvar "b")
           `tfun` (listOf (tvar "a") `tfun` listOf (tvar "b"))
   term <-
@@ -89,8 +89,8 @@ foldr = qualifyName modName "foldr"
 foldrDef :: MonadFresh ID m => m Def
 foldrDef = do
   type_ <-
-    tforall "a" ktype' $
-      tforall "b" ktype' $
+    tforall "a" ktype $
+      tforall "b" ktype $
         (tvar "a" `tfun` (tvar "b" `tfun` tvar "b"))
           `tfun` (tvar "b" `tfun` (listOf (tvar "a") `tfun` tvar "b"))
   term <-

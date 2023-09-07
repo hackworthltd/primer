@@ -35,9 +35,6 @@ module Primer.Core.DSL (
   khole,
   ktype,
   kfun,
-  khole',
-  ktype',
-  kfun',
   meta,
   meta',
   create,
@@ -83,11 +80,8 @@ import Primer.Core (
 import Primer.Core.DSL.Meta (S, create, create', meta, meta')
 import Primer.Core.DSL.Type (
   kfun,
-  kfun',
   khole,
-  khole',
   ktype,
-  ktype',
   tEmptyHole,
   tapp,
   tcon,
