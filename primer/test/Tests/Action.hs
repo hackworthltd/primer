@@ -69,10 +69,11 @@ unit_maxID :: Assertion
 unit_maxID =
   let m :: ID -> Meta (Maybe a)
       m i = Meta i Nothing Nothing
+      m' i = Meta i () Nothing
       h = EmptyHole . m
-      expr a b c d e f = App (m a) (h b) (APP (m c) (h d) $ TForall (m e) "a" (KType ()) (TEmptyHole $ m f))
-   in for_ (permutations [0 .. 5]) $ \case
-        [a, b, c, d, e, f] -> maxID (expr a b c d e f) @?= 5
+      expr a b c d e f g = App (m a) (h b) (APP (m c) (h d) $ TForall (m e) "a" (KType (m' f)) (TEmptyHole $ m g))
+   in for_ (permutations [0 .. 6]) $ \case
+        [a, b, c, d, e, f, g] -> maxID (expr a b c d e f g) @?= 6
         _ -> error "impossible"
 
 tasty_ConstructVar_succeeds_on_hole_when_in_scope :: Property

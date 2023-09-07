@@ -128,6 +128,7 @@ import Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
   findType,
+  findTypeOrKind,
   focusOn,
   focusOnKind,
   focusOnTy,
@@ -241,7 +242,7 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
      in forType l t <> raiseAction
-  Just (KindNode _ v, _) -> absurd v
+  Just (KindNode _, _) -> [] -- TODO: replace this with @forKind l k@ when we support running actions in this position
   Just (CaseBindNode _, _) ->
     [Input RenamePattern]
 
@@ -252,11 +253,12 @@ forSig ::
   ID ->
   [Action]
 forSig _ NonEditable _ _ = mempty
-forSig l Editable ty id = sortByPriority l $ case findType id ty of
+forSig l Editable ty id = sortByPriority l $ case findTypeOrKind id ty of
   Nothing -> mempty
-  Just t ->
+  Just (Left t) ->
     forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
+  Just (Right _) -> [] -- TODO: replace this with @forKind l k@ when we support running actions in this position
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
 forExpr tydefs l expr =
@@ -585,7 +587,7 @@ options typeDefs defs cxt level def0 sel0 = \case
     freeVar <$> genNames (Right Nothing)
   RenameForall -> do
     TypeNode (TForall _ _ k _) <- findNode
-    freeVar <$> genNames (Right $ Just k)
+    freeVar <$> genNames (Right $ Just $ forgetKindMetadata k)
   RenameDef ->
     pure $ freeVar []
   RenameType ->
@@ -656,26 +658,26 @@ options typeDefs defs cxt level def0 sel0 = \case
         (_, z) <- conField sel
         pure $ case z of
           Left zT -> TypeNode $ target zT
-          Right (zK, v) -> KindNode (target zK) v
+          Right zK -> KindNode (target zK)
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do
           z <- focusNode =<< sel.node
           pure $ case z of
             Left zE -> generateNameExpr typeOrKind zE
-            Right zT -> generateNameTy typeOrKind $ fst <$> zT
+            Right zT -> generateNameTy typeOrKind zT
         SelectionTypeDef sel -> do
           (def, zT) <- conField sel
-          pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind $ fst <$> zT
+          pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind zT
     varsInScope = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
         focusNode nodeSel <&> \case
           Left zE -> variablesInScopeExpr defs zE
-          Right zT -> (variablesInScopeTy $ fst <$> zT, [], [])
+          Right zT -> (variablesInScopeTy zT, [], [])
       SelectionTypeDef sel -> do
         (def, zT) <- conField sel
-        pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy (fst <$> zT), [], [])
+        pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy zT, [], [])
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of

@@ -68,7 +68,7 @@ data PrimTypeDef c = PrimTypeDef
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
 data ASTTypeDef b c = ASTTypeDef
   { astTypeDefParameters :: [(TyVarName, Kind' c)] -- These names scope over the constructors
-  , astTypeDefConstructors :: [ValCon b ()]
+  , astTypeDefConstructors :: [ValCon b c]
   , astTypeDefNameHints :: [Name]
   }
   deriving stock (Eq, Show, Read, Data, Generic)

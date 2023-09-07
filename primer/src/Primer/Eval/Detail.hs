@@ -16,7 +16,7 @@ import Foreword
 
 import Primer.Core (Expr)
 import Primer.Core.Meta (LocalNameKind (..))
-import Primer.Core.Type (Kind', Type)
+import Primer.Core.Type (Kind, Type)
 import Primer.Eval.Ann as Ann
 import Primer.Eval.Beta as Beta
 import Primer.Eval.Bind as Bind
@@ -32,7 +32,7 @@ data EvalDetail
   = -- | Reduction of (λx. a : S -> T) b
     BetaReduction (BetaReductionDetail 'ATmVar Type Type)
   | -- | Reduction of (Λx. a : ∀y:k. T) S
-    BETAReduction (BetaReductionDetail 'ATyVar (Kind' ()) Type)
+    BETAReduction (BetaReductionDetail 'ATyVar Kind Type)
   | -- | Inlining of a local (let-bound) variable
     LocalVarInline (LocalVarInlineDetail 'ATmVar)
   | -- | Inlining of a local (let-bound) type variable

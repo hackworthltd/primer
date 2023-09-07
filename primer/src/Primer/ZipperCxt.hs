@@ -30,7 +30,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata)
 import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
@@ -165,7 +165,7 @@ variablesInScopeTy z =
   where
     getBoundHere :: FoldAbove Type -> ShadowedVarsTy
     getBoundHere t = case current t of
-      TForall _ v k _ -> N [(v, k)]
+      TForall _ v k _ -> N [(v, forgetKindMetadata k)]
       TLet _ v t' b
         | prior t == b -> N [(v, kindOrHoleOf t')]
         | otherwise -> mempty

@@ -1305,18 +1305,18 @@ unit_redexes_let_upsilon :: Assertion
 unit_redexes_let_upsilon = do
   let t = tforall "a" ktype' (tvar "a")
   redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
-  redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 7]
+  redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 8]
   redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
-  redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) <@?=> Set.fromList [1, 4]
+  redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) <@?=> Set.fromList [1, 5]
   redexesOf (letrec "x" (lam "x" emptyHole `ann` t) t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 1]
-  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 9]
+  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 11]
 
 unit_redexes_push_let :: Assertion
 unit_redexes_push_let = do
   redexesOf (letrec "x" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 4]
   redexesOf (letType "x" tEmptyHole $ let_ "y" (lam "x" emptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 5]
   redexesOf (letType "x" tEmptyHole $ letrec "y" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 6]
-  redexesOf (letType "x" tEmptyHole $ letType "y" (tforall "x" ktype' tEmptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 5]
+  redexesOf (letType "x" tEmptyHole $ letType "y" (tforall "x" ktype' tEmptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 6]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =

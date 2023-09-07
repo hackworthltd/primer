@@ -101,6 +101,7 @@ import Primer.Core.DSL (
   con,
   emptyHole,
   hole,
+  khole,
   ktype',
   lAM,
   lam,
@@ -155,6 +156,7 @@ import Primer.Zipper (
   ExprZ,
   IsZipper,
   KindTZ,
+  KindZ,
   Loc,
   Loc' (..),
   SomeNode (..),
@@ -221,17 +223,17 @@ applyActionsToTypeSig ::
   -- | This must be one of the definitions in the @Module@, with its correct name
   (Name, ASTDef) ->
   [Action] ->
-  m (Either ActionError ([Module], Either TypeZip (KindTZ, Void)))
+  m (Either ActionError ([Module], Either TypeZip KindTZ))
 applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m ([Module], Either TypeZip (KindTZ, Void))
+    go :: ActionM m => m ([Module], Either TypeZip KindTZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldlM (flip applyActionAndSynth) (InType zt) actions)
-      let t = target (top $ either identity (unfocusKindT . fst) zt)
+      let t = target (top $ either identity unfocusKindT zt)
       e <- check (forgetTypeMetadata t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
           mod' = insertDef mod defName (DefAST def')
@@ -246,7 +248,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
-    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m (Either TypeZip (KindTZ, Void))
+    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m (Either TypeZip KindTZ)
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
       let unwrapError = throwError $ InternalFailure "applyActionsToTypeSig: failed to unwrap type"
@@ -258,7 +260,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
         Just wrappedTy ->
           f wrappedTy >>= \case
             InType zt -> pure $ Left $ focusOnlyType zt
-            InKind zk v -> pure $ Right (focusOnlyKind zk, v)
+            InKind zk -> pure $ Right (focusOnlyKind zk)
             -- This probably shouldn't happen, but it may be the case that an action accidentally
             -- exits the type and ends up in the outer expression that we have created as a wrapper.
             -- In this case we just refocus on the top of the type.
@@ -329,7 +331,7 @@ refocus Refocus{pre, post} = do
         TC.SmartHoles -> case pre of
           InExpr e -> candidateIDsExpr $ target e
           InType t -> candidateIDsType t
-          InKind _ v -> absurd v
+          InKind k -> [getID k]
           InBind (BindCase ze) -> [getID ze]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
@@ -424,7 +426,7 @@ applyAction' a = case a of
   Move m -> \case
     InExpr z -> InExpr <$> moveExpr m z
     InType z -> InType <$> moveType m z
-    InKind _ v -> absurd v
+    InKind z -> InKind <$> moveKind m z
     z@(InBind _) -> case m of
       -- If we're moving up from a binding, then shift focus to the nearest parent expression.
       -- This is exactly what 'unfocusLoc' does if the 'Loc' is a binding.
@@ -433,12 +435,12 @@ applyAction' a = case a of
   Delete -> \case
     InExpr ze -> InExpr . flip replace ze <$> emptyHole
     InType zt -> InType . flip replace zt <$> tEmptyHole
-    InKind zk v -> pure $ InKind (replace (C.KHole ()) zk) v
+    InKind zk -> InKind . flip replace zk <$> khole
     InBind _ -> throwError $ CustomFailure Delete "Cannot delete a binding"
   SetMetadata d -> \case
     InExpr ze -> pure $ InExpr $ setMetadata d ze
     InType zt -> pure $ InType $ setMetadata d zt
-    InKind _ v -> absurd v
+    InKind zk -> pure $ InKind $ setMetadata d zk
     InBind (BindCase zb) -> pure $ InBind $ BindCase $ setMetadata d zb
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
@@ -531,6 +533,12 @@ moveType :: MonadError ActionError m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
 moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
 moveType m z = move m z
+
+-- | Apply a movement to a kind zipper
+moveKind :: MonadError ActionError m => Movement -> KindZ -> m KindZ
+moveKind m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in kinds (there are no cases in kinds!)"
+moveKind m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in kinds (there are no constructors in kinds)"
+moveKind m z = move m z
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch, or into an argument of a constructor
@@ -801,7 +809,7 @@ getFocusType ze = case maybeTypeOf $ target ze of
      in synthZ (InExpr ze) `catchError` handler >>= \case
           Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
           Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
-          Just (InKind _ _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a kind after typechecking"
+          Just (InKind _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a kind after typechecking"
           Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
           Just (InExpr ze') -> case maybeTypeOf $ target ze' of
             Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"

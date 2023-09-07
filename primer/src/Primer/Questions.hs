@@ -87,7 +87,7 @@ variablesInScopeExpr defs loc =
   let locals = case loc of
         InExpr ze -> extractLocalsExprZ ze
         InType zt -> extractLocalsTypeZ zt
-        InKind zk _ -> extractLocalsTypeZ $ unfocusKind zk
+        InKind zk -> extractLocalsTypeZ $ unfocusKind zk
         InBind (BindCase zb) -> extractLocalsExprZ $ unfocusCaseBind zb
       globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
@@ -145,7 +145,7 @@ getAvoidSet :: MonadReader Cxt m => Loc -> m (Set.Set Name)
 getAvoidSet = \case
   InExpr ze -> mkAvoidForFreshName ze
   InType zt -> mkAvoidForFreshNameTypeZ zt
-  InKind zk _ -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
+  InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
   InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
 
 getAvoidSetTy :: MonadReader Cxt m => Either TypeZip KindTZ -> m (Set.Set Name)

@@ -3,7 +3,6 @@
 module Primer.Core.Meta (
   HasID (..),
   getID,
-  setID,
   HasMetadata (_metadata),
   ID (ID),
   ModuleName (ModuleName, unModuleName),
@@ -26,6 +25,7 @@ module Primer.Core.Meta (
   Value,
   Meta (Meta),
   trivialMeta,
+  trivialMetaUnit,
   _type,
   PrimCon (..),
   Pattern (..),
@@ -75,6 +75,9 @@ _type = position @2
 
 trivialMeta :: ID -> Meta (Maybe a)
 trivialMeta id = Meta id Nothing Nothing
+
+trivialMetaUnit :: ID -> Meta ()
+trivialMetaUnit id = Meta id () Nothing
 
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving stock (Eq, Ord, Show, Read, Data, Generic)
@@ -179,11 +182,6 @@ instance HasID a => HasID (Zipper a a) where
 -- | Get the ID of the given expression or type
 getID :: HasID a => a -> ID
 getID = view _id
-
--- | Set the ID of the given expression or type.
--- | Don't use this function outside of tests, since you could cause ID clashes.
-setID :: HasID a => ID -> a -> a
-setID = set _id
 
 -- | A class for types which have metadata.
 -- This exists for the same reasons that 'HasID' does

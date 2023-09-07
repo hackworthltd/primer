@@ -46,7 +46,7 @@ thole t = THole <$> meta <*> t
 tcon :: MonadFresh ID m => TyConName -> m Type
 tcon t = TCon <$> meta <*> pure t
 
-tforall :: MonadFresh ID m => TyVarName -> m (Kind' ()) -> m Type -> m Type
+tforall :: MonadFresh ID m => TyVarName -> m Kind -> m Type -> m Type
 tforall v k t = TForall <$> meta <*> pure v <*> k <*> t
 
 tlet :: MonadFresh ID m => TyVarName -> m Type -> m Type -> m Type
@@ -75,11 +75,11 @@ ktype = KType <$> kmeta
 kfun :: MonadFresh ID m => m Kind -> m Kind -> m Kind
 kfun a b = KFun <$> kmeta <*> a <*> b
 
-khole' :: MonadFresh ID m => m (Kind' ())
-khole' = pure $ KHole ()
+khole' :: MonadFresh ID m => m Kind
+khole' = khole
 
-ktype' :: MonadFresh ID m => m (Kind' ())
-ktype' = pure $ KType ()
+ktype' :: MonadFresh ID m => m Kind
+ktype' = ktype
 
-kfun' :: MonadFresh ID m => m (Kind' ()) -> m (Kind' ()) -> m (Kind' ())
-kfun' a b = KFun () <$> a <*> b
+kfun' :: MonadFresh ID m => m Kind -> m Kind -> m Kind
+kfun' = kfun

@@ -3,6 +3,7 @@ module Primer.Core.Type.Utils (
   kindIDs,
   generateTypeIDs,
   regenerateTypeIDs,
+  regenerateKindIDs,
   generateKindIDs,
   forgetTypeMetadata,
   forgetKindMetadata,
@@ -26,6 +27,7 @@ import Data.Set.Optics (setOf)
 import Optics (
   Traversal,
   Traversal',
+  adjoin,
   getting,
   hasn't,
   set,
@@ -41,6 +43,7 @@ import Primer.Core.Meta (
   ID,
   TyVarName,
   trivialMeta,
+  trivialMetaUnit,
  )
 import Primer.Core.Type (
   Kind,
@@ -53,18 +56,21 @@ import Primer.Core.Type (
  )
 import Primer.Zipper.Type (getBoundHereDnTy)
 
--- | Regenerate all IDs, not changing any other metadata
-regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a () -> m (Type' a ())
-regenerateTypeIDs = regenerateTypeIDs' (set _id) (const . const ())
+-- | Regenerate all IDs (including in kinds), not changing any other metadata
+regenerateTypeIDs :: (HasID a, HasID b, MonadFresh ID m) => Type' a b -> m (Type' a b)
+regenerateTypeIDs = regenerateTypeIDs' (set _id) (set _id)
 
 regenerateTypeIDs' :: MonadFresh ID m => (ID -> a -> a') -> (ID -> b -> b') -> Type' a b -> m (Type' a' b')
 regenerateTypeIDs' st sk =
   traverseOf _typeMeta (\a -> flip st a <$> fresh)
     >=> traverseOf _typeKindMeta (\a -> flip sk a <$> fresh)
 
+regenerateKindIDs :: (HasID a, MonadFresh ID m) => Kind' a -> m (Kind' a)
+regenerateKindIDs = traverseOf _kindMeta (\a -> flip (set _id) a <$> fresh)
+
 -- | Adds 'ID's and trivial metadata
 generateTypeIDs :: MonadFresh ID m => Type' () () -> m Type
-generateTypeIDs = regenerateTypeIDs' (const . trivialMeta) (const . const ())
+generateTypeIDs = regenerateTypeIDs' (const . trivialMeta) (const . trivialMetaUnit)
 
 generateKindIDs :: MonadFresh ID m => Kind' () -> m Kind
 generateKindIDs = traverseOf _kindMeta $ \() -> kmeta
@@ -147,9 +153,9 @@ alphaEqTy = go (0, mempty, mempty)
 concreteTy :: (Data b, Data c) => Type' b c -> Bool
 concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
 
--- | Traverse the 'ID's in a 'Type''.
-typeIDs :: HasID a => Traversal' (Type' a b) ID
-typeIDs = _typeMeta % _id
+-- | Traverse the 'ID's in a 'Type'' (including in any 'Kind's).
+typeIDs :: (HasID a, HasID b) => Traversal' (Type' a b) ID
+typeIDs = (_typeMeta % _id) `adjoin` (_typeKindMeta % _id)
 
 -- | Traverse the 'ID's in a 'Type''.
 kindIDs :: HasID a => Traversal' (Kind' a) ID

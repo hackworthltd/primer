@@ -145,7 +145,7 @@ unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
         e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype' (tvar "a") `tapp` tforall "b" ktype' (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let b' = "a42" -- NB: fragile name
+        let b' = "a46" -- NB: fragile name
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" ktype' (tvar "a") `tapp` tforall b' ktype' (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
