@@ -1026,7 +1026,7 @@ applyProgAction prog = \case
     res <- applyActionsToParam smartHoles (paramName, def) $ SetCursor id : actions
     case res of
       Left err -> throwError $ ActionError err
-      Right (def', _) -> do
+      Right (def', kz) -> do
         let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
             imports = progImports prog
         mods' <-
@@ -1036,7 +1036,15 @@ applyProgAction prog = \case
                 (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
             )
             >>= either (throwError . ActionError) pure
-        pure (mods', Nothing)
+        pure
+          ( mods'
+          , Just $
+              SelectionTypeDef $
+                TypeDefSelection tyName $
+                  Just $
+                    TypeDefParamNodeSelection $
+                      TypeDefParamSelection{param = paramName, kindMeta = Just $ Right $ Right $ kz ^. _target % _kindMetaLens}
+          )
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
