@@ -1021,9 +1021,9 @@ applyProgAction prog = \case
                             }
                   }
           )
-  ParamKindAction tyName paramName id actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
+  ParamKindAction tyName paramName actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
     let smartHoles = progSmartHoles prog
-    res <- applyActionsToParam smartHoles (paramName, def) $ SetCursor id : actions
+    res <- applyActionsToParam smartHoles (paramName, def) actions
     case res of
       Left err -> throwError $ ActionError err
       Right (def', kz) -> do

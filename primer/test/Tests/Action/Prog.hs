@@ -24,7 +24,8 @@ import Primer.Action (
     Delete,
     EnterType,
     Move,
-    RemoveAnn
+    RemoveAnn,
+    SetCursor
   ),
   ActionError (CustomFailure, IDNotFound, ImportNameClash),
   BranchMove (Pattern),
@@ -1183,7 +1184,7 @@ unit_ParamKindAction_1 =
   progActionTest
     ( defaultProgEditableTypeDefs (pure [])
     )
-    [ParamKindAction tT pB 30 [ConstructKFun]]
+    [ParamKindAction tT pB [SetCursor 30, ConstructKFun]]
     $ expectSuccess
     $ \_ prog' -> do
       td <- findTypeDef tT prog'
@@ -1197,8 +1198,8 @@ unit_ParamKindAction_2 =
   progActionTest
     ( defaultProgEditableTypeDefs (pure [])
     )
-    [ ParamKindAction tT pB 30 [ConstructKFun]
-    , ParamKindAction tT pB 36 [ConstructKType]
+    [ ParamKindAction tT pB [SetCursor 30, ConstructKFun]
+    , ParamKindAction tT pB [SetCursor 36, ConstructKType]
     ]
     $ expectError (@?= ActionError (CustomFailure ConstructKType "can only construct the kind 'Type' in hole"))
 
@@ -1207,8 +1208,8 @@ unit_ParamKindAction_2b =
   progActionTest
     ( defaultProgEditableTypeDefs (pure [])
     )
-    [ ParamKindAction tT pB 30 [ConstructKFun]
-    , ParamKindAction tT pB 36 [Delete]
+    [ ParamKindAction tT pB [SetCursor 30, ConstructKFun]
+    , ParamKindAction tT pB [SetCursor 36, Delete]
     ]
     $ expectSuccess
     $ \_ prog' -> do
@@ -1223,7 +1224,7 @@ unit_ParamKindAction_3 =
   progActionTest
     ( defaultProgEditableTypeDefs (pure [])
     )
-    [ ParamKindAction tT pA 29 [Delete]
+    [ ParamKindAction tT pA [SetCursor 29, Delete]
     ]
     $ expectSuccess
     $ \_ prog' -> do
@@ -1238,8 +1239,8 @@ unit_ParamKindAction_bad_id =
   progActionTest
     ( defaultProgEditableTypeDefs (pure [])
     )
-    [ ParamKindAction tT pB 30 [ConstructKFun]
-    , ParamKindAction tT pB 0 [ConstructKType]
+    [ ParamKindAction tT pB [SetCursor 30, ConstructKFun]
+    , ParamKindAction tT pB [SetCursor 0, ConstructKType]
     ]
     $ expectError (@?= ActionError (IDNotFound 0))
 

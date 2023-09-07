@@ -1286,7 +1286,7 @@ toProgActionNoInput defs def0 sel0 = \case
         SelectionTypeDef sel -> case sel.node of
           Just (TypeDefParamNodeSelection _) -> do
             (t, p, id) <- typeParamKindSel
-            pure [ParamKindAction t p id actions]
+            pure [ParamKindAction t p $ SetCursor id : actions]
           Just (TypeDefConsNodeSelection _) -> do
             (t, c, f) <- conFieldSel
             pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
