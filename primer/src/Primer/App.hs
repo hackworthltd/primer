@@ -117,6 +117,7 @@ import Primer.Action (
   applyAction',
   applyActionsToBody,
   applyActionsToField,
+  applyActionsToParam,
   applyActionsToTypeSig,
   insertSubseqBy,
  )
@@ -177,7 +178,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (
@@ -779,7 +780,7 @@ applyProgAction prog = \case
         def
           & traverseOf
             #astTypeDefParameters
-            ( maybe (throwError $ ParamNotFound old) pure
+            ( maybe (throwError $ ActionError $ ParamNotFound old) pure
                 . findAndAdjust ((== old) . fst) (_1 .~ new)
             )
       updateConstructors =
@@ -947,7 +948,7 @@ applyProgAction prog = \case
               ( \ps -> do
                   unless
                     (paramName `elem` map fst ps)
-                    (throwError $ ParamNotFound paramName)
+                    (throwError $ ActionError $ ParamNotFound paramName)
                   pure $ filter ((/= paramName) . fst) ps
               )
               td
@@ -1021,42 +1022,21 @@ applyProgAction prog = \case
                   }
           )
   ParamKindAction tyName paramName id actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
-    def' <-
-      def
-        & traverseOf
-          #astTypeDefParameters
-          ( maybe (throwError $ ParamNotFound paramName) pure
-              <=< findAndAdjustA
-                ((== paramName) . fst)
-                ( traverseOf _2 $
-                    flip
-                      ( foldlM $ flip \case
-                          ConstructKType -> modifyKind $ replaceHole ConstructKType ktype
-                          ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
-                          Delete -> modifyKind $ const khole
-                          a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
-                      )
-                      actions
-                )
-          )
-    let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
-        imports = progImports prog
-        smartHoles = progSmartHoles prog
-    mods' <-
-      runExceptT
-        ( runReaderT
-            (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
-            (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
-        )
-        >>= either (throwError . ActionError) pure
-    pure (mods', Nothing)
-    where
-      modifyKind f k = fromMaybe (throwError' $ IDNotFound id) $ do
-        k' <- focusOnKind id k
-        pure $ fromZipper . flip replace k' <$> f (target k')
-      replaceHole a r = \case
-        KHole{} -> r
-        _ -> throwError' $ CustomFailure a "can only construct this kind in a hole"
+    let smartHoles = progSmartHoles prog
+    res <- applyActionsToParam smartHoles (paramName, def) $ SetCursor id : actions
+    case res of
+      Left err -> throwError $ ActionError err
+      Right (def', _) -> do
+        let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
+            imports = progImports prog
+        mods' <-
+          runExceptT
+            ( runReaderT
+                (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
+                (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+            )
+            >>= either (throwError . ActionError) pure
+        pure (mods', Nothing)
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of

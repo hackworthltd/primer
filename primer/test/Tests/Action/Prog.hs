@@ -1198,9 +1198,9 @@ unit_ParamKindAction_2 =
     ( defaultProgEditableTypeDefs (pure [])
     )
     [ ParamKindAction tT pB 30 [ConstructKFun]
-    , ParamKindAction tT pB 32 [ConstructKType]
+    , ParamKindAction tT pB 36 [ConstructKType]
     ]
-    $ expectError (@?= ActionError (CustomFailure ConstructKType "can only construct this kind in a hole"))
+    $ expectError (@?= ActionError (CustomFailure ConstructKType "can only construct the kind 'Type' in hole"))
 
 unit_ParamKindAction_2b :: Assertion
 unit_ParamKindAction_2b =
@@ -1208,7 +1208,7 @@ unit_ParamKindAction_2b =
     ( defaultProgEditableTypeDefs (pure [])
     )
     [ ParamKindAction tT pB 30 [ConstructKFun]
-    , ParamKindAction tT pB 32 [Delete]
+    , ParamKindAction tT pB 36 [Delete]
     ]
     $ expectSuccess
     $ \_ prog' -> do

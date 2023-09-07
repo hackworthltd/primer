@@ -9,6 +9,7 @@ module Primer.Zipper.Type (
   KindTZ',
   KindTZ,
   unfocusKindT,
+  focusOnlyKindT,
   focusOnTy,
   focusOnTy',
   farthest,
@@ -55,6 +56,7 @@ import Primer.Zipper.Nested (
   ZipNest (ZipNest),
   down,
   focus,
+  innerZipNest,
   left,
   replace,
   right,
@@ -81,6 +83,10 @@ type KindTZ = KindTZ' TypeMeta KindMeta
 -- | Switch from a 'Kind'-in-'Type' zipper back to an 'Type' zipper.
 unfocusKindT :: Data c => KindTZ' b c -> TypeZip' b c
 unfocusKindT = unfocusNest
+
+-- | Forget the surrounding type context
+focusOnlyKindT :: KindTZ' b c -> KindZip' c
+focusOnlyKindT = innerZipNest
 
 -- | Focus on the node with the given 'ID', if it exists in the kind
 focusOnKind ::
