@@ -5,7 +5,6 @@ import Foreword
 import Hedgehog hiding (Property, check, property)
 import Primer.Builtins
 import Primer.Core (
-  Kind' (KFun, KType),
   Type',
  )
 import Primer.Core.DSL
@@ -45,49 +44,49 @@ unit_4 =
 unit_5 :: Assertion
 unit_5 =
   assertNotEqual
-    (create_ (tforall "a" (KType ()) $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "a" ktype' $ tcon tList `tapp` tvar "a"))
     (create_ (tcon tNat))
 
 unit_6 :: Assertion
 unit_6 =
   (@?=)
-    (create_ (tforall "a" (KType ()) $ tcon tList `tapp` tvar "a"))
-    (create_ (tforall "b" (KType ()) $ tcon tList `tapp` tvar "b"))
+    (create_ (tforall "a" ktype' $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "b" ktype' $ tcon tList `tapp` tvar "b"))
 
 unit_7 :: Assertion
 unit_7 =
   assertNotEqual
-    (create_ (tforall "a" (KType ()) $ tcon tList `tapp` tvar "a"))
-    (create_ (tforall "b" (KType ()) $ tcon tList `tapp` tcon tBool))
+    (create_ (tforall "a" ktype' $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "b" ktype' $ tcon tList `tapp` tcon tBool))
 
 unit_8 :: Assertion
 unit_8 =
   assertNotEqual
-    (create_ (tforall "a" (KType ()) $ tcon tBool))
-    (create_ (tforall "b" (KFun () (KType ()) (KType ())) $ tcon tBool))
+    (create_ (tforall "a" ktype' $ tcon tBool))
+    (create_ (tforall "b" (kfun' ktype' ktype') $ tcon tBool))
 
 unit_9 :: Assertion
 unit_9 =
   assertNotEqual
-    (create_ (tforall "a" (KType ()) $ tforall "b" (KType ()) $ tcon tList `tapp` tvar "a"))
-    (create_ (tforall "a" (KType ()) $ tforall "b" (KType ()) $ tcon tList `tapp` tvar "b"))
+    (create_ (tforall "a" ktype' $ tforall "b" ktype' $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "a" ktype' $ tforall "b" ktype' $ tcon tList `tapp` tvar "b"))
 
 unit_10 :: Assertion
 unit_10 =
   assertNotEqual
-    (create_ (tforall "a" (KType ()) $ tcon tList `tapp` tvar "a"))
-    (create_ (tcon tList `tapp` tforall "a" (KType ()) (tvar "b")))
+    (create_ (tforall "a" ktype' $ tcon tList `tapp` tvar "a"))
+    (create_ (tcon tList `tapp` tforall "a" ktype' (tvar "b")))
 
 unit_11 :: Assertion
 unit_11 =
   assertNotEqual
-    (create_ (tforall "a" (KType ()) $ tcon tBool `tfun` (tcon tList `tapp` tvar "a")))
-    (create_ (tcon tBool `tfun` tforall "a" (KType ()) (tcon tList `tapp` tvar "a")))
+    (create_ (tforall "a" ktype' $ tcon tBool `tfun` (tcon tList `tapp` tvar "a")))
+    (create_ (tcon tBool `tfun` tforall "a" ktype' (tcon tList `tapp` tvar "a")))
 
 unit_repeated_names :: Assertion
 unit_repeated_names =
-  create_ (tforall "b" (KType ()) (tforall "foo" (KType ()) (tforall "x" (KType ()) $ tvar "x")))
-    @?= create_ (tforall "foo" (KType ()) (tforall "foo" (KType ()) (tforall "x" (KType ()) $ tvar "x")))
+  create_ (tforall "b" ktype' (tforall "foo" ktype' (tforall "x" ktype' $ tvar "x")))
+    @?= create_ (tforall "foo" ktype' (tforall "foo" ktype' (tforall "x" ktype' $ tvar "x")))
 
 tasty_refl :: Property
 tasty_refl = property $ do
@@ -100,7 +99,7 @@ tasty_alpha = property $ do
   t <- f <$> forAll (evalExprGen 0 genTyVarName)
   s === t
   where
-    f v = create_ $ tforall v (KType ()) $ tvar v
+    f v = create_ $ tforall v ktype' $ tvar v
 
 create_ :: S (Type' a b) -> Alpha
 create_ = Alpha . forgetTypeMetadata . create'

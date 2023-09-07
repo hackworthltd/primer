@@ -101,6 +101,7 @@ import Primer.Core.DSL (
   con,
   emptyHole,
   hole,
+  ktype',
   lAM,
   lam,
   let_,
@@ -1043,7 +1044,7 @@ constructTForall mx zt = do
     Nothing -> LocalName <$> mkFreshNameTy zt
     Just x -> pure (unsafeMkLocalName x)
   unless (isFreshTy x $ target zt) $ throwError NameCapture
-  flip replace zt <$> tforall x (C.KType ()) (pure (target zt))
+  flip replace zt <$> tforall x ktype' (pure (target zt))
 
 constructTApp :: MonadFresh ID m => TypeZ -> m TypeZ
 constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole

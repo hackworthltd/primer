@@ -158,11 +158,11 @@ unit_viewTreeType_injective_var =
 
 unit_viewTreeType_injective_forall_param :: Assertion
 unit_viewTreeType_injective_forall_param =
-  distinctTreeType (tforall "a" (KType ()) tEmptyHole) (tforall "b" (KType ()) tEmptyHole)
+  distinctTreeType (tforall "a" ktype' tEmptyHole) (tforall "b" ktype' tEmptyHole)
 
 unit_viewTreeType_injective_forall_kind :: Assertion
 unit_viewTreeType_injective_forall_kind =
-  distinctTreeType (tforall "a" (KType ()) tEmptyHole) (tforall "a" (KHole ()) tEmptyHole)
+  distinctTreeType (tforall "a" ktype' tEmptyHole) (tforall "a" khole' tEmptyHole)
 
 distinctTreeExpr :: S Expr -> S Expr -> Assertion
 distinctTreeExpr e1 e2 =

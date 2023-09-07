@@ -366,9 +366,9 @@ unit_rename_LAM :: Assertion
 unit_rename_LAM =
   actionTest
     NoSmartHoles
-    (ann (lAM "a" (emptyHole `aPP` tvar "a")) (tforall "b" (KType ()) $ listOf (tvar "b")))
+    (ann (lAM "a" (emptyHole `aPP` tvar "a")) (tforall "b" ktype' $ listOf (tvar "b")))
     [Move Child1, RenameLAM "b"]
-    (ann (lAM "b" (emptyHole `aPP` tvar "b")) (tforall "b" (KType ()) $ listOf (tvar "b")))
+    (ann (lAM "b" (emptyHole `aPP` tvar "b")) (tforall "b" ktype' $ listOf (tvar "b")))
 
 unit_rename_LAM_2 :: Assertion
 unit_rename_LAM_2 =
@@ -1072,22 +1072,22 @@ unit_construct_TForall =
     NoSmartHoles
     (emptyHole `ann` tEmptyHole)
     [EnterType, ConstructTForall (Just "a")]
-    (ann emptyHole $ tforall "a" (KType ()) tEmptyHole)
+    (ann emptyHole $ tforall "a" ktype' tEmptyHole)
 
 unit_rename_TForall :: Assertion
 unit_rename_TForall =
   actionTest
     NoSmartHoles
-    (emptyHole `ann` tforall "a" (KType ()) (listOf (tvar "a")))
+    (emptyHole `ann` tforall "a" ktype' (listOf (tvar "a")))
     [EnterType, RenameForall "b"]
-    (emptyHole `ann` tforall "b" (KType ()) (listOf (tvar "b")))
+    (emptyHole `ann` tforall "b" ktype' (listOf (tvar "b")))
 
 unit_rename_TForall_2 :: Assertion
 unit_rename_TForall_2 =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (emptyHole `ann` tforall "b" (KType ()) (tforall "a" (KType ()) $ listOf (tvar "b")))
+    (emptyHole `ann` tforall "b" ktype' (tforall "a" ktype' $ listOf (tvar "b")))
     [EnterType, Move Child1, RenameLAM "b"]
 
 unit_construct_TForall_TVar :: Assertion
@@ -1096,7 +1096,7 @@ unit_construct_TForall_TVar =
     NoSmartHoles
     (emptyHole `ann` tEmptyHole)
     [EnterType, ConstructTForall (Just "a"), Move Child1, ConstructTVar "a"]
-    (ann emptyHole $ tforall "a" (KType ()) $ tvar "a")
+    (ann emptyHole $ tforall "a" ktype' $ tvar "a")
 
 unit_poly_1 :: Assertion
 unit_poly_1 =
@@ -1145,8 +1145,8 @@ unit_poly_1 =
     , Move Child2
     , ConstructVar $ LocalVarRef "id"
     ]
-    ( let_ "id" (ann (lAM "a" $ lam "x" $ lvar "x") (tforall "a" (KType ()) $ tfun (tvar "a") (tvar "a"))) $
-        app (aPP (lvar "id") (tforall "b" (KType ()) $ tfun (tvar "b") (tvar "b"))) (lvar "id")
+    ( let_ "id" (ann (lAM "a" $ lam "x" $ lvar "x") (tforall "a" ktype' $ tfun (tvar "a") (tvar "a"))) $
+        app (aPP (lvar "id") (tforall "b" ktype' $ tfun (tvar "b") (tvar "b"))) (lvar "id")
     )
 
 unit_constructTApp :: Assertion
@@ -1193,17 +1193,17 @@ unit_refine_4 :: Assertion
 unit_refine_4 =
   actionTest
     NoSmartHoles
-    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" (KType ()) (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" ktype' (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" (KType ()) (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" ktype' (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_5 :: Assertion
 unit_refine_5 =
   actionTest
     NoSmartHoles
-    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" (KType ()) (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" ktype' (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" (KType ()) (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" ktype' (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
 -- If there is no valid refinement, insert saturated variable into a non-empty hole
 unit_refine_mismatch_var :: Assertion
@@ -1215,7 +1215,7 @@ unit_refine_mismatch_var =
         ( emptyHole
             `ann` tforall
               "a"
-              (KType ())
+              ktype'
               ( tvar "a"
                   `tfun` ( (tcon tList `tapp` tvar "a")
                             `tfun` (tcon tList `tapp` tvar "a")
@@ -1230,7 +1230,7 @@ unit_refine_mismatch_var =
         ( emptyHole
             `ann` tforall
               "a"
-              (KType ())
+              ktype'
               ( tvar "a"
                   `tfun` ( (tcon tList `tapp` tvar "a")
                             `tfun` (tcon tList `tapp` tvar "a")

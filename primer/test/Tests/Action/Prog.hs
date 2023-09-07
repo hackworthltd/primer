@@ -110,6 +110,7 @@ import Primer.Core.DSL (
   gvar,
   hole,
   ktype,
+  ktype',
   lAM,
   lam,
   lvar,
@@ -546,7 +547,7 @@ unit_copy_paste_duplicate = do
   let fromDef = gvn "main"
       toDef = gvn "blank"
       (p, fromType, fromExpr, _toType, _toExpr) = create' $ do
-        mainType <- tforall "a" (KType ()) (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
+        mainType <- tforall "a" ktype' (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
         mainExpr <- lAM "b" $ lam "x" $ con cJust [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
@@ -593,16 +594,16 @@ unit_copy_paste_type_scoping :: Assertion
 unit_copy_paste_type_scoping = do
   let mainName = gvn "main"
       (pInitial, srcID, pExpected) = create' $ do
-        toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "e" (KType ()) (tvar "c" `tfun` tvar "d" `tfun` tvar "e" `tfun` tvar "f")
+        toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "e" ktype' (tvar "c" `tfun` tvar "d" `tfun` tvar "e" `tfun` tvar "f")
         let skel r =
-              tforall "a" (KType ()) $
-                tforall "d" (KType ()) $
-                  tforall "f" (KType ()) $
-                    tfun (tforall "b" (KType ()) $ tforall "c" (KType ()) $ tforall "d" (KType ()) $ pure toCopy) $
-                      tforall "c" (KType ()) $
-                        tforall "f" (KType ()) r
+              tforall "a" ktype' $
+                tforall "d" ktype' $
+                  tforall "f" ktype' $
+                    tfun (tforall "b" ktype' $ tforall "c" ktype' $ tforall "d" ktype' $ pure toCopy) $
+                      tforall "c" ktype' $
+                        tforall "f" ktype' r
         defInitial <- ASTDef <$> emptyHole <*> skel tEmptyHole
-        expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "e" (KType ()) (tEmptyHole `tfun` tEmptyHole `tfun` tvar "e" `tfun` tEmptyHole))
+        expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "e" ktype' (tEmptyHole `tfun` tEmptyHole `tfun` tvar "e" `tfun` tEmptyHole))
         pure
           ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
@@ -626,8 +627,8 @@ unit_raise = do
       mainName = gvn mainName'
       (pInitial, srcID, pExpected) = create' $ do
         toCopy <- tvar "a"
-        defInitial <- ASTDef <$> emptyHole <*> tforall "a" (KType ()) (tforall "b" (KType ()) $ pure toCopy)
-        expected <- ASTDef <$> emptyHole <*> tforall "a" (KType ()) (tvar "a")
+        defInitial <- ASTDef <$> emptyHole <*> tforall "a" ktype' (tforall "b" ktype' $ pure toCopy)
+        expected <- ASTDef <$> emptyHole <*> tforall "a" ktype' (tvar "a")
         pure
           ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
           , getID toCopy
@@ -653,7 +654,7 @@ unit_copy_paste_expr_1 = do
   let mainName' = "main"
       mainName = gvn mainName'
       (pInitial, srcID, pExpected) = create' $ do
-        ty <- tforall "a" (KType ()) $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" (KType ()) (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
+        ty <- tforall "a" ktype' $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" ktype' (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
         let toCopy' = con cMakePair [lvar "y" `ann` tvar "a", lvar "z" `ann` tvar "b"] -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =

@@ -13,6 +13,9 @@ module Primer.Core.DSL.Type (
   khole,
   ktype,
   kfun,
+  khole',
+  ktype',
+  kfun',
 ) where
 
 import Foreword
@@ -43,8 +46,8 @@ thole t = THole <$> meta <*> t
 tcon :: MonadFresh ID m => TyConName -> m Type
 tcon t = TCon <$> meta <*> pure t
 
-tforall :: MonadFresh ID m => TyVarName -> Kind' () -> m Type -> m Type
-tforall v k t = TForall <$> meta <*> pure v <*> pure k <*> t
+tforall :: MonadFresh ID m => TyVarName -> m (Kind' ()) -> m Type -> m Type
+tforall v k t = TForall <$> meta <*> pure v <*> k <*> t
 
 tlet :: MonadFresh ID m => TyVarName -> m Type -> m Type -> m Type
 tlet v t b = TLet <$> meta <*> pure v <*> t <*> b
@@ -71,3 +74,12 @@ ktype = KType <$> kmeta
 
 kfun :: MonadFresh ID m => m Kind -> m Kind -> m Kind
 kfun a b = KFun <$> kmeta <*> a <*> b
+
+khole' :: MonadFresh ID m => m (Kind' ())
+khole' = pure $ KHole ()
+
+ktype' :: MonadFresh ID m => m (Kind' ())
+ktype' = pure $ KType ()
+
+kfun' :: MonadFresh ID m => m (Kind' ()) -> m (Kind' ()) -> m (Kind' ())
+kfun' a b = KFun () <$> a <*> b

@@ -4,7 +4,6 @@ import Foreword
 
 import Data.Set qualified as Set
 import Primer.Builtins
-import Primer.Core (Kind' (KType))
 import Primer.Core.DSL
 import Primer.Core.Utils
 import Test.Tasty.HUnit
@@ -29,4 +28,4 @@ unit_2 =
             )
             (lvar "y")
         )
-        (tforall "a" (KType ()) $ tcon' ["M"] "T" `tapp` tvar "a" `tapp` tvar "b")
+        (tforall "a" ktype' $ tcon' ["M"] "T" `tapp` tvar "a" `tapp` tvar "b")
