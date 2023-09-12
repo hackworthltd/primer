@@ -51,6 +51,7 @@ import Primer.Builtins (
   tList,
   tMaybe,
   tNat,
+  tPair,
  )
 import Primer.Builtins.DSL (
   listOf,
@@ -516,6 +517,15 @@ unit_case_branches :: Assertion
 unit_case_branches =
   ann (case_ (con0 cZero `ann` tcon tNat) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
     `smartSynthGives` ann (case_ (con0 cZero `ann` tcon tNat) [branch cZero [] emptyHole, branch cSucc [("a9", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a9"
+
+unit_case_distinct_binds :: Assertion
+unit_case_distinct_binds =
+  ( case_
+      (emptyHole `ann` (tcon tPair `tapp` tEmptyHole `tapp` tEmptyHole))
+      [branch cMakePair [("x", Nothing), ("x", Nothing)] emptyHole]
+      `ann` tEmptyHole
+  )
+    `expectFailsWith` const (DuplicateBinders ["x", "x"])
 
 unit_remove_hole :: Assertion
 unit_remove_hole =

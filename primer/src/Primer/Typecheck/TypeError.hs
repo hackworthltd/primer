@@ -3,7 +3,7 @@ module Primer.Typecheck.TypeError (TypeError (..)) where
 import Foreword
 
 import Primer.Core (Expr, Pattern)
-import Primer.Core.Meta (TmVarRef, TyConName, ValConName)
+import Primer.Core.Meta (LVarName, TmVarRef, TyConName, ValConName)
 import Primer.Core.Type (Type')
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
@@ -35,6 +35,9 @@ data TypeError
   | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@, @wildcard/fallback branch given@
     WrongCaseBranches TyConName [Pattern] Bool
   | CaseBranchWrongNumberPatterns
+  | -- | One AST node binds the same name twice
+    -- (currently this can only happen in a case branch)
+    DuplicateBinders [LVarName]
   | KindError KindError
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeError

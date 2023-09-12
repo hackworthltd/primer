@@ -919,6 +919,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
     -- We check an invariant due to paranoia
     assertCorrectCon
     sh <- asks smartHoles
+    unless (distinct $ bindName <$> patterns) $ throwError' $ DuplicateBinders $ bindName <$> patterns
     (fixedPats, fixedRHS) <- case (length args == length patterns, sh) of
       (False, NoSmartHoles) -> throwError' CaseBranchWrongNumberPatterns
       -- if the branch is nonsense, replace it with a sensible pattern and an empty hole

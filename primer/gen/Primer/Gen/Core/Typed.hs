@@ -37,6 +37,7 @@ import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
 import Data.List.Extra (nubSortOn)
 import Data.Map qualified as M
+import Data.Set qualified as S
 import Hedgehog (
   GenT,
   MonadGen,
@@ -470,9 +471,11 @@ genChk ty = do
                         ]
                     fmap (Just . (,fb)) . for vcs $ \(c, params) -> do
                       ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
+                      unless (distinct $ map fst ns) Gen.discard
                       let binds = map (Bind () . fst) ns
                       CaseBranch (PatCon c) binds <$> local (extendLocalCxts ns) (genChk ty)
             pure $ Case () e brs fb
+    distinct xs = length xs == S.size (S.fromList xs)
     casePrim :: WT (Maybe (GenT WT ExprG))
     casePrim = do
       primGens <- genPrimCon
