@@ -91,6 +91,7 @@ import Optics (
   getting,
   ifoldMap,
   mapped,
+  notElemOf,
   over,
   set,
   summing,
@@ -175,6 +176,7 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
+import Primer.Core.Type.Utils (kindIDs)
 import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
@@ -1024,13 +1026,16 @@ applyProgAction prog = \case
         >>= either (throwError . ActionError) pure
     pure (mods', Nothing)
     where
-      modifyKind f k =
+      modifyKind f k
+        | notElemOf kindIDs id k = throwError' $ IDNotFound id
+        | otherwise = modifyKind' f k
+      modifyKind' f k =
         if getID k == id
           then f k
           else case k of
             KHole _ -> pure k
             KType _ -> pure k
-            KFun m k1 k2 -> KFun m <$> modifyKind f k1 <*> modifyKind f k2
+            KFun m k1 k2 -> KFun m <$> modifyKind' f k1 <*> modifyKind' f k2
       replaceHole a r = \case
         KHole{} -> r
         _ -> throwError' $ CustomFailure a "can only construct this kind in a hole"

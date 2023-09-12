@@ -25,6 +25,7 @@ import Data.Generics.Uniplate.Data (transformBi)
 import Data.List.Extra (enumerate)
 import Data.Map (delete, insert, mapKeys, member)
 import Data.Map qualified as M
+import Data.Semigroup (Max (Max, getMax))
 import Optics (Field2 (_2), traverseOf, traversed, (%))
 import Primer.Builtins (
   boolDef,
@@ -57,7 +58,7 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
-import Primer.Def.Utils (nextID)
+import Primer.Def.Utils (nextID, nextIDTypeDef)
 import Primer.JSON (
   CustomJSON (CustomJSON),
   FromJSON,
@@ -126,7 +127,10 @@ renameModule' fromName toName = transformBi (\n -> if n == fromName then toName 
 -- Note: do not rely on the implementation of this function, as it may
 -- change in the future.
 nextModuleID :: Module -> ID
-nextModuleID m = foldl' (\id_ d -> max (nextID d) id_) minBound (moduleDefs m)
+nextModuleID m =
+  getMax $
+    foldMap' (Max . nextID) (moduleDefs m)
+      <> foldMap' (Max . nextIDTypeDef) (moduleTypes m)
 
 -- | This module depends on the builtin module, due to some terms referencing builtin types.
 -- It contains all primitive types and terms.
