@@ -253,7 +253,13 @@ data Redex
       , varID :: ID
       -- ^ Where was the occurrence (used for details)
       }
-  | -- letrec x = t : T in x  ~>  letrec x = t : T in t : T
+  | -- letrec x = t : T in x  ~>  (letrec x = t : T in t) : T
+    -- Note that a different choice would be reducing to a term with t:T
+    -- inside the letrec. We do not do this for two reasons: firstly
+    -- (since the recursive binder does not scope over the type) this
+    -- would immediately reduce in one step to the reduct we actually
+    -- emit; secondly this intermediate step can introduce shadowing,
+    -- for example in letrec x = x : ∀x.x in x.
     InlineLetrec
       { var :: LVarName
       -- ^ What variable are we inlining
@@ -950,7 +956,7 @@ runRedex opts = \case
             }
     pure (expr, LocalVarInline details)
   InlineLetrec{var, expr, ty, letID, varID} -> do
-    expr' <- letrec var (pure expr) (pure ty) $ ann (regenerateExprIDs expr) (regenerateTypeIDs ty)
+    expr' <- ann (letrec var (pure expr) (pure ty) $ regenerateExprIDs expr) (regenerateTypeIDs ty)
     let details =
           LocalVarInlineDetail
             { letID

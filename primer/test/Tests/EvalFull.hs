@@ -378,7 +378,7 @@ unit_12 =
         expect <- con0 cTrue `ann` tcon tBool
         pure (expr, expect)
    in do
-        s <- evalFullTestExactSteps maxID builtinTypes mempty 10 Syn e
+        s <- evalFullTestExactSteps maxID builtinTypes mempty 9 Syn e
         s ~== expected
 
 unit_13 :: Assertion
@@ -529,8 +529,8 @@ unit_letrec_body_first =
           (con cCons [lvar "x", lvar "xs"])
           (tcon tList `tapp` tEmptyHole)
       (expr, maxID) = create $ lx $ lxs (lvar "xs")
-      expected1 = create' $ lx $ lxs $ con cCons [lvar "x", lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
-      expected2 = create' $ lx (lxs $ con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
+      expected1 = create' $ lx $ lxs (con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
+      expected2 = create' $ lx (lxs (con cCons [lvar "x", lvar "xs"])) `ann` (tcon tList `tapp` tEmptyHole)
       expected3 = create' $ con cCons [lx $ lvar "x", lx $ lxs $ lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
    in do
         e1 <- evalFullTest maxID builtinTypes mempty 1 Syn expr
@@ -1122,7 +1122,6 @@ unit_let_self_capture =
           , expr4
           , expected4a
           , expected4b
-          , expected4c
           )
         , maxID
         ) = create $ do
@@ -1139,16 +1138,9 @@ unit_let_self_capture =
             lAM "a"
               $ lam "f"
               $ lam "x"
-              $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a")
-              $ (lvar "f" `app` lvar "x")
-              `ann` tvar "a"
-          expect4b <-
-            lAM "a"
-              $ lam "f"
-              $ lam "x"
               $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "f" `app` lvar "x")
               `ann` tvar "a"
-          expect4c <-
+          expect4b <-
             lAM "a"
               $ lam "f"
               $ lam "x"
@@ -1165,7 +1157,6 @@ unit_let_self_capture =
             , e4
             , expect4a
             , expect4b
-            , expect4c
             )
       s1 n = evalFullTest maxID mempty mempty n Chk expr1
       s2 n = evalFullTest maxID mempty mempty n Chk expr2
@@ -1189,7 +1180,6 @@ unit_let_self_capture =
         s3 3 >>= (<~==> Right expected3b)
         s4 1 >>= (<~==> Left (TimedOut expected4a))
         s4 2 >>= (<~==> Left (TimedOut expected4b))
-        s4 3 >>= (<~==> Left (TimedOut expected4c))
 
 -- | @spanM p mxs@ returns a tuple where the first component is the
 -- values coming from the longest prefix of @mxs@ all of which satisfy
