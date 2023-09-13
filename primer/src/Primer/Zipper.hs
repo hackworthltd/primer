@@ -428,7 +428,9 @@ getBoundHereUp e = getBoundHere (current e) (Just $ prior e)
 
 -- Get the names bound within the focussed subtree
 bindersBelow :: ExprZ -> S.Set Name
-bindersBelow = foldBelow getBoundHereDn
+bindersBelow = foldBelow $ \e ->
+  getBoundHereDn e
+    <> maybe mempty (S.map unLocalName . bindersBelowTy . focusOnlyType) (focusType $ focus e)
 
 -- Get all names bound by this layer of an expression, for any child.
 -- E.g. for a "match" we get all vars bound by each branch.

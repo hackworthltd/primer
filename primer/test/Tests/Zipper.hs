@@ -3,10 +3,12 @@ module Tests.Zipper where
 
 import Foreword
 
+import Data.Set qualified as Set
 import Hedgehog hiding (Property, property)
 import Hedgehog.Gen qualified as Gen
 import Optics ((^..))
 import Primer.Core
+import Primer.Core.DSL (aPP, ann, branch', case_, create', emptyHole, hole, ktype, lAM, lam, tEmptyHole, tapp, tforall, thole)
 import Primer.Core.Utils (exprIDs)
 import Primer.Gen.Core.Raw (
   evalExprGen,
@@ -15,6 +17,7 @@ import Primer.Gen.Core.Raw (
  )
 import Primer.Zipper
 import Tasty (Property, property)
+import Test.Tasty.HUnit (Assertion, (@?=))
 
 -- | @unfocus . focus == id@
 tasty_focus_unfocus_roundtrip :: Property
@@ -43,3 +46,21 @@ tasty_focusOn_succeeds_on_valid_ids = property $ do
       Just (InBind (BindCase b)) -> getID (target b) === i
       Just (InKind k) -> getID (target k) === i
       _ -> annotateShow i >> failure
+
+unit_binders_below_type :: Assertion
+unit_binders_below_type =
+  let t = create' $ tapp tEmptyHole $ tforall "a" ktype $ thole $ tforall "b" ktype tEmptyHole
+   in bindersBelowTy (focus t) @?= Set.fromList ["a", "b"]
+
+unit_binders_below :: Assertion
+unit_binders_below =
+  let e =
+        create'
+          $ ann
+            ( lam "x"
+                $ case_
+                  (lAM "y" emptyHole)
+                  [branch' (["M"], "C") [("z", Nothing), ("w", Nothing)] $ aPP (hole $ lam "v" emptyHole) (tapp tEmptyHole $ tforall "a" ktype $ tforall "b" ktype tEmptyHole)]
+            )
+            (thole $ tforall "c" ktype tEmptyHole)
+   in bindersBelow (focus e) @?= Set.fromList ["x", "y", "z", "w", "v", "a", "b", "c"]
