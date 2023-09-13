@@ -5,6 +5,7 @@ module Tests.Eval where
 import Foreword
 
 import Data.List (delete)
+import Data.List.Extra (enumerate)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Hedgehog (annotateShow, assert, discard, failure, label, success, (===))
@@ -45,6 +46,7 @@ import Primer.Core.Utils (exprIDs, forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
+  AvoidShadowing (NoAvoidShadowing),
   BetaReductionDetail (..),
   BindRenameDetail (..),
   CaseReductionDetail (..),
@@ -105,14 +107,22 @@ import Tests.Gen.Core.Typed (checkTest)
 -- | A helper for these tests
 runTryReduce :: HasCallStack => TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runTryReduce tys globals locals (expr, i) = do
-  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceExpr @EvalLog tys globals locals Syn expr
+  let (r, logs) =
+        evalTestM i
+          $ runPureLogT
+          $ runExceptT
+          $ tryReduceExpr @EvalLog NoAvoidShadowing tys globals locals Syn expr
   assertNoSevereLogs logs
   pure r
 
 -- For use in assertions
 runTryReduceType :: HasCallStack => DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
 runTryReduceType globals locals (ty, i) = do
-  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceType @EvalLog globals locals ty
+  let (r, logs) =
+        evalTestM i
+          $ runPureLogT
+          $ runExceptT
+          $ tryReduceType @EvalLog NoAvoidShadowing globals locals ty
   assertNoSevereLogs logs
   pure r
 
@@ -728,7 +738,10 @@ unit_tryReduce_prim_fail_unreduced_args = do
 
 runStep :: ID -> TypeDefMap -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runStep i' tys globals (e, i) = do
-  let (r, logs) = evalTestM i' $ runPureLogT $ step @EvalLog tys globals e Syn i
+  let (r, logs) =
+        evalTestM i'
+          $ runPureLogT
+          $ step @EvalLog NoAvoidShadowing tys globals e Syn i
   assertNoSevereLogs logs
   pure r
 
@@ -942,7 +955,7 @@ unit_findNodeByID_capture_type =
 -- | A helper for these tests
 redexes' :: TypeDefMap -> DefMap -> Dir -> Expr -> IO (Set ID)
 redexes' types prims d e = do
-  let (rs, logs) = runPureLog $ redexes types prims d e
+  let (rs, logs) = runPureLog $ redexes NoAvoidShadowing types prims d e
   assertNoSevereLogs @EvalLog logs
   pure $ Set.fromList rs
 
@@ -1399,12 +1412,13 @@ tasty_type_preservation =
         $ propertyWT testModules
         $ do
           let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+          as <- forAllT $ Gen.element enumerate
           tds <- asks typeDefs
           (dir, t, ty) <- genDirTm
-          rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
+          rs <- failWhenSevereLogs $ redexes @EvalLog as tds globs dir t
           when (null rs) discard
           r <- forAllT $ Gen.element rs
-          s <- failWhenSevereLogs $ step @EvalLog tds globs t dir r
+          s <- failWhenSevereLogs $ step @EvalLog as tds globs t dir r
           case s of
             Left err -> annotateShow err >> failure
             Right (s', _) ->
@@ -1433,22 +1447,23 @@ tasty_redex_independent =
         $ propertyWT testModules
         $ do
           let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+          as <- forAllT $ Gen.element enumerate
           tds <- asks typeDefs
           (dir, t, _) <- genDirTm
           annotateShow dir
           annotateShow t
-          rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
+          rs <- failWhenSevereLogs $ redexes @EvalLog as tds globs dir t
           when (length rs <= 1) discard
           i <- forAllT $ Gen.element rs
           j <- forAllT $ Gen.element $ delete i rs
-          s <- failWhenSevereLogs $ step @EvalLog tds globs t dir i
+          s <- failWhenSevereLogs $ step @EvalLog as tds globs t dir i
           case s of
             Left err -> annotateShow err >> failure
             Right (s', siDetails) -> do
               annotateShow s'
               if elemOf exprIDs j s'
                 then do
-                  sj <- failWhenSevereLogs $ step @EvalLog tds globs t dir j
+                  sj <- failWhenSevereLogs $ step @EvalLog as tds globs t dir j
                   case (sj, siDetails) of
                     (Right (_, BindRename{}), _) -> success
                     (_, PushLetDown{}) -> success
@@ -1458,5 +1473,5 @@ tasty_redex_independent =
                     (Right (_, PushLetDown{}), RemoveAnn{}) -> success
                     (Right (_, PushLetDown{}), LetRemoval{}) -> success
                     (Right (_, PushLetDownTy{}), TLetRemoval{}) -> success
-                    _ -> assert . elem j =<< failWhenSevereLogs (redexes @EvalLog tds globs dir s')
+                    _ -> assert . elem j =<< failWhenSevereLogs (redexes @EvalLog as tds globs dir s')
                 else success

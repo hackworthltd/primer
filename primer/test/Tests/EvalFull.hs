@@ -796,7 +796,7 @@ tasty_open_closed_agree_base_types :: Property
 tasty_open_closed_agree_base_types = withDiscards 1000
   $ propertyWT testModules
   $ do
-    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     let optsR = RunRedexOptions{pushAndElide = True}
     ty <- forAllT $ Gen.element @[] [tBool, tNat, tInt]
     tm' <- forAllT $ genChk $ TCon () ty
@@ -836,7 +836,7 @@ tasty_resume = withDiscards 2000
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
-  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
   let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
@@ -1246,7 +1246,7 @@ tasty_type_preservation = withTests 1000
   $ withDiscards 2000
   $ propertyWT testModules
   $ do
-    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     let optsR = RunRedexOptions{pushAndElide = True}
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
@@ -1817,7 +1817,7 @@ tasty_unique_ids = withTests 1000
   $ withDiscards 2000
   $ propertyWT testModules
   $ do
-    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     let optsR = RunRedexOptions{pushAndElide = True}
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
@@ -1895,7 +1895,7 @@ unit_case_prim =
 evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
   let optsN = UnderBinders
-  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
@@ -1921,7 +1921,7 @@ evalFullTestClosed gl id_ tydefs globals n d e = do
   let gl' = case gl of
         GroupedLets -> True
         SingleLets -> False
-  let optsV = ViewRedexOptions{groupedLets = gl', aggressiveElision = True}
+  let optsV = ViewRedexOptions{groupedLets = gl', aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
@@ -1931,7 +1931,7 @@ evalFullTestClosed gl id_ tydefs globals n d e = do
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
   let optsN = UnderBinders
-  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
   testNoSevereLogs logs

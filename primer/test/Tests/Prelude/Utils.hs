@@ -10,7 +10,7 @@ import Primer.Core.DSL (apps', create', gvar)
 import Primer.Eval (
   NormalOrderOptions (UnderBinders),
   RunRedexOptions (RunRedexOptions, pushAndElide),
-  ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
+  ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
 import Primer.EvalFull (Dir (Chk), EvalFullError, EvalLog, TerminationBound, evalFull)
 import Primer.Log (runPureLogT)
@@ -55,7 +55,7 @@ functionOutput f args = functionOutput' f (map Left args)
 functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> TerminationBound -> Either EvalFullError Expr
 functionOutput' f args depth =
   let optsN = UnderBinders
-      optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+      optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
       optsR = RunRedexOptions{pushAndElide = True}
       (r, logs) = evalTestM 0 $ runPureLogT $ do
         e <- apps' (gvar f) $ bimap lift lift <$> args

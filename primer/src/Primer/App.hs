@@ -195,6 +195,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def.Utils (globalInUse, typeInUse)
+import Primer.Eval (AvoidShadowing (AvoidShadowing))
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
 import Primer.Eval.Redex (EvalLog, RunRedexOptions (RunRedexOptions, pushAndElide), ViewRedexOptions (ViewRedexOptions, groupedLets))
@@ -596,11 +597,12 @@ handleEvalRequest ::
 handleEvalRequest req = do
   app <- ask
   let prog = appProg app
-  result <- runFreshM app $ Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
+  let as = AvoidShadowing
+  result <- runFreshM app $ Eval.step as (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
   case result of
     Left err -> throwError' err
     Right (expr, detail) -> do
-      redexes <- Eval.redexes (allTypes prog) (allDefs prog) Syn expr
+      redexes <- Eval.redexes as (allTypes prog) (allDefs prog) Syn expr
       pure
         EvalResp
           { evalRespExpr = expr
@@ -616,7 +618,7 @@ handleEvalFullRequest ::
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps, evalFullOptions}) = do
   app <- ask
   let prog = appProg app
-  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
   result <- runFreshM app $ evalFull evalFullOptions optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
