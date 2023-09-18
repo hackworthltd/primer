@@ -226,6 +226,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
+import Primer.Eval (NormalOrderOptions (StopAtBinders))
 import Primer.Eval.Redex (Dir (Chk), EvalLog)
 import Primer.EvalFull (TerminationBound)
 import Primer.JSON (
@@ -412,7 +413,7 @@ data APILog
   | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ())))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
-  | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
+  | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, Maybe NormalOrderOptions, GVarName) EvalFullResp)
   | FlushSessions (ReqResp () ())
   | CreateDef (ReqResp (SessionId, ModuleName, Maybe Text) Prog)
   | CreateTypeDef (ReqResp (SessionId, TyConName, [ValConName]) Prog)
@@ -1117,16 +1118,18 @@ evalFull' ::
   (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
   SessionId ->
   Maybe TerminationBound ->
+  Maybe NormalOrderOptions ->
   GVarName ->
   PrimerM m EvalFullResp
-evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
-  noErr <$> liftQueryAppM (q lim d) sid
+evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) ->
+  noErr <$> liftQueryAppM (q lim closed d) sid
   where
     q ::
       Maybe TerminationBound ->
+      Maybe NormalOrderOptions ->
       GVarName ->
       QueryAppM (PureLog (WithSeverity l)) Void EvalFullResp
-    q lim d = do
+    q lim closed d = do
       -- We don't care about uniqueness of this ID, and we do not want to
       -- disturb any FreshID state, since that could break undo/redo.
       -- The reason we don't care about uniqueness is that this node will never
@@ -1139,6 +1142,7 @@ evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
             { evalFullReqExpr = e
             , evalFullCxtDir = Chk
             , evalFullMaxSteps = fromMaybe 10 lim
+            , evalFullOptions = fromMaybe StopAtBinders closed
             }
       pure $ case x of
         App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'

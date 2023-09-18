@@ -7,6 +7,7 @@ module Primer.Eval (
   redexes,
   RunRedexOptions (..),
   ViewRedexOptions (..),
+  NormalOrderOptions (..),
   EvalLog (..),
   EvalError (..),
   EvalDetail (..),
@@ -57,6 +58,7 @@ import Primer.Eval.Detail (
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.NormalOrder (
   FMExpr (FMExpr, expr, ty),
+  NormalOrderOptions (..),
   foldMapExpr,
   singletonCxt,
  )
@@ -114,6 +116,7 @@ step tydefs globals expr d i = runExceptT $ do
 findNodeByID :: ID -> Dir -> Expr -> Maybe (Cxt, Either (Dir, ExprZ) TypeZ)
 findNodeByID i =
   foldMapExpr
+    UnderBinders
     FMExpr
       { expr = \ez d c -> if getID ez == i then Just (c, Left (d, ez)) else Nothing
       , ty = \tz c -> if getID tz == i then Just (c, Right tz) else Nothing
@@ -132,6 +135,11 @@ evalOpts =
 -- We assume that the expression is well scoped. There are no
 -- guarantees about whether we will claim that an ill-sorted variable
 -- is inlinable, e.g. @lettype a = _ in case a of ...@.
+--
+-- NB: we return /all/ redexes, even those under binders. We ignore any
+-- `NormalOrderOptions`. This means that more redexes may be returned than an
+-- EvalFull would actually reduce (depending on the NormalOrderOptions given to
+-- EvalFull).
 redexes ::
   forall l m.
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
@@ -143,6 +151,7 @@ redexes ::
 redexes tydefs globals =
   (ListT.toList .)
     . foldMapExpr
+      UnderBinders
       FMExpr
         { expr = \ez d -> liftMaybeT . runReaderT (getID ez <$ viewRedex evalOpts tydefs globals d (target ez))
         , ty = \tz -> runReader (whenJust (getID tz) <$> viewRedexType evalOpts (target tz))

@@ -4,6 +4,7 @@ module Tests.Eval.Utils (
   genDirTm,
   testModules,
   hasTypeLets,
+  hasHoles,
 ) where
 
 import Foreword
@@ -15,12 +16,12 @@ import Hedgehog (PropertyT)
 import Hedgehog.Gen qualified as Gen
 import Primer.Core (
   Expr,
-  Expr' (LetType),
+  Expr' (EmptyHole, Hole, LetType),
   ID,
   Kind' (KType),
   ModuleName (ModuleName),
   Type,
-  Type' (TLet),
+  Type' (TEmptyHole, THole, TLet),
  )
 import Primer.Core.DSL (create', lam, lvar, tcon, tfun)
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata, generateIDs)
@@ -98,3 +99,12 @@ hasTypeLets e =
   not $
     null [() | LetType{} <- universe e]
       && null [() | TLet{} <- universeBi @_ @Type e]
+
+-- | Does this expression have any holes?
+hasHoles :: Expr -> Bool
+hasHoles e =
+  not $
+    null [() | Hole{} <- universe e]
+      && null [() | EmptyHole{} <- universe e]
+      && null [() | THole{} <- universeBi @_ @Type e]
+      && null [() | TEmptyHole{} <- universeBi @_ @Type e]

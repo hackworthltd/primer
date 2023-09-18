@@ -23,6 +23,7 @@ import Primer.Core (GVarName, ModuleName)
 import Primer.Database (
   SessionId,
  )
+import Primer.Eval (NormalOrderOptions)
 import Primer.Finite (Finite)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.OpenAPI ()
@@ -124,6 +125,7 @@ data SessionAPI mode = SessionAPI
           :> Summary "Evaluate the named definition to normal form (or time out)"
           :> OperationId "eval-full"
           :> QueryParam "stepLimit" (Finite 0 EvalFullStepLimit)
+          :> QueryParam "closed" NormalOrderOptions
           :> ReqBody '[JSON] GVarName
           :> Post '[JSON] EvalFullResp
   , undo ::

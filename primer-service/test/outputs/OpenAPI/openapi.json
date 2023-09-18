@@ -1486,6 +1486,18 @@
                             "minimum": 0,
                             "type": "integer"
                         }
+                    },
+                    {
+                        "in": "query",
+                        "name": "closed",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "UnderBinders",
+                                "StopAtBinders"
+                            ],
+                            "type": "string"
+                        }
                     }
                 ],
                 "requestBody": {
@@ -1509,7 +1521,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `body` or `stepLimit`"
+                        "description": "Invalid `body` or `closed` or `stepLimit`"
                     },
                     "404": {
                         "description": "`sessionId` not found"

@@ -24,7 +24,7 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Def (astDefExpr, defAST)
-import Primer.Eval (Dir (Syn))
+import Primer.Eval (Dir (Syn), NormalOrderOptions (UnderBinders))
 import Primer.Module (
   moduleDefsQualified,
   moduleName,
@@ -73,6 +73,7 @@ unit_redo_eval =
               { App.evalFullReqExpr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
               , App.evalFullCxtDir = Syn
               , App.evalFullMaxSteps = 10
+              , App.evalFullOptions = UnderBinders
               }
       edit1 = handleEditRequest action1
       edit2 = handleEditRequest . action2

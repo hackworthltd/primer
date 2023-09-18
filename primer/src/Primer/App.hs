@@ -487,6 +487,7 @@ data EvalFullReq = EvalFullReq
   { evalFullReqExpr :: Expr
   , evalFullCxtDir :: Dir -- is this expression in a syn/chk context, so we can tell if is an embedding.
   , evalFullMaxSteps :: TerminationBound
+  , evalFullOptions :: Eval.NormalOrderOptions
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalFullReq
@@ -595,12 +596,12 @@ handleEvalFullRequest ::
   (MonadQueryApp m e, MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   EvalFullReq ->
   m EvalFullResp
-handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
+handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps, evalFullOptions}) = do
   app <- ask
   let prog = appProg app
   let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
   let optsR = RunRedexOptions{pushAndElide = True}
-  result <- runFreshM app $ evalFull optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  result <- runFreshM app $ evalFull evalFullOptions optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
