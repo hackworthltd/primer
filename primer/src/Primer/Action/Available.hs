@@ -128,6 +128,7 @@ import Primer.Zipper (
   findNodeWithParent,
   findType,
   focusOn,
+  focusOnKind,
   focusOnTy,
   locToEither,
   target,
@@ -423,13 +424,7 @@ forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
       Just (KHole _) -> [NoInput MakeKType]
       Just _ -> [NoInput DeleteKind]
   where
-    findKind i k =
-      if getID k == i
-        then Just k
-        else case k of
-          KHole _ -> Nothing
-          KType _ -> Nothing
-          KFun _ k1 k2 -> findKind i k1 <|> findKind i k2
+    findKind i k = target <$> focusOnKind i k
 
 forTypeDefConsNode ::
   Level ->
