@@ -803,6 +803,14 @@ check t = \case
       -- this can lead to the output being the same as the input, but with
       -- ID of the top hole changed, leading to losing cursor positions etc.
       -- But we do want to remove nested holes.
+      --
+      -- TODO: There are known issues with this logic, see
+      -- - https://github.com/hackworthltd/primer/issues/7
+      --   (the general issue)
+      -- - https://github.com/hackworthltd/primer/pull/1120#discussion_r1329972556
+      --   (we noticed a specific strange behavior where a redundant
+      -- holey annotation was not elide even though it was identical to
+      -- the outer type information:  foo : ∀a:*.? ; foo = {? ? : ∀a:*.? ?}
       (Hole _ e'@Hole{}, SmartHoles) ->
         check t e' -- we strip off one layer, and hit this case again.
       (Hole _ (Ann _ e' TEmptyHole{}), SmartHoles) ->
