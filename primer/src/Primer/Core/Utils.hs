@@ -5,6 +5,7 @@ module Primer.Core.Utils (
   typeIDs,
   generateTypeIDs,
   regenerateTypeIDs,
+  regenerateKindIDs,
   generateKindIDs,
   forgetTypeMetadata,
   forgetKindMetadata,
@@ -63,6 +64,8 @@ import Primer.Core (
   bindName,
   traverseFallback,
   trivialMeta,
+  trivialMetaUnit,
+  _exprKindMeta,
   _exprMeta,
   _exprTypeMeta,
  )
@@ -77,6 +80,7 @@ import Primer.Core.Type.Utils (
   generateKindIDs,
   generateTypeIDs,
   noHoles,
+  regenerateKindIDs,
   regenerateTypeIDs,
   traverseFreeVarsTy,
   typeIDs,
@@ -84,40 +88,47 @@ import Primer.Core.Type.Utils (
  )
 import Primer.Name (Name)
 
--- | Regenerate all IDs, not changing any other metadata
-regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b -> m (Expr' a b)
-regenerateExprIDs = regenerateExprIDs' (set _id) (set _id)
+-- | Regenerate all IDs (including in types and kinds), not changing any other metadata
+regenerateExprIDs :: (HasID a, HasID b, HasID c, MonadFresh ID m) => Expr' a b c -> m (Expr' a b c)
+regenerateExprIDs = regenerateExprIDs' (set _id) (set _id) (set _id)
 
-regenerateExprIDs' :: MonadFresh ID m => (ID -> a -> a') -> (ID -> b -> b') -> Expr' a b -> m (Expr' a' b')
-regenerateExprIDs' se st =
+regenerateExprIDs' ::
+  MonadFresh ID m =>
+  (ID -> a -> a') ->
+  (ID -> b -> b') ->
+  (ID -> c -> c') ->
+  Expr' a b c ->
+  m (Expr' a' b' c')
+regenerateExprIDs' se st sk =
   traverseOf _exprMeta (\a -> flip se a <$> fresh)
     >=> traverseOf _exprTypeMeta (\a -> flip st a <$> fresh)
+    >=> traverseOf _exprKindMeta (\a -> flip sk a <$> fresh)
 
 -- | Like 'generateTypeIDs', but for expressions
-generateIDs :: MonadFresh ID m => Expr' () () -> m Expr
-generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta)
+generateIDs :: MonadFresh ID m => Expr' () () () -> m Expr
+generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta) (const . trivialMetaUnit)
 
 -- | Like 'forgetTypeMetadata', but for expressions
-forgetMetadata :: Expr' a b -> Expr' () ()
-forgetMetadata = set _exprTypeMeta () . set _exprMeta ()
+forgetMetadata :: Expr' a b c -> Expr' () () ()
+forgetMetadata = set _exprKindMeta () . set _exprTypeMeta () . set _exprMeta ()
 
 -- Both term and type vars, but not constructors or global variables.
 -- This is because constructor names and global variables are never
 -- captured by lambda bindings etc (since they are looked up in a different
 -- namespace)
-freeVars :: Expr' a b -> Set Name
+freeVars :: Expr' a b c -> Set Name
 freeVars = setOf $ _freeVars % (_Left % _2 % to unLocalName `summing` _Right % _2 % to unLocalName)
 
 -- We can't offer a traversal, as we can't enforce replacing term vars with
 -- terms and type vars with types. Use _freeTmVars and _freeTyVars for
 -- traversals.
-_freeVars :: Fold (Expr' a b) (Either (a, LVarName) (b, TyVarName))
+_freeVars :: Fold (Expr' a b c) (Either (a, LVarName) (b, TyVarName))
 _freeVars = getting _freeTmVars % to Left `summing` getting _freeTyVars % to Right
 
-_freeTmVars :: Traversal (Expr' a b) (Expr' a b) (a, LVarName) (Expr' a b)
+_freeTmVars :: Traversal (Expr' a b c) (Expr' a b c) (a, LVarName) (Expr' a b c)
 _freeTmVars = traversalVL $ go mempty
   where
-    go :: Applicative f => Set LVarName -> ((a, LVarName) -> f (Expr' a b)) -> Expr' a b -> f (Expr' a b)
+    go :: Applicative f => Set LVarName -> ((a, LVarName) -> f (Expr' a b c)) -> Expr' a b c -> f (Expr' a b c)
     go bound f = \case
       Hole m e -> Hole m <$> go bound f e
       t@EmptyHole{} -> pure t
@@ -146,10 +157,10 @@ _freeTmVars = traversalVL $ go mempty
       where
         freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go (S.union bound $ S.fromList $ map bindName binds) f e
 
-_freeTyVars :: Traversal (Expr' a b) (Expr' a b) (b, TyVarName) (Type' b)
+_freeTyVars :: Traversal (Expr' a b c) (Expr' a b c) (b, TyVarName) (Type' b c)
 _freeTyVars = traversalVL $ go mempty
   where
-    go :: Applicative f => Set TyVarName -> ((b, TyVarName) -> f (Type' b)) -> Expr' a b -> f (Expr' a b)
+    go :: Applicative f => Set TyVarName -> ((b, TyVarName) -> f (Type' b c)) -> Expr' a b c -> f (Expr' a b c)
     go bound f = \case
       Hole m e -> Hole m <$> go bound f e
       t@EmptyHole{} -> pure t
@@ -177,9 +188,9 @@ _freeTyVars = traversalVL $ go mempty
       where
         freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go bound f e -- case branches only bind term variables
 
-freeGlobalVars :: (Data a, Data b) => Expr' a b -> Set GVarName
+freeGlobalVars :: (Data a, Data b, Data c) => Expr' a b c -> Set GVarName
 freeGlobalVars e = S.fromList [v | Var _ (GlobalVarRef v) <- universe e]
 
 -- | Traverse the 'ID's in an 'Expr''.
-exprIDs :: (HasID a, HasID b) => Traversal' (Expr' a b) ID
-exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
+exprIDs :: (HasID a, HasID b, HasID c) => Traversal' (Expr' a b c) ID
+exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id) `adjoin` (_exprKindMeta % _id)

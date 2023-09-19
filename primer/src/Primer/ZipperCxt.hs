@@ -30,11 +30,12 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata)
 import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
+  KindTZ,
   TypeZ,
   TypeZip,
   asZipper,
@@ -43,6 +44,7 @@ import Primer.Zipper (
   prior,
   unfocusType,
  )
+import Primer.Zipper.Nested (unfocusNest)
 
 -- Helper for variablesInScopeExpr: collect variables, most local first,
 -- eliding shadowed variables
@@ -54,9 +56,9 @@ data ShadowedVarsExpr
       -- | Local type variables
       [(TyVarName, Kind' ())]
       -- | Local term variables
-      [(LVarName, Type' ())]
+      [(LVarName, Type' () ())]
       -- | Global variables
-      [(GVarName, Type' ())]
+      [(GVarName, Type' () ())]
   deriving stock (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where
@@ -81,14 +83,14 @@ instance Monoid ShadowedVarsExpr where
 -- Note that type/kind information is extracted from the TypeCache.
 localVariablesInScopeExpr ::
   Either ExprZ TypeZ ->
-  ([(TyVarName, Kind' ())], [(LVarName, Type' ())])
+  ([(TyVarName, Kind' ())], [(LVarName, Type' () ())])
 localVariablesInScopeExpr exprOrTy =
   let M tyvars tmvars _globs = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
    in (reverse tyvars, reverse tmvars) -- keep most-global first
 
 extractLocalsTypeZ :: TypeZ -> ShadowedVarsExpr
 extractLocalsTypeZ z =
-  let x = variablesInScopeTy $ z ^. asZipper
+  let x = variablesInScopeTy $ Left $ z ^. asZipper
       y = unfocusType z
    in -- walkUpExpr will extract binders strictly containing y
       -- (i.e. if y=λs.t, then 's' won't be reported). Since no
@@ -123,14 +125,14 @@ extractLocalsExprZ = foldAbove getBoundHere
       _ -> mempty
 
     -- If a node has no type annotation we assign it type TEmptyHole
-    typeOrHole :: Meta (Maybe TypeCache) -> Type' ()
+    typeOrHole :: Meta (Maybe TypeCache) -> Type' () ()
     typeOrHole (Meta _ t _) = typeOrHole' t
 
-    typeOrHole' :: Maybe TypeCache -> Type' ()
+    typeOrHole' :: Maybe TypeCache -> Type' () ()
     typeOrHole' = maybe (TEmptyHole ()) uncache
 
     -- Extract a Type from a TypeCache
-    uncache :: TypeCache -> Type' ()
+    uncache :: TypeCache -> Type' () ()
     uncache (TCSynthed t) = t
     uncache (TCChkedAt t) = t
     uncache (TCEmb TCBoth{tcSynthed = t}) = t
@@ -156,14 +158,14 @@ instance Monoid ShadowedVarsTy where
 -- | As for 'variablesInScopeExpr', but when you are focussed somewhere inside
 -- a type, rather than somewhere inside an expr
 -- Note that kind information is extracted from the cached kind (for 'TLet')
-variablesInScopeTy :: TypeZip -> [(TyVarName, Kind' ())]
-variablesInScopeTy e =
-  let N vs = foldAbove getBoundHere e
+variablesInScopeTy :: Either TypeZip KindTZ -> [(TyVarName, Kind' ())]
+variablesInScopeTy z =
+  let N vs = foldAbove getBoundHere $ either identity unfocusNest z -- no bindings in kinds
    in reverse vs -- keep most-global first
   where
     getBoundHere :: FoldAbove Type -> ShadowedVarsTy
     getBoundHere t = case current t of
-      TForall _ v k _ -> N [(v, k)]
+      TForall _ v k _ -> N [(v, forgetKindMetadata k)]
       TLet _ v t' b
         | prior t == b -> N [(v, kindOrHoleOf t')]
         | otherwise -> mempty

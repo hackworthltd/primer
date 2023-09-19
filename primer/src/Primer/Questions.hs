@@ -35,9 +35,14 @@ import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidFor
 import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck.Cxt (Cxt, typeDefs)
 import Primer.Zipper (
-  ExprZ,
-  TypeZ,
+  BindLoc' (BindCase),
+  KindTZ,
+  Loc,
+  Loc' (InBind, InExpr, InKind, InType),
   TypeZip,
+  unfocusCaseBind,
+  unfocusKind,
+  unfocusKindT,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
@@ -58,14 +63,14 @@ data Question a where
     ID ->
     Question
       ( ( [(TyVarName, Kind' ())]
-        , [(LVarName, Type' ())]
+        , [(LVarName, Type' () ())]
         )
-      , [(GVarName, Type' ())]
+      , [(GVarName, Type' () ())]
       )
   GenerateName ::
     GVarName ->
     ID ->
-    Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+    Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
     Question [Name]
 
 -- | Collect the typing context for the focused node.
@@ -76,46 +81,50 @@ data Question a where
 -- the third is globals.
 variablesInScopeExpr ::
   DefMap ->
-  Either ExprZ TypeZ ->
-  ([(TyVarName, Kind' ())], [(LVarName, Type' ())], [(GVarName, Type' ())])
-variablesInScopeExpr defs exprOrTy =
-  let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
+  Loc ->
+  ([(TyVarName, Kind' ())], [(LVarName, Type' () ())], [(GVarName, Type' () ())])
+variablesInScopeExpr defs loc =
+  let locals = case loc of
+        InExpr ze -> extractLocalsExprZ ze
+        InType zt -> extractLocalsTypeZ zt
+        InKind zk -> extractLocalsTypeZ $ unfocusKind zk
+        InBind (BindCase zb) -> extractLocalsExprZ $ unfocusCaseBind zb
       globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
 
 generateNameExpr ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
-  Either ExprZ TypeZ ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
+  Loc ->
   m [Name]
--- NB: it makes perfect sense to ask for a type variable (first Either is Right)
--- in a term context (second Either is Left): we could be inserting a LAM.
+-- NB: it makes perfect sense to ask for a type variable (Either is Right)
+-- in a term context (Loc is InExpr): we could be inserting a LAM.
 -- It doesn't make sense to ask for a term variable in a type context,
 -- but it also doesn't harm to support it.
 generateNameExpr tk z = uniquifyMany <$> getAvoidSet z <*> baseNames tk
 
 generateNameTy ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
-  TypeZip ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
+  Either TypeZip KindTZ ->
   m [Name]
 generateNameTy = generateNameTyAvoiding []
 
 generateNameTyAvoiding ::
   MonadReader Cxt m =>
   [Name] ->
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
-  TypeZip ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
+  Either TypeZip KindTZ ->
   m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
 generateNameTyAvoiding avoiding tk z =
-  uniquifyMany <$> ((Set.fromList avoiding <>) <$> mkAvoidForFreshNameTy z) <*> baseNames tk
+  uniquifyMany <$> ((Set.fromList avoiding <>) <$> getAvoidSetTy z) <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
+  Either (Maybe (Type' () ())) (Maybe (Kind' ())) ->
   m [Name]
 baseNames tk = do
   tys <- asks typeDefs
@@ -132,10 +141,17 @@ baseNames tk = do
   where
     headCon = fmap fst . decomposeTAppCon
 
-getAvoidSet :: MonadReader Cxt m => Either ExprZ TypeZ -> m (Set.Set Name)
+getAvoidSet :: MonadReader Cxt m => Loc -> m (Set.Set Name)
 getAvoidSet = \case
-  Left ze -> mkAvoidForFreshName ze
-  Right zt -> mkAvoidForFreshNameTypeZ zt
+  InExpr ze -> mkAvoidForFreshName ze
+  InType zt -> mkAvoidForFreshNameTypeZ zt
+  InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
+  InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
+
+getAvoidSetTy :: MonadReader Cxt m => Either TypeZip KindTZ -> m (Set.Set Name)
+getAvoidSetTy = \case
+  Left zt -> mkAvoidForFreshNameTy zt
+  Right zk -> mkAvoidForFreshNameTy $ unfocusKindT zk
 
 -- | Adds a numeric suffix to a name to be distinct from a given set.
 -- (If the name is already distinct then return it unmodified.)

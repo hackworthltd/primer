@@ -106,9 +106,9 @@ import Data.Tuple.Extra (curry3)
 import Optics (ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
-import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
+import Primer.Action (ActionError (ParamNotFound), ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
-import Primer.Action.ProgError (ProgError (NodeIDNotFound, ParamNotFound, TypeDefConFieldNotFound))
+import Primer.Action.ProgError (ProgError (ActionError, NodeIDNotFound, TypeDefConFieldNotFound))
 import Primer.App (
   App,
   DefSelection (..),
@@ -178,11 +178,11 @@ import Primer.Core (
   ValConName,
   getID,
   unLocalName,
-  unsafeMkLocalName,
   _bindMeta,
   _exprMetaLens,
   _kindMeta,
   _type,
+  _typeKindMeta,
   _typeMeta,
   _typeMetaLens,
  )
@@ -245,7 +245,13 @@ import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
 import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefKind, typeDefNameHints, typeDefParameters)
 import Primer.TypeDef qualified as TypeDef
-import Primer.Zipper (SomeNode (..), findNodeWithParent, findType)
+import Primer.Zipper (
+  SomeNode (..),
+  findNodeWithParent,
+  findTypeOrKind,
+  focusOnKind,
+  target,
+ )
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -409,8 +415,8 @@ data APILog
   | GetProgram' (ReqResp SessionId Prog)
   | GetProgram (ReqResp SessionId App.Prog)
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
-  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
-  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ())))) (Either ProgError [Name.Name]))
+  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' () ())]), [(GVarName, Type' () ())])))
+  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' () ())) (Maybe (Kind' ())))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
   | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, Maybe NormalOrderOptions, GVarName) EvalFullResp)
@@ -751,7 +757,7 @@ viewProg p =
                           astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
                             ValCon
                               { name = nameCon
-                              , fields = viewTreeType' . over _typeMeta (show . view _id) <$> argsCon
+                              , fields = viewTreeType' . over _typeKindMeta (show . view _id) . over _typeMeta (show . view _id) <$> argsCon
                               }
                   }
             )
@@ -767,10 +773,11 @@ viewProg p =
                         Def.DefPrim d' -> viewTreeType' $ labelNodes $ primDefType d'
                           where
                             labelNodes =
-                              flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do
-                                n <- get
-                                put $ n + 1
-                                pure $ "primtype_" <> Name.unName (Core.baseName name) <> "_" <> show n
+                              let f () = do
+                                    n <- get
+                                    put $ n + 1
+                                    pure $ "primtype_" <> Name.unName (Core.baseName name) <> "_" <> show n
+                               in flip evalState (0 :: Int) . (traverseOf _typeKindMeta f <=< traverseOf _typeMeta f)
                   }
             )
               <$> Map.assocs (moduleDefsQualified m)
@@ -955,11 +962,11 @@ viewTreeExpr e0 = case e0 of
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType = viewTreeType' . over _typeMeta (show . view _id)
+viewTreeType = viewTreeType' . over _typeKindMeta (show . view _id) . over _typeMeta (show . view _id)
 
 -- | Like 'viewTreeType', but with the flexibility to accept arbitrary textual node identifiers,
 -- rather than using the type's numeric IDs.
-viewTreeType' :: Type' Text -> Tree
+viewTreeType' :: Type' Text Text -> Tree
 viewTreeType' t0 = case t0 of
   TEmptyHole _ ->
     Tree
@@ -1006,17 +1013,10 @@ viewTreeType' t0 = case t0 of
   TForall _ n k t ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.TForall $ localName $ unsafeMkLocalName $ withKindAnn $ Name.unName $ unLocalName n
-      , childTrees = [viewTreeType' t]
+      , body = TextBody $ RecordPair Flavor.TForall $ localName n
+      , childTrees = [viewTreeKind' k, viewTreeType' t]
       , rightChild = Nothing
       }
-    where
-      -- TODO this is a placeholder
-      -- for now we expect all kinds in student programs to be `KType`
-      -- but we show something for other kinds, in order to keep rendering injective
-      withKindAnn = case k of
-        KType _ -> identity
-        _ -> (<> (" :: " <> show k))
   TLet _ n t b ->
     Tree
       { nodeId
@@ -1073,14 +1073,14 @@ variablesInScope ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   (GVarName, ID) ->
-  PrimerM m (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+  PrimerM m (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' () ())]), [(GVarName, Type' () ())]))
 variablesInScope = curry $ logAPI (leftResultError VariablesInScope) $ \(sid, (defname, exprid)) ->
   liftQueryAppM (handleQuestion (App.VariablesInScope defname exprid)) sid
 
 generateNames ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
-  ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ()))) ->
+  ((GVarName, ID), Either (Maybe (Type' () ())) (Maybe (Kind' ()))) ->
   PrimerM m (Either ProgError [Name.Name])
 generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defname, exprid), tk)) ->
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
@@ -1342,28 +1342,27 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
             maybe (throw' $ NodeIDNotFound id) (pure . fst) (findNodeWithParent id $ astDefExpr def) <&> \case
               ExprNode e -> viewExprType $ e ^. _exprMetaLens
               TypeNode t -> viewTypeKind $ t ^. _typeMetaLens
+              KindNode k -> viewKindOfKind k
               CaseBindNode b -> viewExprType $ b ^. _bindMeta
           -- sig node selected - get kind from metadata
           SigNode ->
-            maybe (throw' $ NodeIDNotFound id) pure (findType id $ astDefType def) <&> \t ->
-              viewTypeKind $ t ^. _typeMetaLens
+            maybe (throw' $ NodeIDNotFound id) pure (findTypeOrKind id $ astDefType def) <&> \case
+              Left t -> viewTypeKind $ t ^. _typeMetaLens
+              Right k -> viewKindOfKind k
     SelectionTypeDef sel -> do
       def <- snd <$> findASTTypeDef allTypeDefs sel.def
       case sel.node of
         -- type def itself selected - return its kind
         Nothing -> pure $ Kind $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
-        -- param name node selected - return its kind
-        Just (TypeDefParamNodeSelection (TypeDefParamSelection p Nothing)) ->
-          maybe (throw' $ ParamNotFound p) (pure . Kind . viewTreeKind . snd) $
-            find ((== p) . fst) (astTypeDefParameters def)
-        -- param kind node selected - just return `KType`
-        -- This is a slight lie, effectively reporting that kinds are types,
-        -- when this isn't true in Primer (as it is in Haskell with modern GHC's `TypeInType`).
-        -- But Primer also doesn't (explicitly) have an Agda-style infinite hierarchy of types
-        -- `True : Bool : Type0 : Type1 : Type2 : ...` (we don't go beyond `Type0` i.e. `KType`),
-        -- so this is the best that we can easily do.
-        Just (TypeDefParamNodeSelection (TypeDefParamSelection _ (Just _))) ->
-          pure $ Kind $ viewTreeKind' $ KType "kind"
+        Just (TypeDefParamNodeSelection (TypeDefParamSelection p s)) -> do
+          k <- maybe (throw' $ ActionError $ ParamNotFound p) (pure . snd) $ find ((== p) . fst) (astTypeDefParameters def)
+          case s of
+            Nothing ->
+              -- param name node selected - return its kind
+              pure . Kind . viewTreeKind $ k
+            Just i -> do
+              k' <- maybe (throw' $ NodeIDNotFound i) pure $ focusOnKind i k
+              pure $ viewKindOfKind $ target k'
         -- constructor node selected - return the type to which it belongs
         Just (TypeDefConsNodeSelection (TypeDefConsSelection _ Nothing)) ->
           pure . Type . viewTreeType' . mkIds $
@@ -1371,20 +1370,20 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         -- field node selected - return its kind
         Just (TypeDefConsNodeSelection (TypeDefConsSelection c (Just s))) -> do
           t0 <- maybe (throw' $ TypeDefConFieldNotFound sel.def c s.index) pure $ getTypeDefConFieldType def c s.index
-          t <- maybe (throw' $ NodeIDNotFound s.meta) pure $ findType s.meta t0
-          pure $ viewTypeKind $ t ^. _typeMetaLens
+          t <- maybe (throw' $ NodeIDNotFound s.meta) pure $ findTypeOrKind s.meta t0
+          pure $ either (viewTypeKind . view _typeMetaLens) viewKindOfKind t
   where
     trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
     viewExprType :: ExprMeta -> TypeOrKind
     viewExprType = Type . fromMaybe trivialTree . viewExprType'
     viewExprType' :: ExprMeta -> Maybe Tree
     viewExprType' = preview $ _type % _Just % to (viewTreeType' . mkIds . getAPIType)
-    isHole :: Type' a -> Bool
+    isHole :: Type' a b -> Bool
     isHole = \case
       THole{} -> True
       TEmptyHole{} -> True
       _ -> False
-    getAPIType :: TypeCache -> Type' ()
+    getAPIType :: TypeCache -> Type' () ()
     getAPIType = \case
       TCSynthed t -> t
       TCChkedAt t -> t
@@ -1396,11 +1395,19 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         -- if neither is a hole (in which case the two are consistent), we choose the synthed type
         | otherwise -> tcSynthed
     -- We prefix ids to keep them unique from other ids in the emitted program
-    mkIds :: Type' () -> Type' Text
-    mkIds = over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
+    mkIds :: Type' () () -> Type' Text Text
+    mkIds = over _typeKindMeta (show . view _id) . over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
     mkIdsK :: Kind' () -> Kind' Text
     mkIdsK = over _kindMeta (("selkind-" <>) . show . getID) . create' . generateKindIDs
     viewTypeKind :: TypeMeta -> TypeOrKind
     viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
     viewTypeKind' :: TypeMeta -> Maybe Tree
     viewTypeKind' = preview $ _type % _Just % to (viewTreeKind' . mkIdsK)
+    -- If a kind node is selected we just return `KType`
+    -- This is a slight lie, effectively reporting that kinds are types,
+    -- when this isn't true in Primer (as it is in Haskell with modern GHC's `TypeInType`).
+    -- But Primer also doesn't (explicitly) have an Agda-style infinite hierarchy of types
+    -- `True : Bool : Type0 : Type1 : Type2 : ...` (we don't go beyond `Type0` i.e. `KType`),
+    -- so this is the best that we can easily do.
+    viewKindOfKind :: Kind' a -> TypeOrKind
+    viewKindOfKind _ = Kind $ viewTreeKind' $ KType "kind"

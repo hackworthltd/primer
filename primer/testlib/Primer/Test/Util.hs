@@ -44,6 +44,7 @@ import Primer.Core (
   HasID,
   HasMetadata (_metadata),
   ID,
+  KindMeta,
   ModuleName (ModuleName, unModuleName),
   TyConName,
   Type',
@@ -51,12 +52,13 @@ import Primer.Core (
   ValConName,
   Value,
   qualifyName,
-  setID,
+  _exprKindMeta,
   _exprMeta,
   _exprTypeMeta,
+  _typeKindMeta,
   _typeMeta,
  )
-import Primer.Core.Utils (exprIDs)
+import Primer.Core.Utils (exprIDs, typeIDs)
 import Primer.Def (DefMap)
 import Primer.Log (ConvertLogMessage (convert), PureLogT, runPureLogT)
 import Primer.Module (Module (moduleDefs), primitiveModule)
@@ -92,20 +94,20 @@ gvn :: NonEmpty Name -> Name -> GVarName
 gvn = qualifyName . ModuleName
 
 -- | Replace all 'ID's in an Expr with 0.
-zeroIDs :: (HasID a, HasID b) => Expr' a b -> Expr' a b
+zeroIDs :: (HasID a, HasID b, HasID c) => Expr' a b c -> Expr' a b c
 zeroIDs = set exprIDs 0
 
 -- | Replace all 'ID's in a Type with 0.
-zeroTypeIDs :: HasID a => Type' a -> Type' a
-zeroTypeIDs = over _typeMeta (setID 0)
+zeroTypeIDs :: (HasID a, HasID b) => Type' a b -> Type' a b
+zeroTypeIDs = set typeIDs 0
 
 -- | Clear the backend-created metadata (IDs and cached types) in the given expression
-clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
-clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
+clearMeta :: Expr' ExprMeta TypeMeta KindMeta -> Expr' (Maybe Value) (Maybe Value) ()
+clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata) . over _exprKindMeta (const ())
 
 -- | Clear the backend-created metadata (IDs and cached types) in the given expression
-clearTypeMeta :: Type' TypeMeta -> Type' (Maybe Value)
-clearTypeMeta = over _typeMeta (view _metadata)
+clearTypeMeta :: Type' TypeMeta KindMeta -> Type' (Maybe Value) ()
+clearTypeMeta = over _typeMeta (view _metadata) . over _typeKindMeta (const ())
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y

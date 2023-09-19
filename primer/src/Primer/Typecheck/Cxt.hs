@@ -13,7 +13,7 @@ import Primer.Name (Name)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Typecheck.SmartHoles (SmartHoles)
 
-type Type = Type' ()
+type Type = Type' () ()
 
 type Kind = Kind' ()
 

@@ -9,7 +9,6 @@ import Hedgehog.Range qualified as Range
 import Primer.Builtins (tBool, tList)
 import Primer.Core (
   ID (ID),
-  Kind' (KType),
   TyVarName,
   Type' (..),
  )
@@ -34,19 +33,19 @@ unit_1 =
 
 unit_2 :: Assertion
 unit_2 =
-  create_ (tforall "a" (KType ()) $ tvar "a")
+  create_ (tforall "a" ktype $ tvar "a")
     @=? substTy'
       "a"
       (create_ $ tcon tBool)
-      (create_ $ tforall "a" (KType ()) $ tvar "a")
+      (create_ $ tforall "a" ktype $ tvar "a")
 
 unit_3 :: Assertion
 unit_3 =
-  create_ (tforall "b" (KType ()) $ tcon tList `tapp` tcon tBool)
+  create_ (tforall "b" ktype $ tcon tList `tapp` tcon tBool)
     @=? substTy'
       "a"
       (create_ $ tcon tBool)
-      (create_ $ tforall "b" (KType ()) $ tcon tList `tapp` tvar "a")
+      (create_ $ tforall "b" ktype $ tcon tList `tapp` tvar "a")
 
 -- Substituting a variable that does not occur free is the identity
 tasty_subst_non_free_id :: Property
@@ -116,10 +115,10 @@ tasty_subst_counter_indep = withDiscards 300 $ propertyWT [] $ inExtendedLocalCx
   j <- forAllT $ ID <$> Gen.int (Range.linear 0 100)
   Alpha (subst i) === Alpha (subst j)
 
-create_ :: S (Type' a) -> Type' ()
+create_ :: S (Type' a b) -> Type' () ()
 create_ = forgetTypeMetadata . create'
 
-substTy' :: TyVarName -> Type' () -> Type' () -> Type' ()
+substTy' :: TyVarName -> Type' () () -> Type' () () -> Type' () ()
 substTy' n s t = evalTestM 0 $ substTy n s t
 
 -- Pick an element from this set, without throwing an error if it is empty

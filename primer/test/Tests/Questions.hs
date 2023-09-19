@@ -42,7 +42,7 @@ import Primer.Typecheck (
   exprTtoExpr,
   synth,
  )
-import Primer.Zipper (ExprZ, TypeZip, down, focus, right)
+import Primer.Zipper (ExprZ, Loc' (InExpr), TypeZip, down, focus, right)
 import Tasty (Property, property)
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
@@ -128,8 +128,8 @@ tasty_shadow_monoid_expr = property $ do
 
 data STE'
   = TyVar (TyVarName, Kind' ())
-  | TmVar (LVarName, Type' ())
-  | Global (GVarName, Type' ())
+  | TmVar (LVarName, Type' () ())
+  | Global (GVarName, Type' () ())
   deriving stock (Show)
 
 nameSTE' :: STE' -> Name
@@ -218,7 +218,7 @@ unit_variablesInScope_case = do
 
 unit_variablesInScope_type :: Assertion
 unit_variablesInScope_type = do
-  let ty = tforall "a" (KType ()) $ tfun (tvar "a") (tapp tEmptyHole tEmptyHole)
+  let ty = tforall "a" ktype $ tfun (tvar "a") (tapp tEmptyHole tEmptyHole)
   hasVariablesType ty pure []
   hasVariablesType ty down [("a", KType ())]
   hasVariablesType ty (down >=> down) [("a", KType ())]
@@ -227,7 +227,7 @@ unit_variablesInScope_type = do
 
 unit_variablesInScope_shadowed :: Assertion
 unit_variablesInScope_shadowed = do
-  let ty = tforall "a" (KFun () (KType ()) (KType ())) $ tforall "b" (KType ()) $ tcon tNat `tfun` tforall "a" (KType ()) (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
+  let ty = tforall "a" (kfun ktype ktype) $ tforall "b" ktype $ tcon tNat `tfun` tforall "a" ktype (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
       expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ emptyHole `ann` (tcon tList `tapp` tvar "d")
       expr = ann expr' ty
   hasVariablesType ty pure []
@@ -245,24 +245,24 @@ unit_variablesInScope_shadowed = do
 -- | Test that if we walk 'path' to some node in 'expr', that node will have
 -- 'expected' in-scope variables.
 -- We start by typechecking the expression, so it is annotated with types.
-hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Type' ())] -> Assertion
+hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Type' () ())] -> Assertion
 hasVariables expr path expected = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
     Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
-      Just z' -> let (_, locals, _) = variablesInScopeExpr mempty (Left z') in locals @?= expected
+      Just z' -> let (_, locals, _) = variablesInScopeExpr mempty (InExpr z') in locals @?= expected
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for type variables inside terms also
-hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind' ())] -> [(LVarName, Type' ())] -> Assertion
+hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind' ())] -> [(LVarName, Type' () ())] -> Assertion
 hasVariablesTyTm expr path expectedTy expectedTm = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
     Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
       Just z' -> do
-        let (tyvars, tmvars, _) = variablesInScopeExpr mempty (Left z')
+        let (tyvars, tmvars, _) = variablesInScopeExpr mempty (InExpr z')
         tyvars @?= expectedTy
         tmvars @?= expectedTm
       Nothing -> assertFailure ""
@@ -272,7 +272,7 @@ hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind' (
 hasVariablesType ty path expected = do
   let t = create' ty
   case path $ focus t of
-    Just z -> variablesInScopeTy z @?= expected
+    Just z -> variablesInScopeTy (Left z) @?= expected
     Nothing -> assertFailure ""
 
 -- Test type-directed names
@@ -293,7 +293,7 @@ unit_hasGeneratedNames_2 = do
   hasGeneratedNamesTy tEmptyHole Nothing pure ["α", "β", "γ"]
   hasGeneratedNamesTy tEmptyHole (Just (KType ())) pure ["α", "β", "γ"]
   hasGeneratedNamesTy tEmptyHole (Just $ KFun () (KType ()) (KType ())) pure ["f", "m", "t"]
-  let ty = tforall "α" (KType ()) tEmptyHole
+  let ty = tforall "α" ktype tEmptyHole
   hasGeneratedNamesTy ty Nothing pure ["β", "γ", "α1"]
   hasGeneratedNamesTy ty (Just (KType ())) pure ["β", "γ", "α1"]
   hasGeneratedNamesTy ty (Just $ KFun () (KType ()) (KType ())) pure ["f", "m", "t"]
@@ -314,12 +314,12 @@ hasGeneratedNamesExpr :: S Expr -> Maybe (S Type) -> (ExprZ -> Maybe ExprZ) -> [
 hasGeneratedNamesExpr expr ty path expected = do
   let (e, t) = create' $ (,) <$> expr <*> sequence ty
   case path $ focus e of
-    Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeMetadata t) (Left z)) defCxt @?= expected
+    Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeMetadata t) (InExpr z)) defCxt @?= expected
     Nothing -> assertFailure ""
 
 hasGeneratedNamesTy :: S Type -> Maybe (Kind' ()) -> (TypeZip -> Maybe TypeZip) -> [Name] -> Assertion
 hasGeneratedNamesTy ty k path expected = do
   let t = create' ty
   case path $ focus t of
-    Just z -> runReader (generateNameTy (Right k) z) defCxt @?= expected
+    Just z -> runReader (generateNameTy (Right k) (Left z)) defCxt @?= expected
     Nothing -> assertFailure ""

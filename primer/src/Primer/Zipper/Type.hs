@@ -1,22 +1,17 @@
-{-# LANGUAGE FunctionalDependencies #-}
-
 -- | This module contains the zipper type @TypeZ@, and functions for
 --  operating on them.
 module Primer.Zipper.Type (
   TypeZip,
   TypeZip',
-  IsZipper (asZipper),
-  focus,
-  target,
-  _target,
-  replace,
   focusOnKind,
+  KindZip',
+  KindZip,
+  KindTZ',
+  KindTZ,
+  unfocusKindT,
+  focusOnlyKindT,
   focusOnTy,
-  top,
-  up,
-  down,
-  left,
-  right,
+  focusOnTy',
   farthest,
   search,
   FoldAbove,
@@ -40,17 +35,8 @@ import Data.Data (Data)
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (
   Zipper,
-  replaceHole,
-  zipper,
  )
-import Data.Generics.Uniplate.Zipper qualified as Z
 import Data.Set qualified as S
-import Optics (
-  over,
-  view,
- )
-import Optics.Lens (Lens', equality', lens)
-import Optics.Traversal (traverseOf)
 import Primer.Core.Meta (
   HasID (..),
   ID,
@@ -60,58 +46,47 @@ import Primer.Core.Meta (
  )
 import Primer.Core.Type (
   Kind',
+  KindMeta,
   Type' (TForall, TLet),
   TypeMeta,
  )
 import Primer.Name (Name)
+import Primer.Zipper.Nested (
+  IsZipper,
+  ZipNest (ZipNest),
+  down,
+  focus,
+  innerZipNest,
+  left,
+  replace,
+  right,
+  target,
+  unfocusNest,
+  up,
+ )
 
 type KindZip' c = Zipper (Kind' c) (Kind' c)
 
-type TypeZip' b = Zipper (Type' b) (Type' b)
+-- | An ordinary zipper for 'Kind's
+type KindZip = KindZip' KindMeta
+
+type TypeZip' b c = Zipper (Type' b c) (Type' b c)
 
 -- | An ordinary zipper for 'Type's
-type TypeZip = TypeZip' TypeMeta
+type TypeZip = TypeZip' TypeMeta KindMeta
 
--- | We want to use up, down, left, right, etc. on 'ExprZ' and 'TypeZ',
--- despite them being very different types. This class enables that, by proxying
--- each method through to the underlying Zipper.
--- @za@ is the user-facing type, i.e. 'ExprZ' or 'TypeZ'.
--- @a@ is the type of targets of the internal zipper, i.e. 'Expr' or 'Type'.
-class Data a => IsZipper za a | za -> a where
-  asZipper :: Lens' za (Z.Zipper a a)
+-- | A zipper for kinds inside types
+type KindTZ' b c = ZipNest (TypeZip' b c) (KindZip' c) (Kind' c)
 
-instance Data a => IsZipper (Z.Zipper a a) a where
-  asZipper = equality'
+type KindTZ = KindTZ' TypeMeta KindMeta
 
-target :: IsZipper za a => za -> a
-target = Z.hole . view asZipper
+-- | Switch from a 'Kind'-in-'Type' zipper back to an 'Type' zipper.
+unfocusKindT :: Data c => KindTZ' b c -> TypeZip' b c
+unfocusKindT = unfocusNest
 
--- | A 'Lens' for the target of a zipper
-_target :: IsZipper za a => Lens' za a
-_target = lens target (flip replace)
-
-up :: IsZipper za a => za -> Maybe za
-up = traverseOf asZipper Z.up
-
-down :: (IsZipper za a) => za -> Maybe za
-down = traverseOf asZipper Z.down
-
-left :: IsZipper za a => za -> Maybe za
-left = traverseOf asZipper Z.left
-
-right :: IsZipper za a => za -> Maybe za
-right = traverseOf asZipper Z.right
-
-top :: IsZipper za a => za -> za
-top = farthest up
-
--- | Convert a normal 'Expr' or 'Type' to a cursored one, focusing on the root
-focus :: (Data a) => a -> Zipper a a
-focus = zipper
-
--- | Replace the node at the cursor with the given value.
-replace :: (IsZipper za a) => a -> za -> za
-replace = over asZipper . replaceHole
+-- | Forget the surrounding type context
+focusOnlyKindT :: KindTZ' b c -> KindZip' c
+focusOnlyKindT = innerZipNest
 
 -- | Focus on the node with the given 'ID', if it exists in the kind
 focusOnKind ::
@@ -136,23 +111,28 @@ focusOnKind' i = fmap snd . search matchesID
 
 -- | Focus on the node with the given 'ID', if it exists in the type
 focusOnTy ::
-  (Data b, HasID b) =>
+  (Data b, HasID b, Data c, HasID c) =>
   ID ->
-  Type' b ->
-  Maybe (Zipper (Type' b) (Type' b))
+  Type' b c ->
+  Maybe (Either (TypeZip' b c) (KindTZ' b c))
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
+-- Note that this may be (@Left@) a type or (@Right@) a kind (inside a 'TForall')
 focusOnTy' ::
-  (Data b, HasID b) =>
+  (Data b, HasID b, Data c, HasID c) =>
   ID ->
-  Zipper (Type' b) (Type' b) ->
-  Maybe (Zipper (Type' b) (Type' b))
+  TypeZip' b c ->
+  Maybe (Either (TypeZip' b c) (KindTZ' b c))
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z
       -- If the current target has the correct ID, return that
-      | getID (target z) == i = Just z
+      | getID (target z) == i = Just $ Left z
+      -- If the current target has a nested kind, search that
+      | TForall m a k t <- target z = do
+          (zk, _) <- search (guarded (== i) . getID) (focus k)
+          pure $ Right $ ZipNest zk $ \k' -> replace (TForall m a k' t) z
       | otherwise = Nothing
 
 -- | Search for a node for which @f@ returns @Just@ something.
@@ -203,28 +183,28 @@ bindersAboveTy = foldAbove getBoundHereUpTy
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: (Data a, Eq a) => Zipper (Type' a) (Type' a) -> S.Set TyVarName
+bindersBelowTy :: (Data a, Eq a, Data b, Eq b) => TypeZip' a b -> S.Set TyVarName
 bindersBelowTy = foldBelow getBoundHereDnTy
 
 -- Get the names bound by this layer of an type for a given child.
-getBoundHereUpTy :: Eq a => FoldAbove (Type' a) -> S.Set TyVarName
+getBoundHereUpTy :: (Eq a, Eq b) => FoldAbove (Type' a b) -> S.Set TyVarName
 getBoundHereUpTy e = getBoundHereTy (current e) (Just $ prior e)
 
 -- Get all names bound by this layer of an type, for any child.
-getBoundHereDnTy :: Eq a => Type' a -> S.Set TyVarName
+getBoundHereDnTy :: (Eq a, Eq b) => Type' a b -> S.Set TyVarName
 getBoundHereDnTy e = getBoundHereTy e Nothing
 
-getBoundHereTy :: Eq a => Type' a -> Maybe (Type' a) -> S.Set TyVarName
+getBoundHereTy :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> S.Set TyVarName
 getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> n) <$> getBoundHereTy' t prev
 
-data LetTypeBinding' a = LetTypeBind TyVarName (Type' a)
+data LetTypeBinding' a b = LetTypeBind TyVarName (Type' a b)
   deriving stock (Eq, Show)
-type LetTypeBinding = LetTypeBinding' TypeMeta
+type LetTypeBinding = LetTypeBinding' TypeMeta KindMeta
 
-letTypeBindingName :: LetTypeBinding' a -> Name
+letTypeBindingName :: LetTypeBinding' a b -> Name
 letTypeBindingName (LetTypeBind n _) = unLocalName n
 
-getBoundHereTy' :: Eq a => Type' a -> Maybe (Type' a) -> [Either TyVarName (LetTypeBinding' a)]
+getBoundHereTy' :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> [Either TyVarName (LetTypeBinding' a b)]
 getBoundHereTy' t prev = case t of
   TForall _ v _ _ -> [Left v]
   TLet _ v rhs b ->

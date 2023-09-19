@@ -39,7 +39,7 @@ import Primer.Core.Utils (_freeVars, _freeVarsTy)
 -- | Attempt to replace all free ocurrences of @x@ in @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
+renameVar :: (Data a, Data b, Data c) => TmVarRef -> TmVarRef -> Expr' a b c -> Maybe (Expr' a b c)
 renameVar x y expr = case expr of
   Lam _ v _
     | sameVarRef v x -> whenNotFreeIn y expr
@@ -98,20 +98,20 @@ renameVar x y expr = case expr of
       guard $ noneOf (typesInExpr % getting _freeVarsTy % _2) (`sameVarRef` y) expr
       descendM (renameVar x y) expr
 
-whenNotFreeIn :: TmVarRef -> Expr' a b -> Maybe (Expr' a b)
+whenNotFreeIn :: TmVarRef -> Expr' a b c -> Maybe (Expr' a b c)
 whenNotFreeIn x e = do
   guard $ notFreeIn x e
   pure e
 
-notFreeIn :: TmVarRef -> Expr' a b -> Bool
+notFreeIn :: TmVarRef -> Expr' a b c -> Bool
 notFreeIn x = noneOf (_freeVars % to (bimap snd snd)) (either (`sameVarRef` x) (`sameVarRef` x))
 
-whenNotFreeInTy :: TyVarName -> Type' b -> Maybe (Type' b)
+whenNotFreeInTy :: TyVarName -> Type' b c -> Maybe (Type' b c)
 whenNotFreeInTy x ty = do
   guard $ notFreeInTy x ty
   pure ty
 
-notFreeInTy :: TyVarName -> Type' b -> Bool
+notFreeInTy :: TyVarName -> Type' b c -> Bool
 notFreeInTy = notElemOf (getting _freeVarsTy % _2)
 
 sameVarRef :: LocalName k -> TmVarRef -> Bool
@@ -122,13 +122,13 @@ sameVar :: LocalName k -> LocalName l -> Bool
 sameVar v v' = unLocalName v == unLocalName v'
 
 -- | As 'renameVar', but specialised to local variables
-renameLocalVar :: (Data a, Data b) => LVarName -> LVarName -> Expr' a b -> Maybe (Expr' a b)
+renameLocalVar :: (Data a, Data b, Data c) => LVarName -> LVarName -> Expr' a b c -> Maybe (Expr' a b c)
 renameLocalVar x y = renameVar (LocalVarRef x) (LocalVarRef y)
 
 -- | Attempt to replace all free ocurrences of @x@ in @t@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameTyVar :: Data a => TyVarName -> TyVarName -> Type' a -> Maybe (Type' a)
+renameTyVar :: (Data a, Data b) => TyVarName -> TyVarName -> Type' a b -> Maybe (Type' a b)
 -- We cannot use substTy to implement renaming, as that restricts to b~(), so as to not
 -- duplicate metadata. But for renaming, we know that will not happen.
 renameTyVar x y ty = case ty of
@@ -155,7 +155,7 @@ renameTyVar x y ty = case ty of
 -- | Attempt to replace all free ocurrences of @x@ in some type inside @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameTyVarExpr :: forall a b. (Data a, Data b) => TyVarName -> TyVarName -> Expr' a b -> Maybe (Expr' a b)
+renameTyVarExpr :: forall a b c. (Data a, Data b, Data c) => TyVarName -> TyVarName -> Expr' a b c -> Maybe (Expr' a b c)
 renameTyVarExpr x y expr = case expr of
   Lam _ v _
     | sameVar v x -> pure expr
@@ -208,29 +208,29 @@ renameTyVarExpr x y expr = case expr of
     descendTypeM = traverseOf typesInExpr
 
 -- | Unfold a nested term application into the application head and a list of arguments.
-unfoldApp :: Expr' a b -> (Expr' a b, [Expr' a b])
+unfoldApp :: Expr' a b c -> (Expr' a b c, [Expr' a b c])
 unfoldApp = second reverse . go
   where
     go (App _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
-unfoldTApp :: Type' a -> (Type' a, [Type' a])
+unfoldTApp :: Type' a b -> (Type' a b, [Type' a b])
 unfoldTApp = second reverse . go
   where
     go (TApp _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
 -- | Fold an type-level application head and a list of arguments into a single expression.
-foldTApp :: (Monad m, Foldable t) => m a -> Type' a -> t (Type' a) -> m (Type' a)
+foldTApp :: (Monad m, Foldable t) => m a -> Type' a b -> t (Type' a b) -> m (Type' a b)
 foldTApp m = foldlM $ \a b -> (\m' -> TApp m' a b) <$> m
 
 -- | @mkTAppCon C [X,Y,Z] = C X Y Z@
-mkTAppCon :: TyConName -> [Type' ()] -> Type' ()
+mkTAppCon :: TyConName -> [Type' () ()] -> Type' () ()
 mkTAppCon c = runIdentity . foldTApp (pure ()) (TCon () c)
 
 -- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
-decomposeTAppCon :: Type' a -> Maybe (TyConName, [Type' a])
+decomposeTAppCon :: Type' a b -> Maybe (TyConName, [Type' a b])
 decomposeTAppCon =
   unfoldTApp <&> \case
     (TCon _ con, args) -> Just (con, args)
@@ -238,7 +238,7 @@ decomposeTAppCon =
 
 -- | Split a function type into an array of argument types and the result type.
 -- Takes two arguments: the lhs and rhs of the topmost function node.
-unfoldFun :: Type' a -> Type' a -> (NonEmpty (Type' a), Type' a)
+unfoldFun :: Type' a b -> Type' a b -> (NonEmpty (Type' a b), Type' a b)
 unfoldFun a (TFun _ b c) =
   let (argTypes, resultType) = unfoldFun b c
    in (NE.cons a argTypes, resultType)

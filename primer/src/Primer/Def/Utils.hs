@@ -47,7 +47,7 @@ globalInUse v =
     (Set.member v)
 
 -- | Is this type (including any of its constructors) in use in the given definitions?
-typeInUse :: (Foldable f, Foldable g, Data a', Ord a') => TyConName -> ASTTypeDef a b -> f (TypeDef a' b') -> g Def -> Bool
+typeInUse :: (Foldable f, Foldable g, Data a', Ord a', Data b') => TyConName -> ASTTypeDef a b -> f (TypeDef a' b') -> g Def -> Bool
 typeInUse defName def ts ds =
   anyOf
     (folded % #_TypeDefAST % to tyConsInTypeDef)

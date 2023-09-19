@@ -20,6 +20,7 @@ module Primer.Action (
   uniquifyDefName,
   toProgActionInput,
   toProgActionNoInput,
+  applyActionsToParam,
   applyActionsToField,
   insertSubseqBy,
 ) where
@@ -32,6 +33,7 @@ import Data.Bifunctor.Swap qualified as Swap
 import Data.Bitraversable (bisequence)
 import Data.Functor.Compose (Compose (..))
 import Data.Generics.Product (typed)
+import Data.Generics.Uniplate.Zipper (fromZipper)
 import Data.List (delete, findIndex, insertBy)
 import Data.List.NonEmpty qualified as NE
 import Data.Map (insert)
@@ -39,7 +41,22 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Tuple.Extra ((&&&))
-import Optics (over, set, traverseOf, (%), (?~), (^.), (^?), _Just)
+import Optics (
+  findOf,
+  folded,
+  indices,
+  isnd,
+  over,
+  set,
+  traverseOf,
+  traversed,
+  (%),
+  (%&),
+  (?~),
+  (^.),
+  (^?),
+  _Just,
+ )
 import Primer.Action.Actions (Action (..), BranchMove (Fallback, Pattern), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
@@ -64,6 +81,8 @@ import Primer.Core (
   HasID,
   HasMetadata (_metadata),
   ID,
+  Kind,
+  Kind' (KHole),
   KindMeta,
   LVarName,
   LocalName (LocalName, unLocalName),
@@ -101,6 +120,9 @@ import Primer.Core.DSL (
   con,
   emptyHole,
   hole,
+  kfun,
+  khole,
+  ktype,
   lAM,
   lam,
   let_,
@@ -142,6 +164,7 @@ import Primer.Typecheck (
   checkEverything,
   exprTtoExpr,
   getTypeDefInfo,
+  initialCxt,
   lookupConstructor,
   lookupVar,
   maybeTypeOf,
@@ -153,6 +176,8 @@ import Primer.Zipper (
   CaseBindZ,
   ExprZ,
   IsZipper,
+  KindTZ,
+  KindZ,
   Loc,
   Loc' (..),
   SomeNode (..),
@@ -160,25 +185,28 @@ import Primer.Zipper (
   TypeZip,
   down,
   findNodeWithParent,
-  findType,
+  findTypeOrKind,
   focus,
+  focusKind,
   focusLoc,
   focusOn,
+  focusOnlyKind,
   focusOnlyType,
   focusType,
-  locToEither,
   replace,
   right,
   target,
   top,
   unfocus,
   unfocusExpr,
+  unfocusKindT,
   unfocusLoc,
   unfocusType,
   up,
   updateCaseBind,
   _target,
  )
+import Primer.Zipper.Type (KindZip, focusOnlyKindT)
 import Primer.ZipperCxt (localVariablesInScopeExpr)
 
 -- | Given a definition name and a program, return a unique variant of
@@ -218,17 +246,17 @@ applyActionsToTypeSig ::
   -- | This must be one of the definitions in the @Module@, with its correct name
   (Name, ASTDef) ->
   [Action] ->
-  m (Either ActionError ([Module], TypeZip))
+  m (Either ActionError ([Module], Either TypeZip KindTZ))
 applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m ([Module], TypeZip)
+    go :: ActionM m => m ([Module], Either TypeZip KindTZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldlM (flip applyActionAndSynth) (InType zt) actions)
-      let t = target (top zt)
+      let t = target (top $ either identity unfocusKindT zt)
       e <- check (forgetTypeMetadata t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
           mod' = insertDef mod defName (DefAST def')
@@ -243,7 +271,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
-    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZip
+    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m (Either TypeZip KindTZ)
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
       let unwrapError = throwError $ InternalFailure "applyActionsToTypeSig: failed to unwrap type"
@@ -254,11 +282,46 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
         Nothing -> wrapError
         Just wrappedTy ->
           f wrappedTy >>= \case
-            InType zt -> pure $ focusOnlyType zt
+            InType zt -> pure $ Left $ focusOnlyType zt
+            InKind zk -> pure $ Right (focusOnlyKind zk)
             -- This probably shouldn't happen, but it may be the case that an action accidentally
             -- exits the type and ends up in the outer expression that we have created as a wrapper.
             -- In this case we just refocus on the top of the type.
-            z -> maybe unwrapError (pure . focusOnlyType) (focusType (unfocusLoc z))
+            z -> maybe unwrapError (pure . Left . focusOnlyType) (focusType (unfocusLoc z))
+
+applyActionsToParam ::
+  (MonadFresh ID m, MonadFresh NameCounter m) =>
+  SmartHoles ->
+  (TyVarName, ASTTypeDef TypeMeta KindMeta) ->
+  [Action] ->
+  m (Either ActionError (ASTTypeDef TypeMeta KindMeta, KindZip))
+applyActionsToParam sh (paramName, def) actions = runExceptT $ do
+  zk <- case findOf (#astTypeDefParameters % folded) ((== paramName) . fst) def of
+    Nothing -> throwError $ ParamNotFound paramName
+    Just (_, k) ->
+      -- no action in kinds should care about the context
+      flip runReaderT (initialCxt sh) $
+        withWrappedKind k $ \zk' ->
+          foldlM (flip applyActionAndSynth) (InKind zk') actions
+  let def' =
+        set
+          (#astTypeDefParameters % traversed % isnd %& indices (== paramName))
+          (fromZipper zk)
+          def
+  pure (def', zk)
+  where
+    withWrappedKind :: (MonadError ActionError m, MonadFresh ID m) => Kind -> (KindZ -> m Loc) -> m KindZip
+    withWrappedKind k f = do
+      wrappedKind <- ann emptyHole (tforall "a" (pure k) tEmptyHole)
+      let unwrapError = throwError $ InternalFailure "applyActionsToParam: failed to unwrap kind"
+          wrapError = throwError $ InternalFailure "applyActionsToParam: failed to wrap kind"
+          focusedKind = focusKind <=< focusType $ focus wrappedKind
+      case focusedKind of
+        Nothing -> wrapError
+        Just wrappedK ->
+          f wrappedK >>= \case
+            InKind zk -> pure $ focusOnlyKindT $ focusOnlyKind zk
+            z -> maybe unwrapError pure (fmap (focusOnlyKindT . focusOnlyKind) . focusKind <=< focusType $ unfocusLoc z)
 
 applyActionsToField ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
@@ -325,6 +388,7 @@ refocus Refocus{pre, post} = do
         TC.SmartHoles -> case pre of
           InExpr e -> candidateIDsExpr $ target e
           InType t -> candidateIDsType t
+          InKind k -> [getID k]
           InBind (BindCase ze) -> [getID ze]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
@@ -381,10 +445,9 @@ applyActionAndCheck ty action z = do
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
 -- We take a list of the modules that should be in scope for the test.
-applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
+applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError Loc)
 applyActionsToExpr sh modules expr actions =
   foldlM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
-    <&> locToEither
     & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT -- catch any errors
 
@@ -420,6 +483,7 @@ applyAction' a = case a of
   Move m -> \case
     InExpr z -> InExpr <$> moveExpr m z
     InType z -> InType <$> moveType m z
+    InKind z -> InKind <$> moveKind m z
     z@(InBind _) -> case m of
       -- If we're moving up from a binding, then shift focus to the nearest parent expression.
       -- This is exactly what 'unfocusLoc' does if the 'Loc' is a binding.
@@ -428,10 +492,12 @@ applyAction' a = case a of
   Delete -> \case
     InExpr ze -> InExpr . flip replace ze <$> emptyHole
     InType zt -> InType . flip replace zt <$> tEmptyHole
+    InKind zk -> InKind . flip replace zk <$> khole
     InBind _ -> throwError $ CustomFailure Delete "Cannot delete a binding"
   SetMetadata d -> \case
     InExpr ze -> pure $ InExpr $ setMetadata d ze
     InType zt -> pure $ InType $ setMetadata d zt
+    InKind zk -> pure $ InKind $ setMetadata d zk
     InBind (BindCase zb) -> pure $ InBind $ BindCase $ setMetadata d zb
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
@@ -473,14 +539,17 @@ applyAction' a = case a of
   RenameCaseBinding x -> \case
     InBind (BindCase z) -> InBind . BindCase <$> renameCaseBinding x z
     _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
-  ConstructKType -> const $ throwError $ CustomFailure ConstructKType "kind edits currently only allowed in typedefs"
-  ConstructKFun -> const $ throwError $ CustomFailure ConstructKFun "kind edits currently only allowed in typedefs"
+  ConstructKType -> kindAction constructKType "cannot construct the kind 'Type' - not in kind"
+  ConstructKFun -> kindAction constructKFun "cannot construct the arrow kind - not in kind"
   where
     termAction f s = \case
       InExpr ze -> InExpr <$> f ze
       _ -> throwError $ CustomFailure a s
     typeAction f s = \case
       InType zt -> InType <$> f zt
+      _ -> throwError $ CustomFailure a s
+    kindAction f s = \case
+      InKind zt -> InKind <$> f zt
       _ -> throwError $ CustomFailure a s
 
 setCursor :: MonadError ActionError m => ID -> ExprZ -> m Loc
@@ -519,11 +588,17 @@ moveExpr Child2 z
       throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
 moveExpr m z = move m z
 
--- | Apply a movement to a zipper
+-- | Apply a movement to a type zipper
 moveType :: MonadError ActionError m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
 moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
 moveType m z = move m z
+
+-- | Apply a movement to a kind zipper
+moveKind :: MonadError ActionError m => Movement -> KindZ -> m KindZ
+moveKind m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in kinds (there are no cases in kinds!)"
+moveKind m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in kinds (there are no constructors in kinds)"
+moveKind m z = move m z
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch, or into an argument of a constructor
@@ -794,6 +869,7 @@ getFocusType ze = case maybeTypeOf $ target ze of
      in synthZ (InExpr ze) `catchError` handler >>= \case
           Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
           Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
+          Just (InKind _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a kind after typechecking"
           Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
           Just (InExpr ze') -> case maybeTypeOf $ target ze' of
             Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
@@ -1036,7 +1112,7 @@ constructTForall mx zt = do
     Nothing -> LocalName <$> mkFreshNameTy zt
     Just x -> pure (unsafeMkLocalName x)
   unless (isFreshTy x $ target zt) $ throwError NameCapture
-  flip replace zt <$> tforall x (C.KType ()) (pure (target zt))
+  flip replace zt <$> tforall x ktype (pure (target zt))
 
 constructTApp :: MonadFresh ID m => TypeZ -> m TypeZ
 constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole
@@ -1054,6 +1130,14 @@ renameForall b zt = case target zt of
             throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
+
+constructKType :: (MonadFresh ID m, MonadError ActionError m) => KindZ -> m KindZ
+constructKType zk = case target zk of
+  KHole _ -> flip replace zk <$> ktype
+  _ -> throwError $ CustomFailure ConstructKType "can only construct the kind 'Type' in hole"
+
+constructKFun :: MonadFresh ID m => KindZ -> m KindZ
+constructKFun zk = flip replace zk <$> ktype `kfun` pure (target zk)
 
 -- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
 toProgActionNoInput ::
@@ -1100,13 +1184,15 @@ toProgActionNoInput defs def0 sel0 = \case
         let id = field.meta
         vc <- maybeToEither (ValConNotFound tName vcName) $ find ((== vcName) . valConName) $ astTypeDefConstructors def
         t <- maybeToEither (FieldIndexOutOfBounds vcName field.index) $ flip atMay field.index $ valConArgs vc
-        case findType id t of
-          Just t' -> pure $ forgetTypeMetadata t'
+        case findTypeOrKind id t of
+          Just (Left t') -> pure $ forgetTypeMetadata t'
+          Just (Right k) -> Left $ NeedType $ KindNode k
           Nothing -> Left $ IDNotFound id
       Right def -> do
         id <- nodeID
-        forgetTypeMetadata <$> case findType id $ astDefType def of
-          Just t -> pure t
+        forgetTypeMetadata <$> case findTypeOrKind id $ astDefType def of
+          Just (Left t) -> pure t
+          Just (Right k) -> Left $ NeedType $ KindNode k
           Nothing -> case map fst $ findNodeWithParent id $ astDefExpr def of
             Just (TypeNode t) -> pure t
             Just sm -> Left $ NeedType sm
@@ -1200,7 +1286,7 @@ toProgActionNoInput defs def0 sel0 = \case
         SelectionTypeDef sel -> case sel.node of
           Just (TypeDefParamNodeSelection _) -> do
             (t, p, id) <- typeParamKindSel
-            pure [ParamKindAction t p id actions]
+            pure [ParamKindAction t p $ SetCursor id : actions]
           Just (TypeDefConsNodeSelection _) -> do
             (t, c, f) <- conFieldSel
             pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]

@@ -72,6 +72,7 @@ import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
 import Control.Monad.Trans (MonadTrans)
+import Data.Bitraversable (bitraverse)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
@@ -106,6 +107,7 @@ import Optics (
   (^.),
   (^?),
   _Just,
+  _Left,
  )
 import Optics.State.Operators ((<<%=))
 import Primer.Action (
@@ -115,6 +117,7 @@ import Primer.Action (
   applyAction',
   applyActionsToBody,
   applyActionsToField,
+  applyActionsToParam,
   applyActionsToTypeSig,
   insertSubseqBy,
  )
@@ -144,6 +147,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
+  Kind,
   Kind' (..),
   KindMeta,
   LocalName (LocalName, unLocalName),
@@ -174,10 +178,20 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
-import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (
+  freeVars,
+  generateKindIDs,
+  generateTypeIDs,
+  regenerateExprIDs,
+  regenerateKindIDs,
+  regenerateTypeIDs,
+  _freeTmVars,
+  _freeTyVars,
+  _freeVarsTy,
+ )
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -233,10 +247,15 @@ import Primer.Typecheck (
  )
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
+  BindLoc' (BindCase),
   ExprZ,
-  Loc' (InBind, InExpr, InType),
+  KindTZ,
+  KindZ,
+  Loc,
+  Loc' (InBind, InExpr, InKind, InType),
   TypeZ,
   TypeZip,
+  caseBindZMeta,
   current,
   focusLoc,
   focusOn,
@@ -247,10 +266,11 @@ import Primer.Zipper (
   getBoundHere,
   getBoundHereUp,
   getBoundHereUpTy,
-  locToEither,
   replace,
   target,
   unfocusExpr,
+  unfocusKind,
+  unfocusKindT,
   unfocusType,
   _target,
  )
@@ -527,19 +547,19 @@ handleQuestion = \case
       focusNode prog defname nodeid
 
 -- This only looks in the editable modules, not in any imports
-focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
     Just def ->
-      let mzE = locToEither <$> focusOn nodeid (astDefExpr def)
+      let mzE = focusOn nodeid (astDefExpr def)
           mzT = focusOnTy nodeid $ astDefType def
        in case fmap Left mzE <|> fmap Right mzT of
             Nothing -> throwError $ ActionError (IDNotFound nodeid)
@@ -713,7 +733,7 @@ applyProgAction prog = \case
                   TCEmb (TCBoth t1 t2) -> TCEmb (TCBoth (updateType t1) (updateType t2))
             )
       updateName n = if n == old then new else n
-      updateType :: Data a => Type' a -> Type' a
+      updateType :: (Data a, Data b) => Type' a b -> Type' a b
       updateType = transform $ over (#_TCon % _2) updateName
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -760,7 +780,7 @@ applyProgAction prog = \case
         def
           & traverseOf
             #astTypeDefParameters
-            ( maybe (throwError $ ParamNotFound old) pure
+            ( maybe (throwError $ ActionError $ ParamNotFound old) pure
                 . findAndAdjust ((== old) . fst) (_1 .~ new)
             )
       updateConstructors =
@@ -928,7 +948,7 @@ applyProgAction prog = \case
               ( \ps -> do
                   unless
                     (paramName `elem` map fst ps)
-                    (throwError $ ParamNotFound paramName)
+                    (throwError $ ActionError $ ParamNotFound paramName)
                   pure $ filter ((/= paramName) . fst) ps
               )
               td
@@ -943,7 +963,11 @@ applyProgAction prog = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (def', z) -> do
-        let meta = bimap (view _exprMetaLens . target) (Left . view _typeMetaLens . target) $ locToEither z
+        let meta = case z of
+              InExpr ze -> Left $ ze ^. _target % _exprMetaLens
+              InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
+              InKind zk -> Right $ Right $ zk ^. _target % _kindMetaLens
+              InBind (BindCase zb) -> Left $ zb ^. caseBindZMeta
         pure
           ( insertDef m defName (DefAST def')
           , Just . SelectionDef $
@@ -960,8 +984,8 @@ applyProgAction prog = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (mod', zt) -> do
-        let node = target zt
-            meta = view _typeMetaLens node
+        let node = bimap target target zt
+            meta = bimap (view _typeMetaLens) (view _kindMetaLens) node
          in pure
               ( mod'
               , Just . SelectionDef $
@@ -969,7 +993,7 @@ applyProgAction prog = \case
                     Just
                       NodeSelection
                         { nodeType = SigNode
-                        , meta = Right $ Left meta
+                        , meta = Right meta
                         }
               )
   ConFieldAction tyName con index actions -> editModuleOfCrossType (Just tyName) prog $ \ms defName def -> do
@@ -997,43 +1021,30 @@ applyProgAction prog = \case
                             }
                   }
           )
-  ParamKindAction tyName paramName id actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
-    def' <-
-      def
-        & traverseOf
-          #astTypeDefParameters
-          ( maybe (throwError $ ParamNotFound paramName) pure
-              <=< findAndAdjustA
-                ((== paramName) . fst)
-                ( traverseOf _2 $
-                    flip
-                      ( foldlM $ flip \case
-                          ConstructKType -> modifyKind $ replaceHole ConstructKType ktype
-                          ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
-                          Delete -> modifyKind $ const khole
-                          a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
-                      )
-                      actions
-                )
+  ParamKindAction tyName paramName actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
+    let smartHoles = progSmartHoles prog
+    res <- applyActionsToParam smartHoles (paramName, def) actions
+    case res of
+      Left err -> throwError $ ActionError err
+      Right (def', kz) -> do
+        let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
+            imports = progImports prog
+        mods' <-
+          runExceptT
+            ( runReaderT
+                (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
+                (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+            )
+            >>= either (throwError . ActionError) pure
+        pure
+          ( mods'
+          , Just $
+              SelectionTypeDef $
+                TypeDefSelection tyName $
+                  Just $
+                    TypeDefParamNodeSelection $
+                      TypeDefParamSelection{param = paramName, kindMeta = Just $ Right $ Right $ kz ^. _target % _kindMetaLens}
           )
-    let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
-        imports = progImports prog
-        smartHoles = progSmartHoles prog
-    mods' <-
-      runExceptT
-        ( runReaderT
-            (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
-            (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
-        )
-        >>= either (throwError . ActionError) pure
-    pure (mods', Nothing)
-    where
-      modifyKind f k = fromMaybe (throwError' $ IDNotFound id) $ do
-        k' <- focusOnKind id k
-        pure $ fromZipper . flip replace k' <$> f (target k')
-      replaceHole a r = \case
-        KHole{} -> r
-        _ -> throwError' $ CustomFailure a "can only construct this kind in a hole"
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
@@ -1503,9 +1514,12 @@ copyPasteSig :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   c' <- focusNodeImports p fromDefName fromTyId
   c <- case c' of
-    Left (Left _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
-    Left (Right zt) -> pure $ Left zt
-    Right zt -> pure $ Right zt
+    Left (InExpr _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
+    Left (InType zt) -> pure $ Left $ Left zt
+    Left (InKind zk) -> pure $ Right $ Left zk
+    Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
+    Right (Left zt) -> pure $ Left $ Right zt
+    Right (Right zk) -> pure $ Right $ Right zk
   let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
@@ -1521,21 +1535,36 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
       Right (_, tgt) -> pure tgt
     let sharedScope =
           if fromDefName == toDefName
-            then getSharedScopeTy c $ Right tgt
+            then -- We rely here on the fact that there are no binders in kinds
+
+              getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c) $
+                Right $
+                  either identity unfocusKindT tgt
             else mempty
-    -- Delete unbound vars
-    let cTgt = either target target c
+    -- Delete unbound vars (nb: no vars in kinds)
+    let cTgt = bimap (either target target) (either target target) c
         f (m, n) =
           if Set.member (unLocalName n) sharedScope
             then pure $ TVar m n
             else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
-    cScoped <- traverseOf _freeVarsTy f cTgt
-    freshCopy <- regenerateTypeIDs cScoped
-    pasted <- case target tgt of
-      TEmptyHole _ -> pure $ replace freshCopy tgt
+    cScoped <- traverseOf (_Left % _freeVarsTy) f cTgt
+    freshCopy <- bitraverse regenerateTypeIDs regenerateKindIDs cScoped
+    pasted <- case (tgt, freshCopy) of
+      (Left _, Right _) -> throwError $ CopyPasteError "tried to paste a kind into a type"
+      (Right _, Left _) -> throwError $ CopyPasteError "tried to paste a type into a kind"
+      (Left tgt'@(target -> TEmptyHole _), Left fc) -> pure $ Left $ replace fc tgt'
+      (Right tgt'@(target -> KHole _), Right fc) -> pure $ Right $ replace fc tgt'
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-    let newDef = oldDef{astDefType = fromZipper pasted}
-    let newSel = NodeSelection SigNode (Right $ Left $ pasted ^. _target % _typeMetaLens)
+    let newDef = oldDef{astDefType = either fromZipper (fromZipper . unfocusKindT) pasted}
+    let newSel =
+          NodeSelection
+            SigNode
+            ( Right $
+                bimap
+                  (view $ _target % _typeMetaLens)
+                  (view $ _target % _kindMetaLens)
+                  pasted
+            )
     pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
   liftError ActionError $ tcWholeProg finalProg
 
@@ -1611,8 +1640,13 @@ tcWholeProg p = do
         Just sel@NodeSelection{nodeType} -> do
           n <- runExceptT $ focusNode p' defName_ $ getID sel
           case (nodeType, n) of
-            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ bimap (view _exprMetaLens . target) (Left . view _typeMetaLens . target) x
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
+            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ case x of
+              InExpr ze -> Left $ view _exprMetaLens $ target ze
+              InType zt -> Right $ Left $ view _typeMetaLens $ target zt
+              InKind zk -> Right $ Right $ view _kindMetaLens $ target zk
+              InBind (BindCase zb) -> Left $ view caseBindZMeta zb
+            (SigNode, Right (Right (Left x))) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
+            (SigNode, Right (Right (Right zk))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ zk ^. _target % _kindMetaLens
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
@@ -1647,12 +1681,12 @@ tcWholeProg p = do
                     conSel & over #field \case
                       Nothing -> Nothing
                       Just fieldSel ->
-                        flip (set #meta) fieldSel . (Right . Left . (^. _typeMetaLens)) <$> do
+                        flip (set #meta) fieldSel . Right <$> do
                           ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
                           id <- case fieldSel.meta of
                             Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
                             Right m -> pure $ getID m
-                          target <$> focusOnTy id ty
+                          bimap (view $ _target % _typeMetaLens) (view $ _target % _kindMetaLens) <$> focusOnTy id ty
       pure $
         Just $
           SelectionTypeDef $
@@ -1674,14 +1708,40 @@ tcWholeProgWithImports p = do
   imports <- checkEverything (progSmartHoles p) CheckEverything{trusted = mempty, toCheck = progImports p}
   tcWholeProg $ p & #progImports .~ imports
 
+data CPB
+  = ExprInBody ExprZ
+  | Type CPBT
+  | Kind CPBK
+data CPBT
+  = TypeInBody TypeZ
+  | TypeInSig TypeZip
+data CPBK
+  = KindInBody KindZ
+  | KindInSig KindTZ
+cpbtToEither :: CPBT -> Either TypeZ TypeZip
+cpbtToEither = \case
+  TypeInBody t -> Left t
+  TypeInSig t -> Right t
+cpbtTarget :: CPBT -> Type
+cpbtTarget = \case
+  TypeInBody t -> target t
+  TypeInSig t -> target t
+cpbkTarget :: CPBK -> Kind
+cpbkTarget = \case
+  KindInBody k -> target k
+  KindInSig k -> target k
+
 copyPasteBody :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src' <- focusNodeImports p fromDefName fromId
-  -- reassociate so get Expr+(Type+Type), rather than (Expr+Type)+Type
-  let src = case src' of
-        Left (Left e) -> Left e
-        Left (Right t) -> Right (Left t)
-        Right t -> Right (Right t)
+  -- unpack and reassociate
+  src <- case src' of
+    Left (InExpr e) -> pure $ ExprInBody e
+    Left (InType t) -> pure $ Type (TypeInBody t)
+    Left (InKind k) -> pure $ Kind (KindInBody k)
+    Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
+    Right (Left t) -> pure $ Type (TypeInSig t)
+    Right (Right k) -> pure $ Kind (KindInSig k)
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     -- We manually use the low-level applyAction', as we do not want to
     -- typecheck intermediate states. There are two reasons for this, both
@@ -1710,16 +1770,29 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         -- SH not important here, cxt only used to lookup global vars and ctors
         & flip runReaderT (buildTypingContextFromModules (progAllModules p) NoSmartHoles)
     case (src, tgt) of
-      (_, InBind _) -> throwError $ CopyPasteError "tried to paste an expression into a binder"
-      (Left _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
-      (Right _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
-      (Right srcT, InType tgtT) -> do
+      (_, InBind _) -> throwError $ CopyPasteError "tried to paste into a binder"
+      (ExprInBody _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
+      (ExprInBody _, InKind _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
+      (Type _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
+      (Type _, InKind _) -> throwError $ CopyPasteError "tried to paste a type into an kind"
+      (Kind _, InExpr _) -> throwError $ CopyPasteError "tried to paste a kind into an expression"
+      (Kind _, InType _) -> throwError $ CopyPasteError "tried to paste a kind into an type"
+      (Kind srcK, InKind tgtK) -> case target tgtK of
+        KHole _ -> do
+          -- Since there are no binders or variables in kinds, we can simply duplicate into the target
+          freshCopy <- regenerateKindIDs $ cpbkTarget srcK
+          let pasted = replace freshCopy tgtK
+          let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType $ unfocusKind pasted}
+          let newSel = NodeSelection BodyNode $ Right $ Right $ pasted ^. _target % _kindMetaLens
+          pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
+        _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
+      (Type srcT, InType tgtT) -> do
         let sharedScope =
               if fromDefName == toDefName
-                then getSharedScopeTy srcT $ Left tgtT
+                then getSharedScopeTy (cpbtToEither srcT) $ Left tgtT
                 else mempty
         -- Delete unbound vars. TODO: we may want to let-bind them?
-        let srcSubtree = either target target srcT
+        let srcSubtree = cpbtTarget srcT
             f (m, n) =
               if Set.member (unLocalName n) sharedScope
                 then pure $ TVar m n
@@ -1732,7 +1805,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
         let newSel = NodeSelection BodyNode $ Right $ Left $ pasted ^. _target % _typeMetaLens
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (SelectionDef $ DefSelection toDefName $ Just newSel))
-      (Left srcE, InExpr tgtE) -> do
+      (ExprInBody srcE, InExpr tgtE) -> do
         let sharedScope =
               if fromDefName == toDefName
                 then getSharedScope srcE tgtE
@@ -1822,7 +1895,7 @@ alterTypeDef f type_ m = do
 transformCaseBranches ::
   MonadEdit m ProgError =>
   TyConName ->
-  (Maybe (Type' ()) -> ([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
+  (Maybe (Type' () ()) -> ([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
   Expr ->
   m Expr
 transformCaseBranches type_ f = transformM $ \case
@@ -1843,7 +1916,7 @@ transformCaseBranches type_ f = transformM $ \case
 transformNamedCaseBranches ::
   MonadEdit m ProgError =>
   TyConName ->
-  (Maybe (Type' ()) -> [CaseBranch] -> m [CaseBranch]) ->
+  (Maybe (Type' () ()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
 transformNamedCaseBranches type_ f = transformCaseBranches type_ (\m (bs, fb) -> (,fb) <$> f m bs)
@@ -1855,7 +1928,7 @@ transformNamedCaseBranch ::
   TyConName ->
   ValConName ->
   -- This only supports ADT case branches, since we cannot edit primitives
-  (Maybe (Type' ()) -> CaseBranch -> m CaseBranch) ->
+  (Maybe (Type' () ()) -> CaseBranch -> m CaseBranch) ->
   Expr ->
   m Expr
 transformNamedCaseBranch type_ con f = transformNamedCaseBranches type_ $ \m ->

@@ -3,10 +3,11 @@ module Tests.Zipper where
 
 import Foreword
 
-import Data.Generics.Uniplate.Data (para)
 import Hedgehog hiding (Property, property)
 import Hedgehog.Gen qualified as Gen
+import Optics ((^..))
 import Primer.Core
+import Primer.Core.Utils (exprIDs)
 import Primer.Gen.Core.Raw (
   evalExprGen,
   genExpr,
@@ -25,7 +26,7 @@ tasty_focus_unfocus_roundtrip = property $ do
 tasty_focusOn_unfocus_roundtrip :: Property
 tasty_focusOn_unfocus_roundtrip = property $ do
   e <- forAll $ evalExprGen 0 genExpr
-  i <- forAll $ Gen.element $ idsIn e
+  i <- forAll $ Gen.element $ e ^.. exprIDs
   case focusOn i e of
     Just e' -> unfocus e' === e
     _ -> annotateShow i >> failure
@@ -35,13 +36,10 @@ tasty_focusOn_unfocus_roundtrip = property $ do
 tasty_focusOn_succeeds_on_valid_ids :: Property
 tasty_focusOn_succeeds_on_valid_ids = property $ do
   e <- forAll $ evalExprGen 0 genExpr
-  forM_ (idsIn e) $ \i -> do
+  forM_ (e ^.. exprIDs) $ \i -> do
     case focusOn i e of
       Just (InExpr e') -> getID (target e') === i
       Just (InType t) -> getID (target t) === i
       Just (InBind (BindCase b)) -> getID (target b) === i
+      Just (InKind k) -> getID (target k) === i
       _ -> annotateShow i >> failure
-
--- | The IDs of all nodes in an expression
-idsIn :: Expr -> [ID]
-idsIn = para (\e ids -> getID e : concat ids)

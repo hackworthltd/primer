@@ -144,9 +144,9 @@ unit_2 =
 unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
-        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall "b" (KType ()) (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let b' = "a42" -- NB: fragile name
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
+        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
+        let b' = "a46" -- NB: fragile name
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall b' ktype (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
         s <- evalFullTestExactSteps maxID mempty mempty 12 Syn expr
@@ -972,7 +972,7 @@ unit_type_preservation_BETA_regression =
           lAM "b" $
             lam "x" $
               ( lAM "a" (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` tforall "b" (KType ()) (tcon tNat `tfun` tvar "b")
+                  `ann` tforall "b" ktype (tcon tNat `tfun` tvar "b")
               )
                 `aPP` (tvar "b" `tapp` tcon tBool)
                 `app` lvar "x"
@@ -1049,7 +1049,7 @@ unit_type_preservation_BETA_regression =
         eB <-
           lAM "b" $
             ( lAM "a" (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
-                `ann` tforall "b" (KType ()) (tcon tNat)
+                `ann` tforall "b" ktype (tcon tNat)
             )
               `aPP` tcon tChar
         -- BETA step

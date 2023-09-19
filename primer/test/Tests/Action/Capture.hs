@@ -8,9 +8,6 @@ import Primer.Action (
   ActionError (NameCapture, NeedEmptyHole),
   Movement (..),
  )
-import Primer.Core (
-  Kind' (KType),
- )
 import Primer.Core.DSL
 import Primer.Typecheck (SmartHoles (NoSmartHoles))
 import Test.Tasty.HUnit (Assertion)
@@ -135,23 +132,23 @@ unit_ConstructTForall_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann emptyHole $ tforall "x" (KType ()) $ tvar "x")
+    (ann emptyHole $ tforall "x" ktype $ tvar "x")
     [EnterType, Move Child1, ConstructTForall (Just "x")]
 
 unit_RenameForall_noop :: Assertion
 unit_RenameForall_noop =
   actionTest
     NoSmartHoles
-    (ann emptyHole $ tforall "x" (KType ()) $ tforall "y" (KType ()) $ tvar "x")
+    (ann emptyHole $ tforall "x" ktype $ tforall "y" ktype $ tvar "x")
     [EnterType, Move Child1, RenameForall "y"]
-    (ann emptyHole $ tforall "x" (KType ()) $ tforall "y" (KType ()) $ tvar "x")
+    (ann emptyHole $ tforall "x" ktype $ tforall "y" ktype $ tvar "x")
 
 unit_RenameForall_no_capture :: Assertion
 unit_RenameForall_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann emptyHole $ tforall "x" (KType ()) $ tforall "y" (KType ()) $ tvar "x")
+    (ann emptyHole $ tforall "x" ktype $ tforall "y" ktype $ tvar "x")
     [EnterType, Move Child1, RenameForall "x"]
 
 unit_ty_tm_same_namespace :: Assertion

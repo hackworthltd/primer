@@ -70,6 +70,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
+  Kind,
   Kind' (..),
   KindMeta,
   ModuleName (unModuleName),
@@ -126,11 +127,10 @@ import Primer.Typecheck (
 import Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
-  findType,
+  findTypeOrKind,
   focusOn,
   focusOnKind,
   focusOnTy,
-  locToEither,
   target,
  )
 
@@ -241,6 +241,7 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
      in forType l t <> raiseAction
+  Just (KindNode k, _) -> forKind l k
   Just (CaseBindNode _, _) ->
     [Input RenamePattern]
 
@@ -251,11 +252,12 @@ forSig ::
   ID ->
   [Action]
 forSig _ NonEditable _ _ = mempty
-forSig l Editable ty id = sortByPriority l $ case findType id ty of
+forSig l Editable ty id = sortByPriority l $ case findTypeOrKind id ty of
   Nothing -> mempty
-  Just t ->
+  Just (Left t) ->
     forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
+  Just (Right k) -> forKind l k
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
 forExpr tydefs l expr =
@@ -356,6 +358,12 @@ forType l type_ =
           ]
     delete = [NoInput DeleteType]
 
+forKind :: Level -> Kind -> [Action]
+forKind _ k =
+  [NoInput MakeKFun] <> case k of
+    KHole _ -> [NoInput MakeKType]
+    _ -> [NoInput DeleteKind]
+
 forTypeDef ::
   Level ->
   Editable ->
@@ -419,10 +427,9 @@ forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
   sortByPriority
     l
     $ mwhen (not $ typeInUse tdName td tydefs defs)
-    $ [NoInput MakeKFun] <> case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
+    $ case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
       Nothing -> []
-      Just (KHole _) -> [NoInput MakeKType]
-      Just _ -> [NoInput DeleteKind]
+      Just k -> forKind l k
   where
     findKind i k = target <$> focusOnKind i k
 
@@ -456,8 +463,11 @@ forTypeDefConsFieldNode ::
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
   sortByPriority l $
-    maybe mempty (forType l) (findType id =<< fieldType)
-      <> mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+    mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+      <> case findTypeOrKind id =<< fieldType of
+        Nothing -> mempty
+        Just (Left t) -> forType l t
+        Just (Right k) -> forKind l k
   where
     fieldType = getTypeDefConFieldType td con index
 
@@ -579,7 +589,7 @@ options typeDefs defs cxt level def0 sel0 = \case
     freeVar <$> genNames (Right Nothing)
   RenameForall -> do
     TypeNode (TForall _ _ k _) <- findNode
-    freeVar <$> genNames (Right $ Just k)
+    freeVar <$> genNames (Right $ Just $ forgetKindMetadata k)
   RenameDef ->
     pure $ freeVar []
   RenameType ->
@@ -645,10 +655,12 @@ options typeDefs defs cxt level def0 sel0 = \case
         def <- eitherToMaybe def0
         case nodeSel.nodeType of
           BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
-          SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
+          SigNode -> either TypeNode KindNode <$> findTypeOrKind nodeSel.meta (astDefType def)
       SelectionTypeDef sel -> do
-        (_, zT) <- conField sel
-        pure $ TypeNode $ target zT
+        (_, z) <- conField sel
+        pure $ case z of
+          Left zT -> TypeNode $ target zT
+          Right zK -> KindNode (target zK)
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do
@@ -671,7 +683,7 @@ options typeDefs defs cxt level def0 sel0 = \case
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of
-        BodyNode -> Left . locToEither <$> focusOn nodeSel.meta (astDefExpr def)
+        BodyNode -> Left <$> focusOn nodeSel.meta (astDefExpr def)
         SigNode -> fmap Right $ focusOnTy nodeSel.meta $ astDefType def
     conField sel = do
       (con, field) <- case sel of

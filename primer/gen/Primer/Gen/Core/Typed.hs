@@ -125,9 +125,9 @@ types/expressions, but it is easy to have a post-processing step of adding IDs
 and empty TypeCaches to everything.
 -}
 
-type TypeG = Type' ()
+type TypeG = Type' () ()
 
-type ExprG = Expr' () ()
+type ExprG = Expr' () () ()
 
 newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
   deriving newtype
@@ -338,7 +338,7 @@ justT g = Gen.sized $ \s -> Gen.justT $ Gen.resize s g
 --   @sub ! a = t@ and @apps !! n = Left t@.
 -- - @sub@ is idempotent, and @apps@ do not refer to these names. I.e. the names
 --   in @InstUnconstrainedAPP@ do not appear free in @apps@ or the rhs of @sub@.
-genInstApp :: [Inst] -> GenT WT (Map TyVarName (Type' ()), [Either TypeG ExprG])
+genInstApp :: [Inst] -> GenT WT (Map TyVarName TypeG, [Either TypeG ExprG])
 genInstApp = reify mempty
   where
     reify sb = \case
@@ -358,7 +358,7 @@ genSyn = genSyns (TEmptyHole ())
 --  - the ADT it belongs to (if @c@ maps to @([(p1,k1),(p2,k2)],_,T)@ in the
 --    returned map, then @c [A,B] _ ∈ T A B@ for any @A@ of kind @k1@ and @B@
 --    of kind @k2@)
-allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind' ())], [Type' ()])
+allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind' ())], [TypeG])
 allCons cxt = M.fromList $ concatMap consForTyDef $ typeDefs cxt
   where
     consForTyDef = \case

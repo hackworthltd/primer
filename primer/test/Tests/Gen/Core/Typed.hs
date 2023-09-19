@@ -85,7 +85,7 @@ tasty_genTy = withTests 1000 $
     ty === forgetTypeMetadata ty' -- check no smart holes stuff happened
 
 -- | Lift 'checkKind' into a property
-checkKindTest :: HasCallStack => Kind' () -> Type -> PropertyT WT (Type' (Meta (Kind' ())))
+checkKindTest :: HasCallStack => Kind' () -> Type -> PropertyT WT (Type' (Meta (Kind' ())) (Meta ()))
 checkKindTest k t = do
   x <- lift $ runExceptT @TypeError $ checkKind k t
   case x of
@@ -93,7 +93,7 @@ checkKindTest k t = do
     Right s -> pure s
 
 -- | Lift 'synthKind' into a property
-synthKindTest :: HasCallStack => Type -> PropertyT WT (Kind' (), Type' (Meta (Kind' ())))
+synthKindTest :: HasCallStack => Type -> PropertyT WT (Kind' (), Type' (Meta (Kind' ())) (Meta ()))
 synthKindTest t = do
   x <- lift $ runExceptT @TypeError $ synthKind t
   case x of
@@ -168,7 +168,7 @@ tasty_genSyns = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       tgtTy <- forAllT $ genWTType (KType ())
-      _ :: Type' (Meta (Kind' ())) <- checkKindTest (KType ()) =<< generateTypeIDs tgtTy
+      _ :: Type' (Meta (Kind' ())) (Meta ()) <- checkKindTest (KType ()) =<< generateTypeIDs tgtTy
       (e, ty) <- forAllT $ genSyns tgtTy
       (ty', e') <- synthTest =<< generateIDs e
       annotateShow e'
@@ -182,13 +182,13 @@ tasty_genChk = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       ty <- forAllT $ genWTType (KType ())
-      _ :: Type' (Meta (Kind' ())) <- checkKindTest (KType ()) =<< generateTypeIDs ty
+      _ :: Type' (Meta (Kind' ())) (Meta ()) <- checkKindTest (KType ()) =<< generateTypeIDs ty
       t <- forAllT $ genChk ty
       t' <- checkTest ty =<< generateIDs t
       t === forgetMetadata t' -- check no smart holes stuff happened
 
 -- Lift 'synth' into a property
-synthTest :: HasCallStack => Expr -> PropertyT WT (Type' (), ExprT)
+synthTest :: HasCallStack => Expr -> PropertyT WT (Type' () (), ExprT)
 synthTest e = do
   x <- lift $ runExceptT @TypeError $ synth e
   case x of
@@ -196,7 +196,7 @@ synthTest e = do
     Right y -> pure y
 
 -- Lift 'check' into a property
-checkTest :: HasCallStack => Type' () -> Expr -> PropertyT WT ExprT
+checkTest :: HasCallStack => Type' () () -> Expr -> PropertyT WT ExprT
 checkTest ty t = do
   x <- lift $ runExceptT @TypeError $ check ty t
   case x of
