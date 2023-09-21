@@ -12,7 +12,7 @@ import Primer.Core (Expr' (..), KindMeta, Type' (..), TypeMeta, typesInExpr)
 import Primer.Core.Meta (GVarName, ID, TyConName)
 import Primer.Core.Type.Utils (kindIDs)
 import Primer.Core.Utils (exprIDs, freeGlobalVars, typeIDs)
-import Primer.Def (ASTDef (..), Def (..))
+import Primer.Def (ASTDef (..), Def (..), defAST, defType)
 import Primer.TypeDef (ASTTypeDef (..), PrimTypeDef (PrimTypeDef), TypeDef (..), ValCon (..))
 
 -- | Given a 'Def', return its next 'ID'.
@@ -54,7 +54,7 @@ typeInUse defName def ts ds =
     (Set.member defName)
     ts
     || anyOf
-      (folded % #_DefAST % to tyConsInDef)
+      (folded % to tyConsInDef)
       (Set.member defName)
       ds
     || anyOf
@@ -67,7 +67,7 @@ typeInUse defName def ts ds =
     tyConsInType t =
       Set.fromList [n | TCon _ n <- universe t]
     tyConsInDef d =
-      tyConsInExpr (astDefExpr d) `Set.union` tyConsInType (astDefType d)
+      maybe mempty (tyConsInExpr . astDefExpr) (defAST d) `Set.union` tyConsInType (defType d)
     tyConsInTypeDef =
       Set.unions . map (Set.unions . map tyConsInType . valConArgs) . astTypeDefConstructors
     valConsInExpr e =
