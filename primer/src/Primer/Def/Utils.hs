@@ -12,7 +12,7 @@ import Primer.Core (Expr' (..), KindMeta, Type' (..), TypeMeta, typesInExpr)
 import Primer.Core.Meta (GVarName, ID, TyConName)
 import Primer.Core.Type.Utils (kindIDs)
 import Primer.Core.Utils (exprIDs, freeGlobalVars, typeIDs)
-import Primer.Def (ASTDef (..), Def (..))
+import Primer.Def (ASTDef (..), Def (..), defAST, defType)
 import Primer.TypeDef (ASTTypeDef (..), PrimTypeDef (PrimTypeDef), TypeDef (..), ValCon (..))
 
 -- | Given a 'Def', return its next 'ID'.
@@ -47,30 +47,30 @@ globalInUse v =
     (Set.member v)
 
 -- | Is this type (including any of its constructors) in use in the given definitions?
-typeInUse :: (Foldable f, Foldable g, Data a', Ord a', Data b') => TyConName -> ASTTypeDef a b -> f (TypeDef a' b') -> g Def -> Bool
+typeInUse :: (Foldable f, Foldable g, Data a', Data b') => TyConName -> ASTTypeDef a b -> f (TypeDef a' b') -> g Def -> Bool
 typeInUse defName def ts ds =
   anyOf
     (folded % #_TypeDefAST % to tyConsInTypeDef)
-    (Set.member defName . Set.map fst)
+    (Set.member defName)
     ts
     || anyOf
-      (folded % #_DefAST % to tyConsInDef)
-      (Set.member defName . Set.map fst)
+      (folded % to tyConsInDef)
+      (Set.member defName)
       ds
     || anyOf
       (folded % #_DefAST % to valConsInDef)
-      (\s -> any ((`elem` Set.map fst s) . valConName) $ astTypeDefConstructors def)
+      (\s -> any ((`elem` s) . valConName) $ astTypeDefConstructors def)
       ds
   where
     tyConsInExpr =
       Set.unions . map tyConsInType . concatMap (toListOf typesInExpr) . universe
     tyConsInType t =
-      Set.fromList [(n, m) | TCon m n <- universe t]
+      Set.fromList [n | TCon _ n <- universe t]
     tyConsInDef d =
-      tyConsInExpr (astDefExpr d) `Set.union` tyConsInType (astDefType d)
+      maybe mempty (tyConsInExpr . astDefExpr) (defAST d) `Set.union` tyConsInType (defType d)
     tyConsInTypeDef =
       Set.unions . map (Set.unions . map tyConsInType . valConArgs) . astTypeDefConstructors
     valConsInExpr e =
-      Set.fromList [(n, m) | Con m n _ <- universe e]
+      Set.fromList [n | Con _ n _ <- universe e]
     valConsInDef =
       valConsInExpr . astDefExpr
