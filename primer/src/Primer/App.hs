@@ -1047,7 +1047,7 @@ applyProgAction prog = \case
           runExceptT
             ( runReaderT
                 (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
-                (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+                (buildTypingContextFromModules (mod' : mods <> imports) smartHoles)
             )
             >>= either (throwError . ActionError) pure
         pure
