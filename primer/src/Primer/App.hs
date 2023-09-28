@@ -1043,13 +1043,7 @@ applyProgAction prog = \case
       Right (def', kz) -> do
         let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
             imports = progImports prog
-        mods' <-
-          runExceptT
-            ( runReaderT
-                (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
-                (buildTypingContextFromModules (mod' : mods <> imports) smartHoles)
-            )
-            >>= either (throwError . ActionError) pure
+        mods' <- runFullTCPass smartHoles imports (mod' : mods)
         pure
           ( mods'
           , Just
@@ -1981,3 +1975,12 @@ allTyConNames = fmap fst . allConNames
 -- change in the future.
 nextProgID :: Prog -> ID
 nextProgID p = foldl' (\id_ m -> max (nextModuleID m) id_) minBound (progModules p)
+
+runFullTCPass :: MonadEdit m ProgError => SmartHoles -> [Module] -> [Module] -> m [Module]
+runFullTCPass smartHoles imports mods =
+  runExceptT
+    ( runReaderT
+        (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mods}))
+        (buildTypingContextFromModules (mods <> imports) smartHoles)
+    )
+    >>= either (throwError . ActionError) pure
