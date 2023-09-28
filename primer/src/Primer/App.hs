@@ -910,7 +910,7 @@ applyProgAction prog = \case
               ( maybe (throwError $ ConNotFound vcName) pure
                   <=< findAndAdjustA
                     ((== vcName) . valConName)
-                    (traverseOf #valConArgs $ maybe (throwError $ IndexOutOfRange index) pure . deleteAt index)
+                    (traverseOf #valConArgs $ maybe (throwError $ IndexOutOfRange index) pure . map fst . deleteAt index)
               )
               td
         )
