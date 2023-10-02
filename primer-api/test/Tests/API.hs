@@ -473,30 +473,30 @@ test_eval_undo =
           Just e@EmptyHole{} -> pure $ getID e
           _ -> liftIO $ assertFailure "unexpected form of main"
       _ <-
-        expectSuccess $
-          edit sid $
-            Edit
-              [ MoveToDef $ qualifyName scope "main"
-              , BodyAction
-                  [ SetCursor i1
-                  , InsertSaturatedVar $ GlobalVarRef Integer.even
-                  ]
-              ]
+        expectSuccess
+          $ edit sid
+          $ Edit
+            [ MoveToDef $ qualifyName scope "main"
+            , BodyAction
+                [ SetCursor i1
+                , InsertSaturatedVar $ GlobalVarRef Integer.even
+                ]
+            ]
       step "insert 4"
       i2 <-
         getMain >>= \case
           Just (App _ _ e) -> pure $ getID e
           _ -> liftIO $ assertFailure "unexpected form of main"
       _ <-
-        expectSuccess $
-          edit sid $
-            Edit
-              [ MoveToDef $ qualifyName scope "main"
-              , BodyAction
-                  [ SetCursor i2
-                  , ConstructPrim $ PrimInt 4
-                  ]
-              ]
+        expectSuccess
+          $ edit sid
+          $ Edit
+            [ MoveToDef $ qualifyName scope "main"
+            , BodyAction
+                [ SetCursor i2
+                , ConstructPrim $ PrimInt 4
+                ]
+            ]
       step "get edited App"
       app0 <- getApp sid
       step "undo"

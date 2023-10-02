@@ -48,7 +48,7 @@
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.12.0.0";
+      fourmoluVersion = "0.14.0.0";
 
       allOverlays = [
         inputs.haskell-nix.overlay

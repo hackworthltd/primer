@@ -107,9 +107,9 @@ test_golden :: TestTree
 test_golden =
   testGroup
     "golden"
-    [ goldenVsString "openapi.json" "test/outputs/OpenAPI/openapi.json" $
-        pure $
-          encodePretty openAPIInfo
+    [ goldenVsString "openapi.json" "test/outputs/OpenAPI/openapi.json"
+        $ pure
+        $ encodePretty openAPIInfo
     ]
 
 testToJSON :: (ToJSON a, ToSchema a, Show a) => Gen a -> Property
@@ -195,8 +195,8 @@ genKindTree = viewTreeKind <$> genKind
 
 tasty_NodeBody :: Property
 tasty_NodeBody =
-  testToJSON $
-    G.choice
+  testToJSON
+    $ G.choice
       [ TextBody <$> (RecordPair <$> G.enumBounded <*> API.genName)
       , PrimBody <$> (RecordPair <$> G.enumBounded <*> genPrimCon)
       , BoxBody <$> (RecordPair <$> G.enumBounded <*> genTree)
@@ -315,8 +315,8 @@ genPaginatedMeta = do
   tp <- genPositive
   np <- G.maybe genPositive
   lp <- genPositive
-  pure $
-    PM
+  pure
+    $ PM
       { totalItems = ti
       , pageSize = ps
       , firstPage = fp

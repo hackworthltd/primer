@@ -105,8 +105,8 @@ unit_diff_module_not_refl =
     @?= Nothing
   where
     mint =
-      TypeDefAST $
-        ASTTypeDef
+      TypeDefAST
+        $ ASTTypeDef
           { astTypeDefParameters = mempty
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty
@@ -237,8 +237,8 @@ unit_ill_kinded_0 =
   let res =
         evalTestM
           0
-          ( runExceptT $
-              unify
+          ( runExceptT
+              $ unify
                 defaultCxt
                 (S.singleton "a")
                 (TApp () (TEmptyHole ()) (TCon () tList))
@@ -528,8 +528,9 @@ tasty_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule
 -- S,T diff kinds => unify ga uvs S T fails
 -- This requires each to not be holey - i.e. don't synthesise KHole
 tasty_diff_kinds_never_unify :: Property
-tasty_diff_kinds_never_unify = withDiscards 5000 $
-  propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_diff_kinds_never_unify = withDiscards 5000
+  $ propertyWTInExtendedUVCxt [builtinModule, primitiveModule]
+  $ \uvs -> do
     cxt <- ask
     k1 <- forAllT genWTKind
     k2 <- forAllT genWTKind

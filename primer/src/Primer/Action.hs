@@ -300,8 +300,9 @@ applyActionsToParam sh (paramName, def) actions = runExceptT $ do
     Nothing -> throwError $ ParamNotFound paramName
     Just (_, k) ->
       -- no action in kinds should care about the context
-      flip runReaderT (initialCxt sh) $
-        withWrappedKind k $ \zk' ->
+      flip runReaderT (initialCxt sh)
+        $ withWrappedKind k
+        $ \zk' ->
           foldlM (flip applyActionAndSynth) (InKind zk') actions
   let def' =
         set
@@ -342,20 +343,22 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
       (tz, cs) <-
         getCompose
           . flip (findAndAdjustA ((== conName') . valConName)) (astTypeDefConstructors tyDef)
-          $ Compose . \(ValCon _ ts) -> do
+          $ Compose
+          . \(ValCon _ ts) -> do
             (tz', cs') <-
-              getCompose . flip (adjustAtA index) ts $
-                Compose
-                  . fmap (First . Just &&& target . top)
-                  . flip withWrappedType \tz'' ->
-                    foldlM (\l a -> local addParamsToCxt $ applyActionAndSynth a l) (InType tz'') actions
+              getCompose
+                . flip (adjustAtA index) ts
+                $ Compose
+                . fmap (First . Just &&& target . top)
+                . flip withWrappedType \tz'' ->
+                  foldlM (\l a -> local addParamsToCxt $ applyActionAndSynth a l) (InType tz'') actions
             maybe
               (throwError $ InternalFailure "applyActionsToField: con field index out of bounds")
               (pure . first (First . Just))
               $ bisequence (getFirst tz', ValCon conName' <$> cs')
       (valCons, zt) <-
-        maybe (throwError $ InternalFailure "applyActionsToField: con name not found") pure $
-          bisequence (cs, getFirst tz)
+        maybe (throwError $ InternalFailure "applyActionsToField: con name not found") pure
+          $ bisequence (cs, getFirst tz)
       let mod' = mod{moduleTypes = insert tyName (TypeDefAST tyDef{astTypeDefConstructors = valCons}) $ moduleTypes mod}
       (,zt) <$> checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
     addParamsToCxt :: TC.Cxt -> TC.Cxt
@@ -673,9 +676,9 @@ getVarType ast x =
        in \cxt ->
             cxt
               { TC.localCxt =
-                  Map.fromList $
-                    map (bimap unLocalName TC.T) tmcxt
-                      <> map (bimap unLocalName TC.K) tycxt
+                  Map.fromList
+                    $ map (bimap unLocalName TC.T) tmcxt
+                    <> map (bimap unLocalName TC.K) tycxt
               }
 
 mkSaturatedApplicationArgs :: MonadFresh ID m => TC.Type -> [Either (m Expr) (m Type)]

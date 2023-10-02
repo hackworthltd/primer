@@ -78,8 +78,9 @@ import Test.Tasty.HUnit
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree
 test_encode =
-  testGroup "encode" $
-    fixtures <&> \(Fixture x path) ->
+  testGroup "encode"
+    $ fixtures
+    <&> \(Fixture x path) ->
       goldenVsString (takeBaseName path) path (pure $ encodePretty x)
   where
     -- TODO: put this in Foreword. See:
@@ -90,8 +91,9 @@ test_encode =
 -- | Check that decoding the file produces the value.
 test_decode :: TestTree
 test_decode =
-  testGroup "decode" $
-    fixtures <&> \(Fixture x path) ->
+  testGroup "decode"
+    $ fixtures
+    <&> \(Fixture x path) ->
       testCase (takeBaseName path) $ either assertFailure (x @=?) =<< eitherDecodeFileStrict path
 
 -- | A fixture holds some value which is JSON serializable and path to a
@@ -127,8 +129,8 @@ fixtures =
         f2 <- tcon tNat
         k1 <- ktype
         kb <- ktype `kfun` ktype
-        pure $
-          TypeDefAST
+        pure
+          $ TypeDefAST
             ASTTypeDef
               { astTypeDefParameters = [("a", k1), ("b", kb)]
               , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [f1, f2]]
@@ -156,17 +158,17 @@ fixtures =
           }
       selection :: Selection
       selection =
-        SelectionDef $
-          DefSelection (qualifyName modName defName) $
-            Just
-              NodeSelection
-                { nodeType = BodyNode
-                , meta = Left exprMeta
-                }
+        SelectionDef
+          $ DefSelection (qualifyName modName defName)
+          $ Just
+            NodeSelection
+              { nodeType = BodyNode
+              , meta = Left exprMeta
+              }
       reductionDetail :: EvalDetail
       reductionDetail =
-        BetaReduction $
-          BetaReductionDetail
+        BetaReduction
+          $ BetaReductionDetail
             { before = expr
             , after = expr
             , bindingName = "x"

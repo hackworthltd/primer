@@ -239,8 +239,8 @@ genSyns ty = do
       globals <- asks globalCxt
       let globals' = map (first (Var () . GlobalVarRef)) $ M.toList globals
       let hs = locals' ++ globals'
-      pure $
-        if null hs
+      pure
+        $ if null hs
           then Nothing
           else Just $ do
             (he, hT) <- Gen.element hs
@@ -273,7 +273,8 @@ genSyns ty = do
         _ -> pure Nothing
     genPrimCon' = do
       consistentCons <-
-        filter (consistentTypes ty . snd) . map (bimap (fmap $ PrimCon ()) (TCon ()))
+        filter (consistentTypes ty . snd)
+          . map (bimap (fmap $ PrimCon ()) (TCon ()))
           <$> genPrimCon
       pure $ case consistentCons of
         [] -> Nothing
@@ -401,19 +402,21 @@ genChk ty = do
         Left _ -> pure Nothing -- not an ADT
         Right (_, _, []) -> pure Nothing -- is an empty ADT
         Right (_, _, vcs) ->
-          pure $
-            Just $
-              Gen.choice $
-                vcs <&> \(vc, tmArgTypes) ->
-                  Con () vc <$> traverse genChk tmArgTypes
+          pure
+            $ Just
+            $ Gen.choice
+            $ vcs
+            <&> \(vc, tmArgTypes) ->
+              Con () vc <$> traverse genChk tmArgTypes
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
         n <- genLVarNameAvoiding [tTy, sTy]
         Lam () n <$> local (extendLocalCxt (n, sTy)) (genChk tTy)
     abst = do
       mfa <- matchForallType ty
-      pure $
-        mfa <&> \(n, k, t) -> do
+      pure
+        $ mfa
+        <&> \(n, k, t) -> do
           m <- genTyVarNameAvoiding ty
           ty' <- substTy n (TVar () m) t
           LAM () m <$> local (extendLocalCxtTy (m, k)) (genChk ty')
@@ -473,8 +476,8 @@ genChk ty = do
     casePrim :: WT (Maybe (GenT WT ExprG))
     casePrim = do
       primGens <- genPrimCon
-      pure $
-        if null primGens
+      pure
+        $ if null primGens
           then Nothing
           else Just $ do
             (pg, scrutTy0) <- Gen.element primGens
@@ -491,8 +494,8 @@ genChk ty = do
 genStrictSubsequence :: MonadGen m => NonEmpty a -> m [a]
 genStrictSubsequence xs = Gen.justT $ do
   s <- Gen.subsequence $ toList xs
-  pure $
-    if length s == length xs
+  pure
+    $ if length s == length xs
       then Nothing
       else Just s
 
@@ -515,16 +518,16 @@ genWTType k = do
     vari :: WT (Maybe (GenT WT TypeG))
     vari = do
       goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
-      pure $
-        if null goodVars
+      pure
+        $ if null goodVars
           then Nothing
           else Just $ Gen.element $ map (TVar () . fst) goodVars
     constr :: WT (Maybe (GenT WT TypeG))
     constr = do
       tds <- asks $ M.assocs . typeDefs
       let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
-      pure $
-        if null goodTCons
+      pure
+        $ if null goodTCons
           then Nothing
           else Just $ Gen.element $ map (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
@@ -558,9 +561,11 @@ genWTKind = Gen.recursive Gen.choice [pure $ KType ()] [KFun () <$> genWTKind <*
 -- need definitions for the symbols!
 genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
-  local forgetLocals $
-    Gen.list (Range.linear 1 5) $
-      (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType (KType ())
+  local forgetLocals
+    $ Gen.list (Range.linear 1 5)
+    $ (,)
+    <$> (qualifyName <$> genModuleName <*> genName)
+    <*> genWTType (KType ())
 
 -- We are careful to not let generated globals depend on whatever
 -- locals may be in the cxt

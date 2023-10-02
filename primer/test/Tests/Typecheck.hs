@@ -152,8 +152,8 @@ unit_undefined_variable =
 
 unit_const :: Assertion
 unit_const =
-  expectTyped $
-    ann
+  expectTyped
+    $ ann
       (lam "x" (lam "y" (lvar "x")))
       (tfun (tcon tBool) (tfun (tcon tBool) (tcon tBool)))
 
@@ -178,25 +178,25 @@ unit_unsat_con_hole_2 =
 -- A hole-headed TApp accepts saturated constructors
 unit_con_hole_app_type_1 :: Assertion
 unit_con_hole_app_type_1 =
-  expectTyped $
-    con cMakePair [emptyHole, emptyHole]
-      `ann` (tEmptyHole `tapp` tEmptyHole)
+  expectTyped
+    $ con cMakePair [emptyHole, emptyHole]
+    `ann` (tEmptyHole `tapp` tEmptyHole)
 
 -- A hole-headed TApp accepts saturated constructors
 -- The application spine can be shorter than that required for the constructor
 unit_con_hole_app_type_2 :: Assertion
 unit_con_hole_app_type_2 =
-  expectTyped $
-    con cMakePair [emptyHole, emptyHole]
-      `ann` (tEmptyHole `tapp` tcon tNat)
+  expectTyped
+    $ con cMakePair [emptyHole, emptyHole]
+    `ann` (tEmptyHole `tapp` tcon tNat)
 
 -- A hole-headed TApp accepts saturated constructors
 -- The application spine can match than that required for the constructor
 unit_con_hole_app_type_3 :: Assertion
 unit_con_hole_app_type_3 =
-  expectTyped $
-    con cMakePair [emptyHole, emptyHole]
-      `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
+  expectTyped
+    $ con cMakePair [emptyHole, emptyHole]
+    `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
 
 -- A hole-headed TApp rejects saturated constructors, if  application spine is too long for the constructor
 unit_con_hole_app_type_4 :: Assertion
@@ -218,8 +218,8 @@ unit_constructor_doesn't_exist =
 
 unit_inc :: Assertion
 unit_inc =
-  expectTyped $
-    ann
+  expectTyped
+    $ ann
       (lam "n" (con cSucc [lvar "n"]))
       (tfun (tcon tNat) (tcon tNat))
 
@@ -243,8 +243,8 @@ unit_inc_unsat2 =
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
-  expectTyped $
-    ann
+  expectTyped
+    $ ann
       (lam "f" (lam "g" (app (lvar "f") (hole (lvar "g")))))
       ( tfun
           (tfun (tcon tNat) (tcon tNat))
@@ -268,8 +268,8 @@ unit_recursive_let =
 -- letrec x : Bool = x in x
 unit_letrec_1 :: Assertion
 unit_letrec_1 =
-  expectTyped $
-    letrec "x" (lvar "x") (tcon tBool) (lvar "x")
+  expectTyped
+    $ letrec "x" (lvar "x") (tcon tBool) (lvar "x")
 
 -- let double : Nat -> Nat
 --     double = \x -> case x of
@@ -278,8 +278,8 @@ unit_letrec_1 =
 --  in double (Succ Zero)
 unit_letrec_2 :: Assertion
 unit_letrec_2 =
-  expectTyped $
-    letrec
+  expectTyped
+    $ letrec
       "double"
       ( lam
           "x"
@@ -308,8 +308,8 @@ unit_nested_let =
 --      in yes y
 unit_let_function :: Assertion
 unit_let_function =
-  expectTyped $
-    let_
+  expectTyped
+    $ let_
       "yes"
       (ann (lam "x" (con0 cTrue)) (tfun (tcon tBool) (tcon tBool)))
       (let_ "y" (con0 cFalse `ann` tcon tBool) (app (lvar "yes") (lvar "y")))
@@ -317,8 +317,8 @@ unit_let_function =
 -- (\f -> f : (Bool -> Bool) -> (Bool -> Bool)) (let y = True :: Bool in \x -> y)
 unit_let_in_arg :: Assertion
 unit_let_in_arg =
-  expectTyped $
-    app
+  expectTyped
+    $ app
       ( ann
           (lam "f" (lvar "f"))
           (tfun (tfun (tcon tBool) (tcon tBool)) (tfun (tcon tBool) (tcon tBool)))
@@ -376,14 +376,14 @@ unit_valConType = do
         , TForall () "a" (KType ()) $ TFun () (TVar () "a") $ TFun () (TApp () (TCon () tList) (TVar () "a")) $ TApp () (TCon () tList) (TVar () "a")
         ]
   f tEither eitherDef
-    @?= [ TForall () "a" (KType ()) $
-            TForall () "b" (KType ()) $
-              TFun () (TVar () "a") $
-                mkTAppCon tEither [TVar () "a", TVar () "b"]
-        , TForall () "a" (KType ()) $
-            TForall () "b" (KType ()) $
-              TFun () (TVar () "b") $
-                mkTAppCon tEither [TVar () "a", TVar () "b"]
+    @?= [ TForall () "a" (KType ())
+            $ TForall () "b" (KType ())
+            $ TFun () (TVar () "a")
+            $ mkTAppCon tEither [TVar () "a", TVar () "b"]
+        , TForall () "a" (KType ())
+            $ TForall () "b" (KType ())
+            $ TFun () (TVar () "b")
+            $ mkTAppCon tEither [TVar () "a", TVar () "b"]
         ]
   where
     f tc td = map (valConType tc td) (astTypeDefConstructors td)
@@ -391,8 +391,8 @@ unit_valConType = do
 -- Nat -> Bool accepts \x . case x of Z -> True ; S _ -> False
 unit_case_isZero :: Assertion
 unit_case_isZero =
-  expectTyped $
-    ann (lam "x" $ case_ (lvar "x") [branch cZero [] (con0 cTrue), branch cSucc [("n", Nothing)] (con0 cFalse)]) (tfun (tcon tNat) (tcon tBool))
+  expectTyped
+    $ ann (lam "x" $ case_ (lvar "x") [branch cZero [] (con0 cTrue), branch cSucc [("n", Nothing)] (con0 cFalse)]) (tfun (tcon tNat) (tcon tBool))
 
 -- Nat -> Bool rejects \x . case x of {}
 unit_case_badEmpty :: Assertion
@@ -419,12 +419,12 @@ unit_case_subst :: Assertion
 unit_case_subst = do
   let ty x = tforall "a" ktype $ tforall "b" ktype $ (tvar x `tfun` (tvar "b" `tfun` tcon tNat)) `tfun` tcon tNat
   let expr a b =
-        lAM a $
-          lAM b $
-            lam "f" $
-              case_
-                (emptyHole `ann` (tcon tSwap `tapp` tvar b `tapp` tvar a))
-                [branch cMakeSwap [("x", Nothing), ("y", Nothing)] $ lvar "f" `app` lvar "x" `app` lvar "y"]
+        lAM a
+          $ lAM b
+          $ lam "f"
+          $ case_
+            (emptyHole `ann` (tcon tSwap `tapp` tvar b `tapp` tvar a))
+            [branch cMakeSwap [("x", Nothing), ("y", Nothing)] $ lvar "f" `app` lvar "x" `app` lvar "y"]
   -- Firstly, with distinct names between type definition and type usage
   -- (this version should always work)
   expectTyped $ expr "u" "v" `ann` ty "a"
@@ -437,8 +437,8 @@ unit_case_subst = do
 -- Nat -> Bool accepts \x . case x of Z -> True ; _ -> False
 unit_case_fallback :: Assertion
 unit_case_fallback =
-  expectTyped $
-    ann (lam "x" $ caseFB_ (lvar "x") [branch cZero [] (con0 cTrue)] (con0 cFalse)) (tfun (tcon tNat) (tcon tBool))
+  expectTyped
+    $ ann (lam "x" $ caseFB_ (lvar "x") [branch cZero [] (con0 cTrue)] (con0 cFalse)) (tfun (tcon tNat) (tcon tBool))
 
 -- Nat -> Bool rejects \x . case x of S _ -> False
 unit_case_fallback_inexhaustive :: Assertion
@@ -455,8 +455,8 @@ unit_case_fallback_redundant =
 -- Char -> Bool accepts \x . case x of 'b' -> True ; _ -> False
 unit_case_primitive :: Assertion
 unit_case_primitive =
-  expectTypedWithPrims $
-    ann (lam "x" $ caseFB_ (lvar "x") [branchPrim (PrimChar 'b') (con0 cTrue)] (con0 cFalse)) (tfun (tcon tChar) (tcon tBool))
+  expectTypedWithPrims
+    $ ann (lam "x" $ caseFB_ (lvar "x") [branchPrim (PrimChar 'b') (con0 cTrue)] (con0 cFalse)) (tfun (tcon tChar) (tcon tBool))
 
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion
@@ -541,19 +541,19 @@ unit_remove_hole_not_perfect =
 unit_smart_remove_clean_case :: Assertion
 unit_smart_remove_clean_case =
   ann
-    ( lam "x" $
-        hole $
-          ann
-            ( case_
-                (lvar "x")
-                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
-            )
-            tEmptyHole
+    ( lam "x"
+        $ hole
+        $ ann
+          ( case_
+              (lvar "x")
+              [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+          )
+          tEmptyHole
     )
     (tfun (tcon tBool) (tcon tNat))
     `smartSynthGives` ann
-      ( lam "x" $
-          case_
+      ( lam "x"
+          $ case_
             (lvar "x")
             [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
       )
@@ -561,17 +561,17 @@ unit_smart_remove_clean_case =
 
 unit_poly :: Assertion
 unit_poly =
-  expectTyped $
-    ann
+  expectTyped
+    $ ann
       (lam "id" $ lAM "a" $ aPP (lvar "id") (tvar "a"))
       (tforall "c" ktype (tvar "c" `tfun` tvar "c") `tfun` tforall "b" ktype (tvar "b" `tfun` tvar "b"))
 
 unit_poly_head_Nat :: Assertion
 unit_poly_head_Nat =
-  expectTyped $
-    ann
-      ( lam "x" $
-          case_
+  expectTyped
+    $ ann
+      ( lam "x"
+          $ case_
             (lvar "x")
             [ branch cNil [] (con0 cZero)
             , branch cCons [("y", Nothing), ("ys", Nothing)] $ con1 cSucc $ lvar "y"
@@ -678,23 +678,25 @@ unit_prim_fun_applied =
 
 -- Whenever we synthesise a type, then it kind-checks against (KType())
 tasty_synth_well_typed_extcxt :: Property
-tasty_synth_well_typed_extcxt = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-      (e, _ty) <- forAllT genSyn
-      ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
-      void $ checkKindTest (KType ()) ty'
+tasty_synth_well_typed_extcxt = withTests 1000
+  $ withDiscards 2000
+  $ propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule]
+  $ do
+    (e, _ty) <- forAllT genSyn
+    ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
+    void $ checkKindTest (KType ()) ty'
 
 -- As tasty_synth_well_typed_extcxt, but in the empty context
 -- this is in case there are problems with primitive constructors
 -- (which cannot be used unless their corresponding type is in scope)
 tasty_synth_well_typed_defcxt :: Property
-tasty_synth_well_typed_defcxt = withTests 1000 $
-  withDiscards 2000 $
-    propertyWT [] $ do
-      (e, _ty) <- forAllT genSyn
-      ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
-      void $ checkKindTest (KType ()) ty'
+tasty_synth_well_typed_defcxt = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT []
+  $ do
+    (e, _ty) <- forAllT genSyn
+    ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
+    void $ checkKindTest (KType ()) ty'
 
 -- Regression test: when we created holes at change-of-direction when checking,
 -- (i.e. when we were checking T ∋ e for some synthesisable e ∈ S with S /= T)
@@ -856,52 +858,64 @@ instance Eq (TypeCacheAlpha App.Selection) where
   _ == _ = False
 instance Eq (TypeCacheAlpha Prog) where
   TypeCacheAlpha (Prog i1 m1 s1 sh1 l1 r1) == TypeCacheAlpha (Prog i2 m2 s2 sh2 l2 r2) =
-    TypeCacheAlpha i1 == TypeCacheAlpha i2
-      && TypeCacheAlpha m1 == TypeCacheAlpha m2
-      && TypeCacheAlpha s1 == TypeCacheAlpha s2
-      && sh1 == sh2
-      && l1 == l2
-      && r1 == r2
+    TypeCacheAlpha i1
+      == TypeCacheAlpha i2
+      && TypeCacheAlpha m1
+      == TypeCacheAlpha m2
+      && TypeCacheAlpha s1
+      == TypeCacheAlpha s2
+      && sh1
+      == sh2
+      && l1
+      == l2
+      && r1
+      == r2
 instance Eq (TypeCacheAlpha App.App) where
   TypeCacheAlpha a1 == TypeCacheAlpha a2 =
-    appInit a1 == appInit a2
-      && appIdCounter a1 == appIdCounter a2
-      && appNameCounter a1 == appNameCounter a2
-      && TypeCacheAlpha (appProg a1) == TypeCacheAlpha (appProg a2)
+    appInit a1
+      == appInit a2
+      && appIdCounter a1
+      == appIdCounter a2
+      && appNameCounter a1
+      == appNameCounter a2
+      && TypeCacheAlpha (appProg a1)
+      == TypeCacheAlpha (appProg a2)
 
 -- Test that smartholes is idempotent (for well-typed input)
 tasty_smartholes_idempotent_syn :: Property
-tasty_smartholes_idempotent_syn = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
-      local (\c -> c{smartHoles = SmartHoles}) $ do
-        (e, _ty) <- forAllT genSyn
-        (ty', e') <- synthTest =<< generateIDs e
-        (ty'', e'') <- synthTest $ exprTtoExpr e'
-        ty' === ty''
-        TypeCacheAlpha e' === TypeCacheAlpha e''
+tasty_smartholes_idempotent_syn = withTests 1000
+  $ withDiscards 2000
+  $ propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule]
+  $ local (\c -> c{smartHoles = SmartHoles})
+  $ do
+    (e, _ty) <- forAllT genSyn
+    (ty', e') <- synthTest =<< generateIDs e
+    (ty'', e'') <- synthTest $ exprTtoExpr e'
+    ty' === ty''
+    TypeCacheAlpha e' === TypeCacheAlpha e''
 
 -- Test that smartholes is idempotent (for well-typed input)
 -- This also shows that checkKind is idempotent-on-the-nose
 tasty_smartholes_idempotent_chk :: Property
-tasty_smartholes_idempotent_chk = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
-      local (\c -> c{smartHoles = SmartHoles}) $ do
-        ty <- forAllT $ genWTType (KType ())
-        e <- forAllT $ genChk ty
-        tyI <- generateTypeIDs ty
-        ty' <- checkKindTest (KType ()) tyI
-        -- Note that ty /= ty' in general, as the generators can create a THole _ (TEmptyHole _)
-        annotateShow ty'
-        e' <- checkTest (forgetTypeMetadata ty') =<< generateIDs e
-        annotateShow e'
-        ty'' <- checkKindTest (KType ()) $ typeTtoType ty'
-        annotateShow ty''
-        e'' <- checkTest (forgetTypeMetadata ty'') $ exprTtoExpr e'
-        annotateShow e''
-        ty' === ty''
-        TypeCacheAlpha e' === TypeCacheAlpha e''
+tasty_smartholes_idempotent_chk = withTests 1000
+  $ withDiscards 2000
+  $ propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule]
+  $ local (\c -> c{smartHoles = SmartHoles})
+  $ do
+    ty <- forAllT $ genWTType (KType ())
+    e <- forAllT $ genChk ty
+    tyI <- generateTypeIDs ty
+    ty' <- checkKindTest (KType ()) tyI
+    -- Note that ty /= ty' in general, as the generators can create a THole _ (TEmptyHole _)
+    annotateShow ty'
+    e' <- checkTest (forgetTypeMetadata ty') =<< generateIDs e
+    annotateShow e'
+    ty'' <- checkKindTest (KType ()) $ typeTtoType ty'
+    annotateShow ty''
+    e'' <- checkTest (forgetTypeMetadata ty'') $ exprTtoExpr e'
+    annotateShow e''
+    ty' === ty''
+    TypeCacheAlpha e' === TypeCacheAlpha e''
 
 -- We must ensure that when we check a program with smartholes that
 -- any updates to any types are taken into account when checking any
@@ -926,8 +940,8 @@ unit_tcWholeProg_notice_type_updates =
       mkProg ds = do
         builtinModule' <- builtinModule
         ds' <- ds
-        pure $
-          Prog
+        pure
+          $ Prog
             { progImports = [builtinModule']
             , progModules = [Module (ModuleName ["M"]) mempty ds']
             , progSmartHoles = SmartHoles
@@ -945,17 +959,18 @@ unit_tcWholeProg_notice_type_updates =
 -- This is only up to alpha in the TypeCaches, for the same reasons as
 -- unit_smartholes_idempotent_alpha_typecache
 tasty_tcWholeProg_idempotent :: Property
-tasty_tcWholeProg_idempotent = withTests 500 $
-  withDiscards 2000 $
-    propertyWT [] $ do
-      base <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
-      p <- forAllT $ genProg SmartHoles base
-      case runTypecheckTestM SmartHoles $ do
-        p' <- tcWholeProgWithImports p
-        p'' <- tcWholeProgWithImports p'
-        pure (p', p'') of
-        Left err -> annotateShow err >> failure
-        Right (p', p'') -> TypeCacheAlpha p' === TypeCacheAlpha p''
+tasty_tcWholeProg_idempotent = withTests 500
+  $ withDiscards 2000
+  $ propertyWT []
+  $ do
+    base <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
+    p <- forAllT $ genProg SmartHoles base
+    case runTypecheckTestM SmartHoles $ do
+      p' <- tcWholeProgWithImports p
+      p'' <- tcWholeProgWithImports p'
+      pure (p', p'') of
+      Left err -> annotateShow err >> failure
+      Right (p', p'') -> TypeCacheAlpha p' === TypeCacheAlpha p''
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
@@ -973,8 +988,8 @@ unit_good_defaults = do
 
 -- Check that our higher-order test typedef is well formed
 unit_good_maybeT :: Assertion
-unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
-  checkEverything
+unit_good_maybeT = case runTypecheckTestM NoSmartHoles
+  $ checkEverything
     NoSmartHoles
     CheckEverything
       { trusted = [builtinMod]
@@ -1071,8 +1086,8 @@ testModule :: MonadFresh ID m => m Module
 testModule = do
   maybeTDef' <- maybeTDef
   swapDef' <- swapDef
-  pure $
-    Module
+  pure
+    $ Module
       { moduleName = ModuleName ["TestModule"]
       , moduleTypes =
           Map.fromList
@@ -1090,8 +1105,8 @@ maybeTDef = do
   field <- tvar "m" `tapp` (tcon tMaybe `tapp` tvar "a")
   ka <- ktype
   km <- ktype `kfun` ktype
-  pure $
-    ASTTypeDef
+  pure
+    $ ASTTypeDef
       { astTypeDefParameters = [("m", km), ("a", ka)]
       , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [field]]
       , astTypeDefNameHints = []
@@ -1109,8 +1124,8 @@ swapDef = do
   f2 <- tvar "a"
   ka <- ktype
   kb <- ktype
-  pure $
-    ASTTypeDef
+  pure
+    $ ASTTypeDef
       { astTypeDefParameters = [("a", ka), ("b", kb)]
       , astTypeDefConstructors = [ValCon cMakeSwap [f1, f2]]
       , astTypeDefNameHints = []

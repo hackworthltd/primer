@@ -120,9 +120,15 @@ type ConvertServerLogs l =
 openAPIInfo :: OpenApi
 openAPIInfo =
   toOpenApi (Proxy @OpenAPI.API)
-    & #info % #title .~ "Primer backend API"
-    & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
-    & #info % #version .~ "0.7"
+    & #info
+    % #title
+    .~ "Primer backend API"
+    & #info
+    % #description
+    ?~ "A backend service implementing a pedagogic functional programming language."
+    & #info
+    % #version
+    .~ "0.7"
     & refParamSchemas @Level
       [ ("/openapi/sessions/{sessionId}/action/available", "level")
       , ("/openapi/sessions/{sessionId}/action/options", "level")
@@ -146,13 +152,20 @@ openAPIInfo =
     refParamSchemas :: forall a. ToSchema a => [(FilePath, Text)] -> OpenApi -> OpenApi
     refParamSchemas params api =
       api
-        & #components % #schemas %~ IOHM.insert name (toSchema $ Proxy @a)
-        & #paths %~ composeList (map (uncurry $ flip adjustParam) params)
+        & #components
+        % #schemas
+        %~ IOHM.insert name (toSchema $ Proxy @a)
+        & #paths
+        %~ composeList (map (uncurry $ flip adjustParam) params)
       where
         composeList = appEndo . foldMap' Endo
         adjustParam paramName =
-          IOHM.adjust $
-            #post % mapped % #parameters % mapped %~ \case
+          IOHM.adjust
+            $ #post
+            % mapped
+            % #parameters
+            % mapped
+            %~ \case
               Inline x | x ^. #name == paramName -> Inline $ x & #schema ?~ Ref (Reference name)
               p -> p
         name = show $ typeRep @a
@@ -364,14 +377,15 @@ serve ::
   Log.Handler IO (Log.WithSeverity l) ->
   IO ()
 serve ss q v port origins logger = do
-  Warp.runSettings warpSettings $
-    noCache $
-      -- It may make sense to allow access to some resources
-      -- regardless of origin, but for now, we use a blanket CORS
-      -- policy for every resource, hence the 'const' function here.
-      cors (const $ Just $ apiCors origins) $
-        metrics $
-          genericServeT nt server
+  Warp.runSettings warpSettings
+    $ noCache
+    $
+    -- It may make sense to allow access to some resources
+    -- regardless of origin, but for now, we use a blanket CORS
+    -- policy for every resource, hence the 'const' function here.
+    cors (const $ Just $ apiCors origins)
+    $ metrics
+    $ genericServeT nt server
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.
@@ -389,13 +403,14 @@ serve ss q v port origins logger = do
 
     nt :: Primer l a -> Handler a
     nt m =
-      Handler $
-        ExceptT $
-          flip runLoggingT logger $ do
-            -- This is not guaranteed to be consecutive with the logs from the action in the case of concurrent actions
-            -- (unlikely in a dev environment, except perhaps a getProgram&getActions request)
-            logInfo RequestStart
-            catch (Right <$> runPrimerM m (Env ss q v)) handler
+      Handler
+        $ ExceptT
+        $ flip runLoggingT logger
+        $ do
+          -- This is not guaranteed to be consecutive with the logs from the action in the case of concurrent actions
+          -- (unlikely in a dev environment, except perhaps a getProgram&getActions request)
+          logInfo RequestStart
+          catch (Right <$> runPrimerM m (Env ss q v)) handler
 
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.

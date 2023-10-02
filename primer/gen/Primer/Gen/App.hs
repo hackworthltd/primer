@@ -67,8 +67,8 @@ genProg :: SmartHoles -> [Module] -> GenT WT Prog
 genProg sh initialImports = local (extendCxtByModules initialImports) $ do
   imports <- telescope (Range.linear 0 2) (local . extendCxtByModule) (genModule "I")
   home <- local (extendCxtByModules imports) $ telescope (Range.linear 1 2) (local . extendCxtByModule) (genModule "M")
-  pure $
-    Prog
+  pure
+    $ Prog
       { progImports = initialImports <> imports
       , progModules = home
       , progSelection = Nothing
@@ -98,8 +98,8 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
       tds' <- genTypeDefGroup $ Just mn
       tds <- traverse (\(n, d) -> (n,) <$> generateTypeDefIDs d) tds'
       defs <- local (extendTypeDefCxt $ M.fromList tds') (genASTDefGroup mn)
-      pure $
-        Module
+      pure
+        $ Module
           { moduleName = mn
           , moduleTypes = M.fromList $ first baseName <$> tds
           , moduleDefs = defs

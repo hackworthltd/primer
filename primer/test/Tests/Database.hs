@@ -104,8 +104,9 @@ test_invalid =
         [ testCase "unsafe" $ case mkSessionName t of
             Nothing -> pure ()
             Just _ -> assertFailure "name is valid"
-        , testCase "safe" $
-            safeMkSessionName t @?= defaultSessionName
+        , testCase "safe"
+            $ safeMkSessionName t
+            @?= defaultSessionName
         ]
 
 testSessionName :: TestName -> Text -> Text -> TestTree
@@ -115,8 +116,9 @@ testSessionName testName t expected =
     [ testCase "unsafe" $ case mkSessionName t of
         Nothing -> assertFailure "name is invalid"
         Just sn -> fromSessionName sn @?= expected
-    , testCase "safe" $
-        fromSessionName (safeMkSessionName t) @?= expected
+    , testCase "safe"
+        $ fromSessionName (safeMkSessionName t)
+        @?= expected
     ]
 
 -- | A "fail" database that fails on every operation.

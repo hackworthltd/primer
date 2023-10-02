@@ -45,9 +45,10 @@ runAPI action = do
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
   (r, logs) <-
-    withAsync (runNullDb' $ serve (ServiceCfg dbOpQueue version)) $
-      const $
-        runPureLogT . runPrimerM action $
-          Env initialSessions dbOpQueue version
+    withAsync (runNullDb' $ serve (ServiceCfg dbOpQueue version))
+      $ const
+      $ runPureLogT
+      . runPrimerM action
+      $ Env initialSessions dbOpQueue version
   assertNoSevereLogs logs
   pure r

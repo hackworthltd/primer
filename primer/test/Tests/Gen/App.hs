@@ -19,13 +19,14 @@ import Primer.Typecheck (SmartHoles (NoSmartHoles), TypeError)
 import Tasty (Property, withDiscards, withTests)
 
 tasty_genProg_well_formed :: Property
-tasty_genProg_well_formed = withTests 500 $
-  withDiscards 2000 $
-    propertyWT [] $ do
-      builtinModule' <- builtinModule
-      primitiveModule' <- primitiveModule
-      p <- forAllT $ genProg NoSmartHoles [builtinModule', primitiveModule']
-      c <- runExceptT @TypeError $ checkProgWellFormed p
-      case c of
-        Left err -> annotateShow err >> failure
-        Right _ -> pure ()
+tasty_genProg_well_formed = withTests 500
+  $ withDiscards 2000
+  $ propertyWT []
+  $ do
+    builtinModule' <- builtinModule
+    primitiveModule' <- primitiveModule
+    p <- forAllT $ genProg NoSmartHoles [builtinModule', primitiveModule']
+    c <- runExceptT @TypeError $ checkProgWellFormed p
+    case c of
+      Left err -> annotateShow err >> failure
+      Right _ -> pure ()
