@@ -27,10 +27,12 @@ import Hedgehog (
   (===),
  )
 import Hedgehog.Gen qualified as Gen
+import Hedgehog.Internal.Property (forAllWithT)
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
   Movement (Child1, Child2),
+  ProgAction,
   enterType,
   move,
   moveExpr,
@@ -301,49 +303,17 @@ tasty_available_actions_accepted = withTests 500
     -- mode - NoSmartHoles is only used for internal sanity testing etc)
     a <- forAllT $ genApp SmartHoles cxt
     (def'', loc, action) <- forAllT $ genAction l a
+    annotateShow def''
+    annotateShow loc
+    annotateShow action
     let (_defName, def) = (bimap fst fst def'', bimap snd snd def'')
     collect action
-    def' <- case (defAST <$> def, action) of
-      (Left d, _) -> pure $ Left d
-      (Right Nothing, Nothing) -> discard
-      (Right Nothing, Just act) -> do
-        annotate "Expected no action to be available on a primitive"
-        annotateShow def
-        annotateShow act
-        failure
-      (Right (Just d), _) -> pure $ Right d
-    case action of
-      Nothing -> discard
-      Just action' -> case action' of
-        Available.NoInput act' -> do
-          progActs <-
-            either (\e -> annotateShow e >> failure) pure
-              $ toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' loc act'
-          actionSucceeds (handleEditRequest progActs) a
-        Available.Input act' -> do
-          Available.Options{Available.opts, Available.free} <-
-            maybe (annotate "id not found" >> failure) pure
-              $ Available.options
-                (map snd $ progAllTypeDefs $ appProg a)
-                (map snd $ progAllDefs $ appProg a)
-                (progCxt $ appProg a)
-                l
-                def'
-                loc
-                act'
-          let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
-          let opts'' =
-                opts' <> case free of
-                  Available.FreeNone -> []
-                  Available.FreeVarName -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) <$> (unName <$> genName)]
-                  Available.FreeInt -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) <$> (show <$> genInt)]
-                  Available.FreeChar -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
-          case opts'' of
-            [] -> annotate "no options" >> success
-            options -> do
-              opt <- forAllT $ Gen.choice options
-              progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' loc (snd opt) act'
-              actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
+    pa <- toProgAction l a (def, loc, action)
+    case pa of
+      NoOpt progActs -> actionSucceeds (handleEditRequest progActs) a
+      OptOffered _ progActs -> actionSucceedsOrCapture Offered (handleEditRequest progActs) a
+      OptGen _ progActs -> actionSucceedsOrCapture StudentProvided (handleEditRequest progActs) a
+      NoOfferedOpts -> annotate "no options" >> success
   where
     runEditAppMLogs ::
       HasCallStack =>
@@ -512,6 +482,67 @@ genAction l a = do
     acts' -> do
       action <- Gen.element acts'
       pure (typeOrTermDef, loc, Just action)
+
+data PA
+  = NoOpt [ProgAction]
+  | -- | An option the API offered
+    OptOffered Option [ProgAction]
+  | -- | A free-form "student provided" option
+    OptGen Option [ProgAction]
+  | -- | An 'ActionInput' but with no offered options
+    NoOfferedOpts
+
+toProgAction ::
+  Monad m =>
+  Level ->
+  App ->
+  ( Either (ASTTypeDef TypeMeta KindMeta) Def
+  , Selection' ID
+  , Maybe Available.Action
+  ) ->
+  PropertyT m PA
+toProgAction l a (def, loc, action) = do
+  def' <- case (defAST <$> def, action) of
+    (Left d, _) -> pure $ Left d
+    (Right Nothing, Nothing) -> discard
+    (Right Nothing, Just act) -> do
+      annotate "Expected no action to be available on a primitive"
+      annotateShow def
+      annotateShow act
+      failure
+    (Right (Just d), _) -> pure $ Right d
+  case action of
+    Nothing -> discard
+    Just action' -> case action' of
+      Available.NoInput act' -> do
+        progActs <-
+          either (\e -> annotateShow e >> failure) pure
+            $ toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' loc act'
+        pure $ NoOpt progActs
+      Available.Input act' -> do
+        Available.Options{Available.opts, Available.free} <-
+          maybe (annotate "id not found" >> failure) pure
+            $ Available.options
+              (map snd $ progAllTypeDefs $ appProg a)
+              (map snd $ progAllDefs $ appProg a)
+              (progCxt $ appProg a)
+              l
+              def'
+              loc
+              act'
+        let opts' = [Gen.element $ (OptOffered,) <$> opts | not (null opts)]
+        let opts'' =
+              opts' <> case free of
+                Available.FreeNone -> []
+                Available.FreeVarName -> [(OptGen,) . (\t -> Available.Option t Nothing False) <$> (unName <$> genName)]
+                Available.FreeInt -> [(OptGen,) . (\t -> Available.Option t Nothing False) <$> (show <$> genInt)]
+                Available.FreeChar -> [(OptGen,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
+        case opts'' of
+          [] -> pure NoOfferedOpts
+          options -> do
+            (mkPA, opt) <- forAllWithT (show . snd) $ Gen.choice options
+            progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' loc opt act'
+            pure $ mkPA opt progActs
 
 -- 'Raise' works when moving checkable terms into synthesisable position
 unit_raise_sh :: Assertion
