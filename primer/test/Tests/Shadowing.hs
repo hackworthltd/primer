@@ -6,10 +6,13 @@ import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data qualified as U
+import Data.List.Extra (enumerate)
 import Data.Set qualified as Set
-import Hedgehog (annotateShow, discard, failure, forAll, (===))
+import Hedgehog (annotateShow, discard, failure, forAll, label, success, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+import Primer.Action.Available (Action (NoInput), NoInputAction (LetToRec))
+import Primer.App (App, appProg, handleEditRequest, progAllDefs, progAllTypeDefs, runEditAppM)
 import Primer.Core (
   Expr,
   Expr' (Case, Var),
@@ -19,6 +22,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (ann, app, create, create', lam, let_, lvar, tEmptyHole, tfun)
 import Primer.Core.Utils (freeGlobalVars)
+import Primer.Def (Def, astDefExpr, defAST, defType)
 import Primer.Eval (
   AvoidShadowing (AvoidShadowing),
   Dir (Syn),
@@ -29,11 +33,14 @@ import Primer.Eval (
   step,
  )
 import Primer.EvalFull (EvalFullError (..), EvalLog, evalFullStepCount)
-import Primer.Gen.Core.Typed (forAllT)
-import Primer.Module (moduleDefsQualified)
+import Primer.Gen.App (genApp)
+import Primer.Gen.Core.Typed (forAllT, propertyWT)
+import Primer.Log (runPureLog)
+import Primer.Module (builtinModule, moduleDefsQualified, primitiveModule)
 import Primer.Name (Name)
 import Primer.Test.Util (failWhenSevereLogs)
-import Primer.Typecheck (Cxt (typeDefs))
+import Primer.TypeDef (ASTTypeDef (..), TypeDef, typeDefAST, typeDefParameters, valConArgs)
+import Primer.Typecheck (Cxt (typeDefs), SmartHoles (SmartHoles))
 import Primer.Zipper (
   FoldAbove' (FA, current, prior),
   Loc' (InExpr),
@@ -48,6 +55,7 @@ import Primer.Zipper (
  )
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion)
+import Tests.Action.Available (PA (..), genAction, toProgAction)
 import Tests.Eval.Utils (genDirTm, testModules)
 import Tests.EvalFull (evalFullTestAvoidShadowing, (<~==>))
 import Tests.Gen.Core.Typed (propertyWTInExtendedGlobalCxt)
@@ -247,3 +255,71 @@ getEvalResultExpr :: Either EvalFullError Expr -> Expr
 getEvalResultExpr = \case
   Left (TimedOut e) -> e
   Right e -> e
+
+tasty_available_actions_shadow :: Property
+tasty_available_actions_shadow = withDiscards 2000
+  $ propertyWT []
+  $ do
+    l <- forAllT $ Gen.element enumerate
+    cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
+    a <- forAllT $ genApp SmartHoles cxt
+    unless (all ((== ShadowingNotExists) . snd) $ noShadowingApp a) discard
+    (def', loc, act) <- forAllT $ genAction l a
+    let (defName, def) = (bimap fst fst def', bimap snd snd def')
+    annotateShow defName
+    annotateShow def
+    annotateShow loc
+    annotateShow act
+    progActs' <- toProgAction l a (def, loc, act)
+    progActs <- case progActs' of
+      NoOpt progActs -> pure progActs
+      OptOffered _ progActs -> pure progActs
+      OptGen _ _ -> discard
+      NoOfferedOpts -> discard
+    let (res, _logs) = runPureLog $ runEditAppM (handleEditRequest progActs) a
+    let isKnownShadow = case act of
+          Just (NoInput LetToRec) ->
+            {- The following action can introduce shadowing
+            let bar = (let bar = ? in ?) in ?
+            ~>
+            letrec bar = (let bar = ? in ?) : ? in ?
+            -}
+            True
+          _ -> False
+    case (res, isKnownShadow) of
+      ((Left err, _), _) -> annotateShow err >> failure
+      ((Right _, _), True) -> label "known shadowing case" >> success
+      ((Right _, a'), False) -> do
+        label "not known shadowing case"
+        annotateShow a'
+        for_ (noShadowingApp a') $ \(d, s) -> do
+          unless (s == ShadowingNotExists) $ annotateShow d
+          s === ShadowingNotExists
+
+noShadowingApp :: App -> [(Either (TypeDef () ()) Def, Shadowing)]
+noShadowingApp a =
+  let p = appProg a
+      tds = snd <$> toList (progAllTypeDefs p)
+      ds = snd <$> toList (progAllDefs p)
+   in map (\d -> (Left d, noShadowingTypeDef d)) tds <> map (\d -> (Right d, noShadowingDef d)) ds
+  where
+    combineShadow ShadowingNotExists s = s
+    combineShadow s ShadowingNotExists = s
+    combineShadow (ShadowingExists x) (ShadowingExists y) = ShadowingExists $ x <> y
+    noShadowingTypeDef = checkShadowing . binderTreeTypeDef
+    noShadowingDef d =
+      let sty = (noShadowingTy $ defType d)
+          stm = (noShadowing . astDefExpr <$> defAST d)
+       in sty & maybe identity (flip combineShadow) stm
+
+binderTreeTypeDef :: (Data a, Data b, Eq a, Eq b) => TypeDef a b -> Tree () (Set Name)
+binderTreeTypeDef ty =
+  Node
+    ()
+    [
+      ( Set.fromList $ unLocalName . fst <$> typeDefParameters ty
+      , Node () $ (mempty,) . bindersVC <$> (astTypeDefConstructors =<< toList (typeDefAST ty))
+      )
+    ]
+  where
+    bindersVC vc = Node () $ valConArgs vc <&> (mempty,) . binderTreeTy
