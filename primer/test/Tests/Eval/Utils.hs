@@ -72,8 +72,8 @@ testModule =
         { moduleName = ModuleName ["M"]
         , moduleTypes = mempty
         , moduleDefs =
-            Map.singleton "idChar" $
-              DefAST
+            Map.singleton "idChar"
+              $ DefAST
                 ASTDef
                   { astDefType = ty
                   , astDefExpr = expr
@@ -96,15 +96,15 @@ x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
 -- or a 'TLet' in an embedded type.
 hasTypeLets :: Expr -> Bool
 hasTypeLets e =
-  not $
-    null [() | LetType{} <- universe e]
-      && null [() | TLet{} <- universeBi @_ @Type e]
+  not
+    $ null [() | LetType{} <- universe e]
+    && null [() | TLet{} <- universeBi @_ @Type e]
 
 -- | Does this expression have any holes?
 hasHoles :: Expr -> Bool
 hasHoles e =
-  not $
-    null [() | Hole{} <- universe e]
-      && null [() | EmptyHole{} <- universe e]
-      && null [() | THole{} <- universeBi @_ @Type e]
-      && null [() | TEmptyHole{} <- universeBi @_ @Type e]
+  not
+    $ null [() | Hole{} <- universe e]
+    && null [() | EmptyHole{} <- universe e]
+    && null [() | THole{} <- universeBi @_ @Type e]
+    && null [() | TEmptyHole{} <- universeBi @_ @Type e]

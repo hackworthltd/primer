@@ -50,15 +50,16 @@ unit_prim_con_scope_ast = do
   -- Our type def is accepted
   test (checkValidContext =<< ask) @?= Right ()
   -- Char is in scope (though the wrong kind to accept 'PrimChar's!)
-  assertBool "Char is not in scope?" $
-    isRight $
-      test $
-        checkKind (KFun () (KType ()) (KType ())) =<< tcon tChar
+  assertBool "Char is not in scope?"
+    $ isRight
+    $ test
+    $ checkKind (KFun () (KType ()) (KType ()))
+    =<< tcon tChar
   test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     charASTDef =
-      TypeDefAST $
-        ASTTypeDef
+      TypeDefAST
+        $ ASTTypeDef
           { astTypeDefParameters = [("a", KType ())]
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty

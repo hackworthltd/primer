@@ -121,10 +121,11 @@ deriving via PrimerJSON Session instance ToSchema Session
 -- https://hackage.haskell.org/package/openapi3-3.2.2/docs/src/Data.OpenApi.Internal.Schema.html#line-662
 instance ToSchema LastModified where
   declareNamedSchema _ =
-    pure $
-      named "LastModified" $
-        timeSchema "date-time"
-          & #example ?~ toJSON (UTCTime (fromGregorian 2022 10 20) 0)
+    pure
+      $ named "LastModified"
+      $ timeSchema "date-time"
+      & #example
+      ?~ toJSON (UTCTime (fromGregorian 2022 10 20) 0)
 
 instance ToParamSchema LastModified where
   toParamSchema _ = timeParamSchema "date-time"

@@ -83,8 +83,10 @@ instance ToHttpApiData Positive where
 instance ToParamSchema Positive where
   toParamSchema _ =
     toParamSchema (Proxy @Int)
-      & #minimum ?~ 0
-      & #exclusiveMinimum ?~ True
+      & #minimum
+      ?~ 0
+      & #exclusiveMinimum
+      ?~ True
 
 instance ToSchema Positive where
   declareNamedSchema = plain . toParamSchema

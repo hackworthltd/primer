@@ -417,8 +417,9 @@ instance Exception NullDbException
 instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
   insertSession _ id_ a n t = do
     ss <- ask
-    result <- liftIO $
-      atomically $ do
+    result <- liftIO
+      $ atomically
+      $ do
         lookup <- StmMap.lookup id_ ss
         case lookup of
           Nothing -> do
@@ -466,8 +467,9 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
 
 updateOrFail :: (MonadThrow m, MonadIO m) => SessionId -> (SessionData -> SessionData) -> Sessions -> m ()
 updateOrFail id_ f ss = do
-  result <- liftIO $
-    atomically $ do
+  result <- liftIO
+    $ atomically
+    $ do
       lookup <- StmMap.lookup id_ ss
       case lookup of
         Nothing -> pure $ Left $ NullDbException "updateSessionName lookup failed"

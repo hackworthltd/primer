@@ -557,8 +557,9 @@ deleteSession = logAPI (noError DeleteSession) $ \sid -> do
 listSessions :: (MonadIO m, MonadAPILog l m) => OffsetLimit -> PrimerM m (Page Session)
 listSessions = logAPI (noError ListSessions) $ \ol -> do
   q <- asks dbOpQueue
-  callback <- liftIO $
-    atomically $ do
+  callback <- liftIO
+    $ atomically
+    $ do
       cb <- newEmptyTMVar
       writeTBQueue q $ Database.ListSessions ol cb
       pure cb
@@ -571,8 +572,9 @@ findSessions :: (MonadIO m, MonadAPILog l m) => Text -> OffsetLimit -> PrimerM m
 findSessions = curry $ logAPI (noError FindSessions) $ \case
   (substr, ol) -> do
     q <- asks dbOpQueue
-    callback <- liftIO $
-      atomically $ do
+    callback <- liftIO
+      $ atomically
+      $ do
         cb <- newEmptyTMVar
         writeTBQueue q $ Database.FindSessions substr ol cb
         pure cb
@@ -753,8 +755,9 @@ viewProg p =
                   , constructors = case d of
                       TypeDef.TypeDefPrim _ -> Nothing
                       TypeDef.TypeDefAST t ->
-                        Just $
-                          astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
+                        Just
+                          $ astTypeDefConstructors t
+                          <&> \(TypeDef.ValCon nameCon argsCon) ->
                             ValCon
                               { name = nameCon
                               , fields = viewTreeType' . over _typeKindMeta (show . view _id) . over _typeMeta (show . view _id) <$> argsCon
@@ -901,24 +904,25 @@ viewTreeExpr e0 = case e0 of
           Tree
             { nodeId = boxId
             , body =
-                BoxBody . RecordPair Flavor.Pattern $
-                  ( Tree
-                      { nodeId = patternRootId
-                      , body = pat p
-                      , childTrees =
-                          map
-                            ( \(Bind m v) ->
-                                Tree
-                                  { nodeId = show $ getID m
-                                  , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
-                                  , childTrees = []
-                                  , rightChild = Nothing
-                                  }
-                            )
-                            binds
-                      , rightChild = Nothing
-                      }
-                  )
+                BoxBody
+                  . RecordPair Flavor.Pattern
+                  $ ( Tree
+                        { nodeId = patternRootId
+                        , body = pat p
+                        , childTrees =
+                            map
+                              ( \(Bind m v) ->
+                                  Tree
+                                    { nodeId = show $ getID m
+                                    , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                              )
+                              binds
+                        , rightChild = Nothing
+                        }
+                    )
             , childTrees = [viewTreeExpr rhs]
             , rightChild = Nothing
             }
@@ -932,18 +936,19 @@ viewTreeExpr e0 = case e0 of
             boxId = nodeId <> "Pwild"
             patternRootId = boxId <> "B"
            in
-            Just $
-              Tree
+            Just
+              $ Tree
                 { nodeId = boxId
                 , body =
-                    BoxBody . RecordPair Flavor.Pattern $
-                      ( Tree
-                          { nodeId = patternRootId
-                          , body = NoBody Flavor.PatternWildcard
-                          , childTrees = []
-                          , rightChild = Nothing
-                          }
-                      )
+                    BoxBody
+                      . RecordPair Flavor.Pattern
+                      $ ( Tree
+                            { nodeId = patternRootId
+                            , body = NoBody Flavor.PatternWildcard
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        )
                 , childTrees = [viewTreeExpr rhs]
                 , rightChild = Nothing
                 }
@@ -1137,8 +1142,8 @@ evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) ->
       -- evaluation step will be to inline this definition, removing the node.
       let e = create' $ DSL.gvar d
       x <-
-        handleEvalFullRequest $
-          EvalFullReq
+        handleEvalFullRequest
+          $ EvalFullReq
             { evalFullReqExpr = e
             , evalFullCxtDir = Chk
             , evalFullMaxSteps = fromMaybe 10 lim
@@ -1165,8 +1170,8 @@ createDefinition ::
   Maybe Text ->
   PrimerM m Prog
 createDefinition =
-  curry3 $
-    logAPI (noError CreateDef) \(sid, moduleName, mDefName) ->
+  curry3
+    $ logAPI (noError CreateDef) \(sid, moduleName, mDefName) ->
       edit sid (App.Edit [App.CreateDef moduleName mDefName])
         >>= either (throwM . AddDefError moduleName mDefName) (pure . viewProg)
 
@@ -1178,8 +1183,8 @@ createTypeDef ::
   [ValConName] ->
   PrimerM m Prog
 createTypeDef =
-  curry3 $
-    logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
+  curry3
+    $ logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
       edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`TypeDef.ValCon` []) valcons) []])
         >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg)
 
@@ -1228,8 +1233,8 @@ actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selectio
       allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
   def <- snd <$> findASTTypeOrTermDef prog selection
-  maybe (throwM $ ActionOptionsNoID selection) pure $
-    Available.options (snd <$> allTypeDefs) (snd <$> allDefs) (progCxt prog) level def selection action
+  maybe (throwM $ ActionOptionsNoID selection) pure
+    $ Available.options (snd <$> allTypeDefs) (snd <$> allDefs) (progCxt prog) level def selection action
 
 findASTDef :: MonadThrow m => Map GVarName (Editable, Def.Def) -> GVarName -> m (Editable, ASTDef)
 findASTDef allDefs def = case allDefs Map.!? def of
@@ -1260,8 +1265,8 @@ applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selec
   prog <- getProgram sid
   def <- snd <$> findASTTypeOrTermDef prog selection
   actions <-
-    either (throwM . ToProgActionError (Available.NoInput action)) pure $
-      toProgActionNoInput (snd <$> progAllDefs prog) def selection action
+    either (throwM . ToProgActionError (Available.NoInput action)) pure
+      $ toProgActionNoInput (snd <$> progAllDefs prog) def selection action
   applyActions sid actions
 
 applyActionInput ::
@@ -1274,8 +1279,8 @@ applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, act
   prog <- getProgram sid
   def <- snd <$> findASTTypeOrTermDef prog body.selection
   actions <-
-    either (throwM . ToProgActionError (Available.Input action)) pure $
-      toProgActionInput def body.selection body.option action
+    either (throwM . ToProgActionError (Available.Input action)) pure
+      $ toProgActionInput def body.selection body.option action
   applyActions sid actions
 
 data ApplyActionBody = ApplyActionBody
@@ -1365,8 +1370,11 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
               pure $ viewKindOfKind $ target k'
         -- constructor node selected - return the type to which it belongs
         Just (TypeDefConsNodeSelection (TypeDefConsSelection _ Nothing)) ->
-          pure . Type . viewTreeType' . mkIds $
-            foldl' (\t -> TApp () t . TVar ()) (TCon () sel.def) (map fst $ astTypeDefParameters def)
+          pure
+            . Type
+            . viewTreeType'
+            . mkIds
+            $ foldl' (\t -> TApp () t . TVar ()) (TCon () sel.def) (map fst $ astTypeDefParameters def)
         -- field node selected - return its kind
         Just (TypeDefConsNodeSelection (TypeDefConsSelection c (Just s))) -> do
           t0 <- maybe (throw' $ TypeDefConFieldNotFound sel.def c s.index) pure $ getTypeDefConFieldType def c s.index

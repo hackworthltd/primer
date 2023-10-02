@@ -66,16 +66,16 @@ unit_nextProgID_types =
         kp1 <- kfun khole ktype
         tC <- tfun tEmptyHole tEmptyHole
         let t1 =
-              TypeDefAST $
-                ASTTypeDef
+              TypeDefAST
+                $ ASTTypeDef
                   { astTypeDefParameters = [("p1", kp1)]
                   , astTypeDefConstructors = [ValCon (qualifyName n "C") [tC]]
                   , astTypeDefNameHints = mempty
                   }
         kp2 <- khole
         let t2 =
-              TypeDefPrim $
-                PrimTypeDef
+              TypeDefPrim
+                $ PrimTypeDef
                   { primTypeDefParameters = [("p2", kp2)]
                   , primTypeDefNameHints = mempty
                   }
@@ -85,8 +85,8 @@ unit_nextProgID_types =
                 , moduleTypes = M.fromList [("T1", t1), ("T2", t2)]
                 , moduleDefs = mempty
                 }
-        pure $
-          Prog
+        pure
+          $ Prog
             { progImports = []
             , progModules = [m]
             , progSelection = Nothing
