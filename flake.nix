@@ -459,7 +459,7 @@
 
                     # Workaround for HLS in haskell.nix. Ref:
                     # https://github.com/input-output-hk/haskell.nix/issues/1981#issuecomment-1594278049
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.2";
+                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.3";
 
                     implicit-hie = "latest";
 
