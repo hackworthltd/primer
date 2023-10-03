@@ -36,7 +36,7 @@ import Primer.Builtins (
   tNat,
   tPair,
  )
-import Primer.Builtins.DSL (boolAnn, list_, nat)
+import Primer.Builtins.DSL (boolAnn, bool_, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
@@ -83,6 +83,7 @@ import Primer.Primitives (
     IntToNat,
     IsSpace,
     NatToHex,
+    PrimConst,
     ToUpper
   ),
   tChar,
@@ -1694,6 +1695,34 @@ unit_prim_ann =
               )
           `app` (char 'a' `ann` tcon tChar)
           <*> char 'A'
+          <*> primDefs
+   in do
+        s <- evalFullTest maxID builtinTypes prims 2 Syn e
+        s <~==> Right r
+
+unit_prim_lazy_1 :: Assertion
+unit_prim_lazy_1 =
+  let ((e, r, prims), maxID) =
+        create
+          $ (,,)
+          <$> pfun PrimConst
+          `app` bool_ True
+          `app` emptyHole
+          <*> bool_ True
+          <*> primDefs
+   in do
+        s <- evalFullTest maxID builtinTypes prims 2 Syn e
+        s <~==> Right r
+
+unit_prim_lazy_2 :: Assertion
+unit_prim_lazy_2 =
+  let ((e, r, prims), maxID) =
+        create
+          $ (,,)
+          <$> pfun PrimConst
+          `app` bool_ True
+          `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
+          <*> bool_ True
           <*> primDefs
    in do
         s <- evalFullTest maxID builtinTypes prims 2 Syn e
