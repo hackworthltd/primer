@@ -34,6 +34,8 @@ data PrimDef
   | IntNeq
   | IntToNat
   | IntFromNat
+  | -- | Only for testing
+    PrimConst
   deriving stock (Eq, Show, Read, Enum, Bounded, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
   deriving anyclass (NFData)

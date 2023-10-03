@@ -49,6 +49,7 @@ import Primer.Core.DSL (
   int,
   tcon,
  )
+import Primer.Core.Utils (generateIDs)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
 import Primer.Primitives.PrimDef (PrimDef (..))
@@ -135,6 +136,7 @@ primDefName = \case
   IntNeq -> "Int.≠"
   IntToNat -> "Int.toNat"
   IntFromNat -> "Int.fromNat"
+  PrimConst -> "const"
 
 primDefType :: PrimDef -> Type' () ()
 primDefType = uncurry (flip $ foldr $ TFun ()) . primFunTypes
@@ -161,6 +163,9 @@ primFunTypes = \case
   IntNeq -> ([c tInt, c tInt], c tBool)
   IntToNat -> ([c tInt], c tMaybe `a` c tNat)
   IntFromNat -> ([c tNat], c tInt)
+  -- Arbitrarily limited to `Int` and `Bool` since we our system doesn't allow polymorphic primitives.
+  -- Note that this primitive is only for testing anyway.
+  PrimConst -> ([c tBool, c tNat], c tBool)
   where
     c = TCon ()
     a = TApp ()
@@ -269,6 +274,10 @@ primFunDef def args = case def of
   IntFromNat -> case args of
     [exprToNat -> Just n] ->
       Right $ int $ fromIntegral n
+    _ -> err
+  PrimConst -> case args of
+    [x, _] ->
+      Right $ generateIDs x
     _ -> err
   where
     exprToNat = \case
