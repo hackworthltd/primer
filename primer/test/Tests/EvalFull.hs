@@ -1709,6 +1709,7 @@ unit_prim_lazy_1 =
           `app` bool_ True
           `app` emptyHole
           <*> bool_ True
+          `ann` tcon tBool
           <*> primDefs
    in do
         s <- evalFullTest maxID builtinTypes prims 2 Syn e
@@ -1723,6 +1724,7 @@ unit_prim_lazy_2 =
           `app` bool_ True
           `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
           <*> bool_ True
+          `ann` tcon tBool
           <*> primDefs
    in do
         s <- evalFullTest maxID builtinTypes prims 2 Syn e
