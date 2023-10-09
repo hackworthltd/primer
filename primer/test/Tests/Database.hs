@@ -1,9 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
--- Temporary workaround for GHC 9.6:
--- https://gitlab.haskell.org/ghc/ghc/-/issues/23143
-{-# OPTIONS -Wno-redundant-constraints #-}
-
 module Tests.Database where
 
 import Foreword
