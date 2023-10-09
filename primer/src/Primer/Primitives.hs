@@ -45,6 +45,7 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL (
+  ann,
   char,
   int,
   tcon,
@@ -277,7 +278,7 @@ primFunDef def args = case def of
     _ -> err
   PrimConst -> case args of
     [x, _] ->
-      Right $ generateIDs x
+      Right $ generateIDs x `ann` tcon tBool
     _ -> err
   where
     exprToNat = \case
