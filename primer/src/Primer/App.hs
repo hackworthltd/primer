@@ -6,10 +6,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
--- Temporary workaround for GHC 9.6:
--- https://gitlab.haskell.org/ghc/ghc/-/issues/23143
-{-# OPTIONS -Wno-redundant-constraints #-}
-
 -- This module defines the high level application functions.
 
 module Primer.App (

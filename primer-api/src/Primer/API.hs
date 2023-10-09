@@ -5,10 +5,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- Temporary workaround for GHC 9.6:
--- https://gitlab.haskell.org/ghc/ghc/-/issues/23143
-{-# OPTIONS -Wno-redundant-constraints #-}
-
 -- | The Primer API.
 --
 -- This module defines the Primer API, which is collection of
