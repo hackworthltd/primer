@@ -282,16 +282,6 @@ unit_def_in_use =
               @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
         )
 
--- | A helper type for 'tasty_available_actions_actions',
--- describing where a particular option came from.
-data Provenance
-  = -- | This option was offered by the 'Available.options' API
-    Offered
-  | -- | This option is free-form entry. For example, this simulates
-    -- renaming a definition to a hand-entered name.
-    StudentProvided
-  deriving stock (Show)
-
 tasty_available_actions_accepted :: Property
 tasty_available_actions_accepted = withTests 500
   $ withDiscards 2000
@@ -311,8 +301,8 @@ tasty_available_actions_accepted = withTests 500
     pa <- toProgAction l a (def, loc, action)
     case pa of
       NoOpt progActs -> actionSucceeds (handleEditRequest progActs) a
-      OptOffered _ progActs -> actionSucceedsOrCapture Offered (handleEditRequest progActs) a
-      OptGen _ progActs -> actionSucceedsOrCapture StudentProvided (handleEditRequest progActs) a
+      OptOffered _ progActs -> actionSucceeds (handleEditRequest progActs) a
+      OptGen _ progActs -> actionSucceedsOrCapture (handleEditRequest progActs) a
       NoOfferedOpts -> annotate "no options" >> success
   where
     runEditAppMLogs ::
@@ -329,30 +319,30 @@ tasty_available_actions_accepted = withTests 500
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => Provenance -> EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture p m a = do
+    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture m a = do
       a' <- runEditAppMLogs m a
-      case (p, a') of
-        (StudentProvided, (Left (ActionError NameCapture), _)) -> do
+      case a' of
+        (Left (ActionError NameCapture), _) -> do
           label "name-capture with entered name"
           annotate "ignoring name capture error as was generated name, not offered one"
-        (StudentProvided, (Left (ActionError (CaseBindsClash{})), _)) -> do
+        (Left (ActionError (CaseBindsClash{})), _) -> do
           label "name-clash with entered name"
           annotate "ignoring name clash error as was generated name, not offered one"
-        (StudentProvided, (Left DefAlreadyExists{}, _)) -> do
+        (Left DefAlreadyExists{}, _) -> do
           label "rename def name clash with entered name"
           annotate "ignoring def already exists error as was generated name, not offered one"
-        (StudentProvided, (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _)) -> do
+        (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _) -> do
           label "add duplicate primitive case branch"
           annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
-        (StudentProvided, (Left (TypeDefAlreadyExists _), _)) -> do
+        (Left (TypeDefAlreadyExists _), _) -> do
           pure ()
-        (StudentProvided, (Left (ConAlreadyExists _), _)) -> do
+        (Left (ConAlreadyExists _), _) -> do
           pure ()
-        (StudentProvided, (Left (TypeDefModifyNameClash _), _)) -> do
+        (Left (TypeDefModifyNameClash _), _) -> do
           pure ()
-        (_, (Left err, _)) -> annotateShow err >> failure
-        (_, (Right _, a'')) -> ensureSHNormal a''
+        (Left err, _) -> annotateShow err >> failure
+        (Right _, a'') -> ensureSHNormal a''
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
