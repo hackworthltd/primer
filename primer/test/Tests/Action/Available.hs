@@ -28,11 +28,12 @@ import Hedgehog (
  )
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
+import Hedgehog.Range qualified as Range
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
   Movement (Child1, Child2),
-  ProgAction,
+  ProgAction (AddTypeDef, CreateDef),
   enterType,
   move,
   moveExpr,
@@ -51,7 +52,9 @@ import Primer.App (
   DefSelection (..),
   EditAppM,
   Editable (..),
+  EvalFullReq (EvalFullReq),
   Level (Beginner, Expert, Intermediate),
+  MutationRequest (Edit),
   NodeSelection (..),
   NodeType (..),
   Prog (..),
@@ -71,6 +74,8 @@ import Primer.App (
   checkAppWellFormed,
   checkProgWellFormed,
   handleEditRequest,
+  handleEvalFullRequest,
+  handleMutationRequest,
   nextProgID,
   progAllDefs,
   progAllTypeDefs,
@@ -79,8 +84,11 @@ import Primer.App (
   progImports,
   progModules,
   progSmartHoles,
+  redoLogEmpty,
   runEditAppM,
+  undoLogEmpty,
  )
+import Primer.App qualified as App
 import Primer.App.Base (TypeDefConsFieldSelection (..))
 import Primer.Builtins (builtinModuleName, cCons, cFalse, cTrue, tBool, tList, tNat)
 import Primer.Core (
@@ -137,6 +145,8 @@ import Primer.Def (
   Def (DefAST, DefPrim),
   defAST,
  )
+import Primer.Eval (NormalOrderOptions (StopAtBinders, UnderBinders))
+import Primer.EvalFull (Dir (Chk))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)
@@ -157,7 +167,7 @@ import Primer.Test.App (
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, clearTypeMeta, testNoSevereLogs)
 import Primer.TypeDef (
-  ASTTypeDef (astTypeDefConstructors),
+  ASTTypeDef (ASTTypeDef, astTypeDefConstructors),
   ValCon (..),
   astTypeDefParameters,
   forgetTypeDefMetadata,
@@ -176,7 +186,7 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
-import Tests.Action.Prog (defaultEmptyProg, findGlobalByName, mkEmptyTestApp)
+import Tests.Action.Prog (defaultEmptyProg, findGlobalByName, mkEmptyTestApp, readerToState)
 import Tests.Typecheck (
   TypeCacheAlpha (TypeCacheAlpha),
   runTypecheckTestM,
@@ -282,6 +292,8 @@ unit_def_in_use =
               @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
         )
 
+-- Any offered action will complete successfully,
+-- other than one with a student-specified name that introduces capture.
 tasty_available_actions_accepted :: Property
 tasty_available_actions_accepted = withTests 500
   $ withDiscards 2000
@@ -300,52 +312,162 @@ tasty_available_actions_accepted = withTests 500
     collect action
     pa <- toProgAction l a (def, loc, action)
     case pa of
-      NoOpt progActs -> actionSucceeds (handleEditRequest progActs) a
-      OptOffered _ progActs -> actionSucceeds (handleEditRequest progActs) a
-      OptGen _ progActs -> actionSucceedsOrCapture (handleEditRequest progActs) a
+      NoOpt progActs -> void $ actionSucceeds (handleEditRequest progActs) a
+      OptOffered _ progActs -> void $ actionSucceeds (handleEditRequest progActs) a
+      OptGen _ progActs -> void $ actionSucceedsOrCapture (handleEditRequest progActs) a
       NoOfferedOpts -> annotate "no options" >> success
+
+-- Running multiple "things" one after the other will succeed
+-- (other than student-specified names causing capture), where a "thing" is one of:
+--   - an offered action
+--   - adding a new (type or term) definition
+--   - undo or redo
+--   - running some full evaluation
+tasty_multiple_requests_accepted :: Property
+tasty_multiple_requests_accepted = withTests 500
+  $ withDiscards 2000
+  $ propertyWT []
+  $ do
+    l <- forAllT $ Gen.element enumerate
+    cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
+    -- We only test SmartHoles mode (which is the only supported student-facing
+    -- mode - NoSmartHoles is only used for internal sanity testing etc)
+    app0 <- forAllT $ genApp SmartHoles cxt
+    numActions <- forAllT $ Gen.int $ Range.linear 1 20
+    let appDefs = foldMap' (M.keys . moduleDefsQualified) . progModules . appProg
+        genAction' a' =
+          Gen.frequency
+            $ second pure
+            <$> catMaybes
+              [ Just (2, AddTm)
+              , Just (1, AddTy)
+              , if null $ appDefs a' then Nothing else Just (1, EvalFull)
+              , if undoLogEmpty $ appProg a' then Nothing else Just (1, Undo)
+              , if redoLogEmpty $ appProg a' then Nothing else Just (1, Redo)
+              , Just (1, RenameModule)
+              , Just (5, AvailAct)
+              ]
+    void $ iterateNM numActions app0 $ \appN ->
+      forAllT (genAction' appN) >>= \a -> do
+        collect a
+        case a of
+          AddTm -> do
+            m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg appN
+            n <- forAllT $ Gen.choice [Just . unName <$> genName, pure Nothing]
+            actionSucceedsOrCapture (handleMutationRequest $ Edit [CreateDef m n]) appN
+              >>= ignoreCaptureClash appN
+          AddTy -> do
+            m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg appN
+            n <- qualifyName m <$> forAllT genName
+            actionSucceedsOrCapture (handleMutationRequest $ Edit [AddTypeDef n $ ASTTypeDef [] [] []]) appN
+              >>= ignoreCaptureClash appN
+          EvalFull -> do
+            g <- forAllT $ Gen.element $ appDefs appN
+            tld <- gvar g
+            steps <- forAllT $ Gen.integral $ Range.linear 0 100
+            optsN <- forAllT $ Gen.element @[] [StopAtBinders, UnderBinders]
+            actionSucceeds (readerToState $ handleEvalFullRequest $ EvalFullReq tld Chk steps optsN) appN
+          Undo -> actionSucceeds (handleMutationRequest App.Undo) appN
+          Redo -> actionSucceeds (handleMutationRequest App.Redo) appN
+          AvailAct -> do
+            (def'', loc, action) <- forAllT $ genAction l appN
+            annotateShow def''
+            annotateShow loc
+            annotateShow action
+            let def = bimap snd snd def''
+            collect action
+            pa <- toProgAction l appN (def, loc, action)
+            case pa of
+              NoOpt progActs -> actionSucceeds (handleEditRequest progActs) appN
+              OptOffered _ progActs -> actionSucceeds (handleEditRequest progActs) appN
+              OptGen _ progActs ->
+                actionSucceedsOrCapture (handleEditRequest progActs) appN
+                  >>= ignoreCaptureClash appN
+              NoOfferedOpts -> annotate "ignoring - no options" >> pure appN
+          RenameModule -> do
+            m <- forAllT $ moduleName <$> Gen.element (progModules $ appProg appN)
+            n <- forAllT (Gen.nonEmpty (Range.linear 1 5) genName)
+            actionSucceedsOrCapture (handleMutationRequest $ Edit [App.RenameModule m $ unName <$> n]) appN >>= ignoreCaptureClash appN
   where
-    runEditAppMLogs ::
-      HasCallStack =>
-      EditAppM (PureLog (WithSeverity ())) ProgError a ->
-      App ->
-      PropertyT WT (Either ProgError a, App)
-    runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
-      (r, logs) -> testNoSevereLogs logs >> pure r
-    actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
-    actionSucceeds m a =
-      runEditAppMLogs m a >>= \case
-        (Left err, _) -> annotateShow err >> failure
-        (Right _, a') -> ensureSHNormal a'
-    -- If we submit our own name rather than an offered one, then
-    -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture m a = do
-      a' <- runEditAppMLogs m a
-      case a' of
-        (Left (ActionError NameCapture), _) -> do
-          label "name-capture with entered name"
-          annotate "ignoring name capture error as was generated name, not offered one"
-        (Left (ActionError (CaseBindsClash{})), _) -> do
-          label "name-clash with entered name"
-          annotate "ignoring name clash error as was generated name, not offered one"
-        (Left DefAlreadyExists{}, _) -> do
-          label "rename def name clash with entered name"
-          annotate "ignoring def already exists error as was generated name, not offered one"
-        (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _) -> do
-          label "add duplicate primitive case branch"
-          annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
-        (Left (TypeDefAlreadyExists _), _) -> do
-          pure ()
-        (Left (ConAlreadyExists _), _) -> do
-          pure ()
-        (Left (TypeDefModifyNameClash _), _) -> do
-          pure ()
-        (Left err, _) -> annotateShow err >> failure
-        (Right _, a'') -> ensureSHNormal a''
-    ensureSHNormal a = case checkAppWellFormed a of
-      Left err -> annotateShow err >> failure
-      Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
+    ignoreCaptureClash a = \case
+      Succeed b -> pure b
+      Capture -> label "ignoring - capture" >> pure a
+      Clash -> label "ignoring - clash" >> pure a
+    iterateNM :: Monad m => Int -> a -> (a -> m a) -> m a
+    iterateNM n a f
+      | n <= 0 = pure a
+      | otherwise = f a >>= \fa -> iterateNM (n - 1) fa f
+
+-- Helper for tasty_multiple_requests_accepted
+data Act
+  = AddTm
+  | AddTy
+  | EvalFull
+  | Undo
+  | Redo
+  | RenameModule
+  | AvailAct
+  deriving stock (Show)
+
+-- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
+runEditAppMLogs ::
+  HasCallStack =>
+  EditAppM (PureLog (WithSeverity ())) ProgError a ->
+  App ->
+  PropertyT WT (Either ProgError a, App)
+runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
+  (r, logs) -> testNoSevereLogs logs >> pure r
+
+-- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
+actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+actionSucceeds m a =
+  runEditAppMLogs m a >>= \case
+    (Left err, _) -> annotateShow err >> failure
+    (Right _, a') -> ensureSHNormal a' $> a'
+
+-- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
+-- Similar to 'actionSucceeds' but bearing in mind that
+-- if we submit our own name rather than an offered one, then
+-- we should expect that name capture/clashing may happen
+actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT (SucceedOrCapture App)
+actionSucceedsOrCapture m a = do
+  a' <- runEditAppMLogs m a
+  case a' of
+    (Left (ActionError NameCapture), _) -> do
+      label "name-capture with entered name"
+      annotate "ignoring name capture error as was generated name, not offered one"
+      pure Capture
+    (Left (ActionError (CaseBindsClash{})), _) -> do
+      label "name-clash with entered name"
+      annotate "ignoring name clash error as was generated name, not offered one"
+      pure Clash
+    (Left DefAlreadyExists{}, _) -> do
+      label "rename def name clash with entered name"
+      annotate "ignoring def already exists error as was generated name, not offered one"
+      pure Clash
+    (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _) -> do
+      label "add duplicate primitive case branch"
+      annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
+      pure Clash
+    (Left (TypeDefAlreadyExists _), _) -> do
+      pure Clash
+    (Left (ConAlreadyExists _), _) -> do
+      pure Clash
+    (Left (TypeDefModifyNameClash _), _) -> do
+      pure Clash
+    (Left err, _) -> annotateShow err >> failure
+    (Right _, a'') -> ensureSHNormal a'' $> Succeed a''
+
+data SucceedOrCapture a
+  = Succeed a
+  | Capture
+  | Clash
+
+-- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
+ensureSHNormal :: App -> PropertyT WT ()
+ensureSHNormal a = case checkAppWellFormed a of
+  Left err -> annotateShow err >> failure
+  Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
 
 genAction ::
   forall m.
