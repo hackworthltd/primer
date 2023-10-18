@@ -393,7 +393,7 @@ unit_create_typedef_bad_2 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "T") td2]
-        $ expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
+        $ expectError (@?= TypeDefAlreadyExists (tcn "T"))
 
 -- Forbid duplicate constructor names within one type
 unit_create_typedef_bad_3 :: Assertion
@@ -474,7 +474,7 @@ unit_create_typedef_bad_prim =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultFullProg [AddTypeDef (tcn "Char") td]
-        $ expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
+        $ expectError (@?= TypeDefAlreadyExists (tcn "Char"))
 
 -- Allow clash between type name and constructor name in one type
 unit_create_typedef_8 :: Assertion

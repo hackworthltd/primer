@@ -678,6 +678,7 @@ applyProgAction prog = \case
     let def = ASTDef expr ty
     pure (insertDef mod name $ DefAST def, Just $ SelectionDef $ DefSelection (qualifyName modName name) Nothing)
   AddTypeDef tc td -> editModule (qualifiedModule tc) prog $ \m -> do
+    when (Map.member (baseName tc) (moduleTypes m)) $ throwError $ TypeDefAlreadyExists tc
     td' <- generateTypeDefIDs $ TypeDefAST td
     let tydefs' = moduleTypes m <> Map.singleton (baseName tc) td'
     liftError
