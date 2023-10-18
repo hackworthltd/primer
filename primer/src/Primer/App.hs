@@ -29,6 +29,8 @@ module Primer.App (
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  undoLogEmpty,
+  redoLogEmpty,
   defaultProg,
   newEmptyProg',
   newProg,
@@ -311,6 +313,11 @@ pop :: Log -> Maybe ([ProgAction], Log)
 pop l = case unlog l of
   [] -> Nothing
   (as : l') -> Just (as, Log l')
+
+undoLogEmpty :: Prog -> Bool
+undoLogEmpty = null . unlog . progLog
+redoLogEmpty :: Prog -> Bool
+redoLogEmpty = null . unlog . redoLog
 
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
