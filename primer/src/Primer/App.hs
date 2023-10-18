@@ -176,7 +176,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, create)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (
@@ -368,8 +368,8 @@ newEmptyProgImporting imported =
   let defName = "main"
       moduleName = mkSimpleModuleName "Main"
       ((imported', defs), nextID) = create $ do
-        mainExpr <- emptyHole
-        mainType <- tEmptyHole
+        mainExpr <- newExpr
+        mainType <- newType
         let astDefs =
               Map.singleton
                 defName
@@ -1494,17 +1494,17 @@ checkProgWellFormed p =
       -- ensure that the 'ID' is unique across all modules.
       pure $ checkedProg{progSmartHoles = progSmartHoles p}
 
--- | Construct a new, empty expression
+-- | Construct a new, empty expression (with typecache of TEmptyHole, both synthed and checked)
 newExpr :: MonadFresh ID m => m Expr
 newExpr = do
   id_ <- fresh
-  pure $ EmptyHole (Meta id_ Nothing Nothing)
+  pure $ EmptyHole (Meta id_ (Just $ TCEmb $ TCBoth (TEmptyHole ()) (TEmptyHole ())) Nothing)
 
--- | Construct a new, empty type
+-- | Construct a new, empty type (with kindcache of KHole)
 newType :: MonadFresh ID m => m Type
 newType = do
   id_ <- fresh
-  pure $ TEmptyHole (Meta id_ Nothing Nothing)
+  pure $ TEmptyHole (Meta id_ (Just $ KHole ()) Nothing)
 
 newtype FreshViaApp m a = FreshViaApp (m a)
   deriving newtype (Functor, Applicative, Monad)

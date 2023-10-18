@@ -16,16 +16,21 @@ import Primer.App (
   newApp,
   newEmptyApp,
   nextProgID,
+  progAllModules,
  )
 import Primer.Core (
   ID,
+  ModuleName,
+  mkSimpleModuleName,
  )
 import Primer.Examples qualified as Examples
+import Primer.Module (moduleName)
 import Primer.Name (
   NameCounter,
  )
 import Test.Tasty.HUnit (
   Assertion,
+  assertBool,
   assertFailure,
   (@?=),
  )
@@ -51,6 +56,14 @@ expectWellFormed a name =
     Left e -> assertFailure $ toS name <> " should be well-formed: " <> show e
     Right _ -> pure ()
 
+expectSHNormal :: App -> [ModuleName] -> Text -> Assertion
+expectSHNormal a ms name =
+  case checkAppWellFormed a of
+    Left e -> assertFailure $ toS name <> " is not well-formed, so cannot be SH-normal: " <> show e
+    Right a' -> assertBool "expected app to be smartholes-normal and have correct typecaches" $ f a == f a'
+  where
+    f = filter (flip elem ms . moduleName) . progAllModules . appProg
+
 expectTypeError :: ProgError -> Assertion
 expectTypeError (ActionError (TypeError _)) = pure ()
 expectTypeError e = assertFailure $ "Expected TypeError, but got " <> show e
@@ -74,10 +87,14 @@ expectMkAppSafeFailure (p, _, n) name =
     Right _ -> assertFailure $ "mkAppSafe should fail for " <> toS name
 
 unit_checkAppWellFormed_newApp :: Assertion
-unit_checkAppWellFormed_newApp = expectWellFormed newApp "newApp"
+unit_checkAppWellFormed_newApp = do
+  expectWellFormed newApp "newApp"
+  expectSHNormal newApp [mkSimpleModuleName "Main"] "newApp"
 
 unit_checkAppWellFormed_newEmptyApp :: Assertion
-unit_checkAppWellFormed_newEmptyApp = expectWellFormed newEmptyApp "newEmptyApp"
+unit_checkAppWellFormed_newEmptyApp = do
+  expectWellFormed newEmptyApp "newEmptyApp"
+  expectSHNormal newEmptyApp [mkSimpleModuleName "Main"] "newEmptyApp"
 
 unit_checkAppWellFormed_even3App :: Assertion
 unit_checkAppWellFormed_even3App = expectWellFormed Examples.even3App "even3App"

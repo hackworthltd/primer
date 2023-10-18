@@ -94,6 +94,8 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeCache (TCEmb),
+  TypeCacheBoth (TCBoth),
   ValConName,
   getID,
   qualifyName,
@@ -311,7 +313,7 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Ju
     case lookupASTDef' "newDef" prog' of
       Nothing -> assertFailure $ show $ moduleDefs <$> progModules prog'
       Just def -> do
-        astDefExpr def @?= EmptyHole (Meta 4 Nothing Nothing)
+        astDefExpr def @?= EmptyHole (Meta 4 (Just $ TCEmb $ TCBoth (TEmptyHole ()) (TEmptyHole ())) Nothing)
 
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
