@@ -1,4 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -53,6 +55,7 @@ import Primer.App (
   EditAppM,
   Editable (..),
   EvalFullReq (EvalFullReq),
+  EvalReq (EvalReq),
   Level (Beginner, Expert, Intermediate),
   MutationRequest (Edit),
   NodeSelection (..),
@@ -62,20 +65,24 @@ import Primer.App (
     ActionError,
     ConAlreadyExists,
     DefAlreadyExists,
+    EvalError,
     TypeDefAlreadyExists,
     TypeDefModifyNameClash
   ),
+  Question (GenerateName, VariablesInScope),
   Selection' (..),
-  TypeDefConsSelection (TypeDefConsSelection),
+  TypeDefConsSelection (TypeDefConsSelection, con, field),
   TypeDefNodeSelection (TypeDefConsNodeSelection, TypeDefParamNodeSelection),
-  TypeDefParamSelection (TypeDefParamSelection),
-  TypeDefSelection (TypeDefSelection),
+  TypeDefParamSelection (TypeDefParamSelection, kindMeta, param),
+  TypeDefSelection (..),
   appProg,
   checkAppWellFormed,
   checkProgWellFormed,
   handleEditRequest,
   handleEvalFullRequest,
+  handleEvalRequest,
   handleMutationRequest,
+  handleQuestion,
   nextProgID,
   progAllDefs,
   progAllTypeDefs,
@@ -138,6 +145,7 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (
   exprIDs,
+  generateIDs,
   typeIDs,
  )
 import Primer.Def (
@@ -145,12 +153,21 @@ import Primer.Def (
   Def (DefAST, DefPrim),
   defAST,
  )
-import Primer.Eval (NormalOrderOptions (StopAtBinders, UnderBinders))
+import Primer.Eval (EvalError (NotRedex), NormalOrderOptions (StopAtBinders, UnderBinders))
 import Primer.EvalFull (Dir (Chk))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)
-import Primer.Gen.Core.Typed (WT, forAllT, genChar, genInt, propertyWT)
+import Primer.Gen.Core.Typed (
+  WT,
+  forAllT,
+  genChar,
+  genInt,
+  genSyn,
+  genWTKind,
+  genWTType,
+  propertyWT,
+ )
 import Primer.Log (PureLog, runPureLog)
 import Primer.Module (
   Module (Module, moduleDefs),
@@ -323,6 +340,7 @@ tasty_available_actions_accepted = withTests 500
 --   - adding a new (type or term) definition
 --   - undo or redo
 --   - running some full evaluation
+--   - asking a @Question@
 tasty_multiple_requests_accepted :: Property
 tasty_multiple_requests_accepted = withTests 500
   $ withDiscards 2000
@@ -339,13 +357,15 @@ tasty_multiple_requests_accepted = withTests 500
           Gen.frequency
             $ second pure
             <$> catMaybes
-              [ Just (2, AddTm)
-              , Just (1, AddTy)
+              [ Just (3, AddTm)
+              , Just (2, AddTy)
+              , Just (1, Eval1)
               , if null $ appDefs a' then Nothing else Just (1, EvalFull)
-              , if undoLogEmpty $ appProg a' then Nothing else Just (1, Undo)
-              , if redoLogEmpty $ appProg a' then Nothing else Just (1, Redo)
+              , Just (1, Question)
+              , if undoLogEmpty $ appProg a' then Nothing else Just (2, Undo)
+              , if redoLogEmpty $ appProg a' then Nothing else Just (2, Redo)
               , Just (1, RenameModule)
-              , Just (5, AvailAct)
+              , Just (10, AvailAct)
               ]
     void $ iterateNM numActions app0 $ \appN ->
       forAllT (genAction' appN) >>= \a -> do
@@ -361,12 +381,46 @@ tasty_multiple_requests_accepted = withTests 500
             n <- qualifyName m <$> forAllT genName
             actionSucceedsOrCapture (handleMutationRequest $ Edit [AddTypeDef n $ ASTTypeDef [] [] []]) appN
               >>= ignoreCaptureClash appN
+          Eval1 -> do
+            (e', _) <- forAllT genSyn
+            e <- generateIDs e'
+            i <- forAllT $ Gen.element $ e ^.. exprIDs
+            actionSucceedsOrNotRedex (readerToState $ handleEvalRequest $ EvalReq e i) appN
           EvalFull -> do
             g <- forAllT $ Gen.element $ appDefs appN
             tld <- gvar g
             steps <- forAllT $ Gen.integral $ Range.linear 0 100
             optsN <- forAllT $ Gen.element @[] [StopAtBinders, UnderBinders]
             actionSucceeds (readerToState $ handleEvalFullRequest $ EvalFullReq tld Chk steps optsN) appN
+          Question -> do
+            -- Obtain a non-exhaustive case warning if we add a new question
+            let _w :: Question q -> ()
+                _w = \case
+                  VariablesInScope{} -> ()
+                  GenerateName{} -> ()
+            (_, e, w) <- forAllT $ genLoc appN
+            -- We only support questions in editable modules
+            case e of
+              Editable -> pure ()
+              NonEditable -> discard
+            (def, node) <- case w of
+              SelectionDef (DefSelection{def, node = Just node}) -> pure (def, node.meta)
+              SelectionDef (DefSelection{node = Nothing}) -> discard
+              -- We don't currently support questions on typedefs
+              SelectionTypeDef _ -> discard
+            (_, q) <-
+              forAllWithT fst
+                $ Gen.choice
+                  [ pure ("VariablesInScope", void $ handleQuestion (VariablesInScope def node))
+                  , ("GenerateName",) . void . handleQuestion . GenerateName def node <$> do
+                      k <- genWTKind
+                      Gen.choice
+                        [ Left <$> Gen.maybe (genWTType k)
+                        , pure $ Right $ Just k
+                        , pure $ Right Nothing
+                        ]
+                  ]
+            actionSucceeds (readerToState q) appN
           Undo -> actionSucceeds (handleMutationRequest App.Undo) appN
           Redo -> actionSucceeds (handleMutationRequest App.Redo) appN
           AvailAct -> do
@@ -402,7 +456,9 @@ tasty_multiple_requests_accepted = withTests 500
 data Act
   = AddTm
   | AddTy
+  | Eval1
   | EvalFull
+  | Question
   | Undo
   | Redo
   | RenameModule
@@ -422,6 +478,16 @@ runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
 actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
 actionSucceeds m a =
   runEditAppMLogs m a >>= \case
+    (Left err, _) -> annotateShow err >> failure
+    (Right _, a') -> ensureSHNormal a' $> a'
+
+actionSucceedsOrNotRedex :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+actionSucceedsOrNotRedex m a =
+  runEditAppMLogs m a >>= \case
+    (Left (EvalError NotRedex), _) -> do
+      label "name-capture with entered name"
+      annotate "ignoring name capture error as was generated name, not offered one"
+      pure a
     (Left err, _) -> annotateShow err >> failure
     (Right _, a') -> ensureSHNormal a' $> a'
 
@@ -469,25 +535,22 @@ ensureSHNormal a = case checkAppWellFormed a of
   Left err -> annotateShow err >> failure
   Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
 
-genAction ::
+genLoc ::
   forall m.
   Monad m =>
-  Level ->
   App ->
   GenT
     m
     ( Either
         (TyConName, ASTTypeDef TypeMeta KindMeta)
         (GVarName, Def)
+    , Editable
     , Selection' ID
-    , Maybe Available.Action
     )
-genAction l a = do
+genLoc a = do
   let allTypes = progAllTypeDefsMeta $ appProg a
       allASTTypes = M.mapMaybe (traverse typeDefAST) allTypes
-      allTypes' = forgetTypeDefMetadata . snd <$> allTypes
   let allDefs = progAllDefs $ appProg a
-      allDefs' = snd <$> allDefs
   let isMutable = \case
         Editable -> True
         NonEditable -> False
@@ -505,19 +568,15 @@ genAction l a = do
         [ second Left <<$>> genDef allASTTypes
         , second Right <<$>> genDef allDefs
         ]
-  (loc, acts) <- case typeOrTermDef of
+  loc <- case typeOrTermDef of
     Left (defName, def) ->
       let typeDefSel = SelectionTypeDef . TypeDefSelection defName
-          forTypeDef =
-            ( typeDefSel Nothing
-            , Available.forTypeDef l defMut allTypes' allDefs' defName def
-            )
        in Gen.frequency
-            [ (1, pure forTypeDef)
+            [ (1, pure $ typeDefSel Nothing)
             ,
               ( 2
               , case astTypeDefParameters def of
-                  [] -> pure forTypeDef
+                  [] -> pure $ typeDefSel Nothing
                   ps -> do
                     (p, k) <- Gen.element ps
                     let typeDefParamNodeSel = typeDefSel . Just . TypeDefParamNodeSelection . TypeDefParamSelection p
@@ -526,7 +585,6 @@ genAction l a = do
                         ( 1
                         , pure
                             ( typeDefParamNodeSel Nothing
-                            , Available.forTypeDefParamNode p l defMut allTypes' allDefs' defName def
                             )
                         )
                       ,
@@ -539,7 +597,6 @@ genAction l a = do
                             id <- Gen.element @[] $ allKindIDs k
                             pure
                               ( typeDefParamNodeSel $ Just id
-                              , Available.forTypeDefParamKindNode p id l defMut allTypes' allDefs' defName def
                               )
                         )
                       ]
@@ -547,19 +604,15 @@ genAction l a = do
             ,
               ( 5
               , case astTypeDefConstructors def of
-                  [] -> pure forTypeDef
+                  [] -> pure $ typeDefSel Nothing
                   cs -> do
                     ValCon{valConName, valConArgs} <- Gen.element cs
                     let typeDefConsNodeSel = typeDefSel . Just . TypeDefConsNodeSelection . TypeDefConsSelection valConName
-                        forTypeDefConsNode =
-                          ( typeDefConsNodeSel Nothing
-                          , Available.forTypeDefConsNode l defMut allTypes' allDefs' defName def
-                          )
                     case valConArgs of
-                      [] -> pure forTypeDefConsNode
+                      [] -> pure $ typeDefConsNodeSel Nothing
                       as ->
                         Gen.frequency
-                          [ (1, pure forTypeDefConsNode)
+                          [ (1, pure $ typeDefConsNodeSel Nothing)
                           ,
                             ( 5
                             , do
@@ -567,33 +620,67 @@ genAction l a = do
                                 i <- Gen.element $ t ^.. typeIDs
                                 pure
                                   ( typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i
-                                  , Available.forTypeDefConsFieldNode valConName n i l defMut allTypes' allDefs' defName def
                                   )
                             )
                           ]
               )
             ]
     Right (defName, def) ->
-      fmap (first (SelectionDef . DefSelection defName))
+      fmap (SelectionDef . DefSelection defName)
         . Gen.frequency
         $ catMaybes
-          [ Just (1, pure (Nothing, Available.forDef (snd <$> allDefs) l defMut defName))
+          [ Just (1, pure Nothing)
           , defAST def <&> \d' -> (2,) $ do
               let ty = astDefType d'
                   ids = ty ^.. typeIDs
               i <- Gen.element ids
-              pure (Just $ NodeSelection SigNode i, Available.forSig l defMut ty i)
+              pure (Just $ NodeSelection SigNode i)
           , defAST def <&> \d' -> (7,) $ do
               let expr = astDefExpr d'
                   ids = expr ^.. exprIDs
               i <- Gen.element ids
-              pure (Just $ NodeSelection BodyNode i, Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i)
+              pure (Just $ NodeSelection BodyNode i)
           ]
+  pure (typeOrTermDef, defMut, loc)
+
+genAction ::
+  forall m.
+  Monad m =>
+  Level ->
+  App ->
+  GenT
+    m
+    ( Either
+        (TyConName, ASTTypeDef TypeMeta KindMeta)
+        (GVarName, Def)
+    , Selection' ID
+    , Maybe Available.Action
+    )
+genAction l a = do
+  let allTypes = map (forgetTypeDefMetadata . snd) $ progAllTypeDefsMeta $ appProg a
+      allDefs = map snd $ progAllDefs $ appProg a
+  (loc, mut, s) <- genLoc a
+  let acts = case (loc, s) of
+        (Left (_, def), SelectionTypeDef (TypeDefSelection defName Nothing)) ->
+          Available.forTypeDef l mut allTypes allDefs defName def
+        (Left (_, def), SelectionTypeDef (TypeDefSelection defName (Just (TypeDefParamNodeSelection n))))
+          | Nothing <- n.kindMeta -> Available.forTypeDefParamNode n.param l mut allTypes allDefs defName def
+          | Just i <- n.kindMeta -> Available.forTypeDefParamKindNode n.param i l mut allTypes allDefs defName def
+        (Left (_, def), SelectionTypeDef (TypeDefSelection defName (Just (TypeDefConsNodeSelection n))))
+          | Nothing <- n.field -> Available.forTypeDefConsNode l mut allTypes allDefs defName def
+          | Just f <- n.field -> Available.forTypeDefConsFieldNode n.con f.index f.meta l mut allTypes allDefs defName def
+        (Right (_, _), SelectionDef (DefSelection defName Nothing)) ->
+          Available.forDef allDefs l mut defName
+        (Right (_, DefAST def), SelectionDef (DefSelection _ (Just (NodeSelection SigNode i)))) ->
+          Available.forSig l mut (astDefType def) i
+        (Right (_, DefAST def), SelectionDef (DefSelection _ (Just (NodeSelection BodyNode i)))) ->
+          Available.forBody allTypes l mut (astDefExpr def) i
+        _ -> error $ "Invariant failed in output of genLoc, got loc=" <> show loc <> ", s=" <> show s
   case acts of
-    [] -> pure (typeOrTermDef, loc, Nothing)
+    [] -> pure (loc, s, Nothing)
     acts' -> do
       action <- Gen.element acts'
-      pure (typeOrTermDef, loc, Just action)
+      pure (loc, s, Just action)
 
 data PA
   = NoOpt [ProgAction]
