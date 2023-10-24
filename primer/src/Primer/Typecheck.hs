@@ -2,10 +2,10 @@
 {-# LANGUAGE OverloadedLabels #-}
 
 -- | Typechecking for Core expressions.
--- This closely follows the type system of Hazelnut, but supports arbitrary
--- types rather than just numbers.
--- In future we will want to extend it to support more features such as
--- polymorphism.
+--
+-- Our type system closely follows that of Hazelnut, but supports
+-- arbitrary types (including polymorphic ones) rather than just
+-- numbers.
 module Primer.Typecheck (
   Type,
   Kind,
