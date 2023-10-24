@@ -80,7 +80,9 @@ import Primer.Log (ConvertLogMessage)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Zipper (
   ExprZ,
+  Loc' (InBind, InKind),
   TypeZ,
+  focusOn,
   replace,
   target,
   unfocusExpr,
@@ -98,17 +100,27 @@ step ::
   Dir ->
   ID ->
   m (Either EvalError (Expr, EvalDetail))
-step as tydefs globals expr d i = runExceptT $ do
-  (cxt, nodeZ) <- maybe (throwError (NodeNotFound i)) pure (findNodeByID i d expr)
-  case nodeZ of
-    Left (d', z) -> do
+step as tydefs globals expr d i = runExceptT
+  $ case findNodeByID i d expr of
+    Just (cxt, Left (d', z)) -> do
       (node', detail) <- tryReduceExpr as tydefs globals cxt d' (target z)
       let expr' = unfocusExpr $ replace node' z
       pure (expr', detail)
-    Right z -> do
+    Just (cxt, Right z) -> do
       (node', detail) <- tryReduceType as globals cxt (target z)
       let expr' = unfocusExpr $ unfocusType $ replace node' z
       pure (expr', detail)
+    Nothing -> case focusOn i expr of
+      -- This is expected to be very rare, as clients will probably
+      -- pass in IDs that they think are redexes (probably from the output
+      -- of @redexes@).
+      -- However, we attempt to give non-confusing errors in this case.
+      Just (InKind{}) -> throwError NotRedex
+      Just (InBind{}) -> throwError NotRedex
+      -- This matches @Nothing@, which is unambiguously a "NodeNotFound",
+      -- but also @Just InExpr@ and @Just InType@, which should not happen
+      -- as @findNodeByID@ failed.
+      _ -> throwError $ NodeNotFound i
 
 -- | Search for the given node by its ID.
 -- Collect all immediately-surrounding let bindings and return them
