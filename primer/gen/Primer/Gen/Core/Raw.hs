@@ -141,13 +141,16 @@ genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genEx
 genCase :: ExprGen Expr
 genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive, CaseFallback <$> genExpr]
   where
-    genBranch = CaseBranch <$> genScrut <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genBranch = CaseBranch <$> genScrut <*> genBinds (Range.linear 0 5) <*> genExpr
     genScrut =
       Gen.choice
         [ PatCon <$> genValConName
         , PatPrim <$> genPrimCon
         ]
-    genBind = Bind <$> genMeta <*> genLVarName
+    genBinds r = do
+      ns0 <- Gen.set r genLVarName
+      ns <- Gen.shuffle $ toList ns0
+      traverse (\n -> Bind <$> genMeta <*> pure n) ns
 
 genPrim :: ExprGen Expr
 genPrim = PrimCon <$> genMeta <*> genPrimCon

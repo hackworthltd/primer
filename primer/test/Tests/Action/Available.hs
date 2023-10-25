@@ -7,7 +7,6 @@ module Tests.Action.Available where
 import Foreword
 
 import Control.Monad.Log (WithSeverity)
-import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as M
@@ -17,7 +16,6 @@ import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Hedgehog (
   GenT,
-  LabelName,
   PropertyT,
   annotate,
   annotateShow,
@@ -34,6 +32,7 @@ import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
   Movement (Child1, Child2),
+  ProgAction,
   enterType,
   move,
   moveExpr,
@@ -91,9 +90,12 @@ import Primer.Core (
   HasID (_id),
   ID,
   Kind' (..),
+  KindMeta,
   ModuleName (ModuleName, unModuleName),
   Pattern (PatPrim),
+  TyConName,
   Type,
+  TypeMeta,
   getID,
   mkSimpleModuleName,
   moduleNamePretty,
@@ -154,7 +156,13 @@ import Primer.Test.App (
  )
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, clearTypeMeta, testNoSevereLogs)
-import Primer.TypeDef (ASTTypeDef (astTypeDefConstructors), TypeDef (TypeDefAST, TypeDefPrim), ValCon (..), astTypeDefParameters, forgetTypeDefMetadata, typeDefAST)
+import Primer.TypeDef (
+  ASTTypeDef (astTypeDefConstructors),
+  ValCon (..),
+  astTypeDefParameters,
+  forgetTypeDefMetadata,
+  typeDefAST,
+ )
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -274,16 +282,6 @@ unit_def_in_use =
               @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
         )
 
--- | A helper type for 'tasty_available_actions_actions',
--- describing where a particular option came from.
-data Provenance
-  = -- | This option was offered by the 'Available.options' API
-    Offered
-  | -- | This option is free-form entry. For example, this simulates
-    -- renaming a definition to a hand-entered name.
-    StudentProvided
-  deriving stock (Show)
-
 tasty_available_actions_accepted :: Property
 tasty_available_actions_accepted = withTests 500
   $ withDiscards 2000
@@ -294,173 +292,18 @@ tasty_available_actions_accepted = withTests 500
     -- We only test SmartHoles mode (which is the only supported student-facing
     -- mode - NoSmartHoles is only used for internal sanity testing etc)
     a <- forAllT $ genApp SmartHoles cxt
-    let allTypes = progAllTypeDefsMeta $ appProg a
-        allTypes' = forgetTypeDefMetadata . snd <$> allTypes
-    let allDefs = progAllDefs $ appProg a
-        allDefs' = snd <$> allDefs
-    let isMutable = \case
-          Editable -> True
-          NonEditable -> False
-    let genDef :: Map name (Editable, def) -> GenT WT (Maybe (LabelName, (Editable, (name, def))))
-        genDef m =
-          second (\(n, (e, t)) -> (e, (n, t)))
-            <<$>> case partition (isMutable . fst . snd) $ Map.toList m of
-              ([], []) -> pure Nothing
-              (mut, []) -> Just . ("all mut",) <$> Gen.element mut
-              ([], immut) -> Just . ("all immut",) <$> Gen.element immut
-              (mut, immut) -> Just . ("mixed mut/immut",) <$> Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)]
-    (defMut, typeOrTermDef) <-
-      maybe discard (\(t, x) -> label t >> pure x)
-        =<< forAllT
-          ( Gen.choice
-              [ second (second Left) <<$>> genDef allTypes
-              , second (second Right) <<$>> genDef allDefs
-              ]
-          )
-    collect defMut
-    case typeOrTermDef of
-      Left (_, t) ->
-        label "type" >> case t of
-          TypeDefPrim{} -> label "Prim"
-          TypeDefAST{} -> label "AST"
-      Right (_, t) ->
-        label "term" >> case t of
-          DefPrim{} -> label "Prim"
-          DefAST{} -> label "AST"
-    (loc, acts) <- case typeOrTermDef of
-      Left (defName, def) ->
-        (fmap snd . forAllWithT fst) case typeDefAST def of
-          Nothing -> Gen.discard
-          Just def' ->
-            let typeDefSel = SelectionTypeDef . TypeDefSelection defName
-                forTypeDef = ("forTypeDef", (typeDefSel Nothing, Available.forTypeDef l defMut allTypes' allDefs' defName def'))
-             in Gen.frequency
-                  [ (1, pure forTypeDef)
-                  ,
-                    ( 2
-                    , case astTypeDefParameters def' of
-                        [] -> pure forTypeDef
-                        ps -> do
-                          (p, k) <- Gen.element ps
-                          let typeDefParamNodeSel = typeDefSel . Just . TypeDefParamNodeSelection . TypeDefParamSelection p
-                          Gen.frequency
-                            [
-                              ( 1
-                              , pure
-                                  ( "forTypeDefParamNode"
-                                  ,
-                                    ( typeDefParamNodeSel Nothing
-                                    , Available.forTypeDefParamNode p l defMut allTypes' allDefs' defName def'
-                                    )
-                                  )
-                              )
-                            ,
-                              ( 3
-                              , do
-                                  let allKindIDs = \case
-                                        KHole m -> [getID m]
-                                        KType m -> [getID m]
-                                        KFun m k1 k2 -> [getID m] <> allKindIDs k1 <> allKindIDs k2
-                                  id <- Gen.element @[] $ allKindIDs k
-                                  pure
-                                    ( "forTypeDefParamKindNode"
-                                    ,
-                                      ( typeDefParamNodeSel $ Just id
-                                      , Available.forTypeDefParamKindNode p id l defMut allTypes' allDefs' defName def'
-                                      )
-                                    )
-                              )
-                            ]
-                    )
-                  ,
-                    ( 5
-                    , case astTypeDefConstructors def' of
-                        [] -> pure forTypeDef
-                        cs -> do
-                          ValCon{valConName, valConArgs} <- Gen.element cs
-                          let typeDefConsNodeSel = typeDefSel . Just . TypeDefConsNodeSelection . TypeDefConsSelection valConName
-                              forTypeDefConsNode = ("forTypeDefConsNode", (typeDefConsNodeSel Nothing, Available.forTypeDefConsNode l defMut allTypes' allDefs' defName def'))
-                          case valConArgs of
-                            [] -> pure forTypeDefConsNode
-                            as ->
-                              Gen.frequency
-                                [ (1, pure forTypeDefConsNode)
-                                ,
-                                  ( 5
-                                  , do
-                                      (n, t) <- Gen.element $ zip [0 ..] as
-                                      i <- Gen.element $ t ^.. typeIDs
-                                      pure
-                                        ( "forTypeDefConsFieldNode"
-                                        ,
-                                          ( typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i
-                                          , Available.forTypeDefConsFieldNode valConName n i l defMut allTypes' allDefs' defName def'
-                                          )
-                                        )
-                                  )
-                                ]
-                    )
-                  ]
-      Right (defName, def) ->
-        fmap (first (SelectionDef . DefSelection defName) . snd)
-          . forAllWithT fst
-          . Gen.frequency
-          $ catMaybes
-            [ Just (1, pure ("forDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
-            , defAST def <&> \d' -> (2,) $ do
-                let ty = astDefType d'
-                    ids = ty ^.. typeIDs
-                i <- Gen.element ids
-                let hedgehogMsg = "forSig id " <> show i
-                pure (hedgehogMsg, (Just $ NodeSelection SigNode i, Available.forSig l defMut ty i))
-            , defAST def <&> \d' -> (7,) $ do
-                let expr = astDefExpr d'
-                    ids = expr ^.. exprIDs
-                i <- Gen.element ids
-                let hedgehogMsg = "forBody id " <> show i
-                pure (hedgehogMsg, (Just $ NodeSelection BodyNode i, Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
-            ]
+    (def'', loc, action) <- forAllT $ genAction l a
+    annotateShow def''
     annotateShow loc
-    case acts of
-      [] -> label "no offered actions" >> success
-      acts' -> do
-        def <-
-          bitraverse
-            (maybe (annotate "primitive type def" >> failure) pure . typeDefAST . snd)
-            (maybe (annotate "primitive def" >> failure) pure . defAST . snd)
-            typeOrTermDef
-        action <- forAllT $ Gen.element acts'
-        collect action
-        case action of
-          Available.NoInput act' -> do
-            progActs <-
-              either (\e -> annotateShow e >> failure) pure
-                $ toProgActionNoInput (map snd $ progAllDefs $ appProg a) def loc act'
-            actionSucceeds (handleEditRequest progActs) a
-          Available.Input act' -> do
-            Available.Options{Available.opts, Available.free} <-
-              maybe (annotate "id not found" >> failure) pure
-                $ Available.options
-                  (map snd $ progAllTypeDefs $ appProg a)
-                  (map snd $ progAllDefs $ appProg a)
-                  (progCxt $ appProg a)
-                  l
-                  def
-                  loc
-                  act'
-            let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
-            let opts'' =
-                  opts' <> case free of
-                    Available.FreeNone -> []
-                    Available.FreeVarName -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) <$> (unName <$> genName)]
-                    Available.FreeInt -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) <$> (show <$> genInt)]
-                    Available.FreeChar -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
-            case opts'' of
-              [] -> annotate "no options" >> success
-              options -> do
-                opt <- forAllT $ Gen.choice options
-                progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def loc (snd opt) act'
-                actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
+    annotateShow action
+    let (_defName, def) = (bimap fst fst def'', bimap snd snd def'')
+    collect action
+    pa <- toProgAction l a (def, loc, action)
+    case pa of
+      NoOpt progActs -> actionSucceeds (handleEditRequest progActs) a
+      OptOffered _ progActs -> actionSucceeds (handleEditRequest progActs) a
+      OptGen _ progActs -> actionSucceedsOrCapture (handleEditRequest progActs) a
+      NoOfferedOpts -> annotate "no options" >> success
   where
     runEditAppMLogs ::
       HasCallStack =>
@@ -476,33 +319,220 @@ tasty_available_actions_accepted = withTests 500
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => Provenance -> EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture p m a = do
+    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture m a = do
       a' <- runEditAppMLogs m a
-      case (p, a') of
-        (StudentProvided, (Left (ActionError NameCapture), _)) -> do
+      case a' of
+        (Left (ActionError NameCapture), _) -> do
           label "name-capture with entered name"
           annotate "ignoring name capture error as was generated name, not offered one"
-        (StudentProvided, (Left (ActionError (CaseBindsClash{})), _)) -> do
+        (Left (ActionError (CaseBindsClash{})), _) -> do
           label "name-clash with entered name"
           annotate "ignoring name clash error as was generated name, not offered one"
-        (StudentProvided, (Left DefAlreadyExists{}, _)) -> do
+        (Left DefAlreadyExists{}, _) -> do
           label "rename def name clash with entered name"
           annotate "ignoring def already exists error as was generated name, not offered one"
-        (StudentProvided, (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _)) -> do
+        (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _) -> do
           label "add duplicate primitive case branch"
           annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
-        (StudentProvided, (Left (TypeDefAlreadyExists _), _)) -> do
+        (Left (TypeDefAlreadyExists _), _) -> do
           pure ()
-        (StudentProvided, (Left (ConAlreadyExists _), _)) -> do
+        (Left (ConAlreadyExists _), _) -> do
           pure ()
-        (StudentProvided, (Left (TypeDefModifyNameClash _), _)) -> do
+        (Left (TypeDefModifyNameClash _), _) -> do
           pure ()
-        (_, (Left err, _)) -> annotateShow err >> failure
-        (_, (Right _, a'')) -> ensureSHNormal a''
+        (Left err, _) -> annotateShow err >> failure
+        (Right _, a'') -> ensureSHNormal a''
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
+
+genAction ::
+  forall m.
+  Monad m =>
+  Level ->
+  App ->
+  GenT
+    m
+    ( Either
+        (TyConName, ASTTypeDef TypeMeta KindMeta)
+        (GVarName, Def)
+    , Selection' ID
+    , Maybe Available.Action
+    )
+genAction l a = do
+  let allTypes = progAllTypeDefsMeta $ appProg a
+      allASTTypes = M.mapMaybe (traverse typeDefAST) allTypes
+      allTypes' = forgetTypeDefMetadata . snd <$> allTypes
+  let allDefs = progAllDefs $ appProg a
+      allDefs' = snd <$> allDefs
+  let isMutable = \case
+        Editable -> True
+        NonEditable -> False
+  let genDef :: Map name (Editable, def) -> GenT m (Maybe (Editable, (name, def)))
+      genDef m =
+        (\(n, (e, t)) -> (e, (n, t)))
+          <<$>> case partition (isMutable . fst . snd) $ Map.toList m of
+            ([], []) -> pure Nothing
+            (mut, []) -> Just <$> Gen.element mut
+            ([], immut) -> Just <$> Gen.element immut
+            (mut, immut) -> Just <$> Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)]
+  (defMut, typeOrTermDef) <-
+    maybe Gen.discard pure
+      =<< Gen.choice
+        [ second Left <<$>> genDef allASTTypes
+        , second Right <<$>> genDef allDefs
+        ]
+  (loc, acts) <- case typeOrTermDef of
+    Left (defName, def) ->
+      let typeDefSel = SelectionTypeDef . TypeDefSelection defName
+          forTypeDef =
+            ( typeDefSel Nothing
+            , Available.forTypeDef l defMut allTypes' allDefs' defName def
+            )
+       in Gen.frequency
+            [ (1, pure forTypeDef)
+            ,
+              ( 2
+              , case astTypeDefParameters def of
+                  [] -> pure forTypeDef
+                  ps -> do
+                    (p, k) <- Gen.element ps
+                    let typeDefParamNodeSel = typeDefSel . Just . TypeDefParamNodeSelection . TypeDefParamSelection p
+                    Gen.frequency
+                      [
+                        ( 1
+                        , pure
+                            ( typeDefParamNodeSel Nothing
+                            , Available.forTypeDefParamNode p l defMut allTypes' allDefs' defName def
+                            )
+                        )
+                      ,
+                        ( 3
+                        , do
+                            let allKindIDs = \case
+                                  KHole m -> [getID m]
+                                  KType m -> [getID m]
+                                  KFun m k1 k2 -> [getID m] <> allKindIDs k1 <> allKindIDs k2
+                            id <- Gen.element @[] $ allKindIDs k
+                            pure
+                              ( typeDefParamNodeSel $ Just id
+                              , Available.forTypeDefParamKindNode p id l defMut allTypes' allDefs' defName def
+                              )
+                        )
+                      ]
+              )
+            ,
+              ( 5
+              , case astTypeDefConstructors def of
+                  [] -> pure forTypeDef
+                  cs -> do
+                    ValCon{valConName, valConArgs} <- Gen.element cs
+                    let typeDefConsNodeSel = typeDefSel . Just . TypeDefConsNodeSelection . TypeDefConsSelection valConName
+                        forTypeDefConsNode =
+                          ( typeDefConsNodeSel Nothing
+                          , Available.forTypeDefConsNode l defMut allTypes' allDefs' defName def
+                          )
+                    case valConArgs of
+                      [] -> pure forTypeDefConsNode
+                      as ->
+                        Gen.frequency
+                          [ (1, pure forTypeDefConsNode)
+                          ,
+                            ( 5
+                            , do
+                                (n, t) <- Gen.element $ zip [0 ..] as
+                                i <- Gen.element $ t ^.. typeIDs
+                                pure
+                                  ( typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i
+                                  , Available.forTypeDefConsFieldNode valConName n i l defMut allTypes' allDefs' defName def
+                                  )
+                            )
+                          ]
+              )
+            ]
+    Right (defName, def) ->
+      fmap (first (SelectionDef . DefSelection defName))
+        . Gen.frequency
+        $ catMaybes
+          [ Just (1, pure (Nothing, Available.forDef (snd <$> allDefs) l defMut defName))
+          , defAST def <&> \d' -> (2,) $ do
+              let ty = astDefType d'
+                  ids = ty ^.. typeIDs
+              i <- Gen.element ids
+              pure (Just $ NodeSelection SigNode i, Available.forSig l defMut ty i)
+          , defAST def <&> \d' -> (7,) $ do
+              let expr = astDefExpr d'
+                  ids = expr ^.. exprIDs
+              i <- Gen.element ids
+              pure (Just $ NodeSelection BodyNode i, Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i)
+          ]
+  case acts of
+    [] -> pure (typeOrTermDef, loc, Nothing)
+    acts' -> do
+      action <- Gen.element acts'
+      pure (typeOrTermDef, loc, Just action)
+
+data PA
+  = NoOpt [ProgAction]
+  | -- | An option the API offered
+    OptOffered Option [ProgAction]
+  | -- | A free-form "student provided" option
+    OptGen Option [ProgAction]
+  | -- | An 'ActionInput' but with no offered options
+    NoOfferedOpts
+
+toProgAction ::
+  Monad m =>
+  Level ->
+  App ->
+  ( Either (ASTTypeDef TypeMeta KindMeta) Def
+  , Selection' ID
+  , Maybe Available.Action
+  ) ->
+  PropertyT m PA
+toProgAction l a (def, loc, action) = do
+  def' <- case (defAST <$> def, action) of
+    (Left d, _) -> pure $ Left d
+    (Right Nothing, Nothing) -> discard
+    (Right Nothing, Just act) -> do
+      annotate "Expected no action to be available on a primitive"
+      annotateShow def
+      annotateShow act
+      failure
+    (Right (Just d), _) -> pure $ Right d
+  case action of
+    Nothing -> discard
+    Just action' -> case action' of
+      Available.NoInput act' -> do
+        progActs <-
+          either (\e -> annotateShow e >> failure) pure
+            $ toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' loc act'
+        pure $ NoOpt progActs
+      Available.Input act' -> do
+        Available.Options{Available.opts, Available.free} <-
+          maybe (annotate "id not found" >> failure) pure
+            $ Available.options
+              (map snd $ progAllTypeDefs $ appProg a)
+              (map snd $ progAllDefs $ appProg a)
+              (progCxt $ appProg a)
+              l
+              def'
+              loc
+              act'
+        let opts' = [Gen.element $ (OptOffered,) <$> opts | not (null opts)]
+        let opts'' =
+              opts' <> case free of
+                Available.FreeNone -> []
+                Available.FreeVarName -> [(OptGen,) . (\t -> Available.Option t Nothing False) <$> (unName <$> genName)]
+                Available.FreeInt -> [(OptGen,) . (\t -> Available.Option t Nothing False) <$> (show <$> genInt)]
+                Available.FreeChar -> [(OptGen,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
+        case opts'' of
+          [] -> pure NoOfferedOpts
+          options -> do
+            (mkPA, opt) <- forAllWithT (show . snd) $ Gen.choice options
+            progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' loc opt act'
+            pure $ mkPA opt progActs
 
 -- 'Raise' works when moving checkable terms into synthesisable position
 unit_raise_sh :: Assertion

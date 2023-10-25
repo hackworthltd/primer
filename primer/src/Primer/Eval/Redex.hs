@@ -43,6 +43,7 @@ import Optics (
   getting,
   ifiltered,
   isnd,
+  preview,
   summing,
   to,
   traverseOf,
@@ -165,6 +166,7 @@ import Primer.Typecheck.Utils (
 import Primer.Zipper (
   LetBinding,
   LetBinding' (LetBind, LetTyBind, LetrecBind),
+  bindersBelow,
   bindersBelowTy,
   focus,
   getBoundHereDn,
@@ -189,6 +191,9 @@ data ViewRedexOptions = ViewRedexOptions
   -- down) (@False@). E.g. in @let x=e in C s t@ (where @s@ and @t@
   -- do not refer to @x@) whether we reduce to @C s t@ or
   -- @C (let x = e in s) (let x = e in t)@.
+  , avoidShadowing :: Bool
+  -- ^ Whether to introduce extra renamings to avoid shadowing
+  -- (note that we will always rename to avoid capture where necessary).
   }
 
 newtype RunRedexOptions = RunRedexOptions
@@ -253,7 +258,13 @@ data Redex
       , varID :: ID
       -- ^ Where was the occurrence (used for details)
       }
-  | -- letrec x = t : T in x  ~>  letrec x = t : T in t : T
+  | -- letrec x = t : T in x  ~>  (letrec x = t : T in t) : T
+    -- Note that a different choice would be reducing to a term with t:T
+    -- inside the letrec. We do not do this for two reasons: firstly
+    -- (since the recursive binder does not scope over the type) this
+    -- would immediately reduce in one step to the reduct we actually
+    -- emit; secondly this intermediate step can introduce shadowing,
+    -- for example in letrec x = x : ∀x.x in x.
     InlineLetrec
       { var :: LVarName
       -- ^ What variable are we inlining
@@ -519,6 +530,15 @@ _freeVarsLetBinding =
 _freeVarsLetTypeBinding :: Fold LetTypeBinding TyVarName
 _freeVarsLetTypeBinding = _LetTypeBind % _2 % getting _freeVarsTy % _2
 
+boundVarsLetBinding :: LetBinding -> Set Name
+boundVarsLetBinding = \case
+  LetBind _ e -> bindersBelow $ focus e
+  LetrecBind _ e t -> bindersBelow (focus e) <> S.map unLocalName (bindersBelowTy (focus t))
+  LetTyBind l -> S.map unLocalName $ boundVarsLetBindingTy l
+
+boundVarsLetBindingTy :: LetTypeBinding -> Set TyVarName
+boundVarsLetBindingTy (LetTypeBind _ t) = bindersBelowTy (focus t)
+
 data Dir = Syn | Chk
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Dir
@@ -526,10 +546,11 @@ data Dir = Syn | Chk
 viewCaseRedex ::
   forall l m.
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  ViewRedexOptions ->
   TypeDefMap ->
   Expr ->
   MaybeT m Redex
-viewCaseRedex tydefs = \case
+viewCaseRedex opts tydefs = \case
   orig@(Case _ scrut [] (CaseFallback rhs)) -> do
     -- If we have @case e of _ -> t@, then this reduces to @t@ without inspecting @e@
     -- i.e. a @case@ which does not actually discriminate is lazy
@@ -617,7 +638,7 @@ viewCaseRedex tydefs = \case
        the last doesn't need any renaming.)
     -}
     renameBindings meta scrutinee branches fallbackBranch patterns orig =
-      let avoid = freeVars scrutinee
+      let avoid = freeVars scrutinee <> mwhen opts.avoidShadowing (bindersBelow $ focus scrutinee)
           binders = maybe mempty (S.fromList . map (unLocalName . bindName)) patterns
        in hoistMaybe
             $ if S.disjoint avoid binders
@@ -689,7 +710,8 @@ viewRedex opts tydefs globals dir = \case
     , null letBindings
     , n <- letBindingName $ snd letBinding1
     , not opts.aggressiveElision || n `S.member` freeVars expr'
-    , S.disjoint (getBoundHereDn expr') (setOf (_2 % (_freeVarsLetBinding `summing` to letBindingName)) letBinding1) ->
+    , S.disjoint (getBoundHereDn expr') (setOf (_2 % (_freeVarsLetBinding `summing` to letBindingName)) letBinding1)
+    , not opts.avoidShadowing || S.disjoint (getBoundHereDn expr') (boundVarsLetBinding . snd $ letBinding1) ->
         pure
           $ PushLet
             { bindings = pure $ first getID letBinding1
@@ -700,7 +722,8 @@ viewRedex opts tydefs globals dir = \case
     , not $ isLeaf body
     , (_, unused) <- partitionLets (letBinding1 : letBindings) body
     , not opts.aggressiveElision || null unused
-    , S.disjoint (getBoundHereDn body) (setOf (folded % _2 % (_freeVarsLetBinding `summing` to letBindingName)) $ letBinding1 : letBindings) ->
+    , S.disjoint (getBoundHereDn body) (setOf (folded % _2 % (_freeVarsLetBinding `summing` to letBindingName)) $ letBinding1 : letBindings)
+    , not opts.avoidShadowing || S.disjoint (getBoundHereDn body) (foldMap' (boundVarsLetBinding . snd) $ letBinding1 : letBindings) ->
         pure
           $ PushLet
             { bindings = first getID <$> letBinding1 :| letBindings
@@ -731,12 +754,12 @@ viewRedex opts tydefs globals dir = \case
             , orig
             }
   l@(Lam meta var body) -> do
-    avoid <- cxtToAvoid
+    avoid <- liftA2 (<>) cxtToAvoid $ when' opts.avoidShadowing cxtToAvoidShadow
     if unLocalName var `S.member` avoid
       then pure $ RenameBindingsLam{var, meta, body, avoid, orig = l}
       else mzero
   l@(LAM meta v body) -> do
-    avoid <- cxtToAvoid
+    avoid <- liftA2 (<>) cxtToAvoid $ when' opts.avoidShadowing cxtToAvoidShadow
     if unLocalName v `S.member` avoid
       then pure $ RenameBindingsLAM{tyvar = v, meta, body, avoid, orig = l}
       else mzero
@@ -772,18 +795,22 @@ viewRedex opts tydefs globals dir = \case
         }
   APP{} -> mzero
   e@(Case meta scrutinee branches fallbackBranch) -> do
-    avoid <- cxtToAvoid
+    avoid <- liftA2 (<>) cxtToAvoid $ when' opts.avoidShadowing cxtToAvoidShadow
     -- TODO: we arbitrarily decide that renaming takes priority over reducing the case
     -- This is good for evalfull, but bad for interactive use.
     -- Maybe we want to offer both. See
     -- https://github.com/hackworthltd/primer/issues/734
     if getBoundHereDn e `S.disjoint` avoid
-      then lift $ viewCaseRedex tydefs e
+      then lift $ viewCaseRedex opts tydefs e
       else pure $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig = e}
   orig@(Ann _ expr ty) | Chk <- dir, concreteTy ty -> pure $ Upsilon{expr, ann = ty, orig}
   _ -> mzero
   where
     isLeaf = null . children
+
+-- | As 'when', but with a monoidal return
+when' :: (Applicative f, Monoid a) => Bool -> f a -> f a
+when' b m = if b then m else pure mempty
 
 -- Decompose @let a = s in let b0 = t0 in ... let bn = tn in e@
 -- into @(LetBind a s, let b0=t0 in ... e, [LetBind b0 t0, ..., LetBind bn tn], e)@
@@ -856,7 +883,8 @@ viewRedexType opts = \case
     , not $ isLeaf ty'
     , null letBindings
     , not opts.aggressiveElision || letTypeBindingName' (snd letBinding1) `S.member` freeVarsTy ty'
-    , S.disjoint (getBoundHereDnTy ty') (setOf (_2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) letBinding1) ->
+    , S.disjoint (getBoundHereDnTy ty') (setOf (_2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) letBinding1)
+    , not opts.avoidShadowing || S.disjoint (getBoundHereDnTy ty') (boundVarsLetBindingTy . snd $ letBinding1) ->
         purer
           $ PushLetType
             { bindings = pure $ first getID letBinding1
@@ -867,7 +895,8 @@ viewRedexType opts = \case
     , not $ isLeaf body
     , (_, unused) <- partitionLetsTy (letBinding1 : letBindings) body
     , not opts.aggressiveElision || null unused
-    , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) (letBinding1 : letBindings)) ->
+    , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) (letBinding1 : letBindings))
+    , not opts.avoidShadowing || S.disjoint (getBoundHereDnTy body) (foldMap' (boundVarsLetBindingTy . snd) $ letBinding1 : letBindings) ->
         purer
           $ PushLetType
             { bindings = first getID <$> letBinding1 :| letBindings
@@ -895,7 +924,7 @@ viewRedexType opts = \case
             , orig
             }
   orig@(TForall meta origBinder kind body) -> do
-    avoid <- cxtToAvoidTy
+    avoid <- liftA2 (<>) cxtToAvoidTy $ when' opts.avoidShadowing cxtToAvoidTyShadow
     pure
       $ if origBinder `S.member` avoid
         then
@@ -931,6 +960,21 @@ cxtToAvoidTy = do
   Cxt cxt <- ask
   pure $ foldMap' (setOf (_LetTyBind % _LetTypeBind % (_1 `summing` _2 % getting _freeVarsTy % _2))) cxt
 
+-- We may want to push some let bindings (the Cxt) under a
+-- binder; what variable names must the binder avoid for this to
+-- not cause shadowing?
+-- (NB: this does not include 'cxtToAvoid' which must additionally
+-- be avoided else capture may occur)
+cxtToAvoidShadow :: MonadReader Cxt m => m (S.Set Name)
+cxtToAvoidShadow = do
+  Cxt cxt <- ask
+  pure $ foldMap' boundVarsLetBinding cxt
+
+cxtToAvoidTyShadow :: MonadReader Cxt m => m (S.Set TyVarName)
+cxtToAvoidTyShadow = do
+  Cxt cxt <- ask
+  pure $ foldMap' (maybe mempty boundVarsLetBindingTy . preview _LetTyBind) cxt
+
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: forall l m. MonadEval l m => RunRedexOptions -> Redex -> m (Expr, EvalDetail)
 runRedex opts = \case
@@ -950,7 +994,7 @@ runRedex opts = \case
             }
     pure (expr, LocalVarInline details)
   InlineLetrec{var, expr, ty, letID, varID} -> do
-    expr' <- letrec var (pure expr) (pure ty) $ ann (regenerateExprIDs expr) (regenerateTypeIDs ty)
+    expr' <- ann (letrec var (pure expr) (pure ty) $ regenerateExprIDs expr) (regenerateTypeIDs ty)
     let details =
           LocalVarInlineDetail
             { letID

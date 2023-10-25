@@ -5,6 +5,7 @@ module Primer.Eval (
   -- The public API of this module
   step,
   redexes,
+  AvoidShadowing (..),
   RunRedexOptions (..),
   ViewRedexOptions (..),
   NormalOrderOptions (..),
@@ -68,7 +69,7 @@ import Primer.Eval.Redex (
   EvalLog (..),
   MonadEval,
   RunRedexOptions (RunRedexOptions, pushAndElide),
-  ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
+  ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
   lookupEnclosingLet,
   runRedex,
   runRedexTy,
@@ -90,21 +91,22 @@ import Primer.Zipper (
 -- Returns the new expression and its redexes.
 step ::
   MonadEval l m =>
+  AvoidShadowing ->
   TypeDefMap ->
   DefMap ->
   Expr ->
   Dir ->
   ID ->
   m (Either EvalError (Expr, EvalDetail))
-step tydefs globals expr d i = runExceptT $ do
+step as tydefs globals expr d i = runExceptT $ do
   (cxt, nodeZ) <- maybe (throwError (NodeNotFound i)) pure (findNodeByID i d expr)
   case nodeZ of
     Left (d', z) -> do
-      (node', detail) <- tryReduceExpr tydefs globals cxt d' (target z)
+      (node', detail) <- tryReduceExpr as tydefs globals cxt d' (target z)
       let expr' = unfocusExpr $ replace node' z
       pure (expr', detail)
     Right z -> do
-      (node', detail) <- tryReduceType globals cxt (target z)
+      (node', detail) <- tryReduceType as globals cxt (target z)
       let expr' = unfocusExpr $ unfocusType $ replace node' z
       pure (expr', detail)
 
@@ -124,12 +126,16 @@ findNodeByID i =
 
 -- We hardcode a permissive set of options for the interactive eval
 -- (i.e. these see more redexes)
-evalOpts :: ViewRedexOptions
-evalOpts =
+evalOpts :: AvoidShadowing -> ViewRedexOptions
+evalOpts as =
   ViewRedexOptions
     { groupedLets = True
     , aggressiveElision = True
+    , avoidShadowing = case as of AvoidShadowing -> True; NoAvoidShadowing -> False
     }
+
+data AvoidShadowing = AvoidShadowing | NoAvoidShadowing
+  deriving stock (Show, Bounded, Enum)
 
 -- | Return the IDs of nodes which are reducible.
 -- We assume that the expression is well scoped. There are no
@@ -143,18 +149,19 @@ evalOpts =
 redexes ::
   forall l m.
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  AvoidShadowing ->
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
   m [ID]
-redexes tydefs globals =
+redexes as tydefs globals =
   (ListT.toList .)
     . foldMapExpr
       UnderBinders
       FMExpr
-        { expr = \ez d -> liftMaybeT . runReaderT (getID ez <$ viewRedex evalOpts tydefs globals d (target ez))
-        , ty = \tz -> runReader (whenJust (getID tz) <$> viewRedexType evalOpts (target tz))
+        { expr = \ez d -> liftMaybeT . runReaderT (getID ez <$ viewRedex (evalOpts as) tydefs globals d (target ez))
+        , ty = \tz -> runReader (whenJust (getID tz) <$> viewRedexType (evalOpts as) (target tz))
         }
   where
     liftMaybeT :: Monad m' => MaybeT m' a -> ListT m' a
@@ -179,14 +186,15 @@ reductionOpts =
 tryReduceExpr ::
   forall l m.
   (MonadEval l m, MonadError EvalError m) =>
+  AvoidShadowing ->
   TypeDefMap ->
   DefMap ->
   Cxt ->
   Dir ->
   Expr ->
   m (Expr, EvalDetail)
-tryReduceExpr tydefs globals cxt dir expr =
-  runMaybeT (flip runReaderT cxt $ viewRedex evalOpts tydefs globals dir expr) >>= \case
+tryReduceExpr as tydefs globals cxt dir expr =
+  runMaybeT (flip runReaderT cxt $ viewRedex (evalOpts as) tydefs globals dir expr) >>= \case
     Just r -> runRedex reductionOpts r
     _ -> throwError NotRedex
 
@@ -194,11 +202,12 @@ tryReduceType ::
   ( MonadEval l m
   , MonadError EvalError m
   ) =>
+  AvoidShadowing ->
   DefMap ->
   Cxt ->
   Type ->
   m (Type, EvalDetail)
-tryReduceType _globals cxt =
-  flip runReader cxt . viewRedexType evalOpts <&> \case
+tryReduceType as _globals cxt =
+  flip runReader cxt . viewRedexType (evalOpts as) <&> \case
     Just r -> runRedexTy reductionOpts r
     _ -> throwError NotRedex

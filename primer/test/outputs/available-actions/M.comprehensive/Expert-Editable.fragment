@@ -47,12 +47,12 @@ Output
                     ( Options
                         { opts =
                             [ Option
-                                { option = "α"
+                                { option = "γ"
                                 , context = Nothing
                                 , matchesType = False
                                 }
                             , Option
-                                { option = "γ"
+                                { option = "α1"
                                 , context = Nothing
                                 , matchesType = False
                                 }
@@ -231,12 +231,12 @@ Output
                     ( Options
                         { opts =
                             [ Option
-                                { option = "α"
+                                { option = "γ"
                                 , context = Nothing
                                 , matchesType = False
                                 }
                             , Option
-                                { option = "γ"
+                                { option = "α1"
                                 , context = Nothing
                                 , matchesType = False
                                 }
@@ -971,12 +971,12 @@ Output
                     ( Options
                         { opts =
                             [ Option
-                                { option = "α"
+                                { option = "γ"
                                 , context = Nothing
                                 , matchesType = False
                                 }
                             , Option
-                                { option = "γ"
+                                { option = "α1"
                                 , context = Nothing
                                 , matchesType = False
                                 }

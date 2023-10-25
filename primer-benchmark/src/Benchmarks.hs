@@ -23,7 +23,7 @@ import Primer.App.Utils (forgetProgTypecache)
 import Primer.Eval (
   NormalOrderOptions (UnderBinders),
   RunRedexOptions (RunRedexOptions, pushAndElide),
-  ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
+  ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
 import Primer.EvalFull (
   Dir (Syn),
@@ -104,7 +104,7 @@ benchmarks =
   ]
   where
     evalOptionsN = UnderBinders
-    evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+    evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     evalOptionsR = RunRedexOptions{pushAndElide = True}
     evalTestMPureLogs e maxEvals =
       evalTestM (maxID e)
