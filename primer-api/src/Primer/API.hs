@@ -136,13 +136,12 @@ import Primer.App (
   progAllTypeDefsMeta,
   progCxt,
   progImports,
-  progLog,
   progModules,
   progSelection,
-  redoLog,
+  redoLogEmpty,
   runEditAppM,
   runQueryAppM,
-  unlog,
+  undoLogEmpty,
  )
 import Primer.App qualified as App
 import Primer.App.Base (TypeDefNodeSelection (..), getTypeDefConFieldType)
@@ -734,8 +733,8 @@ viewProg p =
   Prog
     { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
     , selection = getID <<$>> progSelection p
-    , undoAvailable = not $ null $ unlog $ progLog p
-    , redoAvailable = not $ null $ unlog $ redoLog p
+    , undoAvailable = not $ undoLogEmpty p
+    , redoAvailable = not $ redoLogEmpty p
     }
   where
     viewModule e m =

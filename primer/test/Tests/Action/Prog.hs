@@ -94,6 +94,8 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeCache (TCEmb),
+  TypeCacheBoth (TCBoth),
   ValConName,
   getID,
   qualifyName,
@@ -311,7 +313,7 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Ju
     case lookupASTDef' "newDef" prog' of
       Nothing -> assertFailure $ show $ moduleDefs <$> progModules prog'
       Just def -> do
-        astDefExpr def @?= EmptyHole (Meta 4 Nothing Nothing)
+        astDefExpr def @?= EmptyHole (Meta 4 (Just $ TCEmb $ TCBoth (TEmptyHole ()) (TEmptyHole ())) Nothing)
 
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
@@ -391,7 +393,7 @@ unit_create_typedef_bad_2 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "T") td2]
-        $ expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
+        $ expectError (@?= TypeDefAlreadyExists (tcn "T"))
 
 -- Forbid duplicate constructor names within one type
 unit_create_typedef_bad_3 :: Assertion
@@ -472,7 +474,7 @@ unit_create_typedef_bad_prim =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultFullProg [AddTypeDef (tcn "Char") td]
-        $ expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
+        $ expectError (@?= TypeDefAlreadyExists (tcn "Char"))
 
 -- Allow clash between type name and constructor name in one type
 unit_create_typedef_8 :: Assertion

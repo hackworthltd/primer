@@ -29,6 +29,8 @@ module Primer.App (
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  undoLogEmpty,
+  redoLogEmpty,
   defaultProg,
   newEmptyProg',
   newProg,
@@ -174,7 +176,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, create)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (
@@ -312,6 +314,11 @@ pop l = case unlog l of
   [] -> Nothing
   (as : l') -> Just (as, Log l')
 
+undoLogEmpty :: Prog -> Bool
+undoLogEmpty = null . unlog . progLog
+redoLogEmpty :: Prog -> Bool
+redoLogEmpty = null . unlog . redoLog
+
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
 defaultProg :: Prog
@@ -361,8 +368,8 @@ newEmptyProgImporting imported =
   let defName = "main"
       moduleName = mkSimpleModuleName "Main"
       ((imported', defs), nextID) = create $ do
-        mainExpr <- emptyHole
-        mainType <- tEmptyHole
+        mainExpr <- newExpr
+        mainType <- newType
         let astDefs =
               Map.singleton
                 defName
@@ -671,6 +678,7 @@ applyProgAction prog = \case
     let def = ASTDef expr ty
     pure (insertDef mod name $ DefAST def, Just $ SelectionDef $ DefSelection (qualifyName modName name) Nothing)
   AddTypeDef tc td -> editModule (qualifiedModule tc) prog $ \m -> do
+    when (Map.member (baseName tc) (moduleTypes m)) $ throwError $ TypeDefAlreadyExists tc
     td' <- generateTypeDefIDs $ TypeDefAST td
     let tydefs' = moduleTypes m <> Map.singleton (baseName tc) td'
     liftError
@@ -1487,17 +1495,17 @@ checkProgWellFormed p =
       -- ensure that the 'ID' is unique across all modules.
       pure $ checkedProg{progSmartHoles = progSmartHoles p}
 
--- | Construct a new, empty expression
+-- | Construct a new, empty expression (with typecache of TEmptyHole, both synthed and checked)
 newExpr :: MonadFresh ID m => m Expr
 newExpr = do
   id_ <- fresh
-  pure $ EmptyHole (Meta id_ Nothing Nothing)
+  pure $ EmptyHole (Meta id_ (Just $ TCEmb $ TCBoth (TEmptyHole ()) (TEmptyHole ())) Nothing)
 
--- | Construct a new, empty type
+-- | Construct a new, empty type (with kindcache of KHole)
 newType :: MonadFresh ID m => m Type
 newType = do
   id_ <- fresh
-  pure $ TEmptyHole (Meta id_ Nothing Nothing)
+  pure $ TEmptyHole (Meta id_ (Just $ KHole ()) Nothing)
 
 newtype FreshViaApp m a = FreshViaApp (m a)
   deriving newtype (Functor, Applicative, Monad)
