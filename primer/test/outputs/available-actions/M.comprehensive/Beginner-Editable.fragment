@@ -1398,6 +1398,12 @@ Output
                                 , matchesType = False
                                 }
                             , Option
+                                { option = "Animation"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
                                 { option = "Char"
                                 , context = Just
                                     ( "Primitives" :| [] )
@@ -1405,6 +1411,12 @@ Output
                                 }
                             , Option
                                 { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Picture"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False
@@ -1682,6 +1694,12 @@ Output
                                 , matchesType = False
                                 }
                             , Option
+                                { option = "Animation"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
                                 { option = "Char"
                                 , context = Just
                                     ( "Primitives" :| [] )
@@ -1689,6 +1707,12 @@ Output
                                 }
                             , Option
                                 { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Picture"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False

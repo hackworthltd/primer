@@ -164,7 +164,7 @@ import Primer.Module (
   moduleTypesQualifiedMeta,
  )
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (primConName, tChar, tInt)
+import Primer.Primitives (primConName, tAnimation, tChar, tInt)
 import Primer.Subst (substTy)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
@@ -744,7 +744,7 @@ check t = \case
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap [] CaseExhaustive
       Left (TDIPrim tc) -> do
-        unless (tc == tInt || tc == tChar) $ throwError' $ InternalError $ "Unknown primitive type: " <> show tc
+        unless (tc == tInt || tc == tChar || tc == tAnimation) $ throwError' $ InternalError $ "Unknown primitive type: " <> show tc
         let f b = case caseBranchName b of
               PatCon _ -> Nothing
               PatPrim pc -> case pc of

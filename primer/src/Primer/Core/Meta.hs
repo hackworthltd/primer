@@ -195,6 +195,8 @@ instance HasMetadata (Meta a) where
 data PrimCon
   = PrimChar Char
   | PrimInt Integer
+  | -- | Contains a base-64 encoding of an animated GIF.
+    PrimAnimation Text
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
   deriving anyclass (NFData)

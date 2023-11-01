@@ -205,7 +205,7 @@ unit_6 =
     )
     [Move Child1, Move Child1, Move Child2, ConstructLam Nothing]
     ( ann
-        (lam "f" (app (lvar "f") (lam "a27" emptyHole)))
+        (lam "f" (app (lvar "f") (lam "a42" emptyHole)))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
 
@@ -722,7 +722,7 @@ unit_case_on_hole =
         ( lam "x"
             $ case_
               (ann emptyHole $ tcon tNat)
-              [branch cZero [] emptyHole, branch cSucc [("a29", Nothing)] emptyHole] -- NB: fragile names here
+              [branch cZero [] emptyHole, branch cSucc [("a44", Nothing)] emptyHole] -- NB: fragile names here
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -898,7 +898,7 @@ unit_rename_case_bind_clash =
 unit_case_branches :: Assertion
 unit_case_branches =
   let e cse = ann cse (tcon tBool)
-      n = "a24"
+      n = "a39"
       e0 =
         e
           $ caseFB_

@@ -168,6 +168,7 @@ genPrimCon =
     _ = \case
       PrimChar _ -> ()
       PrimInt _ -> ()
+      PrimAnimation _ -> ()
 
 genType :: ExprGen Type
 genType =
