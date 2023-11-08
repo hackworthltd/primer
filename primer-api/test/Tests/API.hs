@@ -7,10 +7,14 @@ import Data.Map qualified as M
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as TL
 import Data.UUID.V4 (nextRandom)
-import Hedgehog hiding (Property, property)
+import Hedgehog hiding (Property, Var, property)
+import Optics ((.~))
 import Primer.API (
   NewSessionReq (..),
+  OkOrMismatch (Mismatch, Ok, expected, got),
   PrimerErr,
+  Tree,
+  TypeOrKind (Kind, Type),
   addSession,
   copySession,
   deleteSession,
@@ -20,26 +24,47 @@ import Primer.API (
   flushSessions,
   getApp,
   getProgram,
+  getSelectionTypeOrKind,
   getSessionName,
   getVersion,
   listSessions,
   newSession,
   redo,
   renameSession,
+  treeIds,
   undo,
   viewTreeExpr,
+  viewTreeKind,
   viewTreeType,
  )
 import Primer.API.Test.Util (runAPI)
-import Primer.Action (Action (ConstructPrim, InsertSaturatedVar, SetCursor))
+import Primer.Action (
+  Action (
+    ConstructApp,
+    ConstructPrim,
+    ConstructTApp,
+    ConstructVar,
+    EnterHole,
+    InsertSaturatedVar,
+    Move,
+    SetCursor
+  ),
+  Movement (Child1, Child2, Parent),
+ )
 import Primer.App (
+  DefSelection (DefSelection),
   MutationRequest (Edit),
+  NodeSelection (NodeSelection),
+  NodeType (BodyNode, SigNode),
   Prog (progModules),
-  ProgAction (BodyAction, MoveToDef),
+  ProgAction (BodyAction, CreateDef, MoveToDef, SigAction),
+  Selection' (SelectionDef),
   newApp,
  )
+import Primer.Builtins (cTrue, cZero, tBool, tList, tMaybe, tNat)
 import Primer.Core
 import Primer.Core.DSL hiding (app)
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
 import Primer.Database (
   OffsetLimit (OL, limit, offset),
   Page (pageContents, total),
@@ -55,10 +80,14 @@ import Primer.Examples (
  )
 import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Primer.Module (moduleDefsQualified)
+import Primer.Name (unName)
 import Primer.Prelude.Integer qualified as Integer
+import Primer.Prelude.Logic qualified as PL
 import Primer.Test.Util (
   ExceptionPredicate,
   assertException,
+  constructSaturatedCon,
+  constructTCon,
   (@?=),
  )
 import Protolude.Unsafe (unsafeFromJust)
@@ -513,3 +542,197 @@ test_eval_undo =
       app1 <- getApp sid
       step "edited and redone progAllModules identical"
       app1 @?= app0
+
+test_selectioninfo :: TestTree
+test_selectioninfo =
+  testCaseSteps "selection info on mismatches" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      let assertFailure' = liftIO . assertFailure
+      let expectSuccess m =
+            m >>= \case
+              Left err -> liftIO $ assertFailure $ show err
+              Right x -> pure x
+      step "create session"
+      sid <- newSession $ NewSessionReq "a new session" True
+      let scope = mkSimpleModuleName "Main"
+      let getDef d = do
+            p <- getProgram sid
+            pure $ defAST =<< foldMap' moduleDefsQualified (progModules p) M.!? qualifyName scope d
+      let getExpr d = astDefExpr <<$>> getDef d
+      let getType d = astDefType <<$>> getDef d
+      let mkExpr d as = do
+            _ <- expectSuccess $ edit sid $ Edit [CreateDef scope $ Just $ unName d]
+            i <-
+              getExpr d >>= \case
+                Just e@EmptyHole{} -> pure $ getID e
+                _ -> assertFailure' $ "unexpected form of " <> toS (unName d)
+            _ <-
+              expectSuccess
+                $ edit sid
+                $ Edit
+                  [ MoveToDef $ qualifyName scope d
+                  , BodyAction $ SetCursor i : as
+                  ]
+            pure ()
+      let mkType d as = do
+            _ <- expectSuccess $ edit sid $ Edit [CreateDef scope $ Just $ unName d]
+            i <-
+              getType d >>= \case
+                Just e@TEmptyHole{} -> pure $ getID e
+                _ -> assertFailure' $ "unexpected form of " <> toS (unName d)
+            _ <-
+              expectSuccess
+                $ edit sid
+                $ Edit
+                  [ MoveToDef $ qualifyName scope d
+                  , SigAction $ SetCursor i : as
+                  ]
+            pure ()
+
+      step "tm1 :: ? = not {? Zero ?}"
+      mkExpr
+        "tm1"
+        [ ConstructApp
+        , Move Child1
+        , ConstructVar $ GlobalVarRef PL.not
+        , Move Parent
+        , Move Child2
+        , constructSaturatedCon cZero
+        ]
+      htm1 <-
+        getExpr "tm1" >>= \case
+          Just (App _ v (Hole m c)) -> do
+            forgetMetadata v @?= forgetMetadata (create' $ gvar PL.not)
+            forgetMetadata c @?= forgetMetadata (create' $ con0 cZero)
+            pure $ getID m
+          e -> assertFailure' $ "unexpected form of tm1: " <> show e
+      step "tm1 mismatch info"
+      tm1tk <-
+        getSelectionTypeOrKind sid
+          $ SelectionDef
+          $ DefSelection (qualifyName scope "tm1")
+          $ Just
+          $ NodeSelection BodyNode htm1
+      zeroTKIds tm1tk
+        @?= zeroTKIds
+          ( Type
+              $ Mismatch
+                { got = viewTreeType $ create' $ tcon tNat
+                , expected = viewTreeType $ create' $ tcon tBool
+                }
+          )
+
+      step "tm2 :: ? = {? Zero ?} True"
+      mkExpr
+        "tm2"
+        [ ConstructApp
+        , Move Child1
+        , EnterHole
+        , constructSaturatedCon cZero
+        , Move Parent
+        , Move Parent
+        , Move Child2
+        , constructSaturatedCon cTrue
+        ]
+      htm2 <-
+        getExpr "tm2" >>= \case
+          Just (App _ (Hole m c1) c2) -> do
+            forgetMetadata c1 @?= forgetMetadata (create' $ con0 cZero)
+            forgetMetadata c2 @?= forgetMetadata (create' $ con0 cTrue)
+            pure $ getID m
+          e -> assertFailure' $ "unexpected form of tm2: " <> show e
+      step "tm2 mismatch info"
+      tm2tk <-
+        getSelectionTypeOrKind sid
+          $ SelectionDef
+          $ DefSelection (qualifyName scope "tm2")
+          $ Just
+          $ NodeSelection BodyNode htm2
+      zeroTKIds tm2tk
+        @?= zeroTKIds
+          ( Type
+              $ Mismatch
+                { got = viewTreeType $ create' $ tcon tNat
+                , expected = viewTreeType $ create' tEmptyHole
+                }
+          )
+
+      step "ty1 :: List {? Maybe ?} = ?"
+      mkType
+        "ty1"
+        [ ConstructTApp
+        , Move Child1
+        , constructTCon tList
+        , Move Parent
+        , Move Child2
+        , constructTCon tMaybe
+        ]
+      hty1 <-
+        getType "ty1" >>= \case
+          Just (TApp _ c1 (THole m c2)) -> do
+            forgetTypeMetadata c1 @?= forgetTypeMetadata (create' $ tcon tList)
+            forgetTypeMetadata c2 @?= forgetTypeMetadata (create' $ tcon tMaybe)
+            pure $ getID m
+          e -> assertFailure' $ "unexpected form of ty1: " <> show e
+      step "ty1 mismatch info"
+      ty1tk <-
+        getSelectionTypeOrKind sid
+          $ SelectionDef
+          $ DefSelection (qualifyName scope "ty1")
+          $ Just
+          $ NodeSelection SigNode hty1
+      zeroTKIds ty1tk
+        @?= zeroTKIds
+          ( Kind
+              $ Mismatch
+                { got = viewTreeKind $ create' $ ktype `kfun` ktype
+                , expected = viewTreeKind $ create' khole
+                }
+          )
+
+      step "ty2 :: {? Nat ?} Bool = ?"
+      mkType
+        "ty2"
+        [ ConstructTApp
+        , Move Child1
+        , constructTCon tNat
+        , Move Parent
+        , Move Parent
+        , Move Child2
+        , constructTCon tBool
+        ]
+      hty2 <-
+        getType "ty2" >>= \case
+          Just (TApp _ (THole m c1) c2) -> do
+            forgetTypeMetadata c1 @?= forgetTypeMetadata (create' $ tcon tNat)
+            forgetTypeMetadata c2 @?= forgetTypeMetadata (create' $ tcon tBool)
+            pure $ getID m
+          e -> assertFailure' $ "unexpected form of ty2: " <> show e
+      step "ty2 mismatch info"
+      ty2tk <-
+        getSelectionTypeOrKind sid
+          $ SelectionDef
+          $ DefSelection (qualifyName scope "ty2")
+          $ Just
+          $ NodeSelection SigNode hty2
+      zeroTKIds ty2tk
+        @?= zeroTKIds
+          ( Kind
+              $ Mismatch
+                { got = viewTreeKind $ create' ktype
+                , expected = viewTreeKind $ create' khole
+                }
+          )
+
+zeroTKIds :: TypeOrKind -> TypeOrKind
+zeroTKIds = \case
+  Type om -> Type $ zOMIds om
+  Kind om -> Kind $ zOMIds om
+  where
+    zOMIds :: OkOrMismatch -> OkOrMismatch
+    zOMIds = \case
+      Ok t -> Ok $ zTIds t
+      Mismatch t1 t2 -> Mismatch (zTIds t1) (zTIds t2)
+    zTIds :: Tree -> Tree
+    zTIds = treeIds .~ "0"
