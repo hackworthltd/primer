@@ -141,16 +141,16 @@ checkKind k (THole m t) = do
   sh <- asks smartHoles
   (k', t') <- synthKind t
   case (consistentKinds k k', sh) of
-    (_, NoSmartHoles) -> pure $ THole (annotate (KHole ()) m) t'
+    (_, NoSmartHoles) -> pure $ THole (annotate k m) t'
     (True, SmartHoles) -> pure t'
-    (False, SmartHoles) -> pure $ THole (annotate (KHole ()) m) t'
+    (False, SmartHoles) -> pure $ THole (annotate k m) t'
 checkKind k t = do
   sh <- asks smartHoles
   (k', t') <- synthKind t
   case (consistentKinds k k', sh) of
     (True, _) -> pure t'
     (False, NoSmartHoles) -> throwError' $ InconsistentKinds k k'
-    (False, SmartHoles) -> THole <$> meta' (KHole ()) <*> pure t'
+    (False, SmartHoles) -> THole <$> meta' k <*> pure t'
 
 -- | Extend the metadata of an 'Expr' or 'Type'
 -- (usually with a 'TypeCache' or 'Kind')

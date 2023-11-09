@@ -654,7 +654,12 @@ test_selectioninfo =
           ( Type
               $ Mismatch
                 { got = viewTreeType $ create' $ tcon tNat
-                , expected = viewTreeType $ create' tEmptyHole
+                , -- We require @expected@ to be an empty hole, matching
+                  -- the behaviour of @? True@
+                  -- Arguably we should change both this and the empty hole case to
+                  -- expose that we expect @Bool -> Maybe Nat@, see
+                  -- https://github.com/hackworthltd/primer/issues/81
+                  expected = viewTreeType $ create' tEmptyHole
                 }
           )
 
@@ -687,7 +692,7 @@ test_selectioninfo =
           ( Kind
               $ Mismatch
                 { got = viewTreeKind $ create' $ ktype `kfun` ktype
-                , expected = viewTreeKind $ create' khole
+                , expected = viewTreeKind $ create' ktype
                 }
           )
 
@@ -721,7 +726,11 @@ test_selectioninfo =
           ( Kind
               $ Mismatch
                 { got = viewTreeKind $ create' ktype
-                , expected = viewTreeKind $ create' khole
+                , -- We require @expected@ to be @?@, matching the behaviour of an empty hole.
+                  -- Arguably we should change both this and the empty hole case to
+                  -- expose that we expect @* -> *@, see
+                  -- https://github.com/hackworthltd/primer/issues/81
+                  expected = viewTreeKind $ create' khole
                 }
           )
 
