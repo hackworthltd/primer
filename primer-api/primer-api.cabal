@@ -149,7 +149,7 @@ test-suite primer-api-test
       , tasty-hunit
       , text
       , transformers
-      , uuid
+      , uuid-types                                        ^>=1.0.5.1
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839

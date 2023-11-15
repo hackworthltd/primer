@@ -13,7 +13,7 @@ import Data.Time (
   fromGregorian,
   secondsToDiffTime,
  )
-import Data.UUID (UUID, fromWords64)
+import Data.UUID.Types (UUID, fromWords64)
 import Hedgehog (
   Gen,
   MonadGen,

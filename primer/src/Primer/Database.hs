@@ -56,9 +56,8 @@ import Data.Time.Clock (
 import Data.Time.Clock qualified as UTC (
   getCurrentTime,
  )
-import Data.UUID (UUID)
-import Data.UUID qualified as UUID (toText)
-import Data.UUID.V4 (nextRandom)
+import Data.UUID.Types (UUID)
+import Data.UUID.Types qualified as UUID (toText)
 import ListT qualified (toList)
 import Optics (
   (.~),
@@ -70,6 +69,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.UUIDv4 (nextRandom)
 import StmContainers.Map qualified as StmMap
 
 -- | A Primer version.

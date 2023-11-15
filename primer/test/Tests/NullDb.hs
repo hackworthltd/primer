@@ -3,7 +3,6 @@ module Tests.NullDb where
 import Foreword
 
 import Data.Text qualified as Text
-import Data.UUID.V4 (nextRandom)
 import Primer.App (
   newApp,
   newEmptyApp,
@@ -31,6 +30,7 @@ import Primer.Test.Util (
   assertException,
   (@?=),
  )
+import Primer.UUIDv4 (nextRandom)
 import Test.Tasty
 import Test.Tasty.HUnit (testCaseSteps)
 
