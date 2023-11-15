@@ -142,7 +142,7 @@ unit_2 :: Assertion
 unit_2 =
   let (e, maxID) = first forgetMetadata $ create emptyHole -- TODO: so ugly
    in do
-        s <- evalFullTest mempty mempty e
+        s <- evalFullTest mempty mempty Syn e
         s @?= e
 
 -- TODO: not expected to work, as requires eval under a ∀
@@ -183,19 +183,20 @@ unit_2 =
 --   in do
 --        s <- evalFullTest maxID mempty mempty 101 Syn e
 --        s <~==> Left (TimedOut expt)
---
---unit_6 :: Assertion
---unit_6 =
---  let ((e, expt), maxID) = create $ do
---        tr <- con0 cTrue
---        an <- ann (pure tr) (tcon tBool)
---        pure (an, tr)
---   in do
---        s <- evalFullTest maxID mempty mempty 1 Syn e
---        s <~==> Right e
---        t <- evalFullTest maxID mempty mempty 2 Chk e
---        t <~==> Right expt
---
+
+unit_6 :: Assertion
+unit_6 =
+  let ((e, expt), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
+        tr <- con0 cTrue
+        an <- ann (pure tr) (tcon tBool)
+        pure (an, tr)
+   in do
+        s <- evalFullTest mempty mempty Syn e
+        s @?= e
+        t <- evalFullTest mempty mempty Chk e
+        t @?= expt
+
+-- This does not work in interp as not reduce to hereditary ast/prim normal form
 ---- TODO: do we want to expand
 ----   (λ x. t) : ?
 ---- to
@@ -205,24 +206,33 @@ unit_2 =
 ---- Currently we don't, so this is a stuck term
 --unit_7 :: Assertion
 --unit_7 =
---  let (e, maxID) = create $ do
+--  let (e, maxID) = first forgetMetadata $ create $ do
 --        let l = lam "x" $ lvar "x" `app` lvar "x"
 --        (l `ann` tEmptyHole) `app` l
 --   in do
---        -- in evalFullTest maxID mempty mempty 100 Syn e <~==> Left (TimedOut e)
---        s <- evalFullTest maxID mempty mempty 100 Syn e
---        s <~==> Right e
---
---unit_8 :: Assertion
---unit_8 =
---  let n = 10
---      e = mapEven n
---   in do
---        evalFullTest (maxID e) builtinTypes (defMap e) 500 Syn (expr e) >>= \case
---          Left (TimedOut _) -> pure ()
---          x -> assertFailure $ show x
---        s <- evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e)
---        s <~==> Right (expectedResult e)
+--        s <- evalFullTest mempty mempty Syn e
+--        s @?= e
+
+-- was trying to minimise unit_8, but seem to have hit a different bug
+unit_tmp :: Assertion
+unit_tmp =
+  let ((e, expt), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
+        -- (λf . f True : (Bool -> Bool) -> Bool) (λx.x)
+        expr <- ((lam "f" $ lvar "f" `app` con0 cTrue) `ann` ((tcon tBool `tfun` tcon tBool) `tfun` tcon tBool)) `app` (lam "x" $ lvar "x")
+        -- True : Bool
+        expected <- con0 cTrue `ann` tcon tBool
+        pure (expr, expected)
+   in do
+        s <- evalFullTest mempty mempty Syn e
+        s @?= expt
+
+unit_8 :: Assertion
+unit_8 =
+  let n = 10
+      e = mapEven n
+   in do
+        s <- evalFullTest builtinTypes (defMap e) Syn (forgetMetadata $ expr e)
+        s @?= forgetMetadata (expectedResult e)
 --
 ---- A worker/wrapper'd map
 --unit_9 :: Assertion
@@ -1917,12 +1927,12 @@ evalFullTest' optsV id_ tydefs globals n d e = do
   pure r
 -}
 
-evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Expr' () () () -> IO (Expr' () () ())
+evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Expr' () () ())
 -- TODO: deal with primitives
-evalFullTest tydefs defs = pure . interp tydefs (M.fromList $ mapMaybe (\(f,d) -> case d of
+evalFullTest tydefs defs dir = pure . interp tydefs (M.fromList $ mapMaybe (\(f,d) -> case d of
       DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
       _ -> Nothing)
-      $ M.assocs defs, mempty)
+      $ M.assocs defs, mempty) dir
 
 {-
 evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)

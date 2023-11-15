@@ -71,6 +71,7 @@ import Primer.Zipper (
 import Protolude.Error (error)
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Type (Type'(TEmptyHole, THole))
+import Primer.Core.Utils (concreteTy)
 
 -- A naive tree-walker / compile to closure (TODO: is this correct terminology?)
 -- We reuse Haskell's runtime to do call-by-need
@@ -84,50 +85,55 @@ import Primer.Core.Type (Type'(TEmptyHole, THole))
 -- TODO: worry about name capture!
 interp :: TypeDefMap
         -> (Map.Map (Either GVarName LVarName) (Expr' () () ()), Map.Map TyVarName (Type' () ()))
+        -> Dir
         -> Expr' () () () -> Expr' () () ()
-interp tydefs env@(envTm,envTy) = \case
-  Hole m e -> Hole m $ interp tydefs env e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
+interp tydefs env@(envTm,envTy) dir = \case
+  Hole m e -> Hole m $ interp tydefs env Syn e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
   e@EmptyHole{} -> e
-  Ann m e t -> Ann m (interp tydefs env e) (interpTy envTy t)
-  -- TODO: upsilon redex
-  App _ f s -> case interp tydefs env f of
+  Ann m e t -> let t' = interpTy envTy t
+               -- We force t' before emitting anything, so this is not very lazy.
+               -- However we know evaluation of types must terminate!
+               in case (dir, concreteTy t') of
+                    (Chk, True) -> interp tydefs env Chk e
+                    _ -> Ann m (interp tydefs env Chk e) t'
+  App _ f s -> case interp tydefs env Syn f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
-       Ann () (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env s) src)] env) t) tgt
+       Ann () (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env Chk s) src)] env) Chk t) tgt
      _ -> error "bad App"
-  APP _ f s -> case interp tydefs env f of
+  APP _ f s -> case interp tydefs env Syn f of
      Ann _ (LAM _ a t) (TForall _ b _ ty) ->
        let s' = interpTy envTy s
-       in Ann () (interp tydefs (extendTyEnv a s' env) t)
+       in Ann () (interp tydefs (extendTyEnv a s' env) Chk t)
                  (interpTy (extendTyEnv' b s' envTy) ty)
      _ -> error "bad APP"
-  Con m c ts -> Con m c $ map (interp tydefs env) ts
+  Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
   e@Lam{} -> e -- don't go under lambdas: TODO: this means that interp may be WRONG if it ends up with a lambda, as could be @let x=True in λy.x@ which would return @λy.x@!
   e@LAM{} -> e
   Var _ (LocalVarRef v) -> envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   Var _ (GlobalVarRef v) -> envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   -- TODO: deal with primitives!
-  Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env e) env) b
-  LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) b
-  Letrec _ v e t b  -> let e' = interp tydefs env' e
+  Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env Syn e) env) dir b
+  LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) dir b
+  Letrec _ v e t b  -> let e' = interp tydefs env' Chk e
                            env' = extendTmEnv (Right v) (Ann () e' $ interpTy envTy t) env
-                       in interp tydefs env' b
+                       in interp tydefs env' dir b
   -- In step interpreter, case which does not discriminate is lazy. Same here for consistency
-  Case _ _ [] (CaseFallback e) -> interp tydefs env e
+  Case _ _ [] (CaseFallback e) -> interp tydefs env Chk e
   Case _ e brs fb -> -- this relies on @e@ computing to normal form lazily
 -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
-   case interp tydefs env e of
+   case interp tydefs env Syn e of
      Ann _ (Con _ c as) (decomposeTAppCon -> Just (tycon, tyargs))
        | Just (CaseBranch _ xs t) <- find ((PatCon c ==) . caseBranchName) brs ->
          let envTy' = extendTysEnv' (tyParamEnvExt tycon tyargs) envTy
          in interp tydefs (extendTmsEnv (zip (Right . bindName <$> xs)
                               $ zipWith (\a argTy -> Ann () a $ interpTy envTy' argTy) as $ ctorArgTys tycon c)
-                              env)
+                              env) Chk
                          t
-       | CaseFallback t <- fb -> interp tydefs env t
+       | CaseFallback t <- fb -> interp tydefs env Chk t
        | otherwise -> error "no such branch"
      Ann _ (PrimCon _ c) ty
-       | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp tydefs env t
-       | CaseFallback t <- fb -> interp tydefs env t
+       | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp tydefs env Chk t
+       | CaseFallback t <- fb -> interp tydefs env Chk t
        | otherwise -> error "no such branch"
      _ -> error "stuck scrutinee"
   e@PrimCon{} -> e
