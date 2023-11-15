@@ -25,9 +25,12 @@ import Primer.Eval (
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
-import Primer.EvalFullStep (
+import Primer.EvalFullStep qualified as EFStep (
   Dir (Syn),
   EvalLog,
+  evalFull,
+ )
+import Primer.EvalFullInterp qualified as EFInterp (
   evalFull,
  )
 import Primer.Examples (
@@ -80,16 +83,22 @@ benchmarks =
       [ Group
           "pure logs"
           [ benchExpectedPureLogsStep (mapEvenEnv 1) "mapEven 1" 100
+          , benchExpectedPureLogsInterp (mapEvenEnv 1) "mapEven 1" 100
           , benchExpectedPureLogsStep (mapEvenEnv 10) "mapEven 10" 1000
+          , benchExpectedPureLogsInterp (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
-          -- , benchExpectedPureLogsStep (mapEvenEnv 100) "mapEven 100" 10000
+          , benchExpectedPureLogsStep (mapEvenEnv 100) "mapEven 100" 10000
+          , benchExpectedPureLogsInterp (mapEvenEnv 100) "mapEven 100" 10000
           ]
       , Group
           "discard logs"
           [ benchExpectedDiscardLogsStep (mapEvenEnv 1) "mapEven 1" 100
+          , benchExpectedDiscardLogsInterp (mapEvenEnv 1) "mapEven 1" 100
           , benchExpectedDiscardLogsStep (mapEvenEnv 10) "mapEven 10" 1000
+          , benchExpectedDiscardLogsInterp (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
-          -- , benchExpectedDiscardLogsStep (mapEvenEnv 100) "mapEven 100" 10000
+          , benchExpectedDiscardLogsStep (mapEvenEnv 100) "mapEven 100" 10000
+          , benchExpectedDiscardLogsInterp (mapEvenEnv 100) "mapEven 100" 10000
           ]
       ]
   , Group
@@ -109,11 +118,19 @@ benchmarks =
     evalTestMPureLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runPureLogT
-        $ evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+        $ EFStep.evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMDiscardLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runDiscardLogT
-        $ evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+        $ EFStep.evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+    evalTestMPureLogsInterp e maxEvals =
+      evalTestM (maxID e)
+        $ runPureLogT
+        $ EFInterp.evalFull builtinTypes (defMap e) maxEvals Syn (expr e)
+    evalTestMDiscardLogsInterp e maxEvals =
+      evalTestM (maxID e)
+        $ runDiscardLogT
+        $ EFInterp.evalFull builtinTypes (defMap e) maxEvals Syn (expr e)
 
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF
@@ -123,6 +140,8 @@ benchmarks =
 
     benchExpectedPureLogsStep = benchExpected evalTestMPureLogsStep fst
     benchExpectedDiscardLogsStep = benchExpected evalTestMDiscardLogsStep identity
+    benchExpectedPureLogsInterp = benchExpected evalTestMPureLogsInterp fst
+    benchExpectedDiscardLogsInterp = benchExpected evalTestMDiscardLogsInterp identity
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
