@@ -11,8 +11,6 @@ module Primer.API.NodeFlavor (
 -- This module does not depend on much, but takes a long time
 -- to build because of
 -- https://gitlab.haskell.org/ghc/ghc/-/issues/5642
---
--- It is split from Actions because this depends on Expr
 
 import Foreword
 
