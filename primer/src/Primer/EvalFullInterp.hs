@@ -103,8 +103,8 @@ interp tydefs env@(envTm,envTy) = \case
   Con m c ts -> Con m c $ map (interp tydefs env) ts
   e@Lam{} -> e -- don't go under lambdas: TODO: this means that interp may be WRONG if it ends up with a lambda, as could be @let x=True in λy.x@ which would return @λy.x@!
   e@LAM{} -> e
-  Var _ (LocalVarRef v) -> envTm Map.! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
-  Var _ (GlobalVarRef v) -> envTm Map.! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
+  Var _ (LocalVarRef v) -> envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
+  Var _ (GlobalVarRef v) -> envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   -- TODO: deal with primitives!
   Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env e) env) b
   LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) b
@@ -133,9 +133,9 @@ interp tydefs env@(envTm,envTy) = \case
   e@PrimCon{} -> e
  where
    -- todo DRY with Redex/viewCaseRedex (and DRY stuff above with other redex stuff??)
-   tyParamEnvExt tcon args = let (TypeDefAST (ASTTypeDef ps _ _)) = tydefs Map.! tcon
+   tyParamEnvExt tcon args = let (TypeDefAST (ASTTypeDef ps _ _)) = tydefs ! tcon
                              in zipWith (\(p,_) a -> (p,a)) ps args
-   ctorArgTys tcon vcon = let (TypeDefAST (ASTTypeDef _ as _)) = tydefs Map.! tcon
+   ctorArgTys tcon vcon = let (TypeDefAST (ASTTypeDef _ as _)) = tydefs ! tcon
                               Just vc = find ((== vcon) . valConName) as
                           in valConArgs vc
 
@@ -146,7 +146,7 @@ interpTy env = \case
   THole _ t -> THole () $ interpTy env t
   t@TCon{} -> t
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
-  TVar _ v -> env Map.! v
+  TVar _ v -> env ! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
   t@TForall{} -> t -- don't go under binders. TODO: this can give wrong answers as with not going under lambdas
   TLet _ v s t -> interpTy (extendTyEnv' v s env) t
@@ -182,3 +182,8 @@ extendTyEnv :: TyVarName
             -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName (Type' b c))
             -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName (Type' b c))
 extendTyEnv k v (envTm, envTy) = (envTm, extendTyEnv' k v envTy)
+
+(!) :: (Ord k, Show k, HasCallStack) => Map k v -> k -> v
+m ! k = case Map.lookup k m of
+  Just v -> v
+  Nothing -> error $ "the key " <> show k <> " was not in the map"
