@@ -89,6 +89,7 @@ interp tydefs env@(envTm,envTy) = \case
   Hole m e -> Hole m $ interp tydefs env e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
   e@EmptyHole{} -> e
   Ann m e t -> Ann m (interp tydefs env e) (interpTy envTy t)
+  -- TODO: upsilon redex
   App _ f s -> case interp tydefs env f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
        Ann () (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env s) src)] env) t) tgt
