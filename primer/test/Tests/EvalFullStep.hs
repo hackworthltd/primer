@@ -1,4 +1,4 @@
-module Tests.EvalFull where
+module Tests.EvalFullStep where
 
 import Foreword hiding (unlines)
 
@@ -46,7 +46,7 @@ import Primer.Core.Utils (
  )
 import Primer.Def (DefMap)
 import Primer.Eval
-import Primer.EvalFull
+import Primer.EvalFullStep
 import Primer.Examples qualified as Examples (
   even,
   map,

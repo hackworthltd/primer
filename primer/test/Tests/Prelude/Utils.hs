@@ -12,14 +12,14 @@ import Primer.Eval (
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
-import Primer.EvalFull (Dir (Chk), EvalFullError, EvalLog, TerminationBound, evalFull)
+import Primer.EvalFullStep (Dir (Chk), EvalFullError, EvalLog, TerminationBound, evalFull)
 import Primer.Log (runPureLogT)
 import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Prelude (prelude)
 import Primer.Pretty (prettyExpr, sparse)
 import Primer.Test.TestM (TestM, evalTestM)
 import Primer.Test.Util (isSevereLog, zeroIDs)
-import Tests.EvalFull (evalResultExpr)
+import Tests.EvalFullStep (evalResultExpr)
 import Prelude (error)
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()

@@ -32,7 +32,7 @@ import Primer.Eval (
   redexes,
   step,
  )
-import Primer.EvalFull (EvalFullError (..), EvalLog, evalFullStepCount)
+import Primer.EvalFullStep (EvalFullError (..), EvalLog, evalFullStepCount)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Typed (forAllT, propertyWT)
 import Primer.Log (runPureLog)
@@ -57,7 +57,7 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion)
 import Tests.Action.Available (PA (..), genAction, toProgAction)
 import Tests.Eval.Utils (genDirTm, testModules)
-import Tests.EvalFull (evalFullTestAvoidShadowing, (<~==>))
+import Tests.EvalFullStep (evalFullTestAvoidShadowing, (<~==>))
 import Tests.Gen.Core.Typed (propertyWTInExtendedGlobalCxt)
 
 {-

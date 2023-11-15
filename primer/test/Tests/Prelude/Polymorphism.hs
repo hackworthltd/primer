@@ -39,7 +39,7 @@ import Tasty (Property, property)
 import Test.Tasty.HUnit (
   Assertion,
  )
-import Tests.EvalFull ((<~==>))
+import Tests.EvalFullStep ((<~==>))
 import Tests.Prelude.Utils (functionOutput', (<===>))
 
 tasty_id_prop :: Property

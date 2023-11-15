@@ -1,4 +1,4 @@
-module Primer.EvalFull (
+module Primer.EvalFullStep (
   Dir (..),
   EvalFullError (..),
   TerminationBound,

@@ -154,7 +154,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Eval (EvalError (NotRedex), NormalOrderOptions (StopAtBinders, UnderBinders))
-import Primer.EvalFull (Dir (Chk))
+import Primer.EvalFullStep (Dir (Chk))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)

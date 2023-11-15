@@ -201,7 +201,7 @@ import Primer.Eval (AvoidShadowing (AvoidShadowing))
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
 import Primer.Eval.Redex (EvalLog, RunRedexOptions (RunRedexOptions, pushAndElide), ViewRedexOptions (ViewRedexOptions, groupedLets))
-import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
+import Primer.EvalFullStep (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Log (ConvertLogMessage)
 import Primer.Module (

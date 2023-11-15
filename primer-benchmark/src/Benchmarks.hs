@@ -25,7 +25,7 @@ import Primer.Eval (
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
-import Primer.EvalFull (
+import Primer.EvalFullStep (
   Dir (Syn),
   EvalLog,
   evalFull,
@@ -79,17 +79,17 @@ benchmarks =
       "evalTestM"
       [ Group
           "pure logs"
-          [ benchExpectedPureLogs (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedPureLogs (mapEvenEnv 10) "mapEven 10" 1000
+          [ benchExpectedPureLogsStep (mapEvenEnv 1) "mapEven 1" 100
+          , benchExpectedPureLogsStep (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
-          -- , benchExpectedPureLogs (mapEvenEnv 100) "mapEven 100" 10000
+          -- , benchExpectedPureLogsStep (mapEvenEnv 100) "mapEven 100" 10000
           ]
       , Group
           "discard logs"
-          [ benchExpectedDiscardLogs (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedDiscardLogs (mapEvenEnv 10) "mapEven 10" 1000
+          [ benchExpectedDiscardLogsStep (mapEvenEnv 1) "mapEven 1" 100
+          , benchExpectedDiscardLogsStep (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
-          -- , benchExpectedDiscardLogs (mapEvenEnv 100) "mapEven 100" 10000
+          -- , benchExpectedDiscardLogsStep (mapEvenEnv 100) "mapEven 100" 10000
           ]
       ]
   , Group
@@ -106,11 +106,11 @@ benchmarks =
     evalOptionsN = UnderBinders
     evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     evalOptionsR = RunRedexOptions{pushAndElide = True}
-    evalTestMPureLogs e maxEvals =
+    evalTestMPureLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runPureLogT
         $ evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
-    evalTestMDiscardLogs e maxEvals =
+    evalTestMDiscardLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runDiscardLogT
         $ evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
@@ -121,8 +121,8 @@ benchmarks =
         b
         (pure $ (@?= Right (zeroIDs $ expectedResult e')) . fmap zeroIDs . g)
 
-    benchExpectedPureLogs = benchExpected evalTestMPureLogs fst
-    benchExpectedDiscardLogs = benchExpected evalTestMDiscardLogs identity
+    benchExpectedPureLogsStep = benchExpected evalTestMPureLogsStep fst
+    benchExpectedDiscardLogsStep = benchExpected evalTestMDiscardLogsStep identity
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
