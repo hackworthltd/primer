@@ -33,6 +33,7 @@ library
     Primer.Def.Utils
     Primer.Eval
     Primer.Eval.Redex
+    Primer.EvalFullInterp
     Primer.EvalFullStep
     Primer.Examples
     Primer.JSON
@@ -216,6 +217,7 @@ test-suite primer-test
     Tests.Database
     Tests.Eval
     Tests.Eval.Utils
+    Tests.EvalFullInterp
     Tests.EvalFullStep
     Tests.Examples
     Tests.FreeVars
