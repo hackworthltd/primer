@@ -77,7 +77,8 @@ import Primer.Core.Type (Type'(TEmptyHole, THole))
 -- NB environment is map varName:->normal-form-computed-lazily
 -- TODO: test @head $ repeat [True]@ work
 --       also @(λx. case x of C y -> y + y) ((λx.C x) expensive-int-computation))@ works and only does the expensive computation once (how to test this??)
--- We don't compute under lambdas, but will compute after a beta
+-- We don't compute under lambdas, but will compute after a beta (same with foralls)
+--  this means that one can only trust the answer if it has no lambdas/foralls in!
 
 -- we keep type annotations around ??
 -- TODO: worry about name capture!
@@ -99,7 +100,7 @@ interp tydefs env@(envTm,envTy) = \case
                  (interpTy (extendTyEnv' b s' envTy) ty)
      _ -> error "bad APP"
   Con m c ts -> Con m c $ map (interp tydefs env) ts
-  e@Lam{} -> e -- don't go under lambdas
+  e@Lam{} -> e -- don't go under lambdas: TODO: this means that interp may be WRONG if it ends up with a lambda, as could be @let x=True in λy.x@ which would return @λy.x@!
   e@LAM{} -> e
   Var _ (LocalVarRef v) -> envTm Map.! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   Var _ (GlobalVarRef v) -> envTm Map.! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
@@ -146,7 +147,7 @@ interpTy env = \case
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
   TVar _ v -> env Map.! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
-  t@TForall{} -> t -- don't go under binders
+  t@TForall{} -> t -- don't go under binders. TODO: this can give wrong answers as with not going under lambdas
   TLet _ v s t -> interpTy (extendTyEnv' v s env) t
 
 -- CONFUSED: how do I do to WHNF so can terminate when do `fst (3, letrec x = x in x)`
