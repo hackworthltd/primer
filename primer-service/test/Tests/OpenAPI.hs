@@ -30,6 +30,7 @@ import Primer.API (
   Module (Module),
   NewSessionReq (..),
   NodeBody (BoxBody, NoBody, PrimBody, TextBody),
+  OkOrMismatch (Mismatch, Ok),
   Prog (Prog),
   Selection,
   Tree,
@@ -387,4 +388,6 @@ instance Arbitrary CreateTypeDefBody where
 instance Arbitrary NewSessionReq where
   arbitrary = NewSessionReq <$> arbitrary <*> arbitrary
 instance Arbitrary TypeOrKind where
-  arbitrary = hedgehog $ G.choice [Type <$> genTree, Kind <$> genTree]
+  arbitrary = hedgehog $ G.choice [Type <$> genOkMismatch, Kind <$> genOkMismatch]
+    where
+      genOkMismatch = G.choice [Ok <$> genTree, Mismatch <$> genTree <*> genTree]

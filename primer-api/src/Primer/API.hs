@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -33,6 +34,7 @@ module Primer.API (
   findSessions,
   getVersion,
   Tree,
+  treeIds,
   NodeBody (..),
   viewProg,
   Prog (Prog),
@@ -71,6 +73,7 @@ module Primer.API (
   undoAvailable,
   redoAvailable,
   Name (..),
+  OkOrMismatch (..),
   TypeOrKind (..),
   getSelectionTypeOrKind,
 ) where
@@ -99,7 +102,20 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Tuple.Extra (curry3)
-import Optics (ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
+import Optics (
+  Traversal',
+  adjoin,
+  ifoldr,
+  over,
+  preview,
+  to,
+  traverseOf,
+  traversed,
+  view,
+  (%),
+  (^.),
+  _Just,
+ )
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action (ActionError (ParamNotFound), ProgAction, toProgActionInput, toProgActionNoInput)
@@ -636,6 +652,13 @@ data Tree = Tree
   deriving stock (Show, Read, Eq, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Tree
   deriving anyclass (NFData)
+
+-- For testing purposes
+treeIds :: Traversal' Tree Text
+treeIds =
+  #nodeId
+    `adjoin` (#childTrees % traversed % treeIds)
+    `adjoin` (#rightChild % traversed % treeIds)
 
 -- | A local or global name.
 -- Field names are intentionally the same as `GlobalName`, so that, unless `qualifiedModule` is `Nothing`,
@@ -1313,11 +1336,18 @@ redo =
 -- | 'App.Selection' without any node metadata.
 type Selection = App.Selection' ID
 
-data TypeOrKind = Type Tree | Kind Tree
+data TypeOrKind = Type OkOrMismatch | Kind OkOrMismatch
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeOrKind
   deriving anyclass (NFData)
 
+data OkOrMismatch = Ok Tree | Mismatch {expected :: Tree, got :: Tree}
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON OkOrMismatch
+  deriving anyclass (NFData)
+
+-- Invariant: we return 'Mismatch' if and only if the input selection
+-- is a non-empty hole (at either type or kind level)
 getSelectionTypeOrKind ::
   forall m l.
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1335,31 +1365,31 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
       def <- snd <$> findASTDef allDefs sel.def
       case sel.node of
         -- definition itself selected - return its declared type
-        Nothing -> pure $ Type $ viewTreeType $ astDefType def
+        Nothing -> pure $ Type $ Ok $ viewTreeType $ astDefType def
         Just NodeSelection{meta = id, nodeType} -> case nodeType of
           -- body node selected - get type/kind from metadata
           BodyNode ->
             maybe (throw' $ NodeIDNotFound id) (pure . fst) (findNodeWithParent id $ astDefExpr def) <&> \case
-              ExprNode e -> viewExprType $ e ^. _exprMetaLens
-              TypeNode t -> viewTypeKind $ t ^. _typeMetaLens
+              ExprNode e -> viewExprType e
+              TypeNode t -> viewTypeKind t
               KindNode k -> viewKindOfKind k
-              CaseBindNode b -> viewExprType $ b ^. _bindMeta
+              CaseBindNode b -> Type $ Ok $ viewExprType' $ b ^. _bindMeta
           -- sig node selected - get kind from metadata
           SigNode ->
             maybe (throw' $ NodeIDNotFound id) pure (findTypeOrKind id $ astDefType def) <&> \case
-              Left t -> viewTypeKind $ t ^. _typeMetaLens
+              Left t -> viewTypeKind t
               Right k -> viewKindOfKind k
     SelectionTypeDef sel -> do
       def <- snd <$> findASTTypeDef allTypeDefs sel.def
       case sel.node of
         -- type def itself selected - return its kind
-        Nothing -> pure $ Kind $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
+        Nothing -> pure $ Kind $ Ok $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
         Just (TypeDefParamNodeSelection (TypeDefParamSelection p s)) -> do
           k <- maybe (throw' $ ActionError $ ParamNotFound p) (pure . snd) $ find ((== p) . fst) (astTypeDefParameters def)
           case s of
             Nothing ->
               -- param name node selected - return its kind
-              pure . Kind . viewTreeKind $ k
+              pure . Kind . Ok . viewTreeKind $ k
             Just i -> do
               k' <- maybe (throw' $ NodeIDNotFound i) pure $ focusOnKind i k
               pure $ viewKindOfKind $ target k'
@@ -1367,6 +1397,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         Just (TypeDefConsNodeSelection (TypeDefConsSelection _ Nothing)) ->
           pure
             . Type
+            . Ok
             . viewTreeType'
             . mkIds
             $ foldl' (\t -> TApp () t . TVar ()) (TCon () sel.def) (map fst $ astTypeDefParameters def)
@@ -1374,13 +1405,18 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         Just (TypeDefConsNodeSelection (TypeDefConsSelection c (Just s))) -> do
           t0 <- maybe (throw' $ TypeDefConFieldNotFound sel.def c s.index) pure $ getTypeDefConFieldType def c s.index
           t <- maybe (throw' $ NodeIDNotFound s.meta) pure $ findTypeOrKind s.meta t0
-          pure $ either (viewTypeKind . view _typeMetaLens) viewKindOfKind t
+          pure $ either viewTypeKind viewKindOfKind t
   where
     trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
-    viewExprType :: ExprMeta -> TypeOrKind
-    viewExprType = Type . fromMaybe trivialTree . viewExprType'
-    viewExprType' :: ExprMeta -> Maybe Tree
-    viewExprType' = preview $ _type % _Just % to (viewTreeType' . mkIds . getAPIType)
+    viewExprType :: Expr -> TypeOrKind
+    viewExprType =
+      Type . \case
+        Hole m e -> Mismatch{expected = viewExprType' m, got = viewExprType' $ e ^. _exprMetaLens}
+        e -> Ok $ viewExprType' $ e ^. _exprMetaLens
+    viewExprType' :: ExprMeta -> Tree
+    viewExprType' = fromMaybe trivialTree . viewExprType''
+    viewExprType'' :: ExprMeta -> Maybe Tree
+    viewExprType'' = preview $ _type % _Just % to (viewTreeType' . mkIds . getAPIType)
     isHole :: Type' a b -> Bool
     isHole = \case
       THole{} -> True
@@ -1402,10 +1438,15 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     mkIds = over _typeKindMeta (show . view _id) . over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
     mkIdsK :: Kind' () -> Kind' Text
     mkIdsK = over _kindMeta (("selkind-" <>) . show . getID) . create' . generateKindIDs
-    viewTypeKind :: TypeMeta -> TypeOrKind
-    viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
-    viewTypeKind' :: TypeMeta -> Maybe Tree
-    viewTypeKind' = preview $ _type % _Just % to (viewTreeKind' . mkIdsK)
+    viewTypeKind :: Type -> TypeOrKind
+    viewTypeKind =
+      Kind . \case
+        THole m t -> Mismatch{expected = viewTypeKind' m, got = viewTypeKind' $ t ^. _typeMetaLens}
+        t -> Ok $ viewTypeKind' $ t ^. _typeMetaLens
+    viewTypeKind' :: TypeMeta -> Tree
+    viewTypeKind' = fromMaybe trivialTree . viewTypeKind''
+    viewTypeKind'' :: TypeMeta -> Maybe Tree
+    viewTypeKind'' = preview $ _type % _Just % to (viewTreeKind' . mkIdsK)
     -- If a kind node is selected we just return `KType`
     -- This is a slight lie, effectively reporting that kinds are types,
     -- when this isn't true in Primer (as it is in Haskell with modern GHC's `TypeInType`).
@@ -1413,4 +1454,4 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     -- `True : Bool : Type0 : Type1 : Type2 : ...` (we don't go beyond `Type0` i.e. `KType`),
     -- so this is the best that we can easily do.
     viewKindOfKind :: Kind' a -> TypeOrKind
-    viewKindOfKind _ = Kind $ viewTreeKind' $ KType "kind"
+    viewKindOfKind _ = Kind $ Ok $ viewTreeKind' $ KType "kind"

@@ -49,6 +49,7 @@ import Primer.API (
   Module,
   NewSessionReq,
   NodeBody,
+  OkOrMismatch,
   Prog,
   Selection,
   Tree,
@@ -181,6 +182,7 @@ deriving via PrimerJSONNamed "TypeDefConsFieldSelection" (TypeDefConsFieldSelect
 deriving via PrimerJSONNamed "DefSelection" (DefSelection ID) instance ToSchema (DefSelection ID)
 deriving via PrimerJSONNamed "NodeSelection" (NodeSelection ID) instance ToSchema (NodeSelection ID)
 deriving via PrimerJSON NodeType instance ToSchema NodeType
+deriving via PrimerJSON OkOrMismatch instance ToSchema OkOrMismatch
 deriving via PrimerJSON TypeOrKind instance ToSchema TypeOrKind
 deriving via PrimerJSON Level instance ToSchema Level
 deriving via PrimerJSON NewSessionReq instance ToSchema NewSessionReq

@@ -477,6 +477,50 @@
                 ],
                 "type": "string"
             },
+            "OkOrMismatch": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Ok"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "expected": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "got": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Mismatch"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "expected",
+                            "got",
+                            "tag"
+                        ],
+                        "type": "object"
+                    }
+                ]
+            },
             "Option": {
                 "properties": {
                     "context": {
@@ -927,7 +971,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/Tree"
+                                "$ref": "#/components/schemas/OkOrMismatch"
                             },
                             "tag": {
                                 "enum": [
@@ -945,7 +989,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/Tree"
+                                "$ref": "#/components/schemas/OkOrMismatch"
                             },
                             "tag": {
                                 "enum": [
