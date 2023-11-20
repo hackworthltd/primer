@@ -28,17 +28,24 @@ module Primer.Primitives (
 
 import Foreword hiding (rotate)
 
+import Codec.Picture.ColorQuant (palettizeWithAlpha)
+import Codec.Picture.Gif (
+  GifDisposalMethod (DisposalRestoreBackground),
+  GifEncode (GifEncode),
+  GifLooping (LoopingForever),
+  encodeComplexGifImage,
+ )
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteString.Base64 qualified as B64
 import Data.Data (Data)
 import Data.Map qualified as M
 import Diagrams.Backend.Rasterific (
-  GifLooping (LoopingForever),
-  defaultPaletteOptions,
-  rasterGif,
+  Options (RasterificOptions),
+  Rasterific (Rasterific),
  )
 import Diagrams.Prelude (
+  Diagram,
   V2 (..),
   circle,
   deg,
@@ -48,6 +55,7 @@ import Diagrams.Prelude (
   mkSizeSpec,
   rect,
   rectEnvelope,
+  renderDia,
   rotate,
   sRGB24,
   translate,
@@ -343,7 +351,7 @@ primFunDef def args = case def of
     -- Since we only support translating a `Picture` expression to an image once it is in normal form,
     -- this guard will only pass when `picture` has no free variables other than `time`.
     [PrimCon () (PrimInt duration), Lam () time picture]
-      | Just frames <- traverse diagramAtTime [0 .. (duration * 100) `div` frameLength - 1] ->
+      | Just (frames :: [Diagram Rasterific]) <- traverse diagramAtTime [0 .. (duration * 100) `div` frameLength - 1] ->
           Right
             $ prim
             $ PrimAnimation
@@ -354,12 +362,14 @@ primFunDef def args = case def of
               -- for unrelated reasons (getting the `Bytestring` without dumping it to a file).
               mempty
               (decodeUtf8 . B64.encode . toS)
-            $ rasterGif @Double
-              (mkSizeSpec $ Just . fromInteger <$> V2 width height)
-              gifLooping
-              defaultPaletteOptions
+            $ encodeComplexGifImage
+            $ GifEncode (fromInteger width) (fromInteger height) Nothing Nothing gifLooping
+            $ flip palettizeWithAlpha DisposalRestoreBackground
             $ map
-              ( (,fromInteger frameLength)
+              ( (fromInteger frameLength,)
+                  . renderDia
+                    Rasterific
+                    (RasterificOptions (mkSizeSpec $ Just . fromInteger <$> V2 width height))
                   . rectEnvelope
                     (fromInteger <$> mkP2 (-width `div` 2) (-height `div` 2))
                     (fromInteger <$> V2 width height)
