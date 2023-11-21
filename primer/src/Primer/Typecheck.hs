@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedLabels #-}
 
 -- | Typechecking for Core expressions.
@@ -744,20 +745,25 @@ check t = \case
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap [] CaseExhaustive
       Left (TDIPrim tc) -> do
-        unless (tc == tInt || tc == tChar || tc == tAnimation) $ throwError' $ InternalError $ "Unknown primitive type: " <> show tc
-        let f b = case caseBranchName b of
-              PatCon _ -> Nothing
-              PatPrim pc -> case pc of
-                PrimInt p | tc == tInt -> Just $ Left (p, b)
-                PrimChar p | tc == tChar -> Just $ Right (p, b)
-                _ -> Nothing
         -- all branches right sort & order
         sh <- asks smartHoles
-        brs' <- case partitionEithers <$> traverse f brs of
-          Just ([], chs) | isSorted (fst <$> chs) -> pure $ snd <$> chs
-          Just (is, []) | isSorted (fst <$> is) -> pure $ snd <$> is
-          _ | NoSmartHoles <- sh -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
-          _ | SmartHoles <- sh -> pure []
+        consistentBranches <-
+          if
+            | tc == tInt -> pure $ maybe False isSorted $ for (map caseBranchName brs) $ \case
+                PatPrim (PrimInt p) -> pure p
+                _ -> Nothing
+            | tc == tChar -> pure $ maybe False isSorted $ for (map caseBranchName brs) $ \case
+                PatPrim (PrimChar p) -> pure p
+                _ -> Nothing
+            -- some primitives do not admit any sensible notion of pattern matching
+            | tc == tAnimation -> pure $ null brs
+            | otherwise -> throwError' $ InternalError $ "Unknown primitive type: " <> show tc
+        brs' <-
+          if consistentBranches
+            then pure brs
+            else case sh of
+              NoSmartHoles -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
+              SmartHoles -> pure []
         -- no params, check the rhs
         brs'' <- for brs' $ \(CaseBranch c ps rhs) -> do
           case (ps, sh) of
