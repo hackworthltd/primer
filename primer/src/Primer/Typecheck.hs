@@ -756,7 +756,7 @@ check t = \case
                 PatPrim (PrimChar p) -> pure p
                 _ -> Nothing
             -- some primitives do not admit any sensible notion of pattern matching
-            | tc == tAnimation -> pure True
+            | tc == tAnimation -> pure $ null brs
             | otherwise -> throwError' $ InternalError $ "Unknown primitive type: " <> show tc
         brs' <-
           if consistentBranches
