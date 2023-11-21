@@ -1972,7 +1972,7 @@ test_animation =
                           cTranslate
                           [ int 35
                           , int 0
-                          , con1 cCircle $ lvar "t"
+                          , con1 cCircle $ pfun IntMul `app` lvar "t" `app` int 2
                           ]
                       ]
                   ]

@@ -40,6 +40,8 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteString.Base64 qualified as B64
 import Data.Data (Data)
 import Data.Map qualified as M
+import Data.Set (isSubsetOf)
+import Data.Set qualified as Set
 import Diagrams.Backend.Rasterific (
   Options (RasterificOptions),
   Rasterific (Rasterific),
@@ -47,6 +49,7 @@ import Diagrams.Backend.Rasterific (
 import Diagrams.Prelude (
   Diagram,
   V2 (..),
+  blue,
   circle,
   deg,
   fillColor,
@@ -58,6 +61,7 @@ import Diagrams.Prelude (
   renderDia,
   rotate,
   sRGB24,
+  text,
   translate,
   (@@),
  )
@@ -79,9 +83,9 @@ import Primer.Core (
   GVarName,
   GlobalName,
   ID,
+  LocalName (unLocalName),
   ModuleName,
   PrimCon (PrimAnimation, PrimChar, PrimInt),
-  TmVarRef (LocalVarRef),
   TyConName,
   Type' (..),
   ValConName,
@@ -95,7 +99,7 @@ import Primer.Core.DSL (
   prim,
   tcon,
  )
-import Primer.Core.Utils (generateIDs)
+import Primer.Core.Utils (freeVars, generateIDs)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
 import Primer.Primitives.PrimDef (PrimDef (..))
@@ -242,48 +246,49 @@ primFunTypes = \case
     a = TApp ()
     f = TFun ()
 
-primFunDef :: PrimDef -> [Expr' () () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
+primFunDef :: PrimDef -> [Expr' () () ()] -> Either PrimFunError (forall m. MonadFresh ID m => (Expr -> m Expr) -> m Expr)
 primFunDef def args = case def of
   ToUpper -> case args of
     [PrimCon _ (PrimChar c)] ->
-      Right $ char $ toUpper c
+      Right $ const $ char $ toUpper c
     _ -> err
   IsSpace -> case args of
     [PrimCon _ (PrimChar c)] ->
-      Right $ boolAnn (isSpace c)
+      Right $ const $ boolAnn (isSpace c)
     _ -> err
   HexToNat -> case args of
-    [PrimCon _ (PrimChar c)] -> Right $ maybeAnn (tcon tNat) nat (digitToIntSafe c)
+    [PrimCon _ (PrimChar c)] -> Right $ const $ maybeAnn (tcon tNat) nat (digitToIntSafe c)
       where
         digitToIntSafe :: Char -> Maybe Natural
         digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
     _ -> err
   NatToHex -> case args of
     [exprToNat -> Just n] ->
-      Right $ maybeAnn (tcon tChar) char $ intToDigitSafe n
+      Right $ const $ maybeAnn (tcon tChar) char $ intToDigitSafe n
       where
         intToDigitSafe :: Natural -> Maybe Char
         intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
     _ -> err
   EqChar -> case args of
     [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
-      Right $ boolAnn $ c1 == c2
+      Right $ const $ boolAnn $ c1 == c2
     _ -> err
   IntAdd -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ int $ x + y
+      Right $ const $ int $ x + y
     _ -> err
   IntMinus -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ int $ x - y
+      Right $ const $ int $ x - y
     _ -> err
   IntMul -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ int $ x * y
+      Right $ const $ int $ x * y
     _ -> err
   IntQuotient -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right
+        $ const
         $ maybeAnn (tcon tInt) int
         $ if y == 0
           then Nothing
@@ -292,6 +297,7 @@ primFunDef def args = case def of
   IntRemainder -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right
+        $ const
         $ maybeAnn (tcon tInt) int
         $ if y == 0
           then Nothing
@@ -300,12 +306,14 @@ primFunDef def args = case def of
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right
+        $ const
         $ int
         $ if y == 0 then 0 else x `div` y
     _ -> err
   IntRem -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right
+        $ const
         $ int
         $ if y == 0
           then x
@@ -313,31 +321,32 @@ primFunDef def args = case def of
     _ -> err
   IntLT -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ boolAnn $ x < y
+      Right $ const $ boolAnn $ x < y
     _ -> err
   IntLTE -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ boolAnn $ x <= y
+      Right $ const $ boolAnn $ x <= y
     _ -> err
   IntGT -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ boolAnn $ x > y
+      Right $ const $ boolAnn $ x > y
     _ -> err
   IntGTE -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ boolAnn $ x >= y
+      Right $ const $ boolAnn $ x >= y
     _ -> err
   IntEq -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ boolAnn $ x == y
+      Right $ const $ boolAnn $ x == y
     _ -> err
   IntNeq -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ boolAnn $ x /= y
+      Right $ const $ boolAnn $ x /= y
     _ -> err
   IntToNat -> case args of
     [PrimCon _ (PrimInt x)] ->
       Right
+        $ const
         $ maybeAnn (tcon tNat) nat
         $ if x < 0
           then Nothing
@@ -345,46 +354,40 @@ primFunDef def args = case def of
     _ -> err
   IntFromNat -> case args of
     [exprToNat -> Just n] ->
-      Right $ int $ fromIntegral n
+      Right $ const $ int $ fromIntegral n
     _ -> err
   Animate -> case args of
     -- Since we only support translating a `Picture` expression to an image once it is in normal form,
     -- this guard will only pass when `picture` has no free variables other than `time`.
-    [PrimCon () (PrimInt duration), Lam () time picture]
-      | Just (frames :: [Diagram Rasterific]) <- traverse diagramAtTime [0 .. (duration * 100) `div` frameLength - 1] ->
-          Right
-            $ prim
-            $ PrimAnimation
-            $ either
-              -- This case really shouldn't be able to happen, unless `diagrams-rasterific` is broken.
-              -- In fact, the default behaviour (`animatedGif`) is just to write the error to `stdout`,
-              -- and we only have to handle this because we need to use the lower-level `rasterGif`,
-              -- for unrelated reasons (getting the `Bytestring` without dumping it to a file).
-              mempty
-              (decodeUtf8 . B64.encode . toS)
-            $ encodeComplexGifImage
-            $ GifEncode (fromInteger width) (fromInteger height) Nothing Nothing gifLooping
-            $ flip palettizeWithAlpha DisposalRestoreBackground
-            $ map
-              ( (fromInteger frameLength,)
-                  . renderDia
-                    Rasterific
-                    (RasterificOptions (mkSizeSpec $ Just . fromInteger <$> V2 width height))
-                  . rectEnvelope
-                    (fromInteger <$> mkP2 (-width `div` 2) (-height `div` 2))
-                    (fromInteger <$> V2 width height)
-              )
-              frames
+    [PrimCon () (PrimInt duration), Lam () time picture] | freeVars picture `isSubsetOf` Set.singleton (unLocalName time) -> Right \eval -> do
+      frames0 <- for [0 .. (duration * 100) `div` frameLength - 1] \t ->
+        -- TODO let the evaluator do the beta reduction as well?
+        fmap exprToDiagram . eval =<< generateIDs (Let () time (PrimCon () (PrimInt t)) picture)
+      -- TODO better error handling
+      let (frames :: [Diagram Rasterific]) = fromMaybe [text "error" <> (circle 40 & fillColor blue)] $ sequence frames0
+      prim
+        $ PrimAnimation
+        $ either
+          -- This case really shouldn't be able to happen, unless `diagrams-rasterific` is broken.
+          -- In fact, the default behaviour (`animatedGif`) is just to write the error to `stdout`,
+          -- and we only have to handle this because we need to use the lower-level `rasterGif`,
+          -- for unrelated reasons (getting the `Bytestring` without dumping it to a file).
+          mempty
+          (decodeUtf8 . B64.encode . toS)
+        $ encodeComplexGifImage
+        $ GifEncode (fromInteger width) (fromInteger height) Nothing Nothing gifLooping
+        $ flip palettizeWithAlpha DisposalRestoreBackground
+        $ map
+          ( (fromInteger frameLength,)
+              . renderDia
+                Rasterific
+                (RasterificOptions (mkSizeSpec $ Just . fromInteger <$> V2 width height))
+              . rectEnvelope
+                (fromInteger <$> mkP2 (-width `div` 2) (-height `div` 2))
+                (fromInteger <$> V2 width height)
+          )
+          frames
       where
-        -- Note that this simple substitution hack only allows for trivial functions,
-        -- i.e. those where only substitution is needed for the function body to reach a normal form.
-        -- Our primitives system doesn't yet support further evaluation here.
-        diagramAtTime t = exprToDiagram $ substTime (PrimCon () (PrimInt t)) picture
-          where
-            substTime a = \case
-              Var () (LocalVarRef t') | t' == time -> a
-              Con () c es -> Con () c $ map (substTime a) es
-              e -> e
         -- Values which are hardcoded, for now at least, for the sake of keeping the student-facing API simple.
         -- We keep the frame rate and resolution low to avoid serialising huge GIFs.
         gifLooping = LoopingForever
@@ -394,7 +397,7 @@ primFunDef def args = case def of
     _ -> err
   PrimConst -> case args of
     [x, _] ->
-      Right $ generateIDs x `ann` tcon tBool
+      Right $ const $ generateIDs x `ann` tcon tBool
     _ -> err
   where
     exprToNat = \case

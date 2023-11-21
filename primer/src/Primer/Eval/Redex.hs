@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -27,9 +28,9 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Control.Monad.Trans.Maybe (MaybeT)
+import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Data.Data (Data)
-import Data.Generics.Uniplate.Data (children, descendM)
+import Data.Generics.Uniplate.Data (children, descendM, transformM)
 import Data.List (zip3)
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -433,7 +434,7 @@ data Redex
       -- ^ The original redex (used for details)
       }
   | ApplyPrimFun
-      { result :: forall m. MonadFresh ID m => m Expr
+      { result :: forall m. MonadFresh ID m => (Expr -> m Expr) -> m Expr
       -- ^ The result of the applied primitive function
       , primFun :: GVarName
       -- ^ The applied primitive function (used for details)
@@ -441,6 +442,8 @@ data Redex
       -- ^ The original arguments to @primFun@ (used for details)
       , orig :: Expr
       -- ^ The original redex (used for details)
+      , tydefs :: TypeDefMap
+      , globals :: DefMap
       }
 
 data RedexType
@@ -779,7 +782,7 @@ viewRedex opts tydefs globals dir = \case
       $ hoistMaybe
       $ tryPrimFun (M.mapMaybe defPrim globals) e
       >>= \(primFun, args, result) ->
-        pure ApplyPrimFun{result, primFun, args, orig = e}
+        pure ApplyPrimFun{result, primFun, args, orig = e, tydefs, globals}
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
   orig@(APP _ (Ann _ (LAM m a body) (TForall _ forallVar forallKind tgtTy)) argTy) ->
     pure
@@ -1216,8 +1219,20 @@ runRedex opts = \case
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
-  ApplyPrimFun{result, primFun, orig, args} -> do
-    expr' <- result
+  ApplyPrimFun{result, primFun, orig, args, tydefs, globals} -> do
+    -- TODO this can run forever - we haven't set a bound on number of steps
+    -- TODO `transformM` probably doesn't give us the right eval order - reuse existing machinery
+    expr' <- result $ fix $ \f -> transformM \e ->
+      maybe (pure e) (f . fst <=< runRedex opts)
+        =<< runMaybeT
+          ( flip runReaderT mempty
+              $ viewRedex
+                (ViewRedexOptions True True False) -- TODO ?
+                tydefs
+                globals
+                Syn -- TODO ?
+                e
+          )
     let details =
           ApplyPrimFunDetail
             { before = orig
