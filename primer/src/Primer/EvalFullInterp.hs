@@ -106,6 +106,10 @@ interp tydefs env@(envTm,envTy) dir = \case
   -- TODO: we did not used to go under lambdas, but now do. Why did we not use to?
   --   (must do now as for @(λx.(λy.x) : A -> B -> A) s t@ we will
   --   interp @λy.x@ in context where @x:->t@, and this is the only time we have @x@ in the context!!
+  -- TODO: this may have shadowing problems! e.g. λx.((λy.λx.y)x)
+  --   NBE avoids this by freshening when reifying
+  --   can we avoid by just refusing to go under such shadow-y lambdas?
+  --   (i.e. for a closed term, do we believe this will never happen?)
   LAM _ v t -> LAM () v $ interp tydefs (extendTyEnv v (TVar () v) env) Chk t
   Var _ (LocalVarRef v) -> upsilon dir $ envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   Var _ (GlobalVarRef v) -> upsilon dir $ envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF

@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Tests.EvalFullInterp where
 
 import Foreword hiding (unlines)
@@ -145,43 +146,43 @@ unit_2 =
         s <- evalFullTest mempty mempty Syn e
         s @?= e
 
--- TODO: not expected to work, as requires eval under a ∀
 -- Check we don't have shadowing issues in types
---unit_3 :: Assertion
---unit_3 =
---  let ((expr, expected), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
---        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
---        let b' = "a46" -- NB: fragile name
---        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall b' ktype (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
---        pure (e, expect)
---   in do
---        s <- evalFullTest mempty mempty expr
---        s @?= expected
---
----- Check we don't have shadowing issues in terms
---unit_4 :: Assertion
---unit_4 =
---  let ((expr, expected), maxID) = create $ do
---        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
---        let b' = "a22" -- NB: fragile name
---        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
---        pure (e, expect)
---   in do
---        s <- evalFullTestExactSteps maxID mempty mempty 8 Syn expr
---        s ~== expected
---
+unit_3 :: Assertion
+unit_3 =
+  let ((expr, expected), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do -- TODO: so ugly!
+        -- NB: added a @letType b = Bool@ wrapper
+        e <- letType "b" (tcon tBool) $ letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tcon tBool `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tcon tBool `tapp` tvar "b"))
+        pure (e, expect)
+   in do
+        s <- evalFullTest mempty mempty Syn expr
+        s @?= expected
+
+-- Check we don't have shadowing issues in terms
+unit_4 :: Assertion
+unit_4 =
+  let ((expr, expected), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
+        -- NB: added a @let b = True : Bool@ wrapper
+        e <- let_ "b" (con0 cTrue `ann` tcon tBool) $ let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
+        expect <- con' ["M"] "C" [con0 cTrue, lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [con0 cTrue, lvar "b"])]
+        pure (e, expect)
+   in do
+        s <- evalFullTest mempty mempty Syn expr
+        s @?= expected
+
+-- NB: can't work with interp, as not terminate!
 ---- This test is slightly unfortunate.
 ---- Writing [_] for embeddings we don't reduce [ e ] : T (and I'm not
 ---- sure if we should). This leads to the annotation in the output.
 ---- See https://github.com/hackworthltd/primer/issues/12
 --unit_5 :: Assertion
 --unit_5 =
---  let ((e, expt), maxID) = create $ do
+--  let ((e, expt), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
 --        a <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
 --        b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x") `ann` tcon tBool
 --        pure (a, b)
 --   in do
---        s <- evalFullTest maxID mempty mempty 101 Syn e
+--        s <- evalFullTest mempty mempty Syn e
 --        s <~==> Left (TimedOut expt)
 
 unit_6 :: Assertion
@@ -196,22 +197,21 @@ unit_6 =
         t <- evalFullTest mempty mempty Chk e
         t @?= expt
 
--- This does not work in interp as not reduce to hereditary ast/prim normal form
----- TODO: do we want to expand
-----   (λ x. t) : ?
----- to
-----   (λ x. t) : ? -> ?
----- and thus have an infinite derivation for
-----   ((λ x . x x) : ?) (λ x. x x)
----- Currently we don't, so this is a stuck term
---unit_7 :: Assertion
---unit_7 =
---  let (e, maxID) = first forgetMetadata $ create $ do
---        let l = lam "x" $ lvar "x" `app` lvar "x"
---        (l `ann` tEmptyHole) `app` l
---   in do
---        s <- evalFullTest mempty mempty Syn e
---        s @?= e
+-- TODO: do we want to expand
+--   (λ x. t) : ?
+-- to
+--   (λ x. t) : ? -> ?
+-- and thus have an infinite derivation for
+--   ((λ x . x x) : ?) (λ x. x x)
+-- Currently we don't, so this is a stuck term
+unit_7 :: Assertion
+unit_7 =
+  let (e, maxID) = first forgetMetadata $ create $ do
+        let l = lam "x" $ lvar "x" `app` lvar "x"
+        (l `ann` tEmptyHole) `app` l
+   in do
+        s <- evalFullTest mempty mempty Syn e
+        s @?= e
 
 unit_8 :: Assertion
 unit_8 =
@@ -220,215 +220,139 @@ unit_8 =
    in do
         s <- evalFullTest builtinTypes (defMap e) Syn (forgetMetadata $ expr e)
         s @?= forgetMetadata (expectedResult e)
---
----- A worker/wrapper'd map
---unit_9 :: Assertion
---unit_9 =
---  let n = 10
---      modName = mkSimpleModuleName "TestModule"
---      ((globals, e, expected), maxID) = create $ do
---        (mapName, mapDef) <- Examples.map' modName
---        (evenName, evenDef) <- Examples.even modName
---        (oddName, oddDef) <- Examples.odd modName
---        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
---        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
---        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
---        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
---        pure (globs, expr, expect)
---   in do
---        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
---          Left (TimedOut _) -> pure ()
---          x -> assertFailure $ show x
---        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
---        s <~==> Right expected
---
---{- Note [Pushing down lets and the static argument transformation]
---Our strategy of "pushing down lets" (which is effectively an explicit
---substitution semantics, where the substitution is interspersed with
---other reduction steps) has different performance characteristics than
---our previous strategy of eagerly fully inlining `let` bindings. In
---particular, it makes the transformation of unit_8 into unit_9 is not
---effective.
---
---To explain why, let us first recap what this transformation is.
---The static argument transformation is a technique of optimising
---a recursive function of multiple arguments by splitting the lambda
---bindings into two: the ones that do not change in a recursive call, and
---those that do. Then the changing ones are handled by a local (recursive)
---function. For example, changing the following definition of `map`
---  map :: (a -> b) -> [a] -> [b]
---  map f xs = case xs of
---               [] -> []
---               y : ys -> f y : map f ys
---into
---  mapSAT f = let go xs = case xs of
---                           [] -> []
---                           y : ys -> f y : go ys
---             in go
---
---When reducing by naively applying rewrite rules and doing "long-range"
---substitution, the latter can be more efficient, since we effectively
---specialise the recursive loop for a particular `f`, rather than passing
---it around each iteration. (Note that passing it around causes an extra
---beta step on each recursive call, and thus more substitution.) That is
---to say, calling `mapSAT foo [1,2,3]` will result in
---  let go xs = case xs of
---                [] -> []
---                y : ys -> foo y : go ys
---  in go [1,2,3]
---
---However, that is assuming that beta reductions (and `let`s, since we
---reduce betas to let bindings) result in "eager substitution":
---  let f = foo in
---    let go = c (...) (...) (... f ... go ...) in
---      go
---should reduce by inlining the `f` inside the recursive let binding.
---
---When we lazily push an explicit substitution down the tree this does not
---happen (at least, in our implementation, since we treat the recusive let
---as a substition and never push substitutions into each other). Indeed,
---we would reduce the above by inlining the `go`
---  let f = foo in
---    let go = c (...) (...) (... f ... go ...) in
---      ... f ... go ...
---and then pushing the `let`s (i.e. explicit substitutions) down, resulting in
---  c (...)
---    (...)
---    (let f = foo in
---       let go = c (...) (...) (... f ... go ...) in
---         ... f ... go ...)
---(Here we have taken the optimization of not pushing the substition into
---branches where those variables are unused.) Notice the recursive structure
---here will hold on to the substitution, pushing it down into each expansion
---of the recursive let, which is no better than the original definition
---without the static argument translation's local worker.
---
---It may be possible to avoid this by treating recursive bindings
---differently to explicit substitutions, so we could push the substitution
---of `f` into the definition of `go`. However, I have not thought about
---this enough (from any of a theoretical, implementation or pedagogy
---standpoint) to have a good idea of whether it would work and be worth
---it. In particular, for a simple language aimed at learning, do we
---want to treat non-recursive and recursive lets so differently (or
---maybe even user-written lets vs explicit substitutions caused by beta
---reduction)? Alternatively, it may also be possible to cause explicit
---substitutions to interact with let bindings (i.e. push the outer let
---rather than the inner let, and not special-case any particular lets),
---but a naive version of this would cause infinite loops continually
---swapping two lets! See https://github.com/hackworthltd/primer/issues/1112.
----}
---
----- A case redex must have an scrutinee which is an annotated constructor.
----- Plain constructors are not well-typed here, for bidirectionality reasons,
----- although they just fail to reduce rather than the evaluator throwing a type error.
---unit_10 :: Assertion
---unit_10 =
---  let ((s, t, expected), maxID) = create $ do
---        annCase <-
---          case_
---            (con0 cZero `ann` tcon tNat)
---            [ branch cZero [] $ con0 cTrue
---            , branch cSucc [("n", Nothing)] $ con0 cFalse
---            ]
---        noannCase <-
---          case_
---            (con0 cZero)
---            [ branch cZero [] $ con0 cTrue
---            , branch cSucc [("n", Nothing)] $ con0 cFalse
---            ]
---        expect <- con0 cTrue
---        pure (annCase, noannCase, expect)
---   in do
---        s' <- evalFullTest maxID builtinTypes mempty 2 Syn s
---        s' <~==> Right expected
---        t' <- evalFullTest maxID builtinTypes mempty 1 Syn t
---        t' <~==> Right t
---
---unit_11 :: Assertion
---unit_11 =
---  let modName = mkSimpleModuleName "TestModule"
---      ((globals, e, expected), maxID) = create $ do
---        (evenName, evenDef) <- Examples.even modName
---        (oddName, oddDef) <- Examples.odd modName
---        let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
---        let expr1 =
---              let_ "x" (con0 cZero)
---                $ lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
---                `ann` ty
---        expr <- expr1 `app` con0 cZero
---        let globs = [(evenName, evenDef), (oddName, oddDef)]
---        expect <-
---          con cMakePair [con0 cTrue, con0 cZero]
---            `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
---        pure (globs, expr, expect)
---   in do
---        s <- evalFullTestExactSteps maxID builtinTypes (M.fromList globals) 15 Syn e
---        s ~== expected
---
---unit_12 :: Assertion
---unit_12 =
---  let ((e, expected), maxID) = create $ do
---        -- 'f' is a bit silly here, but could just as well be a definition of 'even'
---        let f =
---              lam "x"
---                $ case_
---                  (lvar "x")
---                  [ branch cZero [] $ con0 cTrue
---                  , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
---                  ]
---        expr <- let_ "n" (con0 cZero) $ letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
---        expect <- con0 cTrue `ann` tcon tBool
---        pure (expr, expect)
---   in do
---        s <- evalFullTestExactSteps maxID builtinTypes mempty 9 Syn e
---        s ~== expected
---
---unit_13 :: Assertion
---unit_13 =
---  let ((e, expected), maxID) = create $ do
---        expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
---        expect <- con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
---        pure (expr, expect)
---   in do
---        s <- evalFullTest maxID builtinTypes mempty 15 Syn e
---        s <~==> Right expected
---
---unit_14 :: Assertion
---unit_14 =
---  let ((e, expected), maxID) = create $ do
---        expr <- (lam "x" (lam "x" $ lvar "x") `ann` (tcon tBool `tfun` (tcon tNat `tfun` tcon tNat))) `app` con0 cTrue `app` con0 cZero
---        expect <- con0 cZero `ann` tcon tNat
---        pure (expr, expect)
---   in do
---        s <- evalFullTest maxID builtinTypes mempty 15 Syn e
---        s <~==> Right expected
---
----- Sometimes we need to rename a binder in order to push a let past it
-----   let x = y in λy.C x y
-----   let x = y in λz. let y = z in C x y
-----   λz. let x = y in let y = z in C x y
-----   λz. C (let x = y in x) (let y = z in y)
-----   λz. C y (let y = z in y)
-----   λz. C y z
---unit_15 :: Assertion
---unit_15 =
---  let ((expr, steps, expected), maxID) = create $ do
---        let l = let_ "x" (lvar "y")
---        let c a b = con' ["M"] "C" [a, b]
---        e0 <- l $ lam "y" $ c (lvar "x") (lvar "y")
---        let y' = "a40"
---        let rny = let_ "y" (lvar y')
---        e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
---        e2 <- lam y' $ l $ rny $ c (lvar "x") (lvar "y")
---        e3 <- lam y' $ c (l $ lvar "x") (rny $ lvar "y")
---        e4 <- lam y' $ c (lvar "y") (rny $ lvar "y")
---        e5 <- lam y' $ c (lvar "y") (lvar y')
---        pure (e0, [e0, e1, e2, e3, e4, e5], e5)
---   in do
---        si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
---        zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
---        s <- evalFullTest maxID builtinTypes mempty (fromIntegral $ length steps) Syn expr
---        s <~==> Right expected
+
+-- A worker/wrapper'd map
+unit_9 :: Assertion
+unit_9 =
+  let n = 10
+      modName = mkSimpleModuleName "TestModule"
+      ((globals, e, expected), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
+        (mapName, mapDef) <- Examples.map' modName
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
+        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
+        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
+        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        pure (globs, expr, expect)
+   in do
+        s <- evalFullTest builtinTypes (M.fromList globals) Syn e
+        s @?= expected
+
+-- A case redex must have an scrutinee which is an annotated constructor.
+-- Plain constructors are not well-typed here, for bidirectionality reasons,
+-- although they just fail to reduce rather than the evaluator throwing a type error.
+unit_10 :: Assertion
+unit_10 =
+  let ((forgetMetadata -> s,forgetMetadata -> t,forgetMetadata -> expected), maxID) = create $ do
+        annCase <-
+          case_
+            (con0 cZero `ann` tcon tNat)
+            [ branch cZero [] $ con0 cTrue
+            , branch cSucc [("n", Nothing)] $ con0 cFalse
+            ]
+        noannCase <-
+          case_
+            (con0 cZero)
+            [ branch cZero [] $ con0 cTrue
+            , branch cSucc [("n", Nothing)] $ con0 cFalse
+            ]
+        expect <- con0 cTrue
+        pure (annCase, noannCase, expect)
+   in do
+        s' <- evalFullTest builtinTypes mempty Syn s
+        s' @?= expected
+        t' <- evalFullTest builtinTypes mempty Syn t
+        t' @?= t
+
+unit_11 :: Assertion
+unit_11 =
+  let modName = mkSimpleModuleName "TestModule"
+      ((globals, forgetMetadata -> e,forgetMetadata -> expected), maxID) = create $ do
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
+        let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
+        let expr1 =
+              let_ "x" (con0 cZero)
+                $ lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
+                `ann` ty
+        expr <- expr1 `app` con0 cZero
+        let globs = [(evenName, evenDef), (oddName, oddDef)]
+        expect <-
+          con cMakePair [con0 cTrue, con0 cZero]
+            `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
+        pure (globs, expr, expect)
+   in do
+        s <- evalFullTest builtinTypes (M.fromList globals) Syn e
+        s @?= expected
+
+unit_12 :: Assertion
+unit_12 =
+  let ((forgetMetadata -> e,forgetMetadata -> expected), maxID) = create $ do
+        -- 'f' is a bit silly here, but could just as well be a definition of 'even'
+        let f =
+              lam "x"
+                $ case_
+                  (lvar "x")
+                  [ branch cZero [] $ con0 cTrue
+                  , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
+                  ]
+        expr <- let_ "n" (con0 cZero) $ letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
+        expect <- con0 cTrue `ann` tcon tBool
+        pure (expr, expect)
+   in do
+        s <- evalFullTest builtinTypes mempty Syn e
+        s @?= expected
+
+unit_13 :: Assertion
+unit_13 =
+  let ((forgetMetadata -> e,forgetMetadata -> expected), maxID) = create $ do
+        expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
+        expect <- con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
+        pure (expr, expect)
+   in do
+        s <- evalFullTest builtinTypes mempty Syn e
+        s @?= expected
+
+unit_14 :: Assertion
+unit_14 =
+  let ((forgetMetadata ->e,forgetMetadata -> expected), maxID) = create $ do
+        expr <- (lam "x" (lam "x" $ lvar "x") `ann` (tcon tBool `tfun` (tcon tNat `tfun` tcon tNat))) `app` con0 cTrue `app` con0 cZero
+        expect <- con0 cZero `ann` tcon tNat
+        pure (expr, expect)
+   in do
+        s <- evalFullTest  builtinTypes mempty Syn e
+        s @?= expected
+
+-- TODO: revisit this comment!
+-- TODO: revisit this test -- does it do anything useful since we cannot view each step?
+-- Sometimes we need to rename a binder in order to push a let past it
+--   let x = y in λy.C x y
+--   let x = y in λz. let y = z in C x y
+--   λz. let x = y in let y = z in C x y
+--   λz. C (let x = y in x) (let y = z in y)
+--   λz. C y (let y = z in y)
+--   λz. C y z
+unit_15 :: Assertion
+unit_15 =
+  let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
+        let l = let_ "x" (lvar "y")
+        let c a b = con' ["M"] "C" [a, b]
+        -- NB/TODO: I have added a lam y wrapper
+        e0 <- lam "y" $ l $ lam "y" $ c (lvar "x") (lvar "y")
+        let y' = "a40"
+        {-
+        let rny = let_ "y" (lvar y')
+        e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
+        e2 <- lam y' $ l $ rny $ c (lvar "x") (lvar "y")
+        e3 <- lam y' $ c (l $ lvar "x") (rny $ lvar "y")
+        e4 <- lam y' $ c (lvar "y") (rny $ lvar "y")
+        -}
+        e5 <- lam "y" $ lam y' $ c (lvar "y") (lvar y')
+        pure (e0, e5)
+   in do
+        s <- evalFullTest builtinTypes mempty Syn expr
+        s @?= expected
 --
 --unit_map_hole :: Assertion
 --unit_map_hole =
