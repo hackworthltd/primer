@@ -271,39 +271,35 @@ test-suite primer-test
       -Wmissing-deriving-strategies -fhide-source-paths -threaded
       -rtsopts -with-rtsopts=-N
 
-  if impl(ghcjs)
-    buildable: False
-
-  else
-    build-depends:
-      , aeson
-      , aeson-pretty                 ^>=0.8.9
-      , base
-      , bytestring
-      , containers
-      , extra
-      , filepath
-      , hedgehog
-      , hedgehog-classes             ^>=0.2.5.4
-      , logging-effect
-      , mtl
-      , optics
-      , pretty-simple                ^>=4.1
-      , prettyprinter
-      , prettyprinter-ansi-terminal
-      , primer
-      , primer-hedgehog
-      , primer-testlib
-      , protolude
-      , tasty                        ^>=1.4.2.1
-      , tasty-discover
-      , tasty-golden                 ^>=2.3.5
-      , tasty-hedgehog
-      , tasty-hunit
-      , text
-      , transformers
-      , uniplate
-      , uuid-types
+  build-depends:
+    , aeson
+    , aeson-pretty                 ^>=0.8.9
+    , base
+    , bytestring
+    , containers
+    , extra
+    , filepath
+    , hedgehog
+    , hedgehog-classes             ^>=0.2.5.4
+    , logging-effect
+    , mtl
+    , optics
+    , pretty-simple                ^>=4.1
+    , prettyprinter
+    , prettyprinter-ansi-terminal
+    , primer
+    , primer-hedgehog
+    , primer-testlib
+    , protolude
+    , tasty                        ^>=1.4.2.1
+    , tasty-discover
+    , tasty-golden                 ^>=2.3.5
+    , tasty-hedgehog
+    , tasty-hunit
+    , text
+    , transformers
+    , uniplate
+    , uuid-types
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839

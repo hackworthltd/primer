@@ -134,32 +134,28 @@ test-suite primer-api-test
       -Wmissing-deriving-strategies -fhide-source-paths -threaded
       -rtsopts -with-rtsopts=-N
 
-  if impl(ghcjs)
-    buildable: False
-
-  else
-    build-depends:
-      , base
-      , bytestring
-      , containers
-      , hedgehog
-      , logging-effect
-      , mtl
-      , optics
-      , pretty-simple                                     ^>=4.1
-      , primer-api
-      , primer-api-testlib
-      , primer:{primer, primer-hedgehog, primer-testlib}
-      , protolude
-      , stm
-      , stm-containers
-      , tasty                                             ^>=1.4.2.1
-      , tasty-discover
-      , tasty-golden                                      ^>=2.3.5
-      , tasty-hunit
-      , text
-      , transformers
-      , uuid-types                                        ^>=1.0.5.1
+  build-depends:
+    , base
+    , bytestring
+    , containers
+    , hedgehog
+    , logging-effect
+    , mtl
+    , optics
+    , pretty-simple                                     ^>=4.1
+    , primer-api
+    , primer-api-testlib
+    , primer:{primer, primer-hedgehog, primer-testlib}
+    , protolude
+    , stm
+    , stm-containers
+    , tasty                                             ^>=1.4.2.1
+    , tasty-discover
+    , tasty-golden                                      ^>=2.3.5
+    , tasty-hunit
+    , text
+    , transformers
+    , uuid-types                                        ^>=1.0.5.1
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839

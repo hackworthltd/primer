@@ -105,27 +105,23 @@ test-suite primer-selda-test
     -Wmissing-deriving-strategies -fhide-source-paths -threaded
     -rtsopts -with-rtsopts=-N
 
-  if impl(ghcjs)
-    buildable: False
-
-  else
-    build-depends:
-      , aeson
-      , base
-      , containers
-      , exceptions
-      , filepath
-      , logging-effect
-      , primer-selda:{primer-selda, primer-selda-testlib}
-      , primer:{primer, primer-testlib}
-      , selda
-      , selda-sqlite
-      , tasty                                              ^>=1.4.2.1
-      , tasty-discover                                     ^>=5.0
-      , tasty-hunit                                        ^>=0.10.0
-      , text
-      , time
-      , uuid-types
+  build-depends:
+    , aeson
+    , base
+    , containers
+    , exceptions
+    , filepath
+    , logging-effect
+    , primer-selda:{primer-selda, primer-selda-testlib}
+    , primer:{primer, primer-testlib}
+    , selda
+    , selda-sqlite
+    , tasty                                              ^>=1.4.2.1
+    , tasty-discover                                     ^>=5.0
+    , tasty-hunit                                        ^>=0.10.0
+    , text
+    , time
+    , uuid-types
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839
