@@ -216,15 +216,22 @@ unit_6 =
 -- was trying to minimise unit_8, but seem to have hit a different bug
 unit_tmp :: Assertion
 unit_tmp =
-  let ((e, expt), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
-        -- (λf . f True : (Bool -> Bool) -> Bool) (λx.x)
-        expr <- ((lam "f" $ lvar "f" `app` con0 cTrue) `ann` ((tcon tBool `tfun` tcon tBool) `tfun` tcon tBool)) `app` (lam "x" $ lvar "x")
-        -- True : Bool
-        expected <- con0 cTrue `ann` tcon tBool
-        pure (expr, expected)
+  let n = 1
+      modName = mkSimpleModuleName "TestModule"
+      ((globals, e, expected), id) = create $ do
+        (mapName, mapDef) <- Examples.map modName
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
+        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
+        let globs = M.fromList [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
+        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        pure (globs, expr, expect)
+   -- in Expected globals e id expected
    in do
-        s <- evalFullTest mempty mempty Syn e
-        s @?= expt
+        s <- evalFullTest builtinTypes globals Syn (forgetMetadata e)
+        s @?= forgetMetadata expected
+
 
 unit_8 :: Assertion
 unit_8 =
