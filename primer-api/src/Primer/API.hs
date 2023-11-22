@@ -116,8 +116,9 @@ import Optics (
   (^.),
   _Just,
  )
+import Primer.API.EdgeFlavor qualified as EdgeFlavor
 import Primer.API.NodeFlavor qualified as Flavor
-import Primer.API.RecordPair (RecordPair (RecordPair))
+import Primer.API.RecordPair (RecordPair (..))
 import Primer.Action (ActionError (ParamNotFound), ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.Action.ProgError (ProgError (ActionError, NodeIDNotFound, TypeDefConFieldNotFound))
@@ -645,8 +646,8 @@ data Tree = Tree
   { nodeId :: Text
   -- ^ a unique identifier
   , body :: NodeBody
-  , childTrees :: [Tree]
-  , rightChild :: Maybe Tree
+  , childTrees :: [RecordPair EdgeFlavor.EdgeFlavor Tree]
+  , rightChild :: Maybe (RecordPair EdgeFlavor.EdgeFlavor Tree)
   -- ^ a special subtree to be rendered to the right, rather than below - useful for `case` branches
   }
   deriving stock (Show, Read, Eq, Generic)
@@ -657,8 +658,8 @@ data Tree = Tree
 treeIds :: Traversal' Tree Text
 treeIds =
   #nodeId
-    `adjoin` (#childTrees % traversed % treeIds)
-    `adjoin` (#rightChild % traversed % treeIds)
+    `adjoin` (#childTrees % traversed % #snd % treeIds)
+    `adjoin` (#rightChild % traversed % #snd % treeIds)
 
 -- | A local or global name.
 -- Field names are intentionally the same as `GlobalName`, so that, unless `qualifiedModule` is `Nothing`,
@@ -811,7 +812,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = NoBody Flavor.Hole
-      , childTrees = [viewTreeExpr e]
+      , childTrees = [RecordPair EdgeFlavor.Hole $ viewTreeExpr e]
       , rightChild = Nothing
       }
   EmptyHole _ ->
@@ -825,42 +826,42 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = NoBody Flavor.Ann
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [RecordPair EdgeFlavor.AnnTerm $ viewTreeExpr e, RecordPair EdgeFlavor.Ann $ viewTreeType t]
       , rightChild = Nothing
       }
   App _ e1 e2 ->
     Tree
       { nodeId
       , body = NoBody Flavor.App
-      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , childTrees = [RecordPair EdgeFlavor.AppFun $ viewTreeExpr e1, RecordPair EdgeFlavor.AppArg $ viewTreeExpr e2]
       , rightChild = Nothing
       }
   APP _ e t ->
     Tree
       { nodeId
       , body = NoBody Flavor.APP
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [RecordPair EdgeFlavor.AppArg $ viewTreeExpr e, RecordPair EdgeFlavor.AppArg $ viewTreeType t]
       , rightChild = Nothing
       }
   Con _ c tmApps ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Con $ globalName c
-      , childTrees = map viewTreeExpr tmApps
+      , childTrees = map (RecordPair EdgeFlavor.ConField . viewTreeExpr) tmApps
       , rightChild = Nothing
       }
   Lam _ s e ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Lam $ localName s
-      , childTrees = [viewTreeExpr e]
+      , childTrees = [RecordPair EdgeFlavor.Lam $ viewTreeExpr e]
       , rightChild = Nothing
       }
   LAM _ s e ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.LAM $ localName s
-      , childTrees = [viewTreeExpr e]
+      , childTrees = [RecordPair EdgeFlavor.Lam $ viewTreeExpr e]
       , rightChild = Nothing
       }
   Var _ ref ->
@@ -876,21 +877,21 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Let $ localName s
-      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e1, RecordPair EdgeFlavor.LetIn $ viewTreeExpr e2]
       , rightChild = Nothing
       }
   LetType _ s t e ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.LetType $ localName s
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e, RecordPair EdgeFlavor.LetIn $ viewTreeType t]
       , rightChild = Nothing
       }
   Letrec _ s e1 t e2 ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Letrec $ localName s
-      , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
+      , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e1, RecordPair EdgeFlavor.Ann $ viewTreeType t, RecordPair EdgeFlavor.LetIn $ viewTreeExpr e2]
       , rightChild = Nothing
       }
   Case _ e bs fb ->
@@ -902,12 +903,12 @@ viewTreeExpr e0 = case e0 of
       }
     where
       (childTrees, rightChild) =
-        ( [viewTreeExpr e]
+        ( [RecordPair EdgeFlavor.MatchInput $ viewTreeExpr e]
         , -- seeing as the inner function always returns a `Just`,
           -- this would only be `Nothing` if the list of branches were empty,
           --  which should only happen when matching on `Void`
           ifoldr
-            (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
+            (\i b next -> Just $ RecordPair EdgeFlavor.Pattern $ (viewCaseBranch i b){rightChild = next})
             viewFallback
             bs
         )
@@ -930,18 +931,20 @@ viewTreeExpr e0 = case e0 of
                         , childTrees =
                             map
                               ( \(Bind m v) ->
-                                  Tree
-                                    { nodeId = show $ getID m
-                                    , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
-                                    , childTrees = []
-                                    , rightChild = Nothing
-                                    }
+                                  RecordPair
+                                    EdgeFlavor.ConField
+                                    Tree
+                                      { nodeId = show $ getID m
+                                      , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
+                                      , childTrees = []
+                                      , rightChild = Nothing
+                                      }
                               )
                               binds
                         , rightChild = Nothing
                         }
                     )
-            , childTrees = [viewTreeExpr rhs]
+            , childTrees = [RecordPair EdgeFlavor.MatchOutput $ viewTreeExpr rhs]
             , rightChild = Nothing
             }
       viewFallback = case fb of
@@ -955,6 +958,7 @@ viewTreeExpr e0 = case e0 of
             patternRootId = boxId <> "B"
            in
             Just
+              . RecordPair EdgeFlavor.Pattern
               $ Tree
                 { nodeId = boxId
                 , body =
@@ -967,7 +971,7 @@ viewTreeExpr e0 = case e0 of
                             , rightChild = Nothing
                             }
                         )
-                , childTrees = [viewTreeExpr rhs]
+                , childTrees = [RecordPair EdgeFlavor.MatchOutput $ viewTreeExpr rhs]
                 , rightChild = Nothing
                 }
       pat = \case
@@ -1002,7 +1006,7 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , body = NoBody Flavor.THole
-      , childTrees = [viewTreeType' t]
+      , childTrees = [RecordPair EdgeFlavor.Hole $ viewTreeType' t]
       , rightChild = Nothing
       }
   TCon _ n ->
@@ -1016,7 +1020,7 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , body = NoBody Flavor.TFun
-      , childTrees = [viewTreeType' t1, viewTreeType' t2]
+      , childTrees = [RecordPair EdgeFlavor.FunIn $ viewTreeType' t1, RecordPair EdgeFlavor.FunOut $ viewTreeType' t2]
       , rightChild = Nothing
       }
   TVar _ n ->
@@ -1030,21 +1034,21 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , body = NoBody Flavor.TApp
-      , childTrees = [viewTreeType' t1, viewTreeType' t2]
+      , childTrees = [RecordPair EdgeFlavor.AppFun $ viewTreeType' t1, RecordPair EdgeFlavor.AppArg $ viewTreeType' t2]
       , rightChild = Nothing
       }
   TForall _ n k t ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.TForall $ localName n
-      , childTrees = [viewTreeKind' k, viewTreeType' t]
+      , childTrees = [RecordPair EdgeFlavor.ForallKind $ viewTreeKind' k, RecordPair EdgeFlavor.Forall $ viewTreeType' t]
       , rightChild = Nothing
       }
   TLet _ n t b ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.TLet $ localName n
-      , childTrees = [viewTreeType' t, viewTreeType' b]
+      , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeType' t, RecordPair EdgeFlavor.LetIn $ viewTreeType' b]
       , rightChild = Nothing
       }
   where
@@ -1075,7 +1079,7 @@ viewTreeKind' = \case
     Tree
       { nodeId
       , body = NoBody Flavor.KFun
-      , childTrees = [viewTreeKind' k1, viewTreeKind' k2]
+      , childTrees = [RecordPair EdgeFlavor.FunIn $ viewTreeKind' k1, RecordPair EdgeFlavor.FunOut $ viewTreeKind' k2]
       , rightChild = Nothing
       }
 

@@ -2,101 +2,128 @@ Tree
     { nodeId = "0"
     , body = NoBody TFun
     , childTrees =
-        [ Tree
-            { nodeId = "1"
-            , body = TextBody
-                ( RecordPair
-                    { fst = TCon
-                    , snd = Name
-                        { qualifiedModule = Just
-                            ( ModuleName
-                                { unModuleName = "Builtins" :| [] }
-                            )
-                        , baseName = "Nat"
+        [ RecordPair
+            { fst = FunIn
+            , snd = Tree
+                { nodeId = "1"
+                , body = TextBody
+                    ( RecordPair
+                        { fst = TCon
+                        , snd = Name
+                            { qualifiedModule = Just
+                                ( ModuleName
+                                    { unModuleName = "Builtins" :| [] }
+                                )
+                            , baseName = "Nat"
+                            }
                         }
-                    }
-                )
-            , childTrees = []
-            , rightChild = Nothing
+                    )
+                , childTrees = []
+                , rightChild = Nothing
+                }
             }
-        , Tree
-            { nodeId = "2"
-            , body = TextBody
-                ( RecordPair
-                    { fst = TForall
-                    , snd = Name
-                        { qualifiedModule = Nothing
-                        , baseName = "a"
+        , RecordPair
+            { fst = FunOut
+            , snd = Tree
+                { nodeId = "2"
+                , body = TextBody
+                    ( RecordPair
+                        { fst = TForall
+                        , snd = Name
+                            { qualifiedModule = Nothing
+                            , baseName = "a"
+                            }
                         }
-                    }
-                )
-            , childTrees =
-                [ Tree
-                    { nodeId = "3"
-                    , body = NoBody KType
-                    , childTrees = []
-                    , rightChild = Nothing
-                    }
-                , Tree
-                    { nodeId = "4"
-                    , body = NoBody TApp
-                    , childTrees =
-                        [ Tree
-                            { nodeId = "5"
-                            , body = NoBody THole
+                    )
+                , childTrees =
+                    [ RecordPair
+                        { fst = ForallKind
+                        , snd = Tree
+                            { nodeId = "3"
+                            , body = NoBody KType
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        }
+                    , RecordPair
+                        { fst = Forall
+                        , snd = Tree
+                            { nodeId = "4"
+                            , body = NoBody TApp
                             , childTrees =
-                                [ Tree
-                                    { nodeId = "6"
-                                    , body = NoBody TApp
-                                    , childTrees =
-                                        [ Tree
-                                            { nodeId = "7"
-                                            , body = TextBody
-                                                ( RecordPair
-                                                    { fst = TCon
-                                                    , snd = Name
-                                                        { qualifiedModule = Just
-                                                            ( ModuleName
-                                                                { unModuleName = "Builtins" :| [] }
-                                                            )
-                                                        , baseName = "List"
-                                                        }
+                                [ RecordPair
+                                    { fst = AppFun
+                                    , snd = Tree
+                                        { nodeId = "5"
+                                        , body = NoBody THole
+                                        , childTrees =
+                                            [ RecordPair
+                                                { fst = Hole
+                                                , snd = Tree
+                                                    { nodeId = "6"
+                                                    , body = NoBody TApp
+                                                    , childTrees =
+                                                        [ RecordPair
+                                                            { fst = AppFun
+                                                            , snd = Tree
+                                                                { nodeId = "7"
+                                                                , body = TextBody
+                                                                    ( RecordPair
+                                                                        { fst = TCon
+                                                                        , snd = Name
+                                                                            { qualifiedModule = Just
+                                                                                ( ModuleName
+                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                )
+                                                                            , baseName = "List"
+                                                                            }
+                                                                        }
+                                                                    )
+                                                                , childTrees = []
+                                                                , rightChild = Nothing
+                                                                }
+                                                            }
+                                                        , RecordPair
+                                                            { fst = AppArg
+                                                            , snd = Tree
+                                                                { nodeId = "8"
+                                                                , body = NoBody TEmptyHole
+                                                                , childTrees = []
+                                                                , rightChild = Nothing
+                                                                }
+                                                            }
+                                                        ]
+                                                    , rightChild = Nothing
                                                     }
-                                                )
-                                            , childTrees = []
-                                            , rightChild = Nothing
-                                            }
-                                        , Tree
-                                            { nodeId = "8"
-                                            , body = NoBody TEmptyHole
-                                            , childTrees = []
-                                            , rightChild = Nothing
-                                            }
-                                        ]
-                                    , rightChild = Nothing
+                                                }
+                                            ]
+                                        , rightChild = Nothing
+                                        }
+                                    }
+                                , RecordPair
+                                    { fst = AppArg
+                                    , snd = Tree
+                                        { nodeId = "9"
+                                        , body = TextBody
+                                            ( RecordPair
+                                                { fst = TVar
+                                                , snd = Name
+                                                    { qualifiedModule = Nothing
+                                                    , baseName = "a"
+                                                    }
+                                                }
+                                            )
+                                        , childTrees = []
+                                        , rightChild = Nothing
+                                        }
                                     }
                                 ]
                             , rightChild = Nothing
                             }
-                        , Tree
-                            { nodeId = "9"
-                            , body = TextBody
-                                ( RecordPair
-                                    { fst = TVar
-                                    , snd = Name
-                                        { qualifiedModule = Nothing
-                                        , baseName = "a"
-                                        }
-                                    }
-                                )
-                            , childTrees = []
-                            , rightChild = Nothing
-                            }
-                        ]
-                    , rightChild = Nothing
-                    }
-                ]
-            , rightChild = Nothing
+                        }
+                    ]
+                , rightChild = Nothing
+                }
             }
         ]
     , rightChild = Nothing

@@ -1,3 +1,5 @@
+{-# LANGUAGE NoFieldSelectors #-}
+
 module Primer.API.RecordPair (
   RecordPair (..),
 ) where

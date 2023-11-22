@@ -59,6 +59,7 @@ import Primer.API (
   ValCon,
  )
 import Primer.API qualified as API
+import Primer.API.EdgeFlavor (EdgeFlavor)
 import Primer.API.NodeFlavor (
   NodeFlavorBoxBody,
   NodeFlavorNoBody,
@@ -154,6 +155,7 @@ deriving via PrimerJSON (RecordPair a b) instance (ToSchema a, ToSchema b) => To
 deriving via PrimerJSON Tree instance ToSchema Tree
 deriving via PrimerJSON API.Name instance ToSchema API.Name
 deriving via PrimerJSON PrimCon instance ToSchema PrimCon
+deriving via PrimerJSON EdgeFlavor instance ToSchema EdgeFlavor
 deriving via PrimerJSON NodeBody instance ToSchema NodeBody
 deriving via PrimerJSON NodeFlavorTextBody instance ToSchema NodeFlavorTextBody
 deriving via PrimerJSON NodeFlavorPrimBody instance ToSchema NodeFlavorPrimBody
