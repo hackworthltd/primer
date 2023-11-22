@@ -196,9 +196,8 @@ freshLike v (envTm, envTy) =
   let avoid = envTm.vars <> envTy.vars <>
             Set.delete (unLocalName v) (Set.fromList (fmap unLocalName $ rights $ Map.keys envTm.env)
             <> Set.map unLocalName (Map.keysSet envTy.env))
-      f = unsafeHead $ filter (flip Set.notMember avoid . unLocalName) $
+  in unsafeHead $ filter (flip Set.notMember avoid . unLocalName) $
        v : [unsafeMkLocalName $ unName (unLocalName v) <> show i | i<-[0..]]
-  in trace @Text ("freshLike " <> show v <> " avoiding " <> show avoid <> "gives " <> show f) f
 
 freshLikeTy :: LocalName k -> EnvTy -> LocalName k
 freshLikeTy v env = freshLike v (EnvTm mempty mempty, env)
@@ -212,9 +211,9 @@ interpTy env = \case
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
   TVar _ v -> env.env !! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
-  TForall _ v k t -> trace @Text ("interp ∀" <> show v) $
+  TForall _ v k t -> 
      let v' = freshLikeTy v env
-     in trace @Text ("v' = " <> show v') $ TForall () v' k (interpTy (extendTyEnv' v (TVar () v') env) t)
+     in TForall () v' k (interpTy (extendTyEnv' v (TVar () v') env) t)
   TLet _ v s t -> interpTy (extendTyEnv' v s env) t
 
 -- CONFUSED: how do I do to WHNF so can terminate when do `fst (3, letrec x = x in x)`
