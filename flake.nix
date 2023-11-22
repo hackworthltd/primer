@@ -19,6 +19,8 @@
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
     hacknix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -305,7 +307,25 @@
             })
             // primerFlake.apps;
 
-          devShells.default = primerFlake.devShell;
+          devShells = {
+            default = primerFlake.devShell;
+          } // (pkgs.lib.optionalAttrs (system == "x86_64-linux")) {
+            # Unfortunately, this is only available on x86_64-linux.
+            wasm = pkgs.mkShell {
+              packages = with inputs.ghc-wasm.packages.${system};
+                [
+                  wasm32-wasi-ghc-9_6
+                  wasm32-wasi-cabal-9_6
+                  wasmtime
+
+                  pkgs.gnumake
+
+                  # We need to run native `tasty-discover` at compile
+                  # time, because we can't do it via `wasmtime`.
+                  (pkgs.haskell-nix.tool ghcVersion "tasty-discover" { })
+                ];
+            };
+          };
 
           # This is a non-standard flake output, but we don't want to
           # include benchmark runs in `packages`, because we don't
