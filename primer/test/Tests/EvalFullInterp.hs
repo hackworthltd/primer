@@ -128,7 +128,7 @@ import Tests.Action.Prog (readerToState)
 import Tests.Eval.Utils (genDirTm, hasHoles, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
-import Primer.EvalFullInterp (interp)
+import Primer.EvalFullInterp (interp, mkEnv)
 
 -- TODO: can I integrate with existing tests?
 -- The tests here are copy-pasted from stepwise test
@@ -1839,10 +1839,10 @@ evalFullTest' optsV id_ tydefs globals n d e = do
 
 evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Expr' () () ())
 -- TODO: deal with primitives
-evalFullTest tydefs defs dir = pure . interp tydefs (M.fromList $ mapMaybe (\(f,d) -> case d of
+evalFullTest tydefs defs dir = pure . interp tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
       DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
       _ -> Nothing)
-      $ M.assocs defs, mempty) dir
+      $ M.assocs defs) mempty) dir
 
 {-
 evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)

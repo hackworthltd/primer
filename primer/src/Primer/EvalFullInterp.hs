@@ -1,4 +1,7 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
+
 module Primer.EvalFullInterp (
     interp
     {-
@@ -9,6 +12,7 @@ module Primer.EvalFullInterp (
   --evalFullStepCount,
   --EvalLog (..),
   -}
+  , mkEnv
 ) where
 
 -- TODO: document this!
@@ -45,7 +49,7 @@ import Data.Map.Lazy qualified as Map
 import Numeric.Natural (Natural)
 import Primer.Core (
   Expr, Expr'(..), CaseFallback' (CaseFallback), caseBranchName, CaseBranch' (CaseBranch), Pattern (PatCon, PatPrim), bindName, GVarName, LVarName, Type' (..)
-  , TyVarName, TmVarRef (LocalVarRef, GlobalVarRef), mapFallback,
+  , TyVarName, TmVarRef (LocalVarRef, GlobalVarRef), mapFallback, Type, unLocalName, LocalName, unsafeMkLocalName, Bind' (Bind),
  )
 import Primer.Def (
   DefMap,
@@ -71,7 +75,11 @@ import Primer.Zipper (
 import Protolude.Error (error)
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Type (Type'(TEmptyHole, THole))
-import Primer.Core.Utils (concreteTy)
+import Primer.Core.Utils (_freeVarsTy, concreteTy, freeVarsTy, freeVars, forgetMetadata, forgetTypeMetadata)
+import Data.Set.Optics (setOf)
+import Optics (_2,(%), to)
+import qualified Data.Set as Set
+import Primer.Name (Name, unName)
 
 -- A naive tree-walker / compile to closure (TODO: is this correct terminology?)
 -- We reuse Haskell's runtime to do call-by-need
@@ -81,10 +89,25 @@ import Primer.Core.Utils (concreteTy)
 -- We don't compute under lambdas, but will compute after a beta (same with foralls)
 --  this means that one can only trust the answer if it has no lambdas/foralls in!
 
+
+-- Invariant: vars is the set of free vars in the values of the map
+-- Thus the binders we need to rename before going under them
+data EnvTm = EnvTm
+  { vars :: Set Name
+  , env :: Map.Map (Either GVarName LVarName) (Expr' () () ())
+  }
+data EnvTy = EnvTy
+  { vars :: Set Name
+  , env :: Map.Map TyVarName (Type' () ())
+  }
+
+mkEnv :: [(Either GVarName LVarName, Expr' a b c)] -> [(TyVarName,Type' a b)] -> (EnvTm, EnvTy)
+mkEnv tms tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempty, extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty)
+
 -- we keep type annotations around ??
 -- TODO: worry about name capture!
 interp :: TypeDefMap
-        -> (Map.Map (Either GVarName LVarName) (Expr' () () ()), Map.Map TyVarName (Type' () ()))
+        -> (EnvTm, EnvTy)
         -> Dir
         -> Expr' () () () -> Expr' () () ()
 interp tydefs env@(envTm,envTy) dir = \case
@@ -102,7 +125,7 @@ interp tydefs env@(envTm,envTy) dir = \case
                  (interpTy (extendTyEnv' b s' envTy) ty)
      f' -> APP () f' (interpTy envTy s)
   Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
-  Lam _ v t -> Lam () v $ interp tydefs (extendTmsIdEnv [v] env) Chk t
+  Lam _ v t -> let v' = freshLike v env in Lam () v' $ interp tydefs (renameTmEnv v v' env) Chk t
   -- TODO: we did not used to go under lambdas, but now do. Why did we not use to?
   --   (must do now as for @(λx.(λy.x) : A -> B -> A) s t@ we will
   --   interp @λy.x@ in context where @x:->t@, and this is the only time we have @x@ in the context!!
@@ -110,9 +133,9 @@ interp tydefs env@(envTm,envTy) dir = \case
   --   NBE avoids this by freshening when reifying
   --   can we avoid by just refusing to go under such shadow-y lambdas?
   --   (i.e. for a closed term, do we believe this will never happen?)
-  LAM _ v t -> LAM () v $ interp tydefs (extendTyEnv v (TVar () v) env) Chk t
-  Var _ (LocalVarRef v) -> upsilon dir $ envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
-  Var _ (GlobalVarRef v) -> upsilon dir $ envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
+  LAM _ v t -> let v' = freshLike v env in LAM () v' $ interp tydefs (extendTyEnv v (TVar () v') env) Chk t
+  Var _ (LocalVarRef v) -> upsilon dir $ envTm.env ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
+  Var _ (GlobalVarRef v) -> upsilon dir $ envTm.env ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   -- TODO: deal with primitives!
   Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env Syn e) env) dir b
   LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) dir b
@@ -138,7 +161,11 @@ interp tydefs env@(envTm,envTy) dir = \case
        | CaseFallback t <- fb -> interp tydefs env Chk t
        | otherwise -> error "no such branch"
      e' -> let f = \case
-                 CaseBranch pat binds rhs -> CaseBranch pat binds $ interp tydefs (extendTmsIdEnv (bindName <$> binds) env) Chk rhs
+                 CaseBranch pat binds rhs ->
+                   let (env',binds') = mapAccumL (\env'' (bindName -> b) -> let b' = freshLike b env'' in (renameTmEnv b b' env'', Bind () b'))
+                                         env binds
+                   in
+                     CaseBranch pat binds' $ interp tydefs env' Chk rhs
            in Case () e' (f <$> brs) (mapFallback (interp tydefs env Chk) fb)
   e@PrimCon{} -> e
  where
@@ -157,17 +184,35 @@ interp tydefs env@(envTm,envTy) dir = \case
                     (Chk, True) -> e
                     _ -> Ann () e t
      e -> e
-   extendTmsIdEnv vs  = extendTmsEnv ((\v -> (Right v, Var () $ LocalVarRef v)) <$> vs)
+   renameTmEnv v v' = extendTmEnv (Right v) (Var () $ LocalVarRef v')
+   --renameTmEnv v v' = renameTmsEnv [(v,v')]
+   renameTmsEnv vvs = extendTmsEnv $ map (\(v, v') -> (Right v, Var () $ LocalVarRef v')) vvs
+
+-- TODO: common up with something ??
+freshLike :: LocalName k -> (EnvTm, EnvTy) -> LocalName k
+freshLike v (envTm, envTy) =
+  let avoid = envTm.vars <> envTy.vars <>
+            Set.delete (unLocalName v) (Set.fromList (fmap unLocalName $ rights $ Map.keys envTm.env)
+            <> Set.map unLocalName (Map.keysSet envTy.env))
+      f = unsafeHead $ filter (flip Set.notMember avoid . unLocalName) $
+       v : [unsafeMkLocalName $ unName (unLocalName v) <> show i | i<-[0..]]
+  in trace @Text ("freshLike " <> show v <> " avoiding " <> show avoid <> "gives " <> show f) f
+
+freshLikeTy :: LocalName k -> EnvTy -> LocalName k
+freshLikeTy v env = freshLike v (EnvTm mempty mempty, env)
+
 -- todo: doc what sense this is "normal" -- not under binders...
-interpTy :: Map.Map TyVarName (Type' () ()) -> Type' () () -> Type' () ()
+interpTy :: EnvTy -> Type' () () -> Type' () ()
 interpTy env = \case
   t@TEmptyHole{} -> t
   THole _ t -> THole () $ interpTy env t
   t@TCon{} -> t
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
-  TVar _ v -> env !! v
+  TVar _ v -> env.env !! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
-  TForall _ v k t -> TForall () v k (interpTy (extendTyEnv' v (TVar () v) env) t)
+  TForall _ v k t -> trace @Text ("interp ∀" <> show v) $
+     let v' = freshLikeTy v env
+     in trace @Text ("v' = " <> show v') $ TForall () v' k (interpTy (extendTyEnv' v (TVar () v') env) t)
   TLet _ v s t -> interpTy (extendTyEnv' v s env) t
 
 -- CONFUSED: how do I do to WHNF so can terminate when do `fst (3, letrec x = x in x)`
@@ -175,31 +220,33 @@ interpTy env = \case
 -- tentative ANSWER: do to normal form lazily/streamingly/productively
 
 extendTmEnv :: Either GVarName LVarName
-            -> Expr' a b c
-            -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName v)
-            -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName v)
+            -> Expr' () () ()
+            -> (EnvTm, EnvTy)
+            -> (EnvTm, EnvTy)
 extendTmEnv k v = extendTmsEnv [(k,v)]
 
-extendTmsEnv :: [(Either GVarName LVarName ,Expr' a b c)]
-            -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName v)
-            -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName v)
-extendTmsEnv tms (envTm, envTy) = (Map.fromList tms <> envTm, envTy)
+extendTmsEnv :: [(Either GVarName LVarName ,Expr' () () ())]
+            -> (EnvTm, EnvTy)
+            -> (EnvTm, EnvTy)
+extendTmsEnv tms (envTm, envTy) = (EnvTm {vars = envTm.vars <> Set.unions (freeVars . snd <$> tms), env = Map.fromList tms <> envTm.env}, envTy)
 
 extendTyEnv' :: TyVarName
-            -> Type' b c
-            -> Map.Map TyVarName (Type' b c)
-            -> Map.Map TyVarName (Type' b c)
+            -> Type' () ()
+            -> EnvTy
+            -> EnvTy
 extendTyEnv' k v = extendTysEnv' [(k,v)]
 
-extendTysEnv' :: [(TyVarName, Type' b c)]
-            -> Map.Map TyVarName (Type' b c)
-            -> Map.Map TyVarName (Type' b c)
-extendTysEnv' tms env = Map.fromList tms <> env
+extendTysEnv' :: [(TyVarName, Type' () ())]
+            -> EnvTy
+            -> EnvTy
+extendTysEnv' tys EnvTy{vars,env} = EnvTy
+   {vars = vars <> Set.unions (map (Set.map unLocalName . freeVarsTy . snd) tys)
+   , env = Map.fromList tys <> env}
 
 extendTyEnv :: TyVarName
-            -> Type' b c
-            -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName (Type' b c))
-            -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName (Type' b c))
+            -> Type' () ()
+            -> (EnvTm, EnvTy)
+            -> (EnvTm, EnvTy)
 extendTyEnv k v (envTm, envTy) = (envTm, extendTyEnv' k v envTy)
 
 (!) :: Map.Map (Either GVarName LVarName) (Expr' () () ()) -> Either GVarName LVarName -> Expr' () () ()
