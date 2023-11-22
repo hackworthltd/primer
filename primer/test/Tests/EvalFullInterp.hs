@@ -221,28 +221,20 @@ unit_tmp =
       ((globals, e, expected), id) = create $ do
         let mapName = qualifyName modName "map"
         mapTy <- (tcon tNat `tfun` tcon tBool)
-          `tfun` ((tcon tList `tapp` tcon tNat)
-          `tfun`  (tcon tList `tapp` tcon tBool))
+          `tfun` ((tcon tNat)
+          `tfun`  (tcon tBool))
         mapTm <-
               lam "f"
-            $ lam "xs" -- if I remove this lambda (and the corresponding application), the bug goes away
-            $ case_
-              --(lvar "xs")
-              (con cCons [con0 cZero, con0 cNil] `ann` (tcon tList `tapp` tcon tNat))
-              [ branch cNil []
-                  $ con cNil []
-              , branch cCons [("y", Nothing), ("ys", Nothing)]
-                  $ con cCons [lvar "f" `app` lvar "y", con0 cNil]
-              ]
+            $ lam "x" -- if I remove this lambda (and the corresponding application), the bug goes away
+                  (lvar "f" `app` con0 cZero)
         let mapDef = DefAST $ ASTDef mapTm mapTy
         let fooName = qualifyName modName "foo"
         fooTy <- tcon tNat `tfun` tcon tNat
         fooTm <- lam "x" $ lvar "x"
         let fooDef = DefAST $ ASTDef fooTm fooTy
-        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
-        expr <- gvar mapName `app` gvar fooName `app` lst
+        expr <- gvar mapName `app` gvar fooName `app` con0 cZero
         let globs = M.fromList [(mapName, mapDef), (fooName, fooDef)]
-        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        expect <- con0 cZero
         pure (globs, expr, expect)
    in do
         s <- evalFullTest builtinTypes globals Syn (forgetMetadata e)
