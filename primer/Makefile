@@ -6,13 +6,21 @@
 build:
 	cabal build
 
+wasm32-build:
+	wasm32-wasi-cabal build
+
 configure:
 	cabal configure
 
+wasm32-configure:
+	wasm32-wasi-cabal configure
+
 check:	test
 
-test:
-	cabal test
+wasm32-check:	wasm32-test
+
+wasm32-test:
+	wasm32-wasi-cabal test
 
 # Update any test files which differ from the expected result.
 serialization-outputs:
@@ -25,6 +33,9 @@ docs:
 
 clean:
 	cabal clean
+
+wasm32-clean:
+	wasm32-wasi-cabal clean
 
 bench:
 

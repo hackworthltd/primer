@@ -12,6 +12,12 @@ $(targets):
 	$(MAKE) -C primer-service $@
 	$(MAKE) -C primer-benchmark $@
 
+wasm32 = wasm32-build wasm32-configure wasm32-check wasm32-test wasm32-clean
+
+$(wasm32):
+	$(MAKE) -C primer $@
+	$(MAKE) -C primer-api $@
+
 weeder:
 	cabal build all --enable-benchmarks --enable-tests
 	weeder
@@ -21,4 +27,4 @@ openapi.json: build
 	cabal run -v0 primer-service:exe:primer-openapi > $@
 	openapi-generator-cli validate --recommend -i $@
 
-.PHONY: $(targets) weeder
+.PHONY: $(targets) $(wasm32-targets) weeder
