@@ -205,8 +205,6 @@ library primer-testlib
     , tasty-hunit     ^>=0.10.0
 
 test-suite primer-test
-  type:               exitcode-stdio-1.0
-  main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
     Tests.Action
@@ -256,11 +254,22 @@ test-suite primer-test
     OverloadedLists
     OverloadedStrings
 
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths -threaded
-    -rtsopts -with-rtsopts=-N
+  if arch(wasm32)
+    type:        exitcode-stdio-1.0
+    main-is:     TestsWasm32.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths
+
+  else
+    type:        exitcode-stdio-1.0
+    main-is:     Test.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths -threaded
+      -rtsopts -with-rtsopts=-N
 
   if impl(ghcjs)
     buildable: False

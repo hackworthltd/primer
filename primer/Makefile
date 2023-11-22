@@ -3,6 +3,8 @@
 # Most commands assume you're running this from the top-level `nix
 # develop` shell.
 
+wasm32-primer-test	:= $(shell wasm32-wasi-cabal list-bin test:primer-test)
+
 build:
 	cabal build
 
@@ -20,7 +22,9 @@ check:	test
 wasm32-check:	wasm32-test
 
 wasm32-test:
-	wasm32-wasi-cabal test
+	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+	wasm32-wasi-cabal build test:primer-test
+	wasmtime --dir test::test "$(wasm32-primer-test)"
 
 # Update any test files which differ from the expected result.
 serialization-outputs:
