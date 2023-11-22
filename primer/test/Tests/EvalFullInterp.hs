@@ -542,6 +542,7 @@ unit_closed_single_lets =
 --        r <- evalFullTest  mempty mempty Syn expr
 --        r @?= expected
 --
+-- TODO: skip as checking closed eval
 ---- closed eval stops at binders
 --unit_closed_binders :: Assertion
 --unit_closed_binders = do
@@ -563,6 +564,7 @@ unit_closed_single_lets =
 --  -- For consistency, we also do not reduce inside case branches even if they do not bind
 --  isNormalIffClosed $ case_ emptyHole [branch cTrue [] r]
 --
+-- TODO: skip as checking closed eval
 ---- closed eval still pushes lets through binders
 --unit_closed_subst :: Assertion
 --unit_closed_subst = do
@@ -578,6 +580,7 @@ unit_closed_single_lets =
 --  isReducible $ l $ case_ emptyHole [branch cTrue [("x", Nothing)] v]
 --  isReducible $ l $ case_ emptyHole [branch cTrue [] v]
 --
+-- TODO: skip as checking closed eval
 ---- For (closed, hole free) terms of base types, open and closed evaluation
 ---- agree.  We require hole-free-ness, as holes create stuck terms similar to
 ---- free variables. Note that we get the same reduction sequence, not only that
@@ -614,6 +617,7 @@ unit_closed_single_lets =
 ---- arbitrary context first.
 ---- See https://github.com/hackworthltd/primer/issues/50
 --
+-- TODO: skip as irrelevent to interp which always go to NF
 ---- | Resuming evaluation is the same as running it for longer in the first place
 --tasty_resume :: Property
 --tasty_resume = withDiscards 2000
@@ -655,6 +659,7 @@ unit_closed_single_lets =
 --  stepsMid + stepsTotal === stepsFinal'
 --  sFinal === sTotal
 --
+-- TODO: skip as irrelevent to interp which always go to NF
 ---- A pseudo-unit regression test: when reduction needs to create fresh names,
 ---- the two reduction attempts in resumeTest should not interfere with each
 ---- other's names, else we will get occasional failures in that property test.
@@ -664,6 +669,7 @@ unit_closed_single_lets =
 --  t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" $ lvar "b"))
 --  resumeTest mempty Chk t
 --
+-- TODO: skip as regression irrelevent to interp
 ---- A regression test: previously EvalFull would rename to avoid variable
 ---- capture, but would use let instead of lettype for type abstractions ("big
 ---- lambdas"). (I.e. we changed 'λx.e' into 'λy.let x=y in e' and also did the
@@ -680,6 +686,7 @@ unit_closed_single_lets =
 --        s <- evalFullTest maxID mempty mempty 1 Chk expr
 --        s <~==> Left (TimedOut expected)
 --
+-- TODO: skip as regression irrelevent to interp
 ---- Previously EvalFull reducing a case expression could result in variable
 ---- capture. We would reduce 'λx. case C _ x of C x y -> _'
 ---- to (eliding annotations) 'λx. let x = _ in let y = x in _', where the
@@ -714,6 +721,7 @@ unit_closed_single_lets =
 --        s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
 --        s2 <~==> Left (TimedOut expected2)
 --
+-- TODO: skip as regression irrelevent to interp
 ---- A regression test for the same issue as
 ---- unit_type_preservation_case_regression_tm, except for reducing case
 ---- expressions with annotated scruitinees, and emphasizing that capture may
@@ -752,6 +760,7 @@ unit_closed_single_lets =
 --        s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
 --        s2 <~==> Left (TimedOut expected2)
 --
+-- TODO: skip as not super relevent to interp, and hard to port
 ---- Previously EvalFull reducing a BETA expression could result in variable
 ---- capture. We would reduce (Λa.t : ∀b.T) S to
 ---- let b = S in (let a = S in t) : T
@@ -892,85 +901,42 @@ unit_closed_single_lets =
 --        tmp tyB exprB
 --        for_ expectedBs $ \(n, e) -> sB n >>= (<~==> Left (TimedOut e))
 --        tmp tyB $ snd $ NE.last expectedBs
---
----- Previously EvalFull reducing a let expression could result in variable
----- capture. We would reduce 'Λx. let x = _ :: x in x'
----- to (eliding annotations) 'Λx. let x = _ :: x in _ :: x', where the
----- 'let x' has captured the reference to the x in the bound term.
----- This causes the term to become ill-sorted.
----- Similarly, we reduce 'λx. let x = x in x' to itself, due to the same capture.
----- (This was before we changed to "pushing down lets")
---unit_let_self_capture :: Assertion
---unit_let_self_capture =
---  let ( ( expr1
---          , ty1
---          , expr2
---          , expected2
---          , expr3
---          , expected3a
---          , expected3b
---          , expr4
---          , expected4a
---          , expected4b
---          )
---        , maxID
---        ) = create $ do
---          e1 <- lAM "x" $ let_ "x" (emptyHole `ann` tvar "x") (lvar "x")
---          let t1 = TForall () "a" (KType ()) $ TVar () "a"
---          e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
---          expect2 <- lam "x" $ lvar "x"
---          e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
---          expect3a <- lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
---          expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
---          -- We do not need to do anything special for letrec
---          e4 <- lAM "a" $ lam "f" $ lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
---          expect4a <-
---            lAM "a"
---              $ lam "f"
---              $ lam "x"
---              $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "f" `app` lvar "x")
---              `ann` tvar "a"
---          expect4b <-
---            lAM "a"
---              $ lam "f"
---              $ lam "x"
---              $ (lvar "f" `app` letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x"))
---              `ann` tvar "a"
---          pure
---            ( e1
---            , t1
---            , e2
---            , expect2
---            , e3
---            , expect3a
---            , expect3b
---            , e4
---            , expect4a
---            , expect4b
---            )
---      s1 n = evalFullTest maxID mempty mempty n Chk expr1
---      s2 n = evalFullTest maxID mempty mempty n Chk expr2
---      s3 n = evalFullTest maxID mempty mempty n Chk expr3
---      s4 n = evalFullTest maxID mempty mempty n Chk expr4
---      typePres ty f = do
---        (timeout, term) <- spanM isLeft $ f <$> [0 ..]
---        forM_ (timeout <> [fst $ fromJust term]) $ \e ->
---          let e' = case e of
---                Left (TimedOut e'') -> e''
---                Right e'' -> e''
---           in case runTypecheckTestM NoSmartHoles $ check ty e' of
---                Left err -> assertFailure $ show err
---                Right _ -> pure ()
---   in do
---        typePres ty1 s1
---        s2 1 >>= (<~==> Left (TimedOut expected2))
---        s2 2 >>= (<~==> Right expected2)
---        s3 1 >>= (<~==> Left (TimedOut expected3a))
---        s3 2 >>= (<~==> Left (TimedOut expected3b))
---        s3 3 >>= (<~==> Right expected3b)
---        s4 1 >>= (<~==> Left (TimedOut expected4a))
---        s4 2 >>= (<~==> Left (TimedOut expected4b))
---
+
+-- TODO: ported by butchering
+-- Previously EvalFull reducing a let expression could result in variable
+-- capture. We would reduce 'Λx. let x = _ :: x in x'
+-- to (eliding annotations) 'Λx. let x = _ :: x in _ :: x', where the
+-- 'let x' has captured the reference to the x in the bound term.
+-- This causes the term to become ill-sorted.
+-- Similarly, we reduce 'λx. let x = x in x' to itself, due to the same capture.
+-- (This was before we changed to "pushing down lets")
+unit_let_self_capture :: Assertion
+unit_let_self_capture =
+  let ( ( 
+            forgetMetadata -> expr2
+          , forgetMetadata -> expected2
+          , forgetMetadata -> expr3
+          , forgetMetadata -> expected3b
+          )
+        , maxID
+        ) = create $ do
+          e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
+          expect2 <- lam "x" $ lvar "x"
+          e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
+          expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
+          pure
+            ( 
+              e2
+            , expect2
+            , e3
+            , expect3b
+            )
+   in do
+        s2 <- evalFullTest mempty mempty Chk expr2
+        s2 @?= expected2
+        s3 <- evalFullTest mempty mempty Chk expr3
+        s3 @?= expected3b
+
 ---- | @spanM p mxs@ returns a tuple where the first component is the
 ---- values coming from the longest prefix of @mxs@ all of which satisfy
 ---- @p@, and the second component is the rest of @mxs@. It only runs
@@ -988,6 +954,7 @@ unit_closed_single_lets =
 --    then first (x' :) <$> spanM f xs
 --    else pure ([], Just (x', xs))
 --
+-- TODO: skip as all time out
 ---- We previously had a bug where we would refuse to inline a let if it would "self-capture"
 ---- (e.g.  λx. let x=f x in C x x : we cannot inline one occurrence of this non-recursive let
 ---- since 'f x' refers to the lambda bound variable, but would be captured by the 'let x');
@@ -1027,46 +994,26 @@ unit_closed_single_lets =
 --  ev 0 ~ e
 --  ev 1 ~ f
 --  ev 3 ~ g
---
----- | Evaluation preserves types
----- (assuming we don't end with a 'LetType' in the term, as the typechecker
----- cannot currently deal with those)
---tasty_type_preservation :: Property
---tasty_type_preservation = withTests 1000
---  $ withDiscards 2000
---  $ propertyWT testModules
---  $ do
---    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
---    let optsR = RunRedexOptions{pushAndElide = True}
---    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
---    tds <- asks typeDefs
---    (dir, t, ty) <- genDirTm
---    let test msg e = do
---          annotateShow $ unLabelName msg
---          annotateShow e
---          s <- case e of
---            Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
---            Right s' -> label (msg <> "NF") >> pure s'
---          if hasTypeLets s
---            then label (msg <> "skipped due to LetType") >> success
---            else do
---              annotateShow s
---              s' <- checkTest ty s
---              forgetMetadata s === forgetMetadata s' -- check no smart holes happened
---    maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
---    closed <- forAllT $ Gen.frequency [(10, pure UnderBinders), (1, pure StopAtBinders)]
---    (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs maxSteps dir t
---    annotateShow steps
---    annotateShow s
---    -- s is often reduced to normal form
---    test "long " s
---    -- also test an intermediate point
---    if steps <= 1
---      then label "generated a normal form"
---      else do
---        midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
---        (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs midSteps dir t
---        test "mid " s'
+
+-- | Evaluation preserves types
+-- (assuming we don't end with a 'LetType' in the term, as the typechecker
+-- cannot currently deal with those)
+tasty_type_preservation :: Property
+tasty_type_preservation = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT testModules
+  $ do
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    tds <- asks typeDefs
+    (dir, forgetMetadata -> t, ty) <- genDirTm
+    let s = evalFullTest' tds globs dir t
+    annotateShow s
+    if hasTypeLets s
+       then label ("skipped due to LetType") >> success
+       else do
+           -- TODO: sometimes this will loop!
+              s' <- checkTest ty =<< generateIDs s
+              s === forgetMetadata s' -- check no smart holes happened
 --
 ---- Unsaturated primitives are stuck terms
 --unit_prim_stuck :: Assertion
@@ -1702,12 +1649,15 @@ evalFullTest' optsV id_ tydefs globals n d e = do
   pure r
 -}
 
-evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Expr' () () ())
+evalFullTest' :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> Expr' () () ()
 -- TODO: deal with primitives
-evalFullTest tydefs defs dir = pure . interp tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
+evalFullTest' tydefs defs dir = interp tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
       DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
       _ -> Nothing)
       $ M.assocs defs) mempty) dir
+
+evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Expr' () () ())
+evalFullTest tydefs defs dir = pure . evalFullTest' tydefs defs dir
 
 {-
 evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)

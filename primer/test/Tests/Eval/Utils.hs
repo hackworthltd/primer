@@ -37,6 +37,7 @@ import Primer.Gen.Core.Typed (
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
 import Primer.Primitives (tChar)
 import Test.Tasty.HUnit (Assertion, (@?=))
+import Data.Data (Data)
 
 -- | Generates
 --
@@ -94,7 +95,7 @@ x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
 -- | Does this expression have any unsupported-by-the-typechecker subterms?
 -- These are @let@s binding type variables, either a 'LetType' in a term,
 -- or a 'TLet' in an embedded type.
-hasTypeLets :: Expr -> Bool
+hasTypeLets :: (Data a, Data b, Data c) => Expr' a b c -> Bool
 hasTypeLets e =
   not
     $ null [() | LetType{} <- universe e]
