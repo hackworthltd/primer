@@ -90,27 +90,22 @@ interp :: TypeDefMap
 interp tydefs env@(envTm,envTy) dir = \case
   Hole m e -> Hole m $ interp tydefs env Syn e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
   e@EmptyHole{} -> e
-  Ann m e t -> let t' = interpTy envTy t
-               -- We force t' before emitting anything, so this is not very lazy.
-               -- However we know evaluation of types must terminate!
-               in case (dir, concreteTy t') of
-                    (Chk, True) -> interp tydefs env Chk e
-                    _ -> Ann m (interp tydefs env Chk e) t'
+  Ann _ e t -> ann dir (interp tydefs env Chk e) (interpTy envTy t)
   App _ f s -> case interp tydefs env Syn f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
-       Ann () (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env Chk s) src)] env) Chk t) tgt
+       ann dir (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env Chk s) src)] env) Chk t) tgt
      _ -> error "bad App"
   APP _ f s -> case interp tydefs env Syn f of
      Ann _ (LAM _ a t) (TForall _ b _ ty) ->
        let s' = interpTy envTy s
-       in Ann () (interp tydefs (extendTyEnv a s' env) Chk t)
+       in ann dir (interp tydefs (extendTyEnv a s' env) Chk t)
                  (interpTy (extendTyEnv' b s' envTy) ty)
      _ -> error "bad APP"
   Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
   e@Lam{} -> e -- don't go under lambdas: TODO: this means that interp may be WRONG if it ends up with a lambda, as could be @let x=True in λy.x@ which would return @λy.x@!
   e@LAM{} -> e
-  Var _ (LocalVarRef v) -> envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
-  Var _ (GlobalVarRef v) -> envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
+  Var _ (LocalVarRef v) -> upsilon dir $ envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
+  Var _ (GlobalVarRef v) -> upsilon dir $ envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   -- TODO: deal with primitives!
   Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env Syn e) env) dir b
   LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) dir b
@@ -144,6 +139,15 @@ interp tydefs env@(envTm,envTy) dir = \case
    ctorArgTys tcon vcon = let (TypeDefAST (ASTTypeDef _ as _)) = tydefs ! tcon
                               Just vc = find ((== vcon) . valConName) as
                           in valConArgs vc
+   ann d e t = upsilon d $ Ann () e t
+   upsilon d = \case
+     Ann _ e t ->
+               -- We force t before emitting anything, so this is not very lazy.
+               -- However we know evaluation of types must terminate!
+               case (d, concreteTy t) of
+                    (Chk, True) -> e
+                    _ -> Ann () e t
+     e -> e
 
 -- todo: doc what sense this is "normal" -- not under binders...
 interpTy :: Map.Map TyVarName (Type' () ()) -> Type' () () -> Type' () ()
