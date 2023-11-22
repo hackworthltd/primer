@@ -45,7 +45,7 @@ import Data.Map.Lazy qualified as Map
 import Numeric.Natural (Natural)
 import Primer.Core (
   Expr, Expr'(..), CaseFallback' (CaseFallback), caseBranchName, CaseBranch' (CaseBranch), Pattern (PatCon, PatPrim), bindName, GVarName, LVarName, Type' (..)
-  , TyVarName, TmVarRef (LocalVarRef, GlobalVarRef),
+  , TyVarName, TmVarRef (LocalVarRef, GlobalVarRef), mapFallback,
  )
 import Primer.Def (
   DefMap,
@@ -102,7 +102,7 @@ interp tydefs env@(envTm,envTy) dir = \case
                  (interpTy (extendTyEnv' b s' envTy) ty)
      _ -> error "bad APP"
   Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
-  Lam _ v t -> Lam () v $ interp tydefs (extendTmEnv (Right v) (Var () $ LocalVarRef v) env) Chk t
+  Lam _ v t -> Lam () v $ interp tydefs (extendTmsIdEnv [v] env) Chk t
   -- TODO: we did not used to go under lambdas, but now do. Why did we not use to?
   --   (must do now as for @(λx.(λy.x) : A -> B -> A) s t@ we will
   --   interp @λy.x@ in context where @x:->t@, and this is the only time we have @x@ in the context!!
@@ -133,7 +133,9 @@ interp tydefs env@(envTm,envTy) dir = \case
        | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp tydefs env Chk t
        | CaseFallback t <- fb -> interp tydefs env Chk t
        | otherwise -> error "no such branch"
-     _ -> error "stuck scrutinee"
+     e' -> let f = \case
+                 CaseBranch pat binds rhs -> CaseBranch pat binds $ interp tydefs (extendTmsIdEnv (bindName <$> binds) env) Chk rhs
+           in Case () e' (f <$> brs) (mapFallback (interp tydefs env Chk) fb)
   e@PrimCon{} -> e
  where
    -- todo DRY with Redex/viewCaseRedex (and DRY stuff above with other redex stuff??)
@@ -151,7 +153,7 @@ interp tydefs env@(envTm,envTy) dir = \case
                     (Chk, True) -> e
                     _ -> Ann () e t
      e -> e
-
+   extendTmsIdEnv vs  = extendTmsEnv ((\v -> (Right v, Var () $ LocalVarRef v)) <$> vs)
 -- todo: doc what sense this is "normal" -- not under binders...
 interpTy :: Map.Map TyVarName (Type' () ()) -> Type' () () -> Type' () ()
 interpTy env = \case
