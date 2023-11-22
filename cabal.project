@@ -9,7 +9,7 @@ packages:
 
 optimization: 0
 
-allow-newer: hedgehog-classes:hedgehog
+allow-newer: hedgehog-classes:hedgehog,hedgehog-classes:pretty-show,hedgehog:pretty-show
 
 package *
   ghc-options: -fwrite-ide-info
@@ -39,3 +39,27 @@ source-repository-package
   tag: 54c12169ce8cd46a7b3c698f65cea55e41a13fe6
   subdir: selda-sqlite
   --sha256: 0q8m8asmb83mpa3j3adlrhc446xif7gv6lql20gv05k33lmbjfhg
+
+-- Wasm workarounds.
+
+-- Upstream requires `happy` at build time, which doesn't work on Wasm
+-- targets.
+source-repository-package
+  type: git
+  location: https://github.com/hackworthltd/pretty-show
+  tag: 91d119cb0e3c5f7d866589b25158739580c8fc88
+  --sha256: sha256-mu8Eq0Sg6nCF8C2sXB6ebZcLhz8TVZAbNMiorA7RVc8=
+
+-- Upstream depends on Posix types unavailable in Wasm.
+source-repository-package
+  type: git
+  location: https://github.com/hackworthltd/semirings
+  tag: 369f696d9d00fe004b16b0de08888fee7a3d08c3
+  --sha256: sha256-kkHCp4Y9IqMXGaDyW5UpsmRjy0ZWZkVSo1nOhpgZUQ0=
+
+-- Upstream uses custom setup, which breaks on Wasm.
+source-repository-package
+  type: git
+  location: https://github.com/cdepillabout/pretty-simple
+  tag: 6fb9b281800ad045925c7344ceb9fd293d86c3b9
+  --sha256: sha256-1gsYj/iznEUCeQ1f5Xk7w54h9FLJSNrIR9V3p4eaRYk=
