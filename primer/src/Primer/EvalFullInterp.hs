@@ -107,7 +107,7 @@ mkEnv tms tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempt
 
 data BetaRecursionDepth
   = BRDNone
-  | BRDLim Int
+  | BRDLim !Int
 
 betaRecursionDepthPred :: BetaRecursionDepth -> BetaRecursionDepth
 betaRecursionDepthPred = \case
