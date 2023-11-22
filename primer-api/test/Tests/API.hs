@@ -6,7 +6,6 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.Map qualified as M
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as TL
-import Data.UUID.V4 (nextRandom)
 import Hedgehog hiding (Property, Var, property)
 import Optics ((.~))
 import Primer.API (
@@ -90,6 +89,7 @@ import Primer.Test.Util (
   constructTCon,
   (@?=),
  )
+import Primer.UUIDv4 (nextRandom)
 import Protolude.Unsafe (unsafeFromJust)
 import Tasty (
   Property,

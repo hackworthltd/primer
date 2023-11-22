@@ -25,7 +25,6 @@ import Data.Time (
   diffTimeToPicoseconds,
   picosecondsToDiffTime,
  )
-import Data.UUID.V4 (nextRandom)
 import Database.Selda (
   insert_,
  )
@@ -40,6 +39,7 @@ import Primer.Database.Selda.SQLite (
   runSeldaSQLiteDbT,
   sessions,
  )
+import Primer.UUIDv4 (nextRandom)
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process.Typed (
   proc,

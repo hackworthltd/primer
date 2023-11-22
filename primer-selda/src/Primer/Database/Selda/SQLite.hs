@@ -26,7 +26,7 @@ import Data.Aeson qualified as Aeson (
 import Data.ByteString.Lazy as BL hiding (take)
 import Data.Text qualified as Text
 import Data.Time.Clock (UTCTime)
-import Data.UUID (UUID)
+import Data.UUID.Types (UUID)
 import Database.Selda (
   Assignment ((:=)),
   Attr ((:-)),
