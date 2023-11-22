@@ -102,8 +102,11 @@ interp tydefs env@(envTm,envTy) dir = \case
                  (interpTy (extendTyEnv' b s' envTy) ty)
      _ -> error "bad APP"
   Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
-  e@Lam{} -> e -- don't go under lambdas: TODO: this means that interp may be WRONG if it ends up with a lambda, as could be @let x=True in λy.x@ which would return @λy.x@!
-  e@LAM{} -> e
+  Lam _ v t -> Lam () v $ interp tydefs (extendTmEnv (Right v) (Var () $ LocalVarRef v) env) Chk t
+  -- TODO: we did not used to go under lambdas, but now do. Why did we not use to?
+  --   (must do now as for @(λx.(λy.x) : A -> B -> A) s t@ we will
+  --   interp @λy.x@ in context where @x:->t@, and this is the only time we have @x@ in the context!!
+  LAM _ v t -> LAM () v $ interp tydefs (extendTyEnv v (TVar () v) env) Chk t
   Var _ (LocalVarRef v) -> upsilon dir $ envTm ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   Var _ (GlobalVarRef v) -> upsilon dir $ envTm ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   -- TODO: deal with primitives!
