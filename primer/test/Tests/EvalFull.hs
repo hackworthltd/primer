@@ -1,7 +1,10 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
+import Data.ByteString.Base64 qualified as B64
 import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
@@ -60,10 +63,12 @@ import Primer.Module (
   builtinModule,
   builtinTypes,
   moduleDefsQualified,
+  moduleTypesQualified,
   primitiveModule,
  )
 import Primer.Primitives (
   PrimDef (
+    Animate,
     EqChar,
     HexToNat,
     IntAdd,
@@ -86,6 +91,12 @@ import Primer.Primitives (
     PrimConst,
     ToUpper
   ),
+  cCircle,
+  cColour,
+  cCompoundPicture,
+  cRectangle,
+  cRotate,
+  cTranslate,
   tChar,
   tInt,
  )
@@ -121,11 +132,14 @@ import Tasty (
   withDiscards,
   withTests,
  )
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (readerToState)
 import Tests.Eval.Utils (genDirTm, hasHoles, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
+import Prelude (error)
 
 unit_1 :: Assertion
 unit_1 =
@@ -1889,6 +1903,92 @@ unit_case_prim =
         s3 <~==> Right expect3
         s4 <- evalFullTest maxID4 mempty mempty 6 Syn e4
         s4 <~==> Right expect4
+
+test_animation :: TestTree
+test_animation =
+  testGroup
+    "animation"
+    $ zip
+      [(1 :: Int) ..]
+      [ pfun Animate
+          `app` int 1
+          `app` lam
+            "t"
+            ( con
+                cColour
+                [ int 0
+                , int 255
+                , int 0
+                , con1 cCircle (int 30)
+                ]
+            )
+      , pfun Animate
+          `app` int 5
+          `app` lam
+            "t"
+            ( con1
+                cCompoundPicture
+                $ list_
+                  [ con
+                      cColour
+                      [ int 80
+                      , int 180
+                      , int 230
+                      , con
+                          cTranslate
+                          [ int (-35)
+                          , int 0
+                          , con1 cCompoundPicture
+                              $ list_
+                                [ con
+                                    cTranslate
+                                    [ int 7
+                                    , int 7
+                                    , con
+                                        cRotate
+                                        [ int (-45)
+                                        , con
+                                            cTranslate
+                                            [ int 0
+                                            , int (-25)
+                                            , con cRectangle [int 20, int 50]
+                                            ]
+                                        ]
+                                    ]
+                                , con
+                                    cRotate
+                                    [ int 45
+                                    , con cRectangle [int 20, int 80]
+                                    ]
+                                ]
+                          ]
+                      ]
+                  , con
+                      cColour
+                      [ int 180
+                      , int 0
+                      , int 0
+                      , con
+                          cTranslate
+                          [ int 35
+                          , int 0
+                          , con1 cCircle $ lvar "t"
+                          ]
+                      ]
+                  ]
+            )
+      ]
+    <&> \(n, expr) ->
+      goldenVsString (show n) ("test/outputs/eval/animation/" <> show n <> ".gif")
+        $ evalFullTest 0 types defs 10 Syn (create' expr)
+        <&> \case
+          Right (PrimCon _ (PrimAnimation (B64.decode . encodeUtf8 -> Right t))) -> toS t
+          e -> error $ show e
+  where
+    builtins = create' builtinModule
+    prims = create' primitiveModule
+    types = moduleTypesQualified builtins <> moduleTypesQualified prims
+    defs = moduleDefsQualified builtins <> moduleDefsQualified prims
 
 -- * Utilities
 

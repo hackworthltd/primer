@@ -34,6 +34,7 @@ data PrimDef
   | IntNeq
   | IntToNat
   | IntFromNat
+  | Animate
   | -- | Only for testing
     PrimConst
   deriving stock (Eq, Show, Read, Enum, Bounded, Data, Generic)
