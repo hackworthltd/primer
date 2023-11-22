@@ -352,95 +352,54 @@ unit_15 =
    in do
         s <- evalFullTest builtinTypes mempty Syn expr
         s @?= expected
---
---unit_map_hole :: Assertion
---unit_map_hole =
---  let n = 3
---      modName = mkSimpleModuleName "TestModule"
---      ((globals, expr, expected), maxID) = create $ do
---        (mapName, mapDef) <- Examples.map modName
---        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
---        e <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lst
---        let globs = [(mapName, mapDef)]
---        expect <- list_ (take n $ ((emptyHole `ann` (tcon tNat `tfun` tcon tBool)) `app`) <$> iterate (con1 cSucc) (con0 cZero)) `ann` (tcon tList `tapp` tcon tBool)
---        pure (M.fromList globs, e, expect)
---   in do
---        sO <- evalFullTest maxID builtinTypes globals 200 Syn expr
---        sO <~==> Right expected
---        sCG <- evalFullTestClosed GroupedLets maxID builtinTypes globals 200 Syn expr
---        sCG <~==> Right expected
---        sCS <- evalFullTestClosed SingleLets maxID builtinTypes globals 300 Syn expr
---        sCS <~==> Right expected
---
---unit_hole_ann_case :: Assertion
---unit_hole_ann_case =
---  let (tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
---   in do
---        t <- evalFullTest maxID builtinTypes mempty 1 Chk tm
---        t @?= Right tm
---
----- Check we don't have variable capture in
----- let x = y in case ? of C x -> x ; D y -> x
---unit_case_let_capture :: Assertion
---unit_case_let_capture =
---  let ((expr, steps, expected), maxID) = create $ do
---        let l = let_ "x" (lvar "y")
---        let w = "a66"
---        let z = "a69"
---        let rnx = let_ "x" (lvar w)
---        let rny = let_ "y" (lvar z)
---        e0 <-
---          l
---            $ case_
---              emptyHole
---              [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
---              , branch' (["M"], "D") [("y", Nothing)] (lvar "x")
---              ]
---        e1 <-
---          l
---            $ case_
---              emptyHole
---              [ branch' (["M"], "C") [(w, Nothing)] (rnx $ lvar "x")
---              , branch' (["M"], "D") [("y", Nothing)] (lvar "x")
---              ]
---        e2 <-
---          l
---            $ case_
---              emptyHole
---              [ branch' (["M"], "C") [(w, Nothing)] (rnx $ lvar "x")
---              , branch' (["M"], "D") [(z, Nothing)] (rny $ lvar "x")
---              ]
---        e3 <-
---          case_
---            emptyHole
---            [ branch' (["M"], "C") [(w, Nothing)] (rnx $ lvar "x")
---            , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
---            ]
---        e4 <-
---          case_
---            emptyHole
---            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
---            , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
---            ]
---        e5 <-
---          case_
---            emptyHole
---            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
---            , branch' (["M"], "D") [(z, Nothing)] (l $ lvar "x")
---            ]
---        e6 <-
---          case_
---            emptyHole
---            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
---            , branch' (["M"], "D") [(z, Nothing)] (lvar "y")
---            ]
---        pure (e0, [e0, e1, e2, e3, e4, e5, e6], e6)
---   in do
---        si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
---        zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
---        s <- evalFullTest maxID builtinTypes mempty (fromIntegral $ length steps) Syn expr
---        s <~==> Right expected
---
+
+unit_map_hole :: Assertion
+unit_map_hole =
+  let n = 3
+      modName = mkSimpleModuleName "TestModule"
+      ((globals, forgetMetadata -> expr,  forgetMetadata ->expected), maxID) = create $ do
+        (mapName, mapDef) <- Examples.map modName
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
+        e <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lst
+        let globs = [(mapName, mapDef)]
+        expect <- list_ (take n $ ((emptyHole `ann` (tcon tNat `tfun` tcon tBool)) `app`) <$> iterate (con1 cSucc) (con0 cZero)) `ann` (tcon tList `tapp` tcon tBool)
+        pure (M.fromList globs, e, expect)
+   in do
+        sO <- evalFullTest builtinTypes globals Syn expr
+        sO @?= expected
+
+unit_hole_ann_case :: Assertion
+unit_hole_ann_case =
+  let (forgetMetadata -> tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
+   in do
+        t <- evalFullTest builtinTypes mempty Chk tm
+        t @?= tm
+
+-- Check we don't have variable capture in
+-- let x = y in case ? of C x -> x ; D y -> x
+unit_case_let_capture :: Assertion
+unit_case_let_capture =
+  let ((forgetMetadata -> expr, forgetMetadata -> expected), maxID) = create $ do
+        let l = let_ "x" (lvar "y")
+        e0 <-
+          l
+            $ case_
+              emptyHole
+              [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+              , branch' (["M"], "D") [("y", Nothing)] (lvar "x")
+              ]
+        e6 <-
+          case_
+            emptyHole
+            [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+            , branch' (["M"], "D") [("y0", Nothing)] (lvar "y")
+            ]
+        pure (e0, e6)
+   in do
+        s <- evalFullTest builtinTypes mempty Syn expr
+        s @?= expected
+
+-- NB/TODO: can't do with interp as all tests timeout
 ---- We must evaluate inside the body of a let before the binding:
 ---- consider @let x = ((λy.t : A -> B) r) in letrec xs = s[x] : S in xs@
 ---- the two possible reductions are to inline the @letrec@s or to reduce the beta.
@@ -464,218 +423,123 @@ unit_15 =
 --        e2 <~==> Left (TimedOut expected2)
 --        e3 <- evalFullTest maxID builtinTypes mempty 3 Syn expr
 --        e3 <~==> Left (TimedOut expected3)
---
----- tlet x = C in D x x
-----   ==>
----- (tlet x = C in D x) (tlet x = C in x)
-----   ==>
----- D (tlet x = C in x) (tlet x = C in x)
-----   ==>
----- D C (tlet x = C in x)
-----   ==>
----- D C C
---unit_tlet :: Assertion
---unit_tlet =
---  let ((expr, expected), maxID) = create $ do
---        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x" `tapp` tvar "x")
---        e1 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
---        e2 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
---        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
---        e4 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
---        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4] ++ [Right e4])
---      test (n, expect) = do
---        r <- evalFullTest maxID mempty mempty n Syn expr
---        r <~==> expect
---   in mapM_ test (zip [0 ..] expected)
---
----- tlet x = C in ty ==> ty  when x not occur free in ty
---unit_tlet_elide :: Assertion
---unit_tlet_elide = do
---  let ((expr, expected), maxID) = create $ do
---        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D")
---        e1 <- ann emptyHole $ tcon' ["M"] "D"
---        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
---      test (n, expect) = do
---        r <- evalFullTest maxID mempty mempty n Syn expr
---        r <~==> expect
---   in mapM_ test (zip [0 ..] expected)
---
----- tlet x = x in x
----- x
---unit_tlet_self_capture :: Assertion
---unit_tlet_self_capture = do
---  let ((expr, expected), maxID) = create $ do
---        e0 <- ann emptyHole $ tlet "x" (tvar "x") $ tvar "x"
---        e1 <- ann emptyHole $ tvar "x"
---        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
---      test (n, expect) = do
---        r <- evalFullTest maxID mempty mempty n Syn expr
---        r <~==> expect
---   in mapM_ test (zip [0 ..] expected)
---
----- When doing closed eval (i.e. don't go under binders), pushing a @let@
----- through a binder is not considered to be "under" that binder, else
----- @(let x=t1 in λy.t2 : S -> T) t3@ would be stuck.
---unit_closed_let_beta :: Assertion
---unit_closed_let_beta =
---  let ((expr, expected), maxID) = create $ do
---        e0 <-
---          let_
---            "x"
---            (con0 cFalse `ann` tcon tBool)
---            ( lam "y" (con cCons [lvar "x", lvar "y"])
---                `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
---            )
---            `app` con0 cTrue
---        e1 <-
---          let_
---            "x"
---            (con0 cFalse `ann` tcon tBool)
---            ( lam
---                "y"
---                (con cCons [lvar "x", lvar "y"])
---            )
---            `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
---            `app` con0 cTrue
---        e2 <-
---          lam
---            "y"
---            ( let_
---                "x"
---                (con0 cFalse `ann` tcon tBool)
---                (con cCons [lvar "x", lvar "y"])
---            )
---            `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
---            `app` con0 cTrue
---        e3 <-
---          let_
---            "y"
---            (con0 cTrue `ann` tcon tBool)
---            ( let_
---                "x"
---                (con0 cFalse `ann` tcon tBool)
---                (con cCons [lvar "x", lvar "y"])
---            )
---            `ann` (tcon tList `tapp` tcon tBool)
---        e4 <-
---          con
---            cCons
---            [ let_
---                "x"
---                (con0 cFalse `ann` tcon tBool)
---                (lvar "x")
---            , let_
---                "y"
---                (con0 cTrue `ann` tcon tBool)
---                (lvar "y")
---            ]
---            `ann` (tcon tList `tapp` tcon tBool)
---        e5 <-
---          con
---            cCons
---            [ con0 cFalse `ann` tcon tBool
---            , let_
---                "y"
---                (con0 cTrue `ann` tcon tBool)
---                (lvar "y")
---            ]
---            `ann` (tcon tList `tapp` tcon tBool)
---        e6 <-
---          con
---            cCons
---            [ con0 cFalse
---            , let_
---                "y"
---                (con0 cTrue `ann` tcon tBool)
---                (lvar "y")
---            ]
---            `ann` (tcon tList `tapp` tcon tBool)
---        e7 <-
---          con
---            cCons
---            [ con0 cFalse
---            , con0 cTrue `ann` tcon tBool
---            ]
---            `ann` (tcon tList `tapp` tcon tBool)
---        e8 <-
---          con
---            cCons
---            [ con0 cFalse
---            , con0 cTrue
---            ]
---            `ann` (tcon tList `tapp` tcon tBool)
---        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5, e6, e7, e8] ++ [Right e8])
---      test (n, expect) = do
---        r <- evalFullTestClosed GroupedLets maxID mempty mempty n Syn expr
---        r <~==> expect
---   in mapM_ test (zip [0 ..] expected)
---
----- Closed eval and handling groups of @let@s singlely work together
---unit_closed_single_lets :: Assertion
---unit_closed_single_lets =
---  let ((expr, expected), maxID) = create $ do
---        e0 <-
---          let_ "x" (con0 cFalse)
---            $ let_ "y" (con0 cTrue)
---            $ con
---              cMakePair
---              [ lvar "x"
---              , lvar "y"
---              ]
---        e1 <-
---          let_ "x" (con0 cFalse)
---            $ con
---              cMakePair
---              [ lvar "x"
---              , let_ "y" (con0 cTrue) $ lvar "y"
---              ]
---        e2 <-
---          con
---            cMakePair
---            [ let_ "x" (con0 cFalse) $ lvar "x"
---            , let_ "y" (con0 cTrue) $ lvar "y"
---            ]
---        e3 <-
---          con
---            cMakePair
---            [ con0 cFalse
---            , let_ "y" (con0 cTrue) $ lvar "y"
---            ]
---        e4 <-
---          con
---            cMakePair
---            [ con0 cFalse
---            , con0 cTrue
---            ]
---        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4] ++ [Right e4])
---      test (n, expect) = do
---        r <- evalFullTestClosed SingleLets maxID mempty mempty n Syn expr
---        r <~==> expect
---   in mapM_ test (zip [0 ..] expected)
---
----- One reason for not evaluating under binders is to avoid a size blowup when
----- evaluating a recursive definition. For example, the unsaturated
----- `map @Bool @Bool not` would keep unrolling the recursive mentions of `map`.
----- (If it were applied to a concrete list, the beta redexes would be reduced instead.)
----- Since top-level definitions and recursive lets are essentially the same, one may
----- worry that we have the same issue with @letrec@. This test shows that closed eval
----- handles that case also.
---unit_closed_letrec_binder :: Assertion
---unit_closed_letrec_binder =
---  let ((expr, expected), maxID) = create $ do
---        e0 <-
---          letrec "x" (list_ [lvar "x", lvar "x"]) (tcon tBool)
---            $ lam "y"
---            $ lvar "x"
---        e1 <-
---          lam "y"
---            $ letrec "x" (list_ [lvar "x", lvar "x"]) (tcon tBool)
---            $ lvar "x"
---        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
---      test (n, expect) = do
---        r <- evalFullTestClosed GroupedLets maxID mempty mempty n Syn expr
---        r <~==> expect
---   in mapM_ test (zip [0 ..] expected)
+
+-- TODO: revisit comment -- we only check final result
+-- tlet x = C in D x x
+--   ==>
+-- (tlet x = C in D x) (tlet x = C in x)
+--   ==>
+-- D (tlet x = C in x) (tlet x = C in x)
+--   ==>
+-- D C (tlet x = C in x)
+--   ==>
+-- D C C
+unit_tlet :: Assertion
+unit_tlet =
+  let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x" `tapp` tvar "x")
+        e4 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
+        pure (e0, e4)
+   in do
+        r <- evalFullTest mempty mempty Syn expr
+        r @?= expected
+
+-- tlet x = C in ty ==> ty  when x not occur free in ty
+unit_tlet_elide :: Assertion
+unit_tlet_elide = do
+  let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D")
+        e1 <- ann emptyHole $ tcon' ["M"] "D"
+        pure (e0, e1)
+   in do
+        r <- evalFullTest mempty mempty Syn expr
+        r @?= expected
+
+-- tlet x = x in x
+-- x
+unit_tlet_self_capture :: Assertion
+unit_tlet_self_capture = do
+  let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tvar "x") $ tvar "x"
+        e1 <- ann emptyHole $ tvar "x"
+        pure (e0, e1)
+   in do
+        r <- evalFullTest mempty mempty Syn expr
+        r @?= expected
+
+-- TODO: only checking final result, not each step
+-- When doing closed eval (i.e. don't go under binders), pushing a @let@
+-- through a binder is not considered to be "under" that binder, else
+-- @(let x=t1 in λy.t2 : S -> T) t3@ would be stuck.
+unit_closed_let_beta :: Assertion
+unit_closed_let_beta =
+  let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
+        e0 <-
+          let_
+            "x"
+            (con0 cFalse `ann` tcon tBool)
+            ( lam "y" (con cCons [lvar "x", lvar "y"])
+                `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
+            )
+            `app` con0 cTrue
+        e8 <-
+          con
+            cCons
+            [ con0 cFalse
+            , con0 cTrue
+            ]
+            `ann` (tcon tList `tapp` tcon tBool)
+        pure (e0, e8)
+   in do
+        r <- evalFullTest mempty mempty Syn expr
+        r @?= expected
+
+-- TODO: only check final result
+-- Closed eval and handling groups of @let@s singlely work together
+unit_closed_single_lets :: Assertion
+unit_closed_single_lets =
+  let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
+        e0 <-
+          let_ "x" (con0 cFalse)
+            $ let_ "y" (con0 cTrue)
+            $ con
+              cMakePair
+              [ lvar "x"
+              , lvar "y"
+              ]
+        e4 <-
+          con
+            cMakePair
+            [ con0 cFalse
+            , con0 cTrue
+            ]
+        pure (e0, e4)
+   in do
+        r <- evalFullTest  mempty mempty Syn expr
+        r @?= expected
+
+-- One reason for not evaluating under binders is to avoid a size blowup when
+-- evaluating a recursive definition. For example, the unsaturated
+-- `map @Bool @Bool not` would keep unrolling the recursive mentions of `map`.
+-- (If it were applied to a concrete list, the beta redexes would be reduced instead.)
+-- Since top-level definitions and recursive lets are essentially the same, one may
+-- worry that we have the same issue with @letrec@. This test shows that closed eval
+-- handles that case also.
+unit_closed_letrec_binder :: Assertion
+unit_closed_letrec_binder =
+  let ((forgetMetadata -> expr, forgetMetadata -> expected), maxID) = create $ do
+        e0 <-
+          letrec "x" (list_ [lvar "x", lvar "x"]) (tcon tBool)
+            $ lam "y"
+            $ lvar "x"
+        e1 <-
+          lam "y"
+            $ letrec "x" (list_ [lvar "x", lvar "x"]) (tcon tBool)
+            $ lvar "x"
+        pure (e0, e1)
+   in do
+        r <- evalFullTest  mempty mempty Syn expr
+        r @?= expected
 --
 ---- closed eval stops at binders
 --unit_closed_binders :: Assertion
