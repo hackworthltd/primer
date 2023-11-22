@@ -47,12 +47,14 @@ import Diagrams.Backend.Rasterific (
 import Diagrams.Prelude (
   Diagram,
   V2 (..),
+  black,
   circle,
   deg,
   fillColor,
   lineWidth,
   mkP2,
   mkSizeSpec,
+  recommendFillColor,
   rect,
   rectEnvelope,
   renderDia,
@@ -402,7 +404,7 @@ primFunDef def args = case def of
       Con _ c [x] | c == cSucc -> succ <$> exprToNat x
       _ -> Nothing
     exprToDiagram e =
-      exprToPicture e <&> fix \f -> \case
+      exprToPicture e <&> recommendFillColor black . fix \f -> \case
         Circle r ->
           if r == 0 -- `diagrams` crashes with a divide-by-zero if we don't catch this case
             then mempty
