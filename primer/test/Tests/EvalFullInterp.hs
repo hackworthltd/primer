@@ -216,28 +216,15 @@ unit_6 =
 -- minimise unit_8, has a 'the key "f" was not in the map'
 unit_tmp :: Assertion
 unit_tmp =
-  let n = 1
-      modName = mkSimpleModuleName "TestModule"
-      ((globals, e, expected), id) = create $ do
-        let mapName = qualifyName modName "map"
-        mapTy <- (tcon tNat `tfun` tcon tBool)
-          `tfun` ((tcon tNat)
-          `tfun`  (tcon tBool))
-        mapTm <-
-              lam "f"
-            $ lam "x" -- if I remove this lambda (and the corresponding application), the bug goes away
-                  (lvar "f" `app` con0 cZero)
-        let mapDef = DefAST $ ASTDef mapTm mapTy
-        let fooName = qualifyName modName "foo"
-        fooTy <- tcon tNat `tfun` tcon tNat
-        fooTm <- lam "x" $ lvar "x"
-        let fooDef = DefAST $ ASTDef fooTm fooTy
-        expr <- gvar mapName `app` gvar fooName `app` con0 cZero
-        let globs = M.fromList [(mapName, mapDef), (fooName, fooDef)]
-        expect <- con0 cZero
-        pure (globs, expr, expect)
+          -- (\x y . x : Nat -> Bool -> Nat) 0 True
+  let e = App () (App () (Ann ()
+                              (Lam () "x" $ Lam () "y" $ Var () $ LocalVarRef "x")
+                              (TFun () (TCon () tNat) (TFun () (TCon () tBool) (TCon () tNat))))
+                         (Con () cZero []))
+                 (Con () cTrue [])
+      expected = Ann () (Con () cZero []) (TCon () tNat)
    in do
-        s <- evalFullTest builtinTypes globals Syn (forgetMetadata e)
+        s <- evalFullTest builtinTypes mempty Syn (forgetMetadata e)
         s @?= forgetMetadata expected
 
 
