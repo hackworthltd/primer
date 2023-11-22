@@ -5,6 +5,7 @@ module Benchmarks (benchmarks, runBenchmarks, runTests) where
 
 import Foreword
 
+import qualified Data.Map as Map
 import Control.Monad.Log (
   Severity (..),
   WithSeverity (..),
@@ -25,14 +26,11 @@ import Primer.Eval (
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
-import Primer.EvalFullStep qualified as EFStep (
+import Primer.EvalFullStep qualified as EFStep
+import Primer.EvalFullStep (
   Dir (Syn),
-  EvalLog,
-  evalFull,
  )
-import Primer.EvalFullInterp qualified as EFInterp (
-  evalFull,
- )
+import Primer.EvalFullInterp qualified as EFInterp
 import Primer.Examples (
   mapOddPrimProg,
   mapOddProg,
@@ -55,6 +53,9 @@ import Primer.Test.Util (zeroIDs)
 import Primer.Typecheck (TypeError)
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, testCase, (@?=))
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
+import Primer.Def (defAST, Def (DefAST), ASTDef (ASTDef))
+import Primer.Core (Expr'(Ann))
 
 -- Orphans for 'NFData' instances.
 deriving stock instance Generic (WithSeverity a)
@@ -83,22 +84,22 @@ benchmarks =
       [ Group
           "pure logs"
           [ benchExpectedPureLogsStep (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedPureLogsInterp (mapEvenEnv 1) "mapEven 1" 100
           , benchExpectedPureLogsStep (mapEvenEnv 10) "mapEven 10" 1000
-          , benchExpectedPureLogsInterp (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
           , benchExpectedPureLogsStep (mapEvenEnv 100) "mapEven 100" 10000
-          , benchExpectedPureLogsInterp (mapEvenEnv 100) "mapEven 100" 10000
           ]
       , Group
           "discard logs"
           [ benchExpectedDiscardLogsStep (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedDiscardLogsInterp (mapEvenEnv 1) "mapEven 1" 100
           , benchExpectedDiscardLogsStep (mapEvenEnv 10) "mapEven 10" 1000
-          , benchExpectedDiscardLogsInterp (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
           , benchExpectedDiscardLogsStep (mapEvenEnv 100) "mapEven 100" 10000
-          , benchExpectedDiscardLogsInterp (mapEvenEnv 100) "mapEven 100" 10000
+          ]
+      , Group
+          "interp (has no logs)"
+          [ benchExpectedInterp (mapEvenEnv 1) "mapEven 1" Syn
+          , benchExpectedInterp (mapEvenEnv 10) "mapEven 10" Syn
+          , benchExpectedInterp (mapEvenEnv 100) "mapEven 100" Syn
           ]
       ]
   , Group
@@ -118,19 +119,18 @@ benchmarks =
     evalTestMPureLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runPureLogT
-        $ EFStep.evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+        $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMDiscardLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runDiscardLogT
-        $ EFStep.evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
-    evalTestMPureLogsInterp e maxEvals =
-      evalTestM (maxID e)
-        $ runPureLogT
-        $ EFInterp.evalFull builtinTypes (defMap e) maxEvals Syn (expr e)
-    evalTestMDiscardLogsInterp e maxEvals =
-      evalTestM (maxID e)
-        $ runDiscardLogT
-        $ EFInterp.evalFull builtinTypes (defMap e) maxEvals Syn (expr e)
+        $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+    evalTestMInterp e d =
+        EFInterp.interp builtinTypes (mkEnv $ defMap e) d (forgetMetadata $ expr e)
+    mkEnv defs = EFInterp.mkEnv (mapMaybe (\(f,d) -> case d of
+        -- TODO: DRY with testsuite (maybe expose evalFull from interp module?
+           DefAST (ASTDef tm ty) -> Just (Left f, Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
+           _ -> Nothing)
+               $ Map.assocs defs) mempty
 
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF
@@ -138,10 +138,16 @@ benchmarks =
         b
         (pure $ (@?= Right (zeroIDs $ expectedResult e')) . fmap zeroIDs . g)
 
+    -- TODO: a hack as interp works on un-metadata'd stuff
+    benchExpected' f e n b = EnvBench e n $ \e' ->
+      NF
+        (f e')
+        b
+        (pure $ (@?= (forgetMetadata $ expectedResult e')))
+
     benchExpectedPureLogsStep = benchExpected evalTestMPureLogsStep fst
     benchExpectedDiscardLogsStep = benchExpected evalTestMDiscardLogsStep identity
-    benchExpectedPureLogsInterp = benchExpected evalTestMPureLogsInterp fst
-    benchExpectedDiscardLogsInterp = benchExpected evalTestMDiscardLogsInterp identity
+    benchExpectedInterp = benchExpected' evalTestMInterp
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
