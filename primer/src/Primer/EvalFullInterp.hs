@@ -140,7 +140,9 @@ interp tydefs env@(envTm,envTy) dir = \case
   Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env Syn e) env) dir b
   LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) dir b
   Letrec _ v e t b  -> let e' = interp tydefs env' Chk e
-                           env' = extendTmEnv (Right v) (Ann () e' $ interpTy envTy t) env
+                           env' = extendTmEnvWithFVs (Right v) (Ann () e' $ interpTy envTy t)
+                                                     (Set.delete (unLocalName v) $ freeVars (Ann () e t))
+                                                     env
                        in interp tydefs env' dir b
   -- In step interpreter, case which does not discriminate is lazy. Same here for consistency
   Case _ _ [] (CaseFallback e) -> interp tydefs env Chk e
@@ -225,10 +227,24 @@ extendTmEnv :: Either GVarName LVarName
             -> (EnvTm, EnvTy)
 extendTmEnv k v = extendTmsEnv [(k,v)]
 
+extendTmEnvWithFVs :: Either GVarName LVarName
+            -> Expr' () () ()
+            -> Set Name
+            -> (EnvTm, EnvTy)
+            -> (EnvTm, EnvTy)
+extendTmEnvWithFVs k v fvs = extendTmsEnvWithFVs [(k,v,fvs)]
+
 extendTmsEnv :: [(Either GVarName LVarName ,Expr' () () ())]
             -> (EnvTm, EnvTy)
             -> (EnvTm, EnvTy)
-extendTmsEnv tms (envTm, envTy) = (EnvTm {vars = envTm.vars <> Set.unions (freeVars . snd <$> tms), env = Map.fromList tms <> envTm.env}, envTy)
+extendTmsEnv tms = extendTmsEnvWithFVs $ (\(v,t) -> (v,t,freeVars t)) <$> tms
+
+extendTmsEnvWithFVs :: [(Either GVarName LVarName ,Expr' () () (), Set Name)]
+            -> (EnvTm, EnvTy)
+            -> (EnvTm, EnvTy)
+extendTmsEnvWithFVs tms (envTm, envTy) = (EnvTm {vars = envTm.vars <> Set.unions ((\(_,_,fvs) -> fvs) <$> tms)
+                 , env = Map.fromList ((\(x,y,_) -> (x,y)) <$> tms) <> envTm.env}
+    , envTy)
 
 extendTyEnv' :: TyVarName
             -> Type' () ()
