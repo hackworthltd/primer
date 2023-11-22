@@ -125,7 +125,7 @@ benchmarks =
         $ runDiscardLogT
         $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMInterp e d =
-        EFInterp.interp builtinTypes (mkEnv $ defMap e) d (forgetMetadata $ expr e)
+        EFInterp.interp EFInterp.BRDNone builtinTypes (mkEnv $ defMap e) d (forgetMetadata $ expr e)
     mkEnv defs = EFInterp.mkEnv (mapMaybe (\(f,d) -> case d of
         -- TODO: DRY with testsuite (maybe expose evalFull from interp module?
            DefAST (ASTDef tm ty) -> Just (Left f, Ann () (forgetMetadata tm) (forgetTypeMetadata ty))

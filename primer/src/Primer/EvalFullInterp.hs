@@ -4,6 +4,7 @@
 
 module Primer.EvalFullInterp (
     interp
+    , BetaRecursionDepth(..)
     {-
   Dir (..),
   EvalFullError (..),
@@ -104,28 +105,38 @@ data EnvTy = EnvTy
 mkEnv :: [(Either GVarName LVarName, Expr' a b c)] -> [(TyVarName,Type' a b)] -> (EnvTm, EnvTy)
 mkEnv tms tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempty, extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty)
 
+data BetaRecursionDepth
+  = BRDNone
+  | BRDLim Int
+
+betaRecursionDepthPred :: BetaRecursionDepth -> BetaRecursionDepth
+betaRecursionDepthPred = \case
+  BRDNone -> BRDNone
+  BRDLim n -> BRDLim (pred n)
+
 -- we keep type annotations around ??
 -- TODO: worry about name capture!
-interp :: TypeDefMap
+interp :: BetaRecursionDepth -> TypeDefMap
         -> (EnvTm, EnvTy)
         -> Dir
         -> Expr' () () () -> Expr' () () ()
-interp tydefs env@(envTm,envTy) dir = \case
-  Hole m e -> Hole m $ interp tydefs env Syn e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
+interp (BRDLim ((<0) -> True)) tydefs env@(envTm,envTy) dir = \_ -> error "timeout" -- TODO: proper error?
+interp brd tydefs env@(envTm,envTy) dir = \case
+  Hole m e -> Hole m $ interp brd tydefs env Syn e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
   e@EmptyHole{} -> e
-  Ann _ e t -> ann dir (interp tydefs env Chk e) (interpTy envTy t)
-  App _ f s -> case interp tydefs env Syn f of
+  Ann _ e t -> ann dir (interp brd tydefs env Chk e) (interpTy envTy t)
+  App _ f s -> case interp (betaRecursionDepthPred brd) tydefs env Syn f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
-       ann dir (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env Chk s) src)] env) Chk t) tgt
-     f' -> App () f' (interp tydefs env Chk s)
-  APP _ f s -> case interp tydefs env Syn f of
+       ann dir (interp (betaRecursionDepthPred brd) tydefs (extendTmsEnv [(Right v,Ann () (interp (betaRecursionDepthPred brd) tydefs env Chk s) src)] env) Chk t) tgt
+     f' -> App () f' (interp brd tydefs env Chk s)
+  APP _ f s -> case interp (betaRecursionDepthPred brd) tydefs env Syn f of
      Ann _ (LAM _ a t) (TForall _ b _ ty) ->
        let s' = interpTy envTy s
-       in ann dir (interp tydefs (extendTyEnv a s' env) Chk t)
+       in ann dir (interp (betaRecursionDepthPred brd) tydefs (extendTyEnv a s' env) Chk t)
                  (interpTy (extendTyEnv' b s' envTy) ty)
      f' -> APP () f' (interpTy envTy s)
-  Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
-  Lam _ v t -> let v' = freshLike v env in Lam () v' $ interp tydefs (renameTmEnv v v' env) Chk t
+  Con m c ts -> Con m c $ map (interp brd tydefs env Chk) ts
+  Lam _ v t -> let v' = freshLike v env in Lam () v' $ interp brd tydefs (renameTmEnv v v' env) Chk t
   -- TODO: we did not used to go under lambdas, but now do. Why did we not use to?
   --   (must do now as for @(λx.(λy.x) : A -> B -> A) s t@ we will
   --   interp @λy.x@ in context where @x:->t@, and this is the only time we have @x@ in the context!!
@@ -133,42 +144,42 @@ interp tydefs env@(envTm,envTy) dir = \case
   --   NBE avoids this by freshening when reifying
   --   can we avoid by just refusing to go under such shadow-y lambdas?
   --   (i.e. for a closed term, do we believe this will never happen?)
-  LAM _ v t -> let v' = freshLike v env in LAM () v' $ interp tydefs (extendTyEnv v (TVar () v') env) Chk t
+  LAM _ v t -> let v' = freshLike v env in LAM () v' $ interp brd tydefs (extendTyEnv v (TVar () v') env) Chk t
   Var _ (LocalVarRef v) -> upsilon dir $ envTm.env ! Right v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   Var _ (GlobalVarRef v) -> upsilon dir $ envTm.env ! Left v -- THIS KINDA NEEDS ENVIRONMENT TO BE TO NF
   -- TODO: deal with primitives!
-  Let _ v e b -> interp tydefs (extendTmEnv (Right v) (interp tydefs env Syn e) env) dir b
-  LetType _ v t b -> interp tydefs (extendTyEnv v (interpTy envTy t) env) dir b
-  Letrec _ v e t b  -> let e' = interp tydefs env' Chk e
+  Let _ v e b -> interp brd tydefs (extendTmEnv (Right v) (interp brd tydefs env Syn e) env) dir b
+  LetType _ v t b -> interp brd tydefs (extendTyEnv v (interpTy envTy t) env) dir b
+  Letrec _ v e t b  -> let e' = interp brd tydefs env' Chk e
                            env' = extendTmEnvWithFVs (Right v) (Ann () e' $ interpTy envTy t)
                                                      (Set.delete (unLocalName v) $ freeVars (Ann () e t))
                                                      env
-                       in interp tydefs env' dir b
+                       in interp brd tydefs env' dir b
   -- In step interpreter, case which does not discriminate is lazy. Same here for consistency
-  Case _ _ [] (CaseFallback e) -> interp tydefs env Chk e
+  Case _ _ [] (CaseFallback e) -> interp brd tydefs env Chk e
   Case _ e brs fb -> -- this relies on @e@ computing to normal form lazily
 -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
-   case interp tydefs env Syn e of
+   case interp (betaRecursionDepthPred brd) tydefs env Syn e of
      Ann _ (Con _ c as) (decomposeTAppCon -> Just (tycon, tyargs))
        | Just (CaseBranch _ xs t) <- find ((PatCon c ==) . caseBranchName) brs ->
          let envTy' = extendTysEnv' (tyParamEnvExt tycon tyargs) envTy
-         in interp tydefs (extendTmsEnv (zip (Right . bindName <$> xs)
+         in interp (betaRecursionDepthPred brd) tydefs (extendTmsEnv (zip (Right . bindName <$> xs)
                               $ zipWith (\a argTy -> Ann () a $ interpTy envTy' argTy) as $ ctorArgTys tycon c)
                               env) Chk
                          t
-       | CaseFallback t <- fb -> interp tydefs env Chk t
+       | CaseFallback t <- fb -> interp (betaRecursionDepthPred brd) tydefs env Chk t
        | otherwise -> error "no such branch"
      Ann _ (PrimCon _ c) ty
-       | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp tydefs env Chk t
-       | CaseFallback t <- fb -> interp tydefs env Chk t
+       | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp (betaRecursionDepthPred brd) tydefs env Chk t
+       | CaseFallback t <- fb -> interp (betaRecursionDepthPred brd) tydefs env Chk t
        | otherwise -> error "no such branch"
      e' -> let f = \case
                  CaseBranch pat binds rhs ->
                    let (env',binds') = mapAccumL (\env'' (bindName -> b) -> let b' = freshLike b env'' in (renameTmEnv b b' env'', Bind () b'))
                                          env binds
                    in
-                     CaseBranch pat binds' $ interp tydefs env' Chk rhs
-           in Case () e' (f <$> brs) (mapFallback (interp tydefs env Chk) fb)
+                     CaseBranch pat binds' $ interp brd tydefs env' Chk rhs
+           in Case () e' (f <$> brs) (mapFallback (interp brd tydefs env Chk) fb)
   e@PrimCon{} -> e
  where
    -- todo DRY with Redex/viewCaseRedex (and DRY stuff above with other redex stuff??)
