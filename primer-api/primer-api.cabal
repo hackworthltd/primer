@@ -13,6 +13,7 @@ category:      API
 library
   exposed-modules:
     Primer.API
+    Primer.API.EdgeFlavor
     Primer.API.NodeFlavor
     Primer.API.RecordPair
 

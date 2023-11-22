@@ -114,6 +114,27 @@
                 ],
                 "type": "object"
             },
+            "EdgeFlavor": {
+                "enum": [
+                    "Hole",
+                    "AnnTerm",
+                    "Ann",
+                    "AppFun",
+                    "AppArg",
+                    "ConField",
+                    "Lam",
+                    "LetEqual",
+                    "LetIn",
+                    "MatchInput",
+                    "Pattern",
+                    "MatchOutput",
+                    "FunIn",
+                    "FunOut",
+                    "ForallKind",
+                    "Forall"
+                ],
+                "type": "string"
+            },
             "EvalFullResp": {
                 "oneOf": [
                     {
@@ -718,6 +739,21 @@
                 ],
                 "type": "object"
             },
+            "RecordPair_EdgeFlavor_Tree": {
+                "properties": {
+                    "fst": {
+                        "$ref": "#/components/schemas/EdgeFlavor"
+                    },
+                    "snd": {
+                        "$ref": "#/components/schemas/Tree"
+                    }
+                },
+                "required": [
+                    "fst",
+                    "snd"
+                ],
+                "type": "object"
+            },
             "RecordPair_NodeFlavorBoxBody_Tree": {
                 "properties": {
                     "fst": {
@@ -832,7 +868,7 @@
                     },
                     "childTrees": {
                         "items": {
-                            "$ref": "#/components/schemas/Tree"
+                            "$ref": "#/components/schemas/RecordPair_EdgeFlavor_Tree"
                         },
                         "type": "array"
                     },
@@ -840,7 +876,7 @@
                         "type": "string"
                     },
                     "rightChild": {
-                        "$ref": "#/components/schemas/Tree"
+                        "$ref": "#/components/schemas/RecordPair_EdgeFlavor_Tree"
                     }
                 },
                 "required": [
