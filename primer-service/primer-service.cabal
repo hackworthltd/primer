@@ -165,7 +165,7 @@ executable primer-openapi
     , bytestring
     , primer-service
 
-test-suite service-test
+test-suite primer-service-test
   type:               exitcode-stdio-1.0
   main-is:            Test.hs
   hs-source-dirs:     test
