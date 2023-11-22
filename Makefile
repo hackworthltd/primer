@@ -12,6 +12,9 @@ $(targets):
 	$(MAKE) -C primer-service $@
 	$(MAKE) -C primer-benchmark $@
 
+wasm32-update:
+	wasm32-wasi-cabal update
+
 wasm32 = wasm32-build wasm32-configure wasm32-check wasm32-test wasm32-clean
 
 $(wasm32):
