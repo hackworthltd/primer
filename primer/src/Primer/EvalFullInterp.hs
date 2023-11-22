@@ -94,13 +94,13 @@ interp tydefs env@(envTm,envTy) dir = \case
   App _ f s -> case interp tydefs env Syn f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
        ann dir (interp tydefs (extendTmsEnv [(Right v,Ann () (interp tydefs env Chk s) src)] env) Chk t) tgt
-     _ -> error "bad App"
+     f' -> App () f' (interp tydefs env Chk s)
   APP _ f s -> case interp tydefs env Syn f of
      Ann _ (LAM _ a t) (TForall _ b _ ty) ->
        let s' = interpTy envTy s
        in ann dir (interp tydefs (extendTyEnv a s' env) Chk t)
                  (interpTy (extendTyEnv' b s' envTy) ty)
-     _ -> error "bad APP"
+     f' -> APP () f' (interpTy envTy s)
   Con m c ts -> Con m c $ map (interp tydefs env Chk) ts
   Lam _ v t -> Lam () v $ interp tydefs (extendTmsIdEnv [v] env) Chk t
   -- TODO: we did not used to go under lambdas, but now do. Why did we not use to?
