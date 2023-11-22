@@ -34,7 +34,7 @@ import Primer.Builtins (
   tList,
   tMaybe,
   tNat,
-  tPair,
+  tPair, cNil,
  )
 import Primer.Builtins.DSL (boolAnn, bool_, list_, nat)
 import Primer.Core
@@ -219,15 +219,30 @@ unit_tmp =
   let n = 1
       modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), id) = create $ do
-        (mapName, mapDef) <- Examples.map modName
-        (evenName, evenDef) <- Examples.even modName
-        (oddName, oddDef) <- Examples.odd modName
+        let mapName = qualifyName modName "map"
+        mapTy <- tforall "a" ktype $ tforall "b" ktype $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon tList `tapp` tvar "a") `tfun` (tcon tList `tapp` tvar "b"))
+        mapTm <-
+          lAM "a"
+            $ lAM "b"
+            $ lam "f"
+            $ lam "xs"
+            $ case_
+              (lvar "xs")
+              [ branch cNil []
+                  $ con cNil []
+              , branch cCons [("y", Nothing), ("ys", Nothing)]
+                  $ con cCons [lvar "f" `app` lvar "y", gvar mapName `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
+              ]
+        let mapDef = DefAST $ ASTDef mapTm mapTy
+        let fooName = qualifyName modName "foo"
+        fooTy <- tcon tNat `tfun` tcon tNat
+        fooTm <- lam "x" $ lvar "x"
+        let fooDef = DefAST $ ASTDef fooTm fooTy
         let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
-        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
-        let globs = M.fromList [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
+        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar fooName `app` lst
+        let globs = M.fromList [(mapName, mapDef), (fooName, fooDef)]
         expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
-   -- in Expected globals e id expected
    in do
         s <- evalFullTest builtinTypes globals Syn (forgetMetadata e)
         s @?= forgetMetadata expected
