@@ -163,7 +163,7 @@ interpTy env = \case
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
   TVar _ v -> env ! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
-  t@TForall{} -> t -- don't go under binders. TODO: this can give wrong answers as with not going under lambdas
+  TForall _ v k t -> TForall () v k (interpTy (extendTyEnv' v (TVar () v) env) t)
   TLet _ v s t -> interpTy (extendTyEnv' v s env) t
 
 -- CONFUSED: how do I do to WHNF so can terminate when do `fst (3, letrec x = x in x)`
