@@ -213,25 +213,26 @@ unit_6 =
 --        s <- evalFullTest mempty mempty Syn e
 --        s @?= e
 
--- was trying to minimise unit_8, but seem to have hit a different bug
+-- minimise unit_8, has a 'the key "f" was not in the map'
 unit_tmp :: Assertion
 unit_tmp =
   let n = 1
       modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), id) = create $ do
         let mapName = qualifyName modName "map"
-        mapTy <- tforall "a" ktype $ tforall "b" ktype $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon tList `tapp` tvar "a") `tfun` (tcon tList `tapp` tvar "b"))
+        mapTy <- (tcon tNat `tfun` tcon tBool)
+          `tfun` ((tcon tList `tapp` tcon tNat)
+          `tfun`  (tcon tList `tapp` tcon tBool))
         mapTm <-
-          lAM "a"
-            $ lAM "b"
-            $ lam "f"
-            $ lam "xs"
+              lam "f"
+            $ lam "xs" -- if I remove this lambda (and the corresponding application), the bug goes away
             $ case_
-              (lvar "xs")
+              --(lvar "xs")
+              (con cCons [con0 cZero, con0 cNil] `ann` (tcon tList `tapp` tcon tNat))
               [ branch cNil []
                   $ con cNil []
               , branch cCons [("y", Nothing), ("ys", Nothing)]
-                  $ con cCons [lvar "f" `app` lvar "y", gvar mapName `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
+                  $ con cCons [lvar "f" `app` lvar "y", con0 cNil]
               ]
         let mapDef = DefAST $ ASTDef mapTm mapTy
         let fooName = qualifyName modName "foo"
@@ -239,7 +240,7 @@ unit_tmp =
         fooTm <- lam "x" $ lvar "x"
         let fooDef = DefAST $ ASTDef fooTm fooTy
         let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
-        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar fooName `app` lst
+        expr <- gvar mapName `app` gvar fooName `app` lst
         let globs = M.fromList [(mapName, mapDef), (fooName, fooDef)]
         expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
