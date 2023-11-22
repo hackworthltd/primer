@@ -426,7 +426,7 @@
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.primer-sqitch
                     ];
-                    packages.primer-service.components.tests.service-test.build-tools = [
+                    packages.primer-service.components.tests.primer-service-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.primer-sqitch
                     ];
@@ -442,7 +442,7 @@
                     {
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-service.components.tests.service-test.testFlags = hide-successes ++ size-cutoff;
+                      packages.primer-service.components.tests.primer-service-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-selda.components.tests.primer-selda-test.testFlags = hide-successes;
                       packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
