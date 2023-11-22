@@ -143,9 +143,9 @@ interp tydefs env@(envTm,envTy) dir = \case
   e@PrimCon{} -> e
  where
    -- todo DRY with Redex/viewCaseRedex (and DRY stuff above with other redex stuff??)
-   tyParamEnvExt tcon args = let (TypeDefAST (ASTTypeDef ps _ _)) = tydefs ! tcon
+   tyParamEnvExt tcon args = let (TypeDefAST (ASTTypeDef ps _ _)) = tydefs Map.! tcon
                              in zipWith (\(p,_) a -> (p,a)) ps args
-   ctorArgTys tcon vcon = let (TypeDefAST (ASTTypeDef _ as _)) = tydefs ! tcon
+   ctorArgTys tcon vcon = let (TypeDefAST (ASTTypeDef _ as _)) = tydefs Map.! tcon
                               Just vc = find ((== vcon) . valConName) as
                           in valConArgs vc
    ann d e t = upsilon d $ Ann () e t
@@ -165,7 +165,7 @@ interpTy env = \case
   THole _ t -> THole () $ interpTy env t
   t@TCon{} -> t
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
-  TVar _ v -> env ! v
+  TVar _ v -> env !! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
   TForall _ v k t -> TForall () v k (interpTy (extendTyEnv' v (TVar () v) env) t)
   TLet _ v s t -> interpTy (extendTyEnv' v s env) t
@@ -202,7 +202,14 @@ extendTyEnv :: TyVarName
             -> (Map.Map (Either GVarName LVarName) (Expr' a b c), Map.Map TyVarName (Type' b c))
 extendTyEnv k v (envTm, envTy) = (envTm, extendTyEnv' k v envTy)
 
-(!) :: (Ord k, Show k, HasCallStack) => Map k v -> k -> v
+(!) :: Map.Map (Either GVarName LVarName) (Expr' () () ()) -> Either GVarName LVarName -> Expr' () () ()
 m ! k = case Map.lookup k m of
   Just v -> v
-  Nothing -> error $ "the key " <> show k <> " was not in the map"
+  Nothing -> case k of
+      Left v -> Var () $ GlobalVarRef v
+      Right v -> Var () $ LocalVarRef v
+
+(!!) :: Map.Map TyVarName (Type' () ()) -> TyVarName -> Type' () ()
+m !! k = case Map.lookup k m of
+  Just v -> v
+  Nothing -> TVar () k

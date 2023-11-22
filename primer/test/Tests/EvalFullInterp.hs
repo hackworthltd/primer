@@ -150,9 +150,9 @@ unit_2 =
 unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do -- TODO: so ugly!
-        -- NB: added a @letType b = Bool@ wrapper
-        e <- letType "b" (tcon tBool) $ letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tcon tBool `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tcon tBool `tapp` tvar "b"))
+        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
+        let b' = "b0"
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall b' ktype (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
         s <- evalFullTest mempty mempty Syn expr
@@ -162,9 +162,9 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
-        -- NB: added a @let b = True : Bool@ wrapper
-        e <- let_ "b" (con0 cTrue `ann` tcon tBool) $ let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        expect <- con' ["M"] "C" [con0 cTrue, lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [con0 cTrue, lvar "b"])]
+        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
+        let b' = "b0"
+        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
         s <- evalFullTest mempty mempty Syn expr
@@ -338,9 +338,8 @@ unit_15 =
   let ((forgetMetadata -> expr,forgetMetadata -> expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
         let c a b = con' ["M"] "C" [a, b]
-        -- NB/TODO: I have added a lam y wrapper
-        e0 <- lam "y" $ l $ lam "y" $ c (lvar "x") (lvar "y")
-        let y' = "a40"
+        e0 <- l $ lam "y" $ c (lvar "x") (lvar "y")
+        let y' = "y0"
         {-
         let rny = let_ "y" (lvar y')
         e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
@@ -348,7 +347,7 @@ unit_15 =
         e3 <- lam y' $ c (l $ lvar "x") (rny $ lvar "y")
         e4 <- lam y' $ c (lvar "y") (rny $ lvar "y")
         -}
-        e5 <- lam "y" $ lam y' $ c (lvar "y") (lvar y')
+        e5 <- lam y' $ c (lvar "y") (lvar y')
         pure (e0, e5)
    in do
         s <- evalFullTest builtinTypes mempty Syn expr
