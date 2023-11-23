@@ -4,12 +4,16 @@
 # develop` shell.
 
 wasm32-primer-api-test	:= $(shell wasm32-wasi-cabal list-bin -v0 test:primer-api-test)
+wasm32-primer-api-test-opt	:= $(shell wasm32-wasi-cabal list-bin -O2 -v0 test:primer-api-test)
 
 build:
 	cabal build
 
 wasm32-build:
 	wasm32-wasi-cabal build
+
+wasm32-build-opt:
+	wasm32-wasi-cabal build -O2
 
 configure:
 	cabal configure
@@ -25,6 +29,11 @@ wasm32-test:
 	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
 	wasm32-wasi-cabal build test:primer-api-test
 	wasmtime --dir test::test "$(wasm32-primer-api-test)"
+
+wasm32-test-opt: wasm32-build-opt
+	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+	wasm32-wasi-cabal build -O2 test:primer-api-test
+	wasmtime --dir test::test "$(wasm32-primer-api-test-opt)"
 
 docs:
 	cabal haddock

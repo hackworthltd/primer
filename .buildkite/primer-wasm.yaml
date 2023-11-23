@@ -3,19 +3,7 @@ agents:
   os: "linux"
 
 steps:
-  - label: ":haskell: :linux: Wasm Cabal"
+  - label: ":haskell: :linux: Primer Wasm targets"
     command: |
       nix develop .#wasm --print-build-logs --command make wasm32-update
-      nix develop .#wasm --print-build-logs --command make wasm32-configure
-
-  - wait
-
-  - label: ":wasm: :linux: Build Primer Wasm targets"
-    command: |
-      nix develop .#wasm --print-build-logs --command make wasm32-build
-
-  - wait
-
-  - label: ":wasm: :linux: Test Primer Wasm targets"
-    command: |
-      nix develop .#wasm --print-build-logs --command make wasm32-test
+      nix develop .#wasm --print-build-logs --command make wasm32-test-opt
