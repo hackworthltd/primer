@@ -1021,7 +1021,6 @@ tasty_type_preservation = withTests 1000
               s' <- checkTest ty =<< generateIDs s
               s === forgetMetadata s' -- check no smart holes happened
 
--- TODO: Try to enable the rest of the tests
 ---- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion
 unit_prim_stuck =
@@ -1051,588 +1050,588 @@ unit_prim_isSpace_2 =
     (char 'a')
     (boolAnn False)
 
---tasty_prim_hex_nat :: Property
---tasty_prim_hex_nat = withTests 20 . property $ do
---  n <- forAllT $ Gen.integral $ Range.constant 0 50
---  let ne = nat n
---      ((e, r, prims), maxID) =
---        create
---          $ if n <= 15
---            then
---              (,,)
---                <$> case_
---                  ( pfun NatToHex
---                      `app` ne
---                  )
---                  [ branch
---                      cNothing
---                      []
---                      (con cNothing [])
---                  , branch
---                      cJust
---                      [("x", Nothing)]
---                      ( pfun HexToNat
---                          `app` lvar "x"
---                      )
---                  ]
---                <*> con cJust [ne]
---                `ann` (tcon tMaybe `tapp` tcon tNat)
---                <*> primDefs
---            else
---              (,,)
---                <$> pfun NatToHex
---                `app` ne
---                <*> con cNothing []
---                `ann` (tcon tMaybe `tapp` tcon tChar)
---                <*> primDefs
---  s <- evalFullTasty maxID builtinTypes prims 7 Syn e
---  over evalResultExpr zeroIDs s === Right (zeroIDs r)
---
---unit_prim_char_eq_1 :: Assertion
---unit_prim_char_eq_1 =
---  binaryPrimTest
---    EqChar
---    (char 'a')
---    (char 'a')
---    (con0 cTrue `ann` tcon tBool)
---
---unit_prim_char_eq_2 :: Assertion
---unit_prim_char_eq_2 =
---  binaryPrimTest
---    EqChar
---    (char 'a')
---    (char 'A')
---    (con0 cFalse `ann` tcon tBool)
---
---unit_prim_char_partial :: Assertion
---unit_prim_char_partial =
---  let ((e, prims), maxID) =
---        create
---          $ (,)
---          <$> pfun EqChar
---          `app` char 'a'
---          <*> primDefs
---   in do
---        s <- evalFullTest maxID mempty prims 1 Syn e
---        s <~==> Right e
---
---unit_prim_int_add :: Assertion
---unit_prim_int_add =
---  binaryPrimTest
---    IntAdd
---    (int 2)
---    (int 2)
---    (int 4)
---
---unit_prim_int_add_big :: Assertion
---unit_prim_int_add_big =
---  binaryPrimTest
---    IntAdd
---    (int big)
---    (int big)
---    (int (2 * big :: Integer))
---  where
---    big = fromIntegral (maxBound :: Word64)
---
---unit_prim_int_sub :: Assertion
---unit_prim_int_sub =
---  binaryPrimTest
---    IntMinus
---    (int 5)
---    (int 3)
---    (int 2)
---
---unit_prim_int_sub_negative :: Assertion
---unit_prim_int_sub_negative =
---  binaryPrimTest
---    IntMinus
---    (int 3)
---    (int 5)
---    (int (-2))
---
---unit_prim_int_mul :: Assertion
---unit_prim_int_mul =
---  binaryPrimTest
---    IntMul
---    (int 3)
---    (int 2)
---    (int 6)
---
---unit_prim_int_quotient :: Assertion
---unit_prim_int_quotient =
---  binaryPrimTest
---    IntQuotient
---    (int 7)
---    (int 3)
---    (con cJust [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_quotient_negative :: Assertion
---unit_prim_int_quotient_negative =
---  binaryPrimTest
---    IntQuotient
---    (int (-7))
---    (int 3)
---    (con cJust [int (-3)] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_quotient_zero :: Assertion
---unit_prim_int_quotient_zero =
---  binaryPrimTest
---    IntQuotient
---    (int (-7))
---    (int 0)
---    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_remainder :: Assertion
---unit_prim_int_remainder =
---  binaryPrimTest
---    IntRemainder
---    (int 7)
---    (int 3)
---    (con cJust [int 1] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_remainder_negative_1 :: Assertion
---unit_prim_int_remainder_negative_1 =
---  binaryPrimTest
---    IntRemainder
---    (int (-7))
---    (int (-3))
---    (con cJust [int (-1)] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_remainder_negative_2 :: Assertion
---unit_prim_int_remainder_negative_2 =
---  binaryPrimTest
---    IntRemainder
---    (int (-7))
---    (int 3)
---    (con cJust [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_remainder_negative_3 :: Assertion
---unit_prim_int_remainder_negative_3 =
---  binaryPrimTest
---    IntRemainder
---    (int 7)
---    (int (-3))
---    (con cJust [int (-2)] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_remainder_zero :: Assertion
---unit_prim_int_remainder_zero =
---  binaryPrimTest
---    IntRemainder
---    (int 7)
---    (int 0)
---    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tInt))
---
---unit_prim_int_quot :: Assertion
---unit_prim_int_quot =
---  binaryPrimTest
---    IntQuot
---    (int 7)
---    (int 3)
---    (int 2)
---
---unit_prim_int_quot_negative :: Assertion
---unit_prim_int_quot_negative =
---  binaryPrimTest
---    IntQuot
---    (int (-7))
---    (int 3)
---    (int (-3))
---
---unit_prim_int_quot_zero :: Assertion
---unit_prim_int_quot_zero =
---  binaryPrimTest
---    IntQuot
---    (int (-7))
---    (int 0)
---    (int 0)
---
---unit_prim_int_rem :: Assertion
---unit_prim_int_rem =
---  binaryPrimTest
---    IntRem
---    (int 7)
---    (int 3)
---    (int 1)
---
---unit_prim_int_rem_negative_1 :: Assertion
---unit_prim_int_rem_negative_1 =
---  binaryPrimTest
---    IntRem
---    (int (-7))
---    (int (-3))
---    (int (-1))
---
---unit_prim_int_rem_negative_2 :: Assertion
---unit_prim_int_rem_negative_2 =
---  binaryPrimTest
---    IntRem
---    (int (-7))
---    (int 3)
---    (int 2)
---
---unit_prim_int_rem_negative_3 :: Assertion
---unit_prim_int_rem_negative_3 =
---  binaryPrimTest
---    IntRem
---    (int 7)
---    (int (-3))
---    (int (-2))
---
---unit_prim_int_rem_zero :: Assertion
---unit_prim_int_rem_zero =
---  binaryPrimTest
---    IntRem
---    (int 7)
---    (int 0)
---    (int 7)
---
---unit_prim_int_eq_1 :: Assertion
---unit_prim_int_eq_1 =
---  binaryPrimTest
---    IntEq
---    (int 2)
---    (int 2)
---    (boolAnn True)
---
---unit_prim_int_eq_2 :: Assertion
---unit_prim_int_eq_2 =
---  binaryPrimTest
---    IntEq
---    (int 2)
---    (int 1)
---    (boolAnn False)
---
---unit_prim_int_neq_1 :: Assertion
---unit_prim_int_neq_1 =
---  binaryPrimTest
---    IntNeq
---    (int 2)
---    (int 2)
---    (boolAnn False)
---
---unit_prim_int_neq_2 :: Assertion
---unit_prim_int_neq_2 =
---  binaryPrimTest
---    IntNeq
---    (int 2)
---    (int 1)
---    (boolAnn True)
---
---unit_prim_int_less_than_1 :: Assertion
---unit_prim_int_less_than_1 =
---  binaryPrimTest
---    IntLT
---    (int 1)
---    (int 2)
---    (boolAnn True)
---
---unit_prim_int_less_than_2 :: Assertion
---unit_prim_int_less_than_2 =
---  binaryPrimTest
---    IntLT
---    (int 1)
---    (int 1)
---    (boolAnn False)
---
---unit_prim_int_less_than_or_equal_1 :: Assertion
---unit_prim_int_less_than_or_equal_1 =
---  binaryPrimTest
---    IntLTE
---    (int 1)
---    (int 2)
---    (boolAnn True)
---
---unit_prim_int_less_than_or_equal_2 :: Assertion
---unit_prim_int_less_than_or_equal_2 =
---  binaryPrimTest
---    IntLTE
---    (int 1)
---    (int 1)
---    (boolAnn True)
---
---unit_prim_int_less_than_or_equal_3 :: Assertion
---unit_prim_int_less_than_or_equal_3 =
---  binaryPrimTest
---    IntLTE
---    (int 2)
---    (int 1)
---    (boolAnn False)
---
---unit_prim_int_greater_than_1 :: Assertion
---unit_prim_int_greater_than_1 =
---  binaryPrimTest
---    IntGT
---    (int 2)
---    (int 1)
---    (boolAnn True)
---
---unit_prim_int_greater_than_2 :: Assertion
---unit_prim_int_greater_than_2 =
---  binaryPrimTest
---    IntGT
---    (int 1)
---    (int 1)
---    (boolAnn False)
---
---unit_prim_int_greater_than_or_equal_1 :: Assertion
---unit_prim_int_greater_than_or_equal_1 =
---  binaryPrimTest
---    IntGTE
---    (int 1)
---    (int 2)
---    (boolAnn False)
---
---unit_prim_int_greater_than_or_equal_2 :: Assertion
---unit_prim_int_greater_than_or_equal_2 =
---  binaryPrimTest
---    IntGTE
---    (int 1)
---    (int 1)
---    (boolAnn True)
---
---unit_prim_int_greater_than_or_equal_3 :: Assertion
---unit_prim_int_greater_than_or_equal_3 =
---  binaryPrimTest
---    IntGTE
---    (int 2)
---    (int 1)
---    (boolAnn True)
---
---unit_prim_int_toNat :: Assertion
---unit_prim_int_toNat =
---  unaryPrimTest
---    IntToNat
---    (int 0)
---    (con cJust [nat 0] `ann` (tcon tMaybe `tapp` tcon tNat))
---
---unit_prim_int_toNat_negative :: Assertion
---unit_prim_int_toNat_negative =
---  unaryPrimTest
---    IntToNat
---    (int (-1))
---    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tNat))
---
---unit_prim_int_fromNat :: Assertion
---unit_prim_int_fromNat =
---  unaryPrimTest
---    IntFromNat
---    (nat 4)
---    (int 4)
---
---unit_prim_ann :: Assertion
---unit_prim_ann =
---  let ((e, r, prims), maxID) =
---        create
---          $ (,,)
---          <$> ( pfun ToUpper
---                  `ann` (tcon tChar `tfun` tcon tChar)
---              )
---          `app` (char 'a' `ann` tcon tChar)
---          <*> char 'A'
---          <*> primDefs
---   in do
---        s <- evalFullTest maxID builtinTypes prims 2 Syn e
---        s <~==> Right r
---
---unit_prim_lazy_1 :: Assertion
---unit_prim_lazy_1 =
---  let ((e, r, prims), maxID) =
---        create
---          $ (,,)
---          <$> pfun PrimConst
---          `app` bool_ True
---          `app` emptyHole
---          <*> bool_ True
---          `ann` tcon tBool
---          <*> primDefs
---   in do
---        s <- evalFullTest maxID builtinTypes prims 2 Syn e
---        s <~==> Right r
---
---unit_prim_lazy_2 :: Assertion
---unit_prim_lazy_2 =
---  let ((e, r, prims), maxID) =
---        create
---          $ (,,)
---          <$> pfun PrimConst
---          `app` bool_ True
---          `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
---          <*> bool_ True
---          `ann` tcon tBool
---          <*> primDefs
---   in do
---        s <- evalFullTest maxID builtinTypes prims 2 Syn e
---        s <~==> Right r
---
---unit_prim_partial_map :: Assertion
---unit_prim_partial_map =
---  let modName = mkSimpleModuleName "TestModule"
---      ((e, r, gs, prims), maxID) =
---        create $ do
---          (mapName, mapDef) <- Examples.map' modName
---          (,,,)
---            <$> gvar mapName
---            `aPP` tcon tChar
---            `aPP` tcon tChar
---            `app` pfun ToUpper
---            `app` list_
---              [ char 'a'
---              , char 'b'
---              , char 'c'
---              ]
---            <*> list_
---              [ char 'A'
---              , char 'B'
---              , char 'C'
---              ]
---            `ann` (tcon tList `tapp` tcon tChar)
---            <*> pure (M.singleton mapName mapDef)
---            <*> primDefs
---   in do
---        s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 91 Syn e
---        s ~== r
---
----- Test that handleEvalFullRequest will reduce imported terms
---unit_eval_full_modules :: Assertion
---unit_eval_full_modules =
---  let test = do
---        builtinModule' <- builtinModule
---        primitiveModule' <- primitiveModule
---        importModules [primitiveModule', builtinModule']
---        foo <- pfun ToUpper `app` char 'a'
---        resp <-
---          readerToState
---            $ handleEvalFullRequest
---              EvalFullReq
---                { evalFullReqExpr = foo
---                , evalFullCxtDir = Chk
---                , evalFullMaxSteps = 2
---                , evalFullOptions = UnderBinders
---                }
---        expect <- char 'A'
---        pure $ case resp of
---          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
---          EvalFullRespNormal e -> e ~= expect
---      a = newEmptyApp
---   in runAppTestM a test <&> fst >>= \case
---        Left err -> assertFailure $ show err
---        Right assertion -> assertion
---
----- Test that handleEvalFullRequest will reduce case analysis of imported types
---unit_eval_full_modules_scrutinize_imported_type :: Assertion
---unit_eval_full_modules_scrutinize_imported_type =
---  let test = do
---        m' <- m
---        importModules [m']
---        foo <-
---          case_
---            (con0 cTrue `ann` tcon tBool)
---            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
---        resp <-
---          readerToState
---            $ handleEvalFullRequest
---            $ EvalFullReq
---              { evalFullReqExpr = foo
---              , evalFullCxtDir = Chk
---              , evalFullMaxSteps = 2
---              , evalFullOptions = UnderBinders
---              }
---        expect <- con0 cFalse
---        pure $ case resp of
---          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
---          EvalFullRespNormal e -> e ~= expect
---      a = newEmptyApp
---   in runAppTestM a test <&> fst >>= \case
---        Left err -> assertFailure $ show err
---        Right assertion -> assertion
---  where
---    m = do
---      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
---      pure
---        $ Module
---          { moduleName = qualifiedModule tBool
---          , moduleTypes = Map.singleton (baseName tBool) boolDef'
---          , moduleDefs = mempty
---          }
---
----- Test that evaluation does not duplicate node IDs
---tasty_unique_ids :: Property
---tasty_unique_ids = withTests 1000
---  $ withDiscards 2000
---  $ propertyWT testModules
---  $ do
---    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
---    let optsR = RunRedexOptions{pushAndElide = True}
---    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
---    tds <- asks typeDefs
---    (dir, t1, _) <- genDirTm
---    closed <- forAllT $ Gen.frequency [(10, pure UnderBinders), (1, pure StopAtBinders)]
---    let go n t
---          | n == (0 :: Int) = pure ()
---          | otherwise = do
---              t' <- failWhenSevereLogs $ evalFull @EvalLog closed optsV optsR tds globs 1 dir t
---              case t' of
---                Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
---                Right e -> uniqueIDs e
---    go 20 t1 -- we need some bound since not all terms terminate
---  where
---    uniqueIDs e =
---      let ids = e ^.. exprIDs
---       in ids === ordNub ids
---
---unit_wildcard :: Assertion
---unit_wildcard =
---  let loop = letrec "x" (lvar "x") (tcon tNat) (lvar "x")
---      (eTerm, maxIDTerm) = create $ caseFB_ loop [] (con0 cTrue)
---      expectTerm = create' $ con0 cTrue
---      (eDiverge, maxIDDiverge) = create $ caseFB_ loop [branch cZero [] $ con0 cFalse] (con0 cTrue)
---      expectDiverge =
---        create'
---          $ caseFB_
---            ( letrec "x" (lvar "x") (tcon tNat) (lvar "x")
---                `ann` tcon tNat
---            )
---            [branch cZero [] $ con0 cFalse]
---            (con0 cTrue)
---   in do
---        s <- evalFullTest maxIDTerm mempty mempty 2 Syn eTerm
---        s <~==> Right expectTerm
---        t <- evalFullTest maxIDDiverge mempty mempty 5 Syn eDiverge
---        t <~==> Left (TimedOut expectDiverge)
---
---unit_case_prim :: Assertion
---unit_case_prim =
---  let (e1, maxID1) = create $ caseFB_ (char 'a') [] (con0 cTrue)
---      expect1 = create' $ con0 cTrue
---      (e2, maxID2) = create $ caseFB_ (char 'a') [branchPrim (PrimChar 'a') $ con0 cFalse] (con0 cTrue)
---      expect2 = create' $ con0 cFalse
---      (e3, maxID3) =
---        create
---          $ caseFB_
---            (char 'b')
---            [ branchPrim (PrimChar 'a') $ con0 cTrue
---            , branchPrim (PrimChar 'b') $ con0 cFalse
---            ]
---            (con0 cTrue)
---      expect3 = create' $ con0 cFalse
---      (e4, maxID4) =
---        create
---          $ caseFB_
---            ( (lam "x" (lvar "x") `ann` (tcon tChar `tfun` tcon tChar))
---                `app` char 'a'
---            )
---            [branchPrim (PrimChar 'a') $ con0 cFalse]
---            (con0 cTrue)
---      expect4 = create' $ con0 cFalse
---   in do
---        s1 <- evalFullTest maxID1 mempty mempty 2 Syn e1
---        s1 <~==> Right expect1
---        s2 <- evalFullTest maxID2 mempty mempty 2 Syn e2
---        s2 <~==> Right expect2
---        s3 <- evalFullTest maxID3 mempty mempty 2 Syn e3
---        s3 <~==> Right expect3
---        s4 <- evalFullTest maxID4 mempty mempty 6 Syn e4
---        s4 <~==> Right expect4
+tasty_prim_hex_nat :: Property
+tasty_prim_hex_nat = withTests 20 . property $ do
+  n <- forAllT $ Gen.integral $ Range.constant 0 50
+  let ne = nat n
+      ((forgetMetadata -> e,forgetMetadata -> r, prims), maxID) =
+        create
+          $ if n <= 15
+            then
+              (,,)
+                <$> case_
+                  ( pfun NatToHex
+                      `app` ne
+                  )
+                  [ branch
+                      cNothing
+                      []
+                      (con cNothing [])
+                  , branch
+                      cJust
+                      [("x", Nothing)]
+                      ( pfun HexToNat
+                          `app` lvar "x"
+                      )
+                  ]
+                <*> con cJust [ne]
+                `ann` (tcon tMaybe `tapp` tcon tNat)
+                <*> primDefs
+            else
+              (,,)
+                <$> pfun NatToHex
+                `app` ne
+                <*> con cNothing []
+                `ann` (tcon tMaybe `tapp` tcon tChar)
+                <*> primDefs
+  s <- evalIO $ evalFullTest builtinTypes prims Syn e
+  s === Right r
+
+unit_prim_char_eq_1 :: Assertion
+unit_prim_char_eq_1 =
+  binaryPrimTest
+    EqChar
+    (char 'a')
+    (char 'a')
+    (con0 cTrue `ann` tcon tBool)
+
+unit_prim_char_eq_2 :: Assertion
+unit_prim_char_eq_2 =
+  binaryPrimTest
+    EqChar
+    (char 'a')
+    (char 'A')
+    (con0 cFalse `ann` tcon tBool)
+
+unit_prim_char_partial :: Assertion
+unit_prim_char_partial =
+  let ((forgetMetadata -> e, prims), maxID) =
+        create
+          $ (,)
+          <$> pfun EqChar
+          `app` char 'a'
+          <*> primDefs
+   in do
+        s <- evalFullTest mempty prims Syn e
+        s @?= Right e
+
+unit_prim_int_add :: Assertion
+unit_prim_int_add =
+  binaryPrimTest
+    IntAdd
+    (int 2)
+    (int 2)
+    (int 4)
+
+unit_prim_int_add_big :: Assertion
+unit_prim_int_add_big =
+  binaryPrimTest
+    IntAdd
+    (int big)
+    (int big)
+    (int (2 * big :: Integer))
+  where
+    big = fromIntegral (maxBound :: Word64)
+
+unit_prim_int_sub :: Assertion
+unit_prim_int_sub =
+  binaryPrimTest
+    IntMinus
+    (int 5)
+    (int 3)
+    (int 2)
+
+unit_prim_int_sub_negative :: Assertion
+unit_prim_int_sub_negative =
+  binaryPrimTest
+    IntMinus
+    (int 3)
+    (int 5)
+    (int (-2))
+
+unit_prim_int_mul :: Assertion
+unit_prim_int_mul =
+  binaryPrimTest
+    IntMul
+    (int 3)
+    (int 2)
+    (int 6)
+
+unit_prim_int_quotient :: Assertion
+unit_prim_int_quotient =
+  binaryPrimTest
+    IntQuotient
+    (int 7)
+    (int 3)
+    (con cJust [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_quotient_negative :: Assertion
+unit_prim_int_quotient_negative =
+  binaryPrimTest
+    IntQuotient
+    (int (-7))
+    (int 3)
+    (con cJust [int (-3)] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_quotient_zero :: Assertion
+unit_prim_int_quotient_zero =
+  binaryPrimTest
+    IntQuotient
+    (int (-7))
+    (int 0)
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_remainder :: Assertion
+unit_prim_int_remainder =
+  binaryPrimTest
+    IntRemainder
+    (int 7)
+    (int 3)
+    (con cJust [int 1] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_remainder_negative_1 :: Assertion
+unit_prim_int_remainder_negative_1 =
+  binaryPrimTest
+    IntRemainder
+    (int (-7))
+    (int (-3))
+    (con cJust [int (-1)] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_remainder_negative_2 :: Assertion
+unit_prim_int_remainder_negative_2 =
+  binaryPrimTest
+    IntRemainder
+    (int (-7))
+    (int 3)
+    (con cJust [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_remainder_negative_3 :: Assertion
+unit_prim_int_remainder_negative_3 =
+  binaryPrimTest
+    IntRemainder
+    (int 7)
+    (int (-3))
+    (con cJust [int (-2)] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_remainder_zero :: Assertion
+unit_prim_int_remainder_zero =
+  binaryPrimTest
+    IntRemainder
+    (int 7)
+    (int 0)
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tInt))
+
+unit_prim_int_quot :: Assertion
+unit_prim_int_quot =
+  binaryPrimTest
+    IntQuot
+    (int 7)
+    (int 3)
+    (int 2)
+
+unit_prim_int_quot_negative :: Assertion
+unit_prim_int_quot_negative =
+  binaryPrimTest
+    IntQuot
+    (int (-7))
+    (int 3)
+    (int (-3))
+
+unit_prim_int_quot_zero :: Assertion
+unit_prim_int_quot_zero =
+  binaryPrimTest
+    IntQuot
+    (int (-7))
+    (int 0)
+    (int 0)
+
+unit_prim_int_rem :: Assertion
+unit_prim_int_rem =
+  binaryPrimTest
+    IntRem
+    (int 7)
+    (int 3)
+    (int 1)
+
+unit_prim_int_rem_negative_1 :: Assertion
+unit_prim_int_rem_negative_1 =
+  binaryPrimTest
+    IntRem
+    (int (-7))
+    (int (-3))
+    (int (-1))
+
+unit_prim_int_rem_negative_2 :: Assertion
+unit_prim_int_rem_negative_2 =
+  binaryPrimTest
+    IntRem
+    (int (-7))
+    (int 3)
+    (int 2)
+
+unit_prim_int_rem_negative_3 :: Assertion
+unit_prim_int_rem_negative_3 =
+  binaryPrimTest
+    IntRem
+    (int 7)
+    (int (-3))
+    (int (-2))
+
+unit_prim_int_rem_zero :: Assertion
+unit_prim_int_rem_zero =
+  binaryPrimTest
+    IntRem
+    (int 7)
+    (int 0)
+    (int 7)
+
+unit_prim_int_eq_1 :: Assertion
+unit_prim_int_eq_1 =
+  binaryPrimTest
+    IntEq
+    (int 2)
+    (int 2)
+    (boolAnn True)
+
+unit_prim_int_eq_2 :: Assertion
+unit_prim_int_eq_2 =
+  binaryPrimTest
+    IntEq
+    (int 2)
+    (int 1)
+    (boolAnn False)
+
+unit_prim_int_neq_1 :: Assertion
+unit_prim_int_neq_1 =
+  binaryPrimTest
+    IntNeq
+    (int 2)
+    (int 2)
+    (boolAnn False)
+
+unit_prim_int_neq_2 :: Assertion
+unit_prim_int_neq_2 =
+  binaryPrimTest
+    IntNeq
+    (int 2)
+    (int 1)
+    (boolAnn True)
+
+unit_prim_int_less_than_1 :: Assertion
+unit_prim_int_less_than_1 =
+  binaryPrimTest
+    IntLT
+    (int 1)
+    (int 2)
+    (boolAnn True)
+
+unit_prim_int_less_than_2 :: Assertion
+unit_prim_int_less_than_2 =
+  binaryPrimTest
+    IntLT
+    (int 1)
+    (int 1)
+    (boolAnn False)
+
+unit_prim_int_less_than_or_equal_1 :: Assertion
+unit_prim_int_less_than_or_equal_1 =
+  binaryPrimTest
+    IntLTE
+    (int 1)
+    (int 2)
+    (boolAnn True)
+
+unit_prim_int_less_than_or_equal_2 :: Assertion
+unit_prim_int_less_than_or_equal_2 =
+  binaryPrimTest
+    IntLTE
+    (int 1)
+    (int 1)
+    (boolAnn True)
+
+unit_prim_int_less_than_or_equal_3 :: Assertion
+unit_prim_int_less_than_or_equal_3 =
+  binaryPrimTest
+    IntLTE
+    (int 2)
+    (int 1)
+    (boolAnn False)
+
+unit_prim_int_greater_than_1 :: Assertion
+unit_prim_int_greater_than_1 =
+  binaryPrimTest
+    IntGT
+    (int 2)
+    (int 1)
+    (boolAnn True)
+
+unit_prim_int_greater_than_2 :: Assertion
+unit_prim_int_greater_than_2 =
+  binaryPrimTest
+    IntGT
+    (int 1)
+    (int 1)
+    (boolAnn False)
+
+unit_prim_int_greater_than_or_equal_1 :: Assertion
+unit_prim_int_greater_than_or_equal_1 =
+  binaryPrimTest
+    IntGTE
+    (int 1)
+    (int 2)
+    (boolAnn False)
+
+unit_prim_int_greater_than_or_equal_2 :: Assertion
+unit_prim_int_greater_than_or_equal_2 =
+  binaryPrimTest
+    IntGTE
+    (int 1)
+    (int 1)
+    (boolAnn True)
+
+unit_prim_int_greater_than_or_equal_3 :: Assertion
+unit_prim_int_greater_than_or_equal_3 =
+  binaryPrimTest
+    IntGTE
+    (int 2)
+    (int 1)
+    (boolAnn True)
+
+unit_prim_int_toNat :: Assertion
+unit_prim_int_toNat =
+  unaryPrimTest
+    IntToNat
+    (int 0)
+    (con cJust [nat 0] `ann` (tcon tMaybe `tapp` tcon tNat))
+
+unit_prim_int_toNat_negative :: Assertion
+unit_prim_int_toNat_negative =
+  unaryPrimTest
+    IntToNat
+    (int (-1))
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tNat))
+
+unit_prim_int_fromNat :: Assertion
+unit_prim_int_fromNat =
+  unaryPrimTest
+    IntFromNat
+    (nat 4)
+    (int 4)
+
+unit_prim_ann :: Assertion
+unit_prim_ann =
+  let ((forgetMetadata -> e,forgetMetadata -> r, prims), maxID) =
+        create
+          $ (,,)
+          <$> ( pfun ToUpper
+                  `ann` (tcon tChar `tfun` tcon tChar)
+              )
+          `app` (char 'a' `ann` tcon tChar)
+          <*> char 'A'
+          <*> primDefs
+   in do
+        s <- evalFullTest builtinTypes prims Syn e
+        s @?= Right r
+
+unit_prim_lazy_1 :: Assertion
+unit_prim_lazy_1 =
+  let ((forgetMetadata -> e,forgetMetadata ->  r, prims), maxID) =
+        create
+          $ (,,)
+          <$> pfun PrimConst
+          `app` bool_ True
+          `app` emptyHole
+          <*> bool_ True
+          `ann` tcon tBool
+          <*> primDefs
+   in do
+        s <- evalFullTest builtinTypes prims Syn e
+        s @?= Right r
+
+unit_prim_lazy_2 :: Assertion
+unit_prim_lazy_2 =
+  let ((forgetMetadata -> e,forgetMetadata ->  r, prims), maxID) =
+        create
+          $ (,,)
+          <$> pfun PrimConst
+          `app` bool_ True
+          `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
+          <*> bool_ True
+          `ann` tcon tBool
+          <*> primDefs
+   in do
+        s <- evalFullTest builtinTypes prims Syn e
+        s @?= Right r
+
+unit_prim_partial_map :: Assertion
+unit_prim_partial_map =
+  let modName = mkSimpleModuleName "TestModule"
+      ((forgetMetadata -> e, forgetMetadata -> r, gs, prims), maxID) =
+        create $ do
+          (mapName, mapDef) <- Examples.map' modName
+          (,,,)
+            <$> gvar mapName
+            `aPP` tcon tChar
+            `aPP` tcon tChar
+            `app` pfun ToUpper
+            `app` list_
+              [ char 'a'
+              , char 'b'
+              , char 'c'
+              ]
+            <*> list_
+              [ char 'A'
+              , char 'B'
+              , char 'C'
+              ]
+            `ann` (tcon tList `tapp` tcon tChar)
+            <*> pure (M.singleton mapName mapDef)
+            <*> primDefs
+   in do
+        s <- evalFullTest  builtinTypes (gs <> prims) Syn e
+        s @?= Right r
+
+-- Test that handleEvalFullRequest will reduce imported terms
+unit_eval_full_modules :: Assertion
+unit_eval_full_modules =
+  let test = do
+        builtinModule' <- builtinModule
+        primitiveModule' <- primitiveModule
+        importModules [primitiveModule', builtinModule']
+        foo <- pfun ToUpper `app` char 'a'
+        resp <-
+          readerToState
+            $ handleEvalFullRequest
+              EvalFullReq
+                { evalFullReqExpr = foo
+                , evalFullCxtDir = Chk
+                , evalFullMaxSteps = 2
+                , evalFullOptions = UnderBinders
+                }
+        expect <- char 'A'
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
+-- Test that handleEvalFullRequest will reduce case analysis of imported types
+unit_eval_full_modules_scrutinize_imported_type :: Assertion
+unit_eval_full_modules_scrutinize_imported_type =
+  let test = do
+        m' <- m
+        importModules [m']
+        foo <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        resp <-
+          readerToState
+            $ handleEvalFullRequest
+            $ EvalFullReq
+              { evalFullReqExpr = foo
+              , evalFullCxtDir = Chk
+              , evalFullMaxSteps = 2
+              , evalFullOptions = UnderBinders
+              }
+        expect <- con0 cFalse
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = Map.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that evaluation does not duplicate node IDs
+tasty_unique_ids :: Property
+tasty_unique_ids = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT testModules
+  $ do
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
+    let optsR = RunRedexOptions{pushAndElide = True}
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    tds <- asks typeDefs
+    (dir, t1, _) <- genDirTm
+    closed <- forAllT $ Gen.frequency [(10, pure UnderBinders), (1, pure StopAtBinders)]
+    let go n t
+          | n == (0 :: Int) = pure ()
+          | otherwise = do
+              t' <- failWhenSevereLogs $ evalFull @EvalLog closed optsV optsR tds globs 1 dir t
+              case t' of
+                Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
+                Right e -> uniqueIDs e
+    go 20 t1 -- we need some bound since not all terms terminate
+  where
+    uniqueIDs e =
+      let ids = e ^.. exprIDs
+       in ids === ordNub ids
+
+unit_wildcard :: Assertion
+unit_wildcard =
+  let loop = letrec "x" (lvar "x") (tcon tNat) (lvar "x")
+      (forgetMetadata -> eTerm, maxIDTerm) = create $ caseFB_ loop [] (con0 cTrue)
+      expectTerm = forgetMetadata $ create' $ con0 cTrue
+      (forgetMetadata -> eDiverge, maxIDDiverge) = create $ caseFB_ loop [branch cZero [] $ con0 cFalse] (con0 cTrue)
+      expectDiverge =
+        create'
+          $ caseFB_
+            ( letrec "x" (lvar "x") (tcon tNat) (lvar "x")
+                `ann` tcon tNat
+            )
+            [branch cZero [] $ con0 cFalse]
+            (con0 cTrue)
+   in do
+        s <- evalFullTest mempty mempty Syn eTerm
+        s @?= Right expectTerm
+        t <- evalFullTest' (BRDLim 20) mempty mempty Syn eDiverge
+        t @?= Left RecursionDepthExceeded
+
+unit_case_prim :: Assertion
+unit_case_prim =
+  let (forgetMetadata -> e1, maxID1) = create $ caseFB_ (char 'a') [] (con0 cTrue)
+      expect1 = forgetMetadata $ create' $ con0 cTrue
+      (forgetMetadata -> e2, maxID2) = create $ caseFB_ (char 'a') [branchPrim (PrimChar 'a') $ con0 cFalse] (con0 cTrue)
+      expect2 = forgetMetadata $ create' $ con0 cFalse
+      (forgetMetadata -> e3, maxID3) =
+        create
+          $ caseFB_
+            (char 'b')
+            [ branchPrim (PrimChar 'a') $ con0 cTrue
+            , branchPrim (PrimChar 'b') $ con0 cFalse
+            ]
+            (con0 cTrue)
+      expect3 = forgetMetadata $ create' $ con0 cFalse
+      (forgetMetadata -> e4, maxID4) =
+        create
+          $ caseFB_
+            ( (lam "x" (lvar "x") `ann` (tcon tChar `tfun` tcon tChar))
+                `app` char 'a'
+            )
+            [branchPrim (PrimChar 'a') $ con0 cFalse]
+            (con0 cTrue)
+      expect4 = forgetMetadata $ create' $ con0 cFalse
+   in do
+        s1 <- evalFullTest mempty mempty Syn e1
+        s1 @?= Right expect1
+        s2 <- evalFullTest mempty mempty Syn e2
+        s2 @?= Right expect2
+        s3 <- evalFullTest mempty mempty Syn e3
+        s3 @?= Right expect3
+        s4 <- evalFullTest mempty mempty Syn e4
+        s4 @?= Right expect4
 
 -- * Utilities
 
