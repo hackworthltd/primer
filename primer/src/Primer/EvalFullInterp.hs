@@ -82,6 +82,7 @@ import Data.Set.Optics (setOf)
 import Optics (_2,(%), to)
 import qualified Data.Set as Set
 import Primer.Name (Name, unName)
+import Primer.Primitives (primConName)
 
 -- A naive tree-walker / compile to closure (TODO: is this correct terminology?)
 -- We reuse Haskell's runtime to do call-by-need
@@ -193,7 +194,7 @@ interp brd tydefs env@(envTm,envTy) dir = \case
                          t
        | CaseFallback t <- fb -> interp (betaRecursionDepthPred brd) tydefs env Chk t
        | otherwise -> error $ "no such branch: " <> show c
-     Ann _ (PrimCon _ c) ty
+     Ann _ (PrimCon _ c) (TCon _ ((== primConName c) -> True))
        | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp (betaRecursionDepthPred brd) tydefs env Chk t
        | CaseFallback t <- fb -> interp (betaRecursionDepthPred brd) tydefs env Chk t
        | otherwise -> error $ "no such branch: " <> show c
