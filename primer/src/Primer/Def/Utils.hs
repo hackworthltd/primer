@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedLabels #-}
 
-module Primer.Def.Utils (nextID, nextIDTypeDef, globalInUse, typeInUse) where
+module Primer.Def.Utils (nextID, nextIDTypeDef, typeInUse) where
 
 import Foreword
 
@@ -9,9 +9,9 @@ import Data.Generics.Uniplate.Operations (universe)
 import Data.Set qualified as Set
 import Optics (anyOf, folded, foldlOf', to, toListOf, (%), _2)
 import Primer.Core (Expr' (..), KindMeta, Type' (..), TypeMeta, typesInExpr)
-import Primer.Core.Meta (GVarName, ID, TyConName)
+import Primer.Core.Meta (ID, TyConName)
 import Primer.Core.Type.Utils (kindIDs)
-import Primer.Core.Utils (exprIDs, freeGlobalVars, typeIDs)
+import Primer.Core.Utils (exprIDs, typeIDs)
 import Primer.Def (ASTDef (..), Def (..), defAST, defType)
 import Primer.TypeDef (ASTTypeDef (..), PrimTypeDef (PrimTypeDef), TypeDef (..), ValCon (..))
 
@@ -39,12 +39,6 @@ nextIDTypeDef (TypeDefAST (ASTTypeDef ps vcs _)) =
 nextIDTypeDef (TypeDefPrim (PrimTypeDef ps _)) =
   succ $ foldlOf' (folded % _2 % kindIDs) max minBound ps
 {-# INLINE nextIDTypeDef #-}
-
-globalInUse :: Foldable f => GVarName -> f Def -> Bool
-globalInUse v =
-  anyOf
-    (folded % #_DefAST % #astDefExpr % to freeGlobalVars)
-    (Set.member v)
 
 -- | Is this type (including any of its constructors) in use in the given definitions?
 typeInUse :: (Foldable f, Foldable g, Data a', Data b') => TyConName -> ASTTypeDef a b -> f (TypeDef a' b') -> g Def -> Bool

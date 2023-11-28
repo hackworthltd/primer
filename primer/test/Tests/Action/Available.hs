@@ -107,7 +107,7 @@ import Primer.Core (
   ID,
   Kind' (..),
   KindMeta,
-  ModuleName (ModuleName, unModuleName),
+  ModuleName (unModuleName),
   Pattern (PatPrim),
   TyConName,
   Type,
@@ -291,24 +291,6 @@ mkTests deps (defName, DefAST def') =
                   , bodyActions
                   , sigActions
                   }
-
--- We should not offer to delete a definition that is in use, as that
--- action cannot possibly succeed
-unit_def_in_use :: Assertion
-unit_def_in_use =
-  let (d, defs) = create' $ do
-        let foo = qualifyName (ModuleName ["M"]) "foo"
-        fooDef <- ASTDef <$> emptyHole <*> tEmptyHole
-        let bar = qualifyName (ModuleName ["M"]) "bar"
-        barDef <- ASTDef <$> gvar foo <*> tEmptyHole
-        let ds = [(foo, DefAST fooDef), (bar, DefAST barDef)]
-        pure (foo, Map.fromList ds)
-   in for_
-        enumerate
-        ( \l ->
-            Available.forDef defs l Editable d
-              @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
-        )
 
 -- Any offered action will complete successfully,
 -- other than one with a student-specified name that introduces capture.
