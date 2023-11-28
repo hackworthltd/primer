@@ -122,9 +122,9 @@ insertAt n y xs =
 
 -- | Delete an element at some index, returning 'Nothing' if it is out
 -- of bounds.
-deleteAt :: Int -> [a] -> Maybe [a]
+deleteAt :: Int -> [b] -> Maybe ([b], b)
 deleteAt n xs = case splitAt n xs of
-  (a, _ : b) -> Just $ a ++ b
+  (a, b : bs) -> Just (a ++ bs, b)
   _ -> Nothing
 
 -- | Apply a function to the element at some index, returning

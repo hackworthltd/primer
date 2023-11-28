@@ -97,6 +97,7 @@ import Primer.App (
  )
 import Primer.App qualified as App
 import Primer.App.Base (TypeDefConsFieldSelection (..))
+import Primer.App.Utils (forgetProgTypecache)
 import Primer.Builtins (builtinModuleName, cCons, cFalse, cTrue, tBool, tList, tNat)
 import Primer.Core (
   Expr,
@@ -533,7 +534,9 @@ data SucceedOrCapture a
 ensureSHNormal :: App -> PropertyT WT ()
 ensureSHNormal a = case checkAppWellFormed a of
   Left err -> annotateShow err >> failure
-  Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
+  Right a' ->
+    TypeCacheAlpha (forgetProgTypecache $ appProg a)
+      === TypeCacheAlpha (forgetProgTypecache $ appProg a')
 
 genLoc ::
   forall m.
