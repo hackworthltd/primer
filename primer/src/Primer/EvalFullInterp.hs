@@ -127,7 +127,7 @@ interp :: BetaRecursionDepth -> TypeDefMap
         -> (EnvTm, EnvTy)
         -> Dir
         -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-interp brd tydefs env dir e =  try $ evaluate (interp' brd tydefs env dir e)
+interp brd tydefs env dir e =  try $ evaluate $ force $ interp' brd tydefs env dir e
 
 -- we keep type annotations around ??
 -- TODO: worry about name capture!
