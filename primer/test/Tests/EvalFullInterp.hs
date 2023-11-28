@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+-- TODO: test interp and evalfull are equal
 module Tests.EvalFullInterp where
 
 import Foreword hiding (unlines)
