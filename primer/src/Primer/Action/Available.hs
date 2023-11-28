@@ -377,14 +377,11 @@ forTypeDef l Editable tydefs defs tdName td =
   sortByPriority l
     $ [ Input RenameType
       , Input AddCon
+      , NoInput DeleteTypeDef
       ]
     <> mwhen
-      (not $ typeInUse tdName td tydefs defs)
-      ( [NoInput DeleteTypeDef]
-          <> mwhen
-            (l == Expert)
-            [Input AddTypeParam]
-      )
+      (l == Expert && not (typeInUse tdName td tydefs defs))
+      [Input AddTypeParam]
 
 forTypeDefParamNode ::
   TyVarName ->
@@ -443,12 +440,13 @@ forTypeDefConsNode ::
   ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefConsNode _ NonEditable _ _ _ _ = mempty
-forTypeDefConsNode l Editable tydefs defs tdName td =
-  sortByPriority l
-    $ [ NoInput AddConField
-      , Input RenameCon
-      ]
-    <> mwhen (not $ typeInUse tdName td tydefs defs) [NoInput DeleteCon]
+forTypeDefConsNode l Editable _ _ _ _ =
+  sortByPriority
+    l
+    [ NoInput AddConField
+    , Input RenameCon
+    , NoInput DeleteCon
+    ]
 
 forTypeDefConsFieldNode ::
   ValConName ->
@@ -462,9 +460,9 @@ forTypeDefConsFieldNode ::
   ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
-forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
+forTypeDefConsFieldNode con index id l Editable _ _ _ td =
   sortByPriority l
-    $ mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+    $ mwhen ((view _id <$> fieldType) == Just id) [NoInput DeleteConField]
     <> case findTypeOrKind id =<< fieldType of
       Nothing -> mempty
       Just (Left t) -> forType l t

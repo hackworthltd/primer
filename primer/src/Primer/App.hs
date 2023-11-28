@@ -140,6 +140,7 @@ import Primer.Core (
   CaseBranch,
   CaseBranch' (CaseBranch),
   CaseFallback,
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (Case, Con, EmptyHole, Var),
   GVarName,
@@ -176,7 +177,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (
@@ -633,7 +634,7 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
     Right nf -> EvalFullRespNormal nf
 
 -- | Handle a 'ProgAction'
-applyProgAction :: MonadEdit m ProgError => Prog -> ProgAction -> m Prog
+applyProgAction :: forall m. MonadEdit m ProgError => Prog -> ProgAction -> m Prog
 applyProgAction prog = \case
   MoveToDef d -> do
     m <- lookupEditableModule (qualifiedModule d) prog
@@ -698,14 +699,45 @@ applyProgAction prog = \case
       ( m{moduleTypes = tydefs'}
       , Just $ SelectionTypeDef $ TypeDefSelection tc Nothing
       )
-  DeleteTypeDef d -> editModuleCross (qualifiedModule d) prog $ \(m, ms) ->
-    case moduleTypesQualified m Map.!? d of
-      Nothing -> throwError $ TypeDefNotFound d
-      Just (TypeDefPrim _) -> throwError $ TypeDefIsPrim d
-      Just (TypeDefAST td) -> do
-        checkTypeNotInUse d td $ m : ms
-        let m' = m{moduleTypes = Map.delete (baseName d) (moduleTypes m)}
-        pure (m' : ms, Nothing)
+  DeleteTypeDef d -> editModuleOfCrossType (Just d) prog $ \(m, ms) defName def -> do
+    let updateExpr = \case
+          Con _ c _ | c `elem` map valConName (astTypeDefConstructors def) -> emptyHole
+          e -> pure e
+    ms' <-
+      ((m & over #moduleTypes (Map.delete defName)) : ms)
+        & ( traverseOf
+              (traversed % #moduleDefs % traversed % #_DefAST)
+              ( traverseOf
+                  #astDefExpr
+                  ( transformM (traverseOf typesInExpr updateType)
+                      <=< transformM updateExpr
+                  )
+                  <=< traverseOf #astDefType updateType
+              )
+              <=< traverseOf
+                ( traversed
+                    % #moduleTypes
+                    % traversed
+                    % #_TypeDefAST
+                    % #astTypeDefConstructors
+                    % traversed
+                    % #valConArgs
+                    % traversed
+                )
+                updateType
+          )
+    -- There would otherwise be some awkward cases to patch up, such as modifying metadata in type annotations
+    -- to reflect the change from `KType` to `KHole`.
+    -- Note that this also automatically cleans up all pattern matches on this type,
+    -- since we will have set the type of the scrutinee to a hole,
+    -- and thus the typechecker removes all branches.
+    -- This is why we don't bother explicitly fixing up patterns in the above traversals.
+    ms'' <- runFullTCPass (progSmartHoles prog) (progImports prog) ms'
+    pure (ms'', Nothing)
+    where
+      updateType = transformM \case
+        TCon _ n | n == d -> tEmptyHole
+        e -> pure e
   RenameType old (unsafeMkName -> nameRaw) -> editModuleCross (qualifiedModule old) prog $ \(m, ms) -> do
     when (new /= old && new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
     m' <- traverseOf #moduleTypes updateTypeDef m
@@ -830,24 +862,41 @@ applyProgAction prog = \case
                 td
           )
           type_
-  DeleteCon tdName vcName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
-    m' <-
-      alterTypeDef
-        ( \td -> do
-            checkTypeNotInUse tdName td $ m : ms
-            traverseOf
-              #astTypeDefConstructors
-              ( \cons -> do
-                  unless
-                    (vcName `elem` map valConName cons)
-                    (throwError $ ConNotFound vcName)
-                  pure $ filter ((/= vcName) . valConName) cons
-              )
-              td
+  DeleteCon tdName vcName -> editModuleOfCrossType (Just tdName) prog $ \(m, ms) defName def -> do
+    def' <-
+      traverseOf
+        #astTypeDefConstructors
+        ( \cons -> do
+            unless
+              (vcName `elem` map valConName cons)
+              (throwError $ ConNotFound vcName)
+            pure $ filter ((/= vcName) . valConName) cons
         )
-        tdName
-        m
-    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
+        def
+    ms' <-
+      ((m & over #moduleTypes (Map.insert defName $ TypeDefAST def')) : ms)
+        & traverseOf
+          (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
+          ( transformCaseBranches
+              tdName
+              ( \_ (bs, fb) ->
+                  let bs' =
+                        bs
+                          & filter \case
+                            CaseBranch (PatCon vcName') _ _ | vcName' == vcName -> False
+                            _ -> True
+                   in pure
+                        ( bs'
+                        , if map (PatCon . valConName) (astTypeDefConstructors def') == map caseBranchName bs'
+                            then CaseExhaustive
+                            else fb
+                        )
+              )
+              <=< transformM \case
+                Con _ c _ | c == vcName -> emptyHole
+                e -> pure e
+          )
+    pure (ms', Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateTypeDef m
@@ -900,24 +949,37 @@ applyProgAction prog = \case
           newName <- LocalName <$> freshName (freeVars e)
           binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
           pure $ CaseBranch vc binds' e
-  DeleteConField tdName vcName index -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
-    m' <-
-      alterTypeDef
-        ( \td -> do
-            checkTypeNotInUse tdName td $ m : ms
-            traverseOf
-              #astTypeDefConstructors
-              ( maybe (throwError $ ConNotFound vcName) pure
-                  <=< findAndAdjustA
-                    ((== vcName) . valConName)
-                    (traverseOf #valConArgs $ maybe (throwError $ IndexOutOfRange index) pure . map fst . deleteAt index)
-              )
-              td
+  DeleteConField tdName vcName index -> editModuleOfCrossType (Just tdName) prog $ \(m, ms) defName def -> do
+    def' <-
+      traverseOf
+        #astTypeDefConstructors
+        ( maybe (throwError $ ConNotFound vcName) pure
+            <=< findAndAdjustA
+              ((== vcName) . valConName)
+              (traverseOf #valConArgs $ map fst . deleteIndex)
         )
-        tdName
-        m
+        def
+    ms' <-
+      ((m & over #moduleTypes (Map.insert defName $ TypeDefAST def')) : ms)
+        & traverseOf
+          (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
+          ( transformNamedCaseBranch
+              tdName
+              vcName
+              ( \_ (CaseBranch vc binds e) -> do
+                  (binds', Bind _ var) <- deleteIndex binds
+                  CaseBranch vc binds'
+                    <$> ( e & traverseOf _freeTmVars \case
+                            (_, v) | v == var -> emptyHole
+                            (meta, v) -> pure $ Var meta $ LocalVarRef v
+                        )
+              )
+              <=< transformM \case
+                Con meta c es | c == vcName -> map (Con meta c . fst) $ deleteIndex es
+                e -> pure e
+          )
     pure
-      ( m' : ms
+      ( ms'
       , Just
           . SelectionTypeDef
           . TypeDefSelection tdName
@@ -925,6 +987,9 @@ applyProgAction prog = \case
           . TypeDefConsNodeSelection
           $ TypeDefConsSelection vcName Nothing
       )
+    where
+      deleteIndex :: [a] -> m ([a], a)
+      deleteIndex = maybe (throwError $ IndexOutOfRange index) pure . deleteAt index
   AddTypeParam tdName index paramName0 k -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
     let paramName = unsafeMkLocalName paramName0
     m' <-

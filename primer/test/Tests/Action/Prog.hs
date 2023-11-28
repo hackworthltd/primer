@@ -875,6 +875,57 @@ unit_copy_paste_import =
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
+unit_DeleteTypeDef :: Assertion
+unit_DeleteTypeDef = progActionTest
+  ( defaultProgEditableTypeDefs
+      $ sequence
+        [ do
+            x <- emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tEmptyHole)
+            astDef "def1" x <$> tEmptyHole
+        , do
+            x <- con cA $ replicate 3 emptyHole
+            astDef "def2" x <$> tEmptyHole
+        , do
+            x <-
+              lam "a"
+                $ case_
+                  (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+                  [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
+                  , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
+                  ]
+            astDef "def3" x <$> tEmptyHole
+        ]
+  )
+  [DeleteTypeDef tT]
+  $ expectSuccess
+  $ \_ prog' -> do
+    assertBool "type deleted" $ Map.notMember tT $ foldMap' moduleTypesQualified $ progModules prog'
+    def1 <- findDef (gvn "def1") prog'
+    forgetMetadata (astDefExpr def1)
+      @?= forgetMetadata
+        ( create'
+            $ emptyHole
+            `ann` (tEmptyHole `tapp` tcon (tcn "Bool") `tapp` tEmptyHole)
+        )
+    def2 <- findDef (gvn "def2") prog'
+    forgetMetadata (astDefExpr def2)
+      @?= forgetMetadata
+        ( create'
+            emptyHole
+        )
+    def3 <- findDef (gvn "def3") prog'
+    forgetMetadata (astDefExpr def3)
+      @?= forgetMetadata
+        ( create'
+            $ lam "a"
+            $ case_
+              ( hole
+                  $ emptyHole
+                  `ann` (tEmptyHole `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int"))
+              )
+              []
+        )
+
 unit_RenameType :: Assertion
 unit_RenameType =
   progActionTest
@@ -1078,6 +1129,37 @@ unit_AddCon_sparse =
                 emptyHole
           )
 
+unit_DeleteCon :: Assertion
+unit_DeleteCon = progActionTest
+  ( defaultProgEditableTypeDefs
+      $ sequence
+        [ do
+            x <-
+              case_
+                (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+                [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] $ con cA $ replicate 3 emptyHole
+                ]
+            astDef "def" x <$> tEmptyHole
+        ]
+  )
+  [DeleteCon tT cA]
+  $ expectSuccess
+  $ \_ prog' -> do
+    td <- findTypeDef tT prog'
+    astTypeDefConstructors td
+      @?= [ ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+          ]
+    def <- findDef (gvn "def") prog'
+    forgetMetadata (astDefExpr def)
+      @?= forgetMetadata
+        ( create'
+            $ case_
+              (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+              [ branch cB [("s", Nothing), ("t", Nothing)] emptyHole
+              ]
+        )
+
 unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest
@@ -1156,6 +1238,52 @@ unit_AddConField_case_ann =
                     cA
                     [("x", Nothing), ("y", Nothing), ("a", Nothing), ("z", Nothing)]
                     (lvar "y")
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
+                ]
+          )
+
+unit_DeleteConField :: Assertion
+unit_DeleteConField =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <-
+          case_
+            ( con
+                cA
+                [ con0 (vcn "True")
+                , con0 (vcn "False")
+                , con0 (vcn "True")
+                ]
+                `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
+            )
+            [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
+            ]
+        sequence
+          [ astDef "def" x <$> tEmptyHole
+          ]
+    )
+    [DeleteConField tT cA 1]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefConstructors td
+        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+            ]
+      def <- findDef (gvn "def") prog'
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
+          ( create'
+              $ case_
+                ( con
+                    cA
+                    [ con0 (vcn "True")
+                    , con0 (vcn "True")
+                    ]
+                    `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
+                )
+                [ branch cA [("x", Nothing), ("z", Nothing)] emptyHole
                 , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
