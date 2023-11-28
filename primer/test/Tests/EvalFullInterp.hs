@@ -48,7 +48,7 @@ import Primer.Core.Utils (
   forgetTypeMetadata,
   generateIDs,
  )
-import Primer.Def (DefMap, ASTDef (ASTDef), Def (DefAST))
+import Primer.Def (DefMap, ASTDef (ASTDef), Def (DefAST, DefPrim))
 import Primer.Eval
 import Primer.EvalFullStep
 import Primer.Examples qualified as Examples (
@@ -1660,6 +1660,10 @@ evalFullTest' :: HasCallStack => BetaRecursionDepth -> TypeDefMap -> DefMap -> D
 -- TODO: deal with primitives
 evalFullTest' brd tydefs defs dir = interp brd tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
       DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
+      _ -> Nothing)
+      $ M.assocs defs)
+      (M.fromList $ mapMaybe (\(f,d) -> case d of
+      DefPrim p -> Just (f,p)
       _ -> Nothing)
       $ M.assocs defs) mempty) dir
 

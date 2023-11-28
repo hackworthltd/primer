@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -78,13 +79,16 @@ import Primer.Zipper (
 import Protolude.Error (error)
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Type (Type'(TEmptyHole, THole))
-import Primer.Core.Utils (_freeVarsTy, concreteTy, freeVarsTy, freeVars, forgetMetadata, forgetTypeMetadata)
+import Primer.Core.Utils (_freeVarsTy, concreteTy, freeVarsTy, freeVars, forgetMetadata, forgetTypeMetadata, generateIDs)
 import Data.Set.Optics (setOf)
 import Optics (_2,(%), to)
 import qualified Data.Set as Set
 import Primer.Name (Name, unName)
 import Primer.Primitives (primConName)
 import Control.Exception (throw)
+import Primer.Eval.Prim (tryPrimFun)
+import Primer.Primitives.PrimDef (PrimDef)
+import Primer.Core.DSL.Meta (create')
 
 -- A naive tree-walker / compile to closure (TODO: is this correct terminology?)
 -- We reuse Haskell's runtime to do call-by-need
@@ -100,14 +104,15 @@ import Control.Exception (throw)
 data EnvTm = EnvTm
   { vars :: Set Name
   , env :: Map.Map (Either GVarName LVarName) (Expr' () () ())
+  , prims :: Map GVarName PrimDef
   }
 data EnvTy = EnvTy
   { vars :: Set Name
   , env :: Map.Map TyVarName (Type' () ())
   }
 
-mkEnv :: [(Either GVarName LVarName, Expr' a b c)] -> [(TyVarName,Type' a b)] -> (EnvTm, EnvTy)
-mkEnv tms tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempty, extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty)
+mkEnv :: [(Either GVarName LVarName, Expr' a b c)] -> Map GVarName PrimDef -> [(TyVarName,Type' a b)] -> (EnvTm, EnvTy)
+mkEnv tms prims tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempty prims, extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty)
 
 data BetaRecursionDepth
   = BRDNone
@@ -151,7 +156,12 @@ interp' brd tydefs env@(envTm,envTy) dir = \case
   App _ f s -> case interp' (betaRecursionDepthPred brd) tydefs env Syn f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
        ann dir (interp' (betaRecursionDepthPred brd) tydefs (extendTmsEnv [(Right v,Ann () (interp' (betaRecursionDepthPred brd) tydefs env Chk s) src)] env) Chk t) tgt
-     f' -> App () f' (interp' brd tydefs env Chk s)
+     f' -> let s' = interp' brd tydefs env Chk s
+           -- NB: we evaluate arguments to primitive functions strictly
+           -- and assume the result of a primitive will be in normal form
+           in case tryPrimFun' envTm.prims (App () f' s') of
+               Nothing -> App () f' s'
+               Just p -> p
   APP _ f s -> case interp' (betaRecursionDepthPred brd) tydefs env Syn f of
      Ann _ (LAM _ a t) (TForall _ b _ ty) ->
        let s' = interpTy envTy s
@@ -249,7 +259,7 @@ freshLike v (envTm, envTy) =
        v : [unsafeMkLocalName $ unName (unLocalName v) <> show i | i<-[0..]]
 
 freshLikeTy :: LocalName k -> EnvTy -> LocalName k
-freshLikeTy v env = freshLike v (EnvTm mempty mempty, env)
+freshLikeTy v env = freshLike v (EnvTm mempty mempty mempty, env)
 
 -- todo: doc what sense this is "normal" -- not under binders...
 interpTy :: EnvTy -> Type' () () -> Type' () ()
@@ -291,7 +301,9 @@ extendTmsEnvWithFVs :: [(Either GVarName LVarName ,Expr' () () (), Set Name)]
             -> (EnvTm, EnvTy)
             -> (EnvTm, EnvTy)
 extendTmsEnvWithFVs tms (envTm, envTy) = (EnvTm {vars = envTm.vars <> Set.unions ((\(_,_,fvs) -> fvs) <$> tms)
-                 , env = Map.fromList ((\(x,y,_) -> (x,y)) <$> tms) <> envTm.env}
+                 , env = Map.fromList ((\(x,y,_) -> (x,y)) <$> tms) <> envTm.env
+                 , prims = envTm.prims
+                 }
     , envTy)
 
 extendTyEnv' :: TyVarName
@@ -324,3 +336,13 @@ m ! k = case Map.lookup k m of
 m !! k = case Map.lookup k m of
   Just v -> v
   Nothing -> TVar () k
+
+-- This is an ugly hack: we don't care about the IDs, but the underlying
+-- primitives always return an ID-ful expression, and the wrapper tryPrimFun
+-- takes an id-ful expression. We will simply generate nonsense IDs and
+-- forget the returned ones.
+tryPrimFun' :: Map GVarName PrimDef -> Expr' () () ()
+    -> Maybe (Expr' () () ())
+tryPrimFun' prims e =
+    tryPrimFun prims (create' $ generateIDs e) >>= \(_,_,res) ->
+      pure (forgetMetadata $ create' res)
