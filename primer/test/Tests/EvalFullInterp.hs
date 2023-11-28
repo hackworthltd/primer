@@ -1054,11 +1054,11 @@ tasty_prim_hex_nat :: Property
 tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
-      ((forgetMetadata -> e,forgetMetadata -> r, prims), maxID) =
+      ((dir, forgetMetadata -> e,forgetMetadata -> r, prims), maxID) =
         create
           $ if n <= 15
             then
-              (,,)
+              (Chk,,,)
                 <$> case_
                   ( pfun NatToHex
                       `app` ne
@@ -1075,16 +1075,15 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                       )
                   ]
                 <*> con cJust [ne]
-                `ann` (tcon tMaybe `tapp` tcon tNat)
                 <*> primDefs
             else
-              (,,)
+              (Syn,,,)
                 <$> pfun NatToHex
                 `app` ne
                 <*> con cNothing []
                 `ann` (tcon tMaybe `tapp` tcon tChar)
                 <*> primDefs
-  s <- evalIO $ evalFullTest builtinTypes prims Syn e
+  s <- evalIO $ evalFullTest builtinTypes prims dir e
   s === Right r
 
 unit_prim_char_eq_1 :: Assertion
