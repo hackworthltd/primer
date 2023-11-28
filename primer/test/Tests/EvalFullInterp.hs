@@ -134,12 +134,12 @@ import Primer.EvalFullInterp (InterpError(..), interp, mkEnv, BetaRecursionDepth
 
 -- TODO: can I integrate with existing tests?
 -- The tests here are copy-pasted from stepwise test
---unit_1 :: Assertion
---unit_1 =
---  let (e, maxID) = create emptyHole
---   in do
---        s <- evalFullTest maxID mempty mempty 0 Syn e
---        s <~==> Left (TimedOut e)
+unit_1 :: Assertion
+unit_1 =
+  let (e, maxID) = first forgetMetadata $ create emptyHole
+   in do
+        s <- evalFullTest' (BRDLim (-1)) mempty mempty Syn e
+        s @?= Left RecursionDepthExceeded
 
 unit_2 :: Assertion
 unit_2 =
@@ -172,20 +172,20 @@ unit_4 =
         s <- evalFullTest mempty mempty Syn expr
         s @?= Right expected
 
--- NB: can't work with interp, as not terminate!
+-- NB: can't work the same with interp, as not terminate, and so do not get a partial result!
 ---- This test is slightly unfortunate.
 ---- Writing [_] for embeddings we don't reduce [ e ] : T (and I'm not
 ---- sure if we should). This leads to the annotation in the output.
 ---- See https://github.com/hackworthltd/primer/issues/12
---unit_5 :: Assertion
---unit_5 =
---  let ((e, expt), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
---        a <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
---        b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x") `ann` tcon tBool
---        pure (a, b)
---   in do
---        s <- evalFullTest mempty mempty Syn e
---        s <~==> Left (TimedOut expt)
+unit_5 :: Assertion
+unit_5 =
+  let ((e, expt), maxID) = first (bimap forgetMetadata forgetMetadata) $ create $ do
+        a <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
+        b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x") `ann` tcon tBool
+        pure (a, b)
+   in do
+        s <- evalFullTest' (BRDLim 100) mempty mempty Syn e
+        s @?= Left RecursionDepthExceeded
 
 unit_6 :: Assertion
 unit_6 =
@@ -997,7 +997,6 @@ unit_let_self_capture =
 --  ev 1 ~ f
 --  ev 3 ~ g
 
--- TODO: Try to enable the rest of the tests
 --   We are stuck here as we sometimes generate non-normalizable terms, and the test loops
 --   Before doing anything clever, I'm going to do some benchmarking
 -- | Evaluation preserves types
@@ -1021,36 +1020,37 @@ tasty_type_preservation = withTests 1000
            -- TODO: sometimes this will loop!
               s' <- checkTest ty =<< generateIDs s
               s === forgetMetadata s' -- check no smart holes happened
---
+
+-- TODO: Try to enable the rest of the tests
 ---- Unsaturated primitives are stuck terms
---unit_prim_stuck :: Assertion
---unit_prim_stuck =
---  let ((f, prims), maxID) = create $ (,) <$> pfun ToUpper <*> primDefs
---   in do
---        s <- evalFullTest maxID mempty prims 1 Syn f
---        s <~==> Right f
---
---unit_prim_toUpper :: Assertion
---unit_prim_toUpper =
---  unaryPrimTest
---    ToUpper
---    (char 'a')
---    (char 'A')
---
---unit_prim_isSpace_1 :: Assertion
---unit_prim_isSpace_1 =
---  unaryPrimTest
---    IsSpace
---    (char '\n')
---    (boolAnn True)
---
---unit_prim_isSpace_2 :: Assertion
---unit_prim_isSpace_2 =
---  unaryPrimTest
---    IsSpace
---    (char 'a')
---    (boolAnn False)
---
+unit_prim_stuck :: Assertion
+unit_prim_stuck =
+  let ((forgetMetadata -> f, prims), maxID) = create $ (,) <$> pfun ToUpper <*> primDefs
+   in do
+        s <- evalFullTest mempty prims Syn f
+        s @?= Right f
+
+unit_prim_toUpper :: Assertion
+unit_prim_toUpper =
+  unaryPrimTest
+    ToUpper
+    (char 'a')
+    (char 'A')
+
+unit_prim_isSpace_1 :: Assertion
+unit_prim_isSpace_1 =
+  unaryPrimTest
+    IsSpace
+    (char '\n')
+    (boolAnn True)
+
+unit_prim_isSpace_2 :: Assertion
+unit_prim_isSpace_2 =
+  unaryPrimTest
+    IsSpace
+    (char 'a')
+    (boolAnn False)
+
 --tasty_prim_hex_nat :: Property
 --tasty_prim_hex_nat = withTests 20 . property $ do
 --  n <- forAllT $ Gen.integral $ Range.constant 0 50
@@ -1706,10 +1706,11 @@ evalFullTasty id_ tydefs globals n d e = do
   let ids = r ^.. evalResultExpr % exprIDs
   ids === ordNub ids
   pure r
+-}
 
 unaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
-  let ((e, r, prims), maxID) =
+  let ((forgetMetadata -> e, forgetMetadata -> r, prims), maxID) =
         create
           $ (,,)
           <$> pfun f
@@ -1717,11 +1718,11 @@ unaryPrimTest f x y =
           <*> y
           <*> primDefs
    in do
-        s <- evalFullTest maxID mempty prims 2 Syn e
-        s <~==> Right r
+        s <- evalFullTest mempty prims Syn e
+        s @?= Right r
 binaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
-  let ((e, r, prims), maxID) =
+  let ((forgetMetadata ->  e,forgetMetadata ->   r, prims), maxID) =
         create
           $ (,,)
           <$> pfun f
@@ -1730,9 +1731,10 @@ binaryPrimTest f x y z =
           <*> z
           <*> primDefs
    in do
-        s <- evalFullTest maxID mempty prims 2 Syn e
-        s <~==> Right r
+        s <- evalFullTest mempty prims Syn e
+        s @?= Right r
 
+{-
 evalResultExpr :: Traversal' (Either EvalFullError Expr) Expr
 evalResultExpr = _Left % timedOut `adjoin` _Right
   where
