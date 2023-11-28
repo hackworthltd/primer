@@ -1,5 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 -- TODO: test interp and evalfull are equal
+-- TODO: DRY with evalfull-by-step tests?
 module Tests.EvalFullInterp where
 
 import Foreword hiding (unlines)
