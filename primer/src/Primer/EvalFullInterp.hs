@@ -120,7 +120,7 @@ interp :: BetaRecursionDepth -> TypeDefMap
         -> (EnvTm, EnvTy)
         -> Dir
         -> Expr' () () () -> Expr' () () ()
-interp (BRDLim ((<0) -> True)) tydefs env@(envTm,envTy) dir = \_ -> error "timeout" -- TODO: proper error?
+interp (BRDLim ((<0) -> True)) tydefs env@(envTm,envTy) dir = \_ -> error "timeout" -- TODO: proper error?; TODO: can I simply return the Expr here, and have a "this is how far I got"?
 interp brd tydefs env@(envTm,envTy) dir = \case
   Hole m e -> Hole m $ interp brd tydefs env Syn e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
   e@EmptyHole{} -> e
