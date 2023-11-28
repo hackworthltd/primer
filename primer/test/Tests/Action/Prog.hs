@@ -250,35 +250,23 @@ unit_delete_def =
       assertNothing (lookupDef' "other" prog')
       assertJust (lookupDef' "main" prog')
 
+unit_delete_def_referenced :: Assertion
+unit_delete_def_referenced =
+  progActionTest
+    defaultEmptyProg
+    [ moveToDef "main"
+    , BodyAction [ConstructVar $ globalVarRef "other"]
+    , deleteDef "other"
+    ]
+    $ expectSuccess
+    $ \_ prog' -> do
+      assertNothing (lookupDef' "other" prog')
+      fmap (forgetMetadata . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (EmptyHole ())
+
 unit_delete_def_unknown_id :: Assertion
 unit_delete_def_unknown_id =
   progActionTest defaultEmptyProg [deleteDef "unknown"]
     $ expectError (@?= DefNotFound (gvn "unknown"))
-
-unit_delete_def_used_id :: Assertion
-unit_delete_def_used_id =
-  progActionTest defaultEmptyProg [moveToDef "main", BodyAction [ConstructVar $ globalVarRef "other"], deleteDef "other"]
-    $ expectError (@?= DefInUse (gvn "other"))
-
-unit_delete_def_used_id_cross_module :: Assertion
-unit_delete_def_used_id_cross_module =
-  progActionTest
-    prog
-    [moveToDef "main", BodyAction [ConstructVar $ GlobalVarRef $ qualifyM "foo"], DeleteDef $ qualifyM "foo"]
-    $ expectError (@?= DefInUse (qualifyM "foo"))
-  where
-    n = ModuleName ["Module2"]
-    qualifyM = qualifyName n
-    prog = do
-      p <- defaultEmptyProg
-      e <- emptyHole
-      t <- tEmptyHole
-      let m =
-            Module n mempty
-              $ Map.singleton "foo"
-              $ DefAST
-              $ ASTDef e t
-      pure $ p & #progModules %~ (m :)
 
 -- 'foo = foo' shouldn't count as "in use" and block deleting itself
 unit_delete_def_recursive :: Assertion

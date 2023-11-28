@@ -98,7 +98,7 @@ import Primer.Def (
   ASTDef (..),
   DefMap,
  )
-import Primer.Def.Utils (globalInUse, typeInUse)
+import Primer.Def.Utils (typeInUse)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (unName)
 import Primer.Primitives (tChar, tInt)
@@ -212,13 +212,10 @@ forDef ::
   GVarName ->
   [Action]
 forDef _ _ NonEditable _ = mempty
-forDef defs l Editable defName =
-  sortByPriority l
-    $ [Input RenameDef, NoInput DuplicateDef]
-    <> mwhen
-      -- ensure the definition is not in use, otherwise the action will not succeed
-      (not $ globalInUse defName $ Map.delete defName defs)
-      [NoInput DeleteDef]
+forDef _ l Editable _ =
+  sortByPriority
+    l
+    [Input RenameDef, NoInput DuplicateDef, NoInput DeleteDef]
 
 forBody ::
   TypeDefMap ->

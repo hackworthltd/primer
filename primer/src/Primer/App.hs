@@ -197,7 +197,7 @@ import Primer.Def (
   DefMap,
   defAST,
  )
-import Primer.Def.Utils (globalInUse, typeInUse)
+import Primer.Def.Utils (typeInUse)
 import Primer.Eval (AvoidShadowing (AvoidShadowing))
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
@@ -645,10 +645,17 @@ applyProgAction prog = \case
     case deleteDef m d of
       Nothing -> throwError $ DefNotFound d
       Just mod' -> do
-        when (globalInUse d $ foldMap' moduleDefs $ mod' : ms)
-          $ throwError
-          $ DefInUse d
-        pure (mod' : ms, Nothing)
+        ms' <-
+          (mod' : ms)
+            & traverseOf
+              (traversed % #moduleDefs % traversed % #_DefAST)
+              ( traverseOf
+                  #astDefExpr
+                  $ transformM \case
+                    Var _ (GlobalVarRef v) | v == d -> emptyHole
+                    e -> pure e
+              )
+        pure (ms', Nothing)
   RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) defName def -> do
     let defs = moduleDefs m
         newNameBase = unsafeMkName nameStr
