@@ -77,14 +77,14 @@ import Primer.Zipper (
   unfocusType,
  )
 import Protolude.Error (error)
-import Primer.Core.Transform (decomposeTAppCon)
+import Primer.Core.Transform (decomposeTAppCon, unfoldApp)
 import Primer.Core.Type (Type'(TEmptyHole, THole))
 import Primer.Core.Utils (_freeVarsTy, concreteTy, freeVarsTy, freeVars, forgetMetadata, forgetTypeMetadata, generateIDs)
 import Data.Set.Optics (setOf)
 import Optics (_2,(%), to)
 import qualified Data.Set as Set
 import Primer.Name (Name, unName)
-import Primer.Primitives (primConName)
+import Primer.Primitives (primConName, primFunDef)
 import Control.Exception (throw)
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.Primitives.PrimDef (PrimDef)
@@ -153,15 +153,22 @@ interp' brd tydefs env@(envTm,envTy) dir = \case
   Hole m e -> Hole m $ interp' brd tydefs env Syn e -- (TODO: maybe we should not eval inside holes? maybe should error out?)
   e@EmptyHole{} -> e
   Ann _ e t -> ann dir (interp' brd tydefs env Chk e) (interpTy envTy t)
+  -- NB: for primitives, we attempt to reduce them
+  -- - with unevaluated arguments
+  -- - then with the first argument evaluated
+  -- - then with the first two
+  -- - etc
+  -- and we do not assume the result of a primitive will be in normal form
+  e@App{}
+    -- The @upsilon Chk@ is a bit of a lie -- we are not really in a checkable
+    -- position. We simply wish to remove annotations around a primitive function's name
+    | (upsilon Chk -> Var _ (GlobalVarRef name), args) <- unfoldApp e
+    , Just r <- getFirst $ foldMap' (First . tryPrimFun'' name envTm.prims) (evalPrefixes brd tydefs env args)
+         -> interp' (betaRecursionDepthPred brd) tydefs env dir r
   App _ f s -> case interp' (betaRecursionDepthPred brd) tydefs env Syn f of
      Ann _ (Lam _ v t) (TFun _ src tgt) ->
        ann dir (interp' (betaRecursionDepthPred brd) tydefs (extendTmsEnv [(Right v,Ann () (interp' (betaRecursionDepthPred brd) tydefs env Chk s) src)] env) Chk t) tgt
-     f' -> let s' = interp' brd tydefs env Chk s
-           -- NB: we evaluate arguments to primitive functions strictly
-           -- and assume the result of a primitive will be in normal form
-           in case tryPrimFun' envTm.prims (App () f' s') of
-               Nothing -> App () f' s'
-               Just p -> p
+     f' -> App () f' $ interp' brd tydefs env Chk s
   APP _ f s -> case interp' (betaRecursionDepthPred brd) tydefs env Syn f of
      Ann _ (LAM _ a t) (TForall _ b _ ty) ->
        let s' = interpTy envTy s
@@ -248,7 +255,7 @@ interp' brd tydefs env@(envTm,envTy) dir = \case
                -- We force t before emitting anything, so this is not very lazy.
                -- However we know evaluation of types must terminate!
                case (d, concreteTy t) of
-                    (Chk, True) -> e
+                    (Chk, True) -> upsilon d e
                     _ -> Ann () e t
      e -> e
    renameTmEnv v v' = extendTmEnv (Right v) (Var () $ LocalVarRef v')
@@ -352,3 +359,25 @@ tryPrimFun' :: Map GVarName PrimDef -> Expr' () () ()
 tryPrimFun' prims e =
     tryPrimFun prims (create' $ generateIDs e) >>= \(_,_,res) ->
       pure (forgetMetadata $ create' res)
+
+-- This is an ugly hack: we don't care about the IDs, but the underlying
+-- primitives always return an ID-ful expression, or rather a monadic
+-- computation to create an ID-ful expression, in an arbitrary
+-- @MonadFresh ID@ monad. We will simply generate nonsense IDs and forget
+-- them.
+tryPrimFun'' :: GVarName -> Map GVarName PrimDef -> [Expr' () () ()] -> Maybe (Expr' () () ())
+tryPrimFun'' p ps as = do
+    d <- Map.lookup p ps
+    case primFunDef d as of
+      Left _ -> Nothing
+      Right res -> Just $ forgetMetadata $ create' res
+
+evalPrefixes :: BetaRecursionDepth -> TypeDefMap
+        -> (EnvTm, EnvTy)
+  -> [Expr' () () ()] -> [[Expr' () () ()]]
+evalPrefixes brd tydefs env = map (uncurry (++)) . mapPrefixes (interp' brd tydefs env Chk)
+
+mapPrefixes :: (a -> b) -> [a] -> [([b],[a])]
+mapPrefixes f = \case
+ [] -> [([],[])]
+ a:as -> ([],a:as) : map (first (f a :)) (mapPrefixes f as)
