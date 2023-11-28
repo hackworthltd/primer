@@ -834,7 +834,7 @@ tasty_resume = withDiscards 2000
     resumeTest testModules' dir t
 
 -- A helper for tasty_resume, and tasty_resume_regression
-resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
+resumeTest :: Monad m => [Module] -> Dir -> Expr -> PropertyT (WT m) ()
 resumeTest mods dir t = do
   let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}

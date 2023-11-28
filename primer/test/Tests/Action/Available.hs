@@ -467,21 +467,21 @@ data Act
 
 -- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
 runEditAppMLogs ::
-  HasCallStack =>
+  (HasCallStack, Monad m) =>
   EditAppM (PureLog (WithSeverity ())) ProgError a ->
   App ->
-  PropertyT WT (Either ProgError a, App)
+  PropertyT (WT m) (Either ProgError a, App)
 runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
   (r, logs) -> testNoSevereLogs logs >> pure r
 
 -- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
-actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+actionSucceeds :: (HasCallStack, Monad m) => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT (WT m) App
 actionSucceeds m a =
   runEditAppMLogs m a >>= \case
     (Left err, _) -> annotateShow err >> failure
     (Right _, a') -> ensureSHNormal a' $> a'
 
-actionSucceedsOrNotRedex :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+actionSucceedsOrNotRedex :: (HasCallStack, Monad m) => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT (WT m) App
 actionSucceedsOrNotRedex m a =
   runEditAppMLogs m a >>= \case
     (Left (EvalError NotRedex), _) -> do
@@ -495,7 +495,7 @@ actionSucceedsOrNotRedex m a =
 -- Similar to 'actionSucceeds' but bearing in mind that
 -- if we submit our own name rather than an offered one, then
 -- we should expect that name capture/clashing may happen
-actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT (SucceedOrCapture App)
+actionSucceedsOrCapture :: (HasCallStack, Monad m) => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT (WT m) (SucceedOrCapture App)
 actionSucceedsOrCapture m a = do
   a' <- runEditAppMLogs m a
   case a' of
@@ -530,7 +530,7 @@ data SucceedOrCapture a
   | Clash
 
 -- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
-ensureSHNormal :: App -> PropertyT WT ()
+ensureSHNormal :: Monad m => App -> PropertyT (WT m) ()
 ensureSHNormal a = case checkAppWellFormed a of
   Left err -> annotateShow err >> failure
   Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'

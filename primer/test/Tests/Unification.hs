@@ -409,7 +409,7 @@ unit_unify_shadow = do
 
 -- Generate an extension of the base context (from the reader monad) with more
 -- local term and type vars, some of which are unif vars.
-genCxtExtendingLocalUVs :: GenT WT (Cxt, M.Map TyVarName Kind)
+genCxtExtendingLocalUVs :: Monad m => GenT (WT m) (Cxt, M.Map TyVarName Kind)
 genCxtExtendingLocalUVs = do
   n <- Gen.int $ Range.linear 0 20
   go n mempty
@@ -426,7 +426,7 @@ genCxtExtendingLocalUVs = do
 
 -- Run a property in a context extended with typedefs, globals and locals. Some
 -- of the locals (mentioned in the Set) are considered unification variables.
-propertyWTInExtendedUVCxt' :: [S Module] -> (M.Map TyVarName Kind -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt' :: [S Module] -> (M.Map TyVarName Kind -> PropertyT (WT IO) ()) -> Property
 propertyWTInExtendedUVCxt' mods p = propertyWT mods $ do
   cxtG <- forAllT genCxtExtendingGlobal
   local (const cxtG) $ do
@@ -434,7 +434,7 @@ propertyWTInExtendedUVCxt' mods p = propertyWT mods $ do
     annotateShow uvs
     local (const cxtL) $ p uvs
 
-propertyWTInExtendedUVCxt :: [S Module] -> (S.Set TyVarName -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt :: [S Module] -> (S.Set TyVarName -> PropertyT (WT IO) ()) -> Property
 propertyWTInExtendedUVCxt mods p = propertyWTInExtendedUVCxt' mods $ p . M.keysSet
 
 tasty_extendedUVCxt_typechecks :: Property

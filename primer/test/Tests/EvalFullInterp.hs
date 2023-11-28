@@ -13,7 +13,7 @@ import Data.Set qualified as S
 import Data.String (unlines)
 import Hedgehog hiding (Property, Var, check, property, test, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
-import Hedgehog.Internal.Property (LabelName (unLabelName))
+import Hedgehog.Internal.Property (LabelName (LabelName, unLabelName))
 import Hedgehog.Range qualified as Range
 import Optics
 import Primer.App (
@@ -130,7 +130,7 @@ import Tests.Action.Prog (readerToState)
 import Tests.Eval.Utils (genDirTm, hasHoles, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
-import Primer.EvalFullInterp (interp, mkEnv, BetaRecursionDepth (BRDNone, BRDLim))
+import Primer.EvalFullInterp (InterpError(..), interp, mkEnv, BetaRecursionDepth (BRDNone, BRDLim))
 
 -- TODO: can I integrate with existing tests?
 -- The tests here are copy-pasted from stepwise test
@@ -146,7 +146,7 @@ unit_2 =
   let (e, maxID) = first forgetMetadata $ create emptyHole -- TODO: so ugly
    in do
         s <- evalFullTest mempty mempty Syn e
-        s @?= e
+        s @?= Right e
 
 -- Check we don't have shadowing issues in types
 unit_3 :: Assertion
@@ -158,7 +158,7 @@ unit_3 =
         pure (e, expect)
    in do
         s <- evalFullTest mempty mempty Syn expr
-        s @?= expected
+        s @?= Right expected
 
 -- Check we don't have shadowing issues in terms
 unit_4 :: Assertion
@@ -170,7 +170,7 @@ unit_4 =
         pure (e, expect)
    in do
         s <- evalFullTest mempty mempty Syn expr
-        s @?= expected
+        s @?= Right expected
 
 -- NB: can't work with interp, as not terminate!
 ---- This test is slightly unfortunate.
@@ -195,9 +195,9 @@ unit_6 =
         pure (an, tr)
    in do
         s <- evalFullTest mempty mempty Syn e
-        s @?= e
+        s @?= Right e
         t <- evalFullTest mempty mempty Chk e
-        t @?= expt
+        t @?= Right expt
 
 -- TODO: do we want to expand
 --   (λ x. t) : ?
@@ -213,7 +213,7 @@ unit_7 =
         (l `ann` tEmptyHole) `app` l
    in do
         s <- evalFullTest mempty mempty Syn e
-        s @?= e
+        s @?= Right e
 
 unit_8 :: Assertion
 unit_8 =
@@ -221,7 +221,7 @@ unit_8 =
       e = mapEven n
    in do
         s <- evalFullTest builtinTypes (defMap e) Syn (forgetMetadata $ expr e)
-        s @?= forgetMetadata (expectedResult e)
+        s @?= Right (forgetMetadata $ expectedResult e)
 
 -- A worker/wrapper'd map
 unit_9 :: Assertion
@@ -239,7 +239,7 @@ unit_9 =
         pure (globs, expr, expect)
    in do
         s <- evalFullTest builtinTypes (M.fromList globals) Syn e
-        s @?= expected
+        s @?= Right expected
 
 -- A case redex must have an scrutinee which is an annotated constructor.
 -- Plain constructors are not well-typed here, for bidirectionality reasons,
@@ -263,9 +263,9 @@ unit_10 =
         pure (annCase, noannCase, expect)
    in do
         s' <- evalFullTest builtinTypes mempty Syn s
-        s' @?= expected
+        s' @?= Right expected
         t' <- evalFullTest builtinTypes mempty Syn t
-        t' @?= t
+        t' @?= Right t
 
 unit_11 :: Assertion
 unit_11 =
@@ -286,7 +286,7 @@ unit_11 =
         pure (globs, expr, expect)
    in do
         s <- evalFullTest builtinTypes (M.fromList globals) Syn e
-        s @?= expected
+        s @?= Right expected
 
 unit_12 :: Assertion
 unit_12 =
@@ -304,7 +304,7 @@ unit_12 =
         pure (expr, expect)
    in do
         s <- evalFullTest builtinTypes mempty Syn e
-        s @?= expected
+        s @?= Right expected
 
 unit_13 :: Assertion
 unit_13 =
@@ -314,7 +314,7 @@ unit_13 =
         pure (expr, expect)
    in do
         s <- evalFullTest builtinTypes mempty Syn e
-        s @?= expected
+        s @?= Right expected
 
 unit_14 :: Assertion
 unit_14 =
@@ -324,7 +324,7 @@ unit_14 =
         pure (expr, expect)
    in do
         s <- evalFullTest  builtinTypes mempty Syn e
-        s @?= expected
+        s @?= Right expected
 
 -- TODO: revisit this comment!
 -- TODO: revisit this test -- does it do anything useful since we cannot view each step?
@@ -353,7 +353,7 @@ unit_15 =
         pure (e0, e5)
    in do
         s <- evalFullTest builtinTypes mempty Syn expr
-        s @?= expected
+        s @?= Right expected
 
 unit_map_hole :: Assertion
 unit_map_hole =
@@ -368,14 +368,14 @@ unit_map_hole =
         pure (M.fromList globs, e, expect)
    in do
         sO <- evalFullTest builtinTypes globals Syn expr
-        sO @?= expected
+        sO @?= Right expected
 
 unit_hole_ann_case :: Assertion
 unit_hole_ann_case =
   let (forgetMetadata -> tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
    in do
         t <- evalFullTest builtinTypes mempty Chk tm
-        t @?= tm
+        t @?= Right tm
 
 -- Check we don't have variable capture in
 -- let x = y in case ? of C x -> x ; D y -> x
@@ -399,7 +399,7 @@ unit_case_let_capture =
         pure (e0, e6)
    in do
         s <- evalFullTest builtinTypes mempty Syn expr
-        s @?= expected
+        s @?= Right expected
 
 -- NB/TODO: can't do with interp as all tests timeout
 ---- We must evaluate inside the body of a let before the binding:
@@ -444,7 +444,7 @@ unit_tlet =
         pure (e0, e4)
    in do
         r <- evalFullTest mempty mempty Syn expr
-        r @?= expected
+        r @?= Right expected
 
 -- tlet x = C in ty ==> ty  when x not occur free in ty
 unit_tlet_elide :: Assertion
@@ -455,7 +455,7 @@ unit_tlet_elide = do
         pure (e0, e1)
    in do
         r <- evalFullTest mempty mempty Syn expr
-        r @?= expected
+        r @?= Right expected
 
 -- tlet x = x in x
 -- x
@@ -467,7 +467,7 @@ unit_tlet_self_capture = do
         pure (e0, e1)
    in do
         r <- evalFullTest mempty mempty Syn expr
-        r @?= expected
+        r @?= Right expected
 
 -- TODO: only checking final result, not each step
 -- When doing closed eval (i.e. don't go under binders), pushing a @let@
@@ -494,7 +494,7 @@ unit_closed_let_beta =
         pure (e0, e8)
    in do
         r <- evalFullTest mempty mempty Syn expr
-        r @?= expected
+        r @?= Right expected
 
 -- TODO: only check final result
 -- Closed eval and handling groups of @let@s singlely work together
@@ -518,7 +518,7 @@ unit_closed_single_lets =
         pure (e0, e4)
    in do
         r <- evalFullTest  mempty mempty Syn expr
-        r @?= expected
+        r @?= Right expected
 
 -- TODO: not testing as is not terminating (interp goes under lambdas)
 ---- One reason for not evaluating under binders is to avoid a size blowup when
@@ -935,9 +935,9 @@ unit_let_self_capture =
             )
    in do
         s2 <- evalFullTest mempty mempty Chk expr2
-        s2 @?= expected2
+        s2 @?= Right expected2
         s3 <- evalFullTest mempty mempty Chk expr3
-        s3 @?= expected3b
+        s3 @?= Right expected3b
 
 ---- | @spanM p mxs@ returns a tuple where the first component is the
 ---- values coming from the longest prefix of @mxs@ all of which satisfy
@@ -1011,7 +1011,9 @@ tasty_type_preservation = withTests 1000
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
     (dir, forgetMetadata -> t, ty) <- genDirTm
-    let s = evalFullTest' (BRDLim 100) tds globs dir t -- TODO: this sometimes aborts with an exception
+    s <- case evalFullTest' (BRDLim 100) tds globs dir t of -- TODO: this sometimes aborts with an exception
+             Left err -> label ("error: " <> LabelName (show err)) >> discard
+             Right s' -> label "NF" >> pure s'
     annotateShow s
     if hasTypeLets s
        then label ("skipped due to LetType") >> success
@@ -1654,14 +1656,14 @@ evalFullTest' optsV id_ tydefs globals n d e = do
   pure r
 -}
 
-evalFullTest' :: HasCallStack => BetaRecursionDepth -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> Expr' () () ()
+evalFullTest' :: HasCallStack => BetaRecursionDepth -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> Either InterpError (Expr' () () ())
 -- TODO: deal with primitives
 evalFullTest' brd tydefs defs dir = interp brd tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
       DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
       _ -> Nothing)
       $ M.assocs defs) mempty) dir
 
-evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Expr' () () ())
+evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 evalFullTest tydefs defs dir = pure . evalFullTest' BRDNone tydefs defs dir
 
 {-

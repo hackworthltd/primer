@@ -76,8 +76,9 @@ import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (
   TestM,
+  TestT,
   evalTestM,
-  isolateTestM,
+  isolateTestM, evalTestT,
  )
 import Primer.TypeDef (
   ASTTypeDef (..),
@@ -130,7 +131,7 @@ type TypeG = Type' () ()
 
 type ExprG = Expr' () () ()
 
-newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
+newtype WT m a = WT {unWT :: ReaderT Cxt (TestT m) a}
   deriving newtype
     ( Functor
     , Applicative
@@ -138,37 +139,38 @@ newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
     , MonadReader Cxt
     , MonadFresh NameCounter
     , MonadFresh ID
+    , MonadIO
     )
 
 -- | Run an action and ignore any effect on the fresh name/id state
-isolateWT :: WT a -> WT a
+isolateWT :: Monad m => WT m a -> WT m a
 isolateWT x = WT $ mapReaderT isolateTestM $ unWT x
 
-instance MonadFresh NameCounter (GenT WT) where
+instance Monad m => MonadFresh NameCounter (GenT (WT m)) where
   fresh = lift fresh
 
-instance MonadFresh ID (GenT WT) where
+instance Monad m => MonadFresh ID (GenT (WT m)) where
   fresh = lift fresh
 
-instance MonadFresh NameCounter (PropertyT WT) where
+instance Monad m => MonadFresh NameCounter (PropertyT (WT m)) where
   fresh = lift fresh
 
-instance MonadFresh ID (PropertyT WT) where
+instance Monad m => MonadFresh ID (PropertyT (WT m)) where
   fresh = lift fresh
 
-freshNameForCxt :: GenT WT Name
+freshNameForCxt :: Monad m => GenT (WT m) Name
 freshNameForCxt = do
   globs <- getGlobalBaseNames
   locals <- asks $ M.keysSet . localCxt
   freshName $ globs <> locals
 
-freshLVarNameForCxt :: GenT WT LVarName
+freshLVarNameForCxt :: Monad m => GenT (WT m) LVarName
 freshLVarNameForCxt = LocalName <$> freshNameForCxt
 
-freshTyVarNameForCxt :: GenT WT TyVarName
+freshTyVarNameForCxt :: Monad m => GenT (WT m) TyVarName
 freshTyVarNameForCxt = LocalName <$> freshNameForCxt
 
-freshTyConNameForCxt :: GenT WT TyConName
+freshTyConNameForCxt :: Monad m => GenT (WT m) TyConName
 freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 
 -- We try to have a decent distribution of names, where there is a
@@ -196,13 +198,13 @@ freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 -- bind a term variable "foo : T foo": if we changed the aimed-for
 -- type to the type of the term variable "foo", we would have captured
 -- the original type variable "foo" by our new term variable "foo".
-genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
+genLVarNameAvoiding :: Monad m => [TypeG] -> GenT (WT m) LVarName
 genLVarNameAvoiding ty =
   (\vs -> freshen (foldMap' freeVarsTy ty <> foldMap' freeVarsTy vs) 0)
     <$> asks localTmVars
     <*> genLVarName
 
-genTyVarNameAvoiding :: TypeG -> GenT WT TyVarName
+genTyVarNameAvoiding :: Monad m => TypeG -> GenT (WT m) TyVarName
 genTyVarNameAvoiding ty =
   (\vs -> freshen (freeVarsTy ty <> foldMap' freeVarsTy vs) 0)
     <$> asks localTmVars
@@ -217,7 +219,7 @@ freshen fvs i n =
         else m
 
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
-genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
+genSyns :: forall m. (HasCallStack, Monad m) => TypeG -> GenT (WT m) (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
   genPrimCon'' <- lift genPrimCon'
@@ -230,9 +232,9 @@ genSyns ty = do
     genHole = do
       t <- genChk $ TEmptyHole ()
       pure (Hole () t, TEmptyHole ())
-    genSpine :: WT (Maybe (GenT WT (ExprG, TypeG)))
+    genSpine :: WT m (Maybe (GenT (WT m) (ExprG, TypeG)))
     genSpine = fmap (fmap Gen.justT) genSpineHeadFirst
-    genSpineHeadFirst :: WT (Maybe (GenT WT (Maybe (ExprG, TypeG))))
+    genSpineHeadFirst :: WT m (Maybe (GenT (WT m) (Maybe (ExprG, TypeG))))
     -- todo: maybe add some lets in as post-processing? I could even add them to the locals for generation in the head
     genSpineHeadFirst = do
       localTms <- asks localTmVars
@@ -340,7 +342,7 @@ justT g = Gen.sized $ \s -> Gen.justT $ Gen.resize s g
 --   @sub ! a = t@ and @apps !! n = Left t@.
 -- - @sub@ is idempotent, and @apps@ do not refer to these names. I.e. the names
 --   in @InstUnconstrainedAPP@ do not appear free in @apps@ or the rhs of @sub@.
-genInstApp :: [Inst] -> GenT WT (Map TyVarName TypeG, [Either TypeG ExprG])
+genInstApp :: Monad m => [Inst] -> GenT (WT m) (Map TyVarName TypeG, [Either TypeG ExprG])
 genInstApp = reify mempty
   where
     reify sb = \case
@@ -349,7 +351,7 @@ genInstApp = reify mempty
       InstAPP t : is -> (\t' -> second (Left t' :)) <$> substTySimul sb t <*> reify sb is
       InstUnconstrainedAPP v k : is -> genWTType k >>= \t' -> second (Left t' :) <$> reify (M.insert v t' sb) is
 
-genSyn :: GenT WT (ExprG, TypeG)
+genSyn :: Monad m => GenT (WT m) (ExprG, TypeG)
 -- Note that genSyns will generate things consistent with the given type, i.e.
 -- of any type
 genSyn = genSyns (TEmptyHole ())
@@ -377,7 +379,7 @@ allCons cxt = M.fromList $ concatMap consForTyDef $ typeDefs cxt
           (astTypeDefConstructors td)
       TypeDefPrim _ -> []
 
-genChk :: TypeG -> GenT WT ExprG
+genChk :: forall m. Monad m => TypeG -> GenT (WT m) ExprG
 genChk ty = do
   cse <- lift case_
   abst' <- lift abst
@@ -445,9 +447,9 @@ genChk ty = do
               LetType () x <$> genWTType k <*> local (extendLocalCxtTy (x, k)) (genChk ty)
             -}
         ]
-    case_ :: WT (Maybe (GenT WT ExprG))
+    case_ :: WT m (Maybe (GenT (WT m) ExprG))
     case_ = (\ca cp -> Gen.frequency [(5, ca), (1, cp)]) <<$>> caseADT <<*>> casePrim
-    caseADT :: WT (Maybe (GenT WT ExprG))
+    caseADT :: WT m (Maybe (GenT (WT m) ExprG))
     caseADT =
       asks (M.assocs . typeDefs) <&> \adts ->
         if null adts
@@ -476,7 +478,7 @@ genChk ty = do
                       CaseBranch (PatCon c) binds <$> local (extendLocalCxts ns) (genChk ty)
             pure $ Case () e brs fb
     distinct xs = length xs == S.size (S.fromList xs)
-    casePrim :: WT (Maybe (GenT WT ExprG))
+    casePrim :: WT m (Maybe (GenT (WT m) ExprG))
     casePrim = do
       primGens <- genPrimCon
       pure
@@ -505,7 +507,7 @@ genStrictSubsequence xs = Gen.justT $ do
 -- | Generates types which infer kinds consistent with the argument
 -- I.e. @genWTType k@ will generate types @ty@ such that @synthKind ty = k'@
 -- with @consistentKinds k k'@. See 'Tests.Gen.Core.Typed.tasty_genTy'
-genWTType :: Kind' () -> GenT WT TypeG
+genWTType :: forall m. Monad m => Kind' () -> GenT (WT m) TypeG
 genWTType k = do
   vars <- lift vari
   cons <- lift constr
@@ -513,19 +515,19 @@ genWTType k = do
   let rec = hole : app : catMaybes [arrow, poly]
   Gen.recursive Gen.choice nonrec rec
   where
-    ehole :: GenT WT TypeG
+    ehole :: GenT (WT m) TypeG
     ehole = pure $ TEmptyHole ()
-    hole :: GenT WT TypeG
+    hole :: GenT (WT m) TypeG
     hole = THole () <$> genWTType (KHole ())
     app = do k' <- genWTKind; TApp () <$> genWTType (KFun () k' k) <*> genWTType k'
-    vari :: WT (Maybe (GenT WT TypeG))
+    vari :: WT m (Maybe (GenT (WT m)TypeG))
     vari = do
       goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
       pure
         $ if null goodVars
           then Nothing
           else Just $ Gen.element $ map (TVar () . fst) goodVars
-    constr :: WT (Maybe (GenT WT TypeG))
+    constr :: WT m (Maybe (GenT (WT m)TypeG))
     constr = do
       tds <- asks $ M.assocs . typeDefs
       let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
@@ -533,7 +535,7 @@ genWTType k = do
         $ if null goodTCons
           then Nothing
           else Just $ Gen.element $ map (TCon () . fst) goodTCons
-    arrow :: Maybe (GenT WT TypeG)
+    arrow :: Maybe (GenT (WT m) TypeG)
     arrow =
       if k == KHole () || k == KType ()
         then Just $ TFun () <$> genWTType (KType ()) <*> genWTType (KType ())
@@ -547,7 +549,7 @@ genWTType k = do
       n <- genTyVarName
       TLet () n <$> genWTType k' <*> local (extendLocalCxtTy (n,k')) (genWTType k)
     -}
-    poly :: Maybe (GenT WT TypeG)
+    poly :: Maybe (GenT (WT m) TypeG)
     poly =
       if k == KHole () || k == KType ()
         then Just $ do
@@ -557,12 +559,12 @@ genWTType k = do
         else Nothing
 
 -- | Generates an arbitary kind. Note that all kinds are well-formed.
-genWTKind :: GenT WT (Kind' ())
+genWTKind :: Monad m => GenT (WT m) (Kind' ())
 genWTKind = Gen.recursive Gen.choice [pure $ KType ()] [KFun () <$> genWTKind <*> genWTKind]
 
 -- NB: we are only generating the context entries, and so don't
 -- need definitions for the symbols!
-genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
+genGlobalCxtExtension :: Monad m => GenT (WT m) [(GVarName, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals
     $ Gen.list (Range.linear 1 5)
@@ -584,7 +586,7 @@ genList n g = Gen.frequency [(1, pure []), (9, Gen.list (Range.linear 1 n) g)]
 -- Generates a group of potentially-mutually-recursive typedefs
 -- If given a module name, they will all live in that module,
 -- otherwise they may live in disparate modules
-genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef () ())]
+genTypeDefGroup :: Monad m => Maybe ModuleName -> GenT (WT m) [(TyConName, TypeDef () ())]
 genTypeDefGroup mod = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   let tyconName = case mod of
@@ -632,7 +634,7 @@ extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}
 -- typedefs and globals.
 -- (It is probably worth seeding with some interesting types, to ensure decent
 -- coverage)
-genCxtExtendingGlobal :: GenT WT Cxt
+genCxtExtendingGlobal :: Monad m => GenT (WT m) Cxt
 genCxtExtendingGlobal = do
   tds <- genTypeDefGroup Nothing
   globals <- local (addTypeDefs tds) genGlobalCxtExtension
@@ -647,7 +649,7 @@ genCxtExtendingGlobal = do
 -- represent the context @x : TYPE, y : x, x : TYPE -> TYPE@: we would
 -- forget the first @x@, and thus it would appear that @y@ is
 -- ill-typed (a term variable must have a type of kind TYPE).
-genCxtExtendingLocal :: GenT WT Cxt
+genCxtExtendingLocal :: Monad m => GenT (WT m) Cxt
 genCxtExtendingLocal = do
   n <- Gen.int $ Range.linear 1 10
   go n
@@ -700,8 +702,8 @@ genInt =
   where
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
 
-hoist' :: Applicative f => Cxt -> WT a -> f a
-hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
+hoist' :: Monad m => Cxt -> WT m a -> m a
+hoist' cxt = evalTestT 0 . flip runReaderT cxt . unWT
 
 -- | Convert a @PropertyT WT ()@ into a @Property@, which Hedgehog can test.
 -- It is recommended to do more than default number of tests when using this module.
@@ -709,5 +711,5 @@ hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
 -- to increase the number of tests run to get decent coverage.
 -- The modules form the 'Cxt' in the environment of the 'WT' monad
 -- (thus the definitions of terms is ignored)
-propertyWT :: [S Module] -> PropertyT WT () -> Property
+propertyWT :: [S Module] -> PropertyT (WT IO) () -> Property
 propertyWT mods = property . hoist (hoist' $ buildTypingContextFromModules' mods NoSmartHoles)

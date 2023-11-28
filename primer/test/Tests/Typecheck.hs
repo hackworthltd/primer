@@ -5,7 +5,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
-import Hedgehog hiding (Property, Var, check, property, withDiscards, withTests)
+import Hedgehog hiding (TestT, Property, Var, check, property, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Optics (over, set, (%), (%~))
@@ -106,7 +106,7 @@ import Primer.Module (Module (..), builtinModule, primitiveModule)
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (PrimDef (HexToNat), tChar)
 import Primer.Primitives.DSL (pfun)
-import Primer.Test.TestM (TestM, evalTestM)
+import Primer.Test.TestM (TestM, evalTestM, TestT)
 import Primer.Test.Util (
   tcn,
   vcn,
@@ -1069,7 +1069,7 @@ smartSynthKindGives tIn tExpect =
     -- Compare result to input, ignoring any difference in IDs
     (Right (_, tGot), Right (_, tExpect')) -> on (@?=) zeroTypeIDs tGot tExpect'
 
-newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError (ReaderT Cxt TestM) a}
+newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError (ReaderT Cxt (TestT Identity)) a}
   deriving newtype
     ( Functor
     , Applicative
@@ -1084,7 +1084,7 @@ runTypecheckTestMIn :: Cxt -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestMIn cxt =
   evalTestM 0
     . flip runReaderT cxt
-    . runExceptT
+     . runExceptT
     . unTypecheckTestM
 runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestM sh = runTypecheckTestMIn (buildTypingContextFromModules' [testModule, builtinModule] sh)

@@ -53,7 +53,7 @@ import Primer.Typecheck (
  )
 import Tasty (Property, withDiscards, withTests)
 
-inExtendedGlobalCxt :: PropertyT WT a -> PropertyT WT a
+inExtendedGlobalCxt :: Monad m => PropertyT (WT m) a -> PropertyT (WT m) a
 inExtendedGlobalCxt p = do
   cxt <- ask
   cxtE <- forAllT genCxtExtendingGlobal
@@ -62,7 +62,7 @@ inExtendedGlobalCxt p = do
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (globalCxt cxtE) (globalCxt cxt)
   local (const cxtE) p
 
-inExtendedLocalCxt :: PropertyT WT a -> PropertyT WT a
+inExtendedLocalCxt :: Monad m => PropertyT (WT m) a -> PropertyT (WT m) a
 inExtendedLocalCxt p = do
   cxt <- ask
   cxtE <- forAllT genCxtExtendingLocal
@@ -70,10 +70,10 @@ inExtendedLocalCxt p = do
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (localCxt cxtE) (localCxt cxt)
   local (const cxtE) p
 
-propertyWTInExtendedGlobalCxt :: [S Module] -> PropertyT WT () -> Property
+propertyWTInExtendedGlobalCxt :: [S Module] -> PropertyT (WT IO) () -> Property
 propertyWTInExtendedGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt
 
-propertyWTInExtendedLocalGlobalCxt :: [S Module] -> PropertyT WT () -> Property
+propertyWTInExtendedLocalGlobalCxt :: [S Module] -> PropertyT (WT IO) () -> Property
 propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt . inExtendedLocalCxt
 
 tasty_genTy :: Property
@@ -86,7 +86,7 @@ tasty_genTy = withTests 1000
     ty === forgetTypeMetadata ty' -- check no smart holes stuff happened
 
 -- | Lift 'checkKind' into a property
-checkKindTest :: HasCallStack => Kind' () -> Type -> PropertyT WT (Type' (Meta (Kind' ())) (Meta ()))
+checkKindTest :: (HasCallStack, Monad m) => Kind' () -> Type -> PropertyT (WT m) (Type' (Meta (Kind' ())) (Meta ()))
 checkKindTest k t = do
   x <- lift $ runExceptT @TypeError $ checkKind k t
   case x of
@@ -94,7 +94,7 @@ checkKindTest k t = do
     Right s -> pure s
 
 -- | Lift 'synthKind' into a property
-synthKindTest :: HasCallStack => Type -> PropertyT WT (Kind' (), Type' (Meta (Kind' ())) (Meta ()))
+synthKindTest :: (HasCallStack, Monad m) => Type -> PropertyT (WT m) (Kind' (), Type' (Meta (Kind' ())) (Meta ()))
 synthKindTest t = do
   x <- lift $ runExceptT @TypeError $ synthKind t
   case x of
@@ -102,7 +102,7 @@ synthKindTest t = do
     Right s -> pure s
 
 -- Lift 'checkValidContext' into a property
-checkValidContextTest :: HasCallStack => Cxt -> PropertyT WT ()
+checkValidContextTest :: (HasCallStack, Monad m) => Cxt -> PropertyT (WT m) ()
 checkValidContextTest t = do
   x <- lift $ runExceptT @TypeError $ checkValidContext t
   case x of
@@ -193,7 +193,7 @@ tasty_genChk = withTests 1000
     t === forgetMetadata t' -- check no smart holes stuff happened
 
 -- Lift 'synth' into a property
-synthTest :: HasCallStack => Expr -> PropertyT WT (Type' () (), ExprT)
+synthTest :: (HasCallStack, Monad m) => Expr -> PropertyT (WT m) (Type' () (), ExprT)
 synthTest e = do
   x <- lift $ runExceptT @TypeError $ synth e
   case x of
@@ -201,7 +201,7 @@ synthTest e = do
     Right y -> pure y
 
 -- Lift 'check' into a property
-checkTest :: HasCallStack => Type' () () -> Expr -> PropertyT WT ExprT
+checkTest :: (HasCallStack, Monad m) => Type' () () -> Expr -> PropertyT (WT m) ExprT
 checkTest ty t = do
   x <- lift $ runExceptT @TypeError $ check ty t
   case x of

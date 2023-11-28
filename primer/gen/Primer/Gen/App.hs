@@ -63,7 +63,7 @@ import Primer.TypeDef (generateTypeDefIDs)
 -- Note that the result will be well-typed, but not necessarily
 -- "smartholes-normal", in the sense that typechecking with smartholes
 -- enabled may modify it (e.g. by eliding redundant holes)
-genProg :: SmartHoles -> [Module] -> GenT WT Prog
+genProg :: forall m. Monad m => SmartHoles -> [Module] -> GenT (WT m) Prog
 genProg sh initialImports = local (extendCxtByModules initialImports) $ do
   imports <- telescope (Range.linear 0 2) (local . extendCxtByModule) (genModule "I")
   home <- local (extendCxtByModules imports) $ telescope (Range.linear 1 2) (local . extendCxtByModule) (genModule "M")
@@ -77,9 +77,9 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
       , redoLog = defaultLog
       }
   where
-    telescope :: MonadGen m => Range.Range Int -> (a -> m [a] -> m [a]) -> (Int -> m a) -> m [a]
+    telescope :: MonadGen mg => Range.Range Int -> (a -> mg [a] -> mg [a]) -> (Int -> mg a) -> mg [a]
     telescope n f m = Gen.int n >>= \n' -> telescope' n' 0 f m
-    telescope' :: MonadGen m => Int -> Int -> (a -> m [a] -> m [a]) -> (Int -> m a) -> m [a]
+    telescope' :: MonadGen mg => Int -> Int -> (a -> mg [a] -> mg [a]) -> (Int -> mg a) -> mg [a]
     telescope' nMax n k m
       | n >= nMax = pure []
       | otherwise = do
@@ -92,7 +92,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
     extendCxtByModules ms =
       extendTypeDefCxt (foldMap' moduleTypesQualified ms)
         . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap' moduleDefsQualified ms)
-    genModule :: Name -> Int -> GenT WT Module
+    genModule :: Name -> Int -> GenT (WT m) Module
     genModule prefix index = do
       let mn = ModuleName $ prefix :| [unsafeMkName $ show index]
       tds' <- genTypeDefGroup $ Just mn
@@ -106,7 +106,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
           }
 
 -- Generate a mutually-recursive group of term definitions
-genASTDefGroup :: ModuleName -> GenT WT (Map Name Def)
+genASTDefGroup :: Monad m => ModuleName -> GenT (WT m) (Map Name Def)
 genASTDefGroup mod = do
   nts <- genList 5 $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType (KType ())
   nTyTms <- local (extendGlobalCxt nts) $ for nts $ \(n, ty) -> (n,ty,) <$> genChk ty
@@ -118,7 +118,7 @@ genASTDefGroup mod = do
 -- | Generate an 'App' that is "smartholes-normal": typechecking with the
 -- app's smartholes setting will not modify it
 -- (up to alpha equality in TypeCaches).
-genApp :: SmartHoles -> [Module] -> GenT WT App
+genApp :: Monad m => SmartHoles -> [Module] -> GenT (WT m) App
 genApp sh initialImports = do
   -- Since we know that typechecking is idempotent (tasty_tcWholeProg_idempotent),
   -- we also know that the output of 'genApp' is "smartholes-normal".
