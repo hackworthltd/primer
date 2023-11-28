@@ -1010,7 +1010,7 @@ tasty_type_preservation = withTests 1000
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
     (dir, forgetMetadata -> t, ty) <- genDirTm
-    let s = evalFullTest' (BRDLim 100) tds globs dir t -- TODO: this seems to blow the heap...
+    let s = evalFullTest' (BRDLim 100) tds globs dir t -- TODO: this sometimes aborts with an exception
     annotateShow s
     if hasTypeLets s
        then label ("skipped due to LetType") >> success
