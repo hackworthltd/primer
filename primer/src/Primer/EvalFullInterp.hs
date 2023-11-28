@@ -221,6 +221,12 @@ interp' brd tydefs env@(envTm,envTy) dir = \case
        | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' (betaRecursionDepthPred brd) tydefs env Chk t
        | CaseFallback t <- fb -> interp' (betaRecursionDepthPred brd) tydefs env Chk t
        | otherwise -> error $ "no such branch: " <> show c
+     -- literals (primitive constructors) are actually synthesisable, so may come
+     -- without annotations
+     PrimCon _ c
+       | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' (betaRecursionDepthPred brd) tydefs env Chk t
+       | CaseFallback t <- fb -> interp' (betaRecursionDepthPred brd) tydefs env Chk t
+       | otherwise -> error $ "no such branch: " <> show c
      e' -> let f = \case
                  CaseBranch pat binds rhs ->
                    let (env',binds') = mapAccumL (\env'' (bindName -> b) -> let b' = freshLike b env'' in (renameTmEnv b b' env'', Bind () b'))
