@@ -1011,7 +1011,7 @@ tasty_type_preservation = withTests 1000
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
     (dir, forgetMetadata -> t, ty) <- genDirTm
-    s <- case evalFullTest' (BRDLim 100) tds globs dir t of -- TODO: this sometimes aborts with an exception
+    s <- liftIO (evalFullTest' (BRDLim 100) tds globs dir t) >>= \case -- TODO: this sometimes aborts with an exception
              Left err -> label ("error: " <> LabelName (show err)) >> discard
              Right s' -> label "NF" >> pure s'
     annotateShow s
@@ -1656,7 +1656,7 @@ evalFullTest' optsV id_ tydefs globals n d e = do
   pure r
 -}
 
-evalFullTest' :: HasCallStack => BetaRecursionDepth -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> Either InterpError (Expr' () () ())
+evalFullTest' :: HasCallStack => BetaRecursionDepth -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 -- TODO: deal with primitives
 evalFullTest' brd tydefs defs dir = interp brd tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
       DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
@@ -1664,7 +1664,7 @@ evalFullTest' brd tydefs defs dir = interp brd tydefs (mkEnv (mapMaybe (\(f,d) -
       $ M.assocs defs) mempty) dir
 
 evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest tydefs defs dir = pure . evalFullTest' BRDNone tydefs defs dir
+evalFullTest tydefs defs dir = evalFullTest' BRDNone tydefs defs dir
 
 {-
 evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)

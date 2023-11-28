@@ -5,6 +5,7 @@
 module Primer.EvalFullInterp (
     interp
     , interp'
+    , InterpError(..)
     , BetaRecursionDepth(..)
     {-
   Dir (..),
@@ -119,7 +120,7 @@ betaRecursionDepthPred = \case
 
 data InterpError = RecursionDepthExceeded
  | NoBranch
- deriving stock Show
+ deriving stock (Eq, Show)
  deriving anyclass Exception
 
 interp :: BetaRecursionDepth -> TypeDefMap
