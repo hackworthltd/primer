@@ -101,8 +101,6 @@ library primer-api-testlib
     , stm-containers
 
 test-suite primer-api-test
-  type:               exitcode-stdio-1.0
-  main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
     Tests.API
@@ -119,38 +117,45 @@ test-suite primer-api-test
     OverloadedLists
     OverloadedStrings
 
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths -threaded
-    -rtsopts -with-rtsopts=-N
-
-  if impl(ghcjs)
-    buildable: False
+  if arch(wasm32)
+    type:        exitcode-stdio-1.0
+    main-is:     TestsWasm32.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths
 
   else
-    build-depends:
-      , base
-      , bytestring
-      , containers
-      , hedgehog
-      , logging-effect
-      , mtl
-      , optics
-      , pretty-simple                                     ^>=4.1
-      , primer-api
-      , primer-api-testlib
-      , primer:{primer, primer-hedgehog, primer-testlib}
-      , protolude
-      , stm
-      , stm-containers
-      , tasty                                             ^>=1.4.2.1
-      , tasty-discover
-      , tasty-golden                                      ^>=2.3.5
-      , tasty-hunit
-      , text
-      , transformers
-      , uuid-types                                        ^>=1.0.5.1
+    type:        exitcode-stdio-1.0
+    main-is:     Test.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths -threaded
+      -rtsopts -with-rtsopts=-N
+
+  build-depends:
+    , base
+    , bytestring
+    , containers
+    , hedgehog
+    , logging-effect
+    , mtl
+    , optics
+    , pretty-simple                                     ^>=4.1
+    , primer-api
+    , primer-api-testlib
+    , primer:{primer, primer-hedgehog, primer-testlib}
+    , protolude
+    , stm
+    , stm-containers
+    , tasty                                             ^>=1.4.2.1
+    , tasty-discover
+    , tasty-golden                                      ^>=2.3.5
+    , tasty-hunit
+    , text
+    , transformers
+    , uuid-types                                        ^>=1.0.5.1
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839

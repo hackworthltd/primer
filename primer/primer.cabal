@@ -116,7 +116,6 @@ library
     , exceptions                   >=0.10.4   && <0.11.0
     , extra                        >=1.7.10   && <1.8.0
     , generic-optics               >=2.0      && <2.3.0
-    , JuicyPixels                  ^>=3.3.8
     , list-t                       >=1.0      && <1.1.0
     , logging-effect               ^>=1.4
     , mmorph                       ^>=1.2.0
@@ -206,8 +205,6 @@ library primer-testlib
     , tasty-hunit     ^>=0.10.0
 
 test-suite primer-test
-  type:               exitcode-stdio-1.0
-  main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
     Tests.Action
@@ -257,45 +254,52 @@ test-suite primer-test
     OverloadedLists
     OverloadedStrings
 
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths -threaded
-    -rtsopts -with-rtsopts=-N
-
-  if impl(ghcjs)
-    buildable: False
+  if arch(wasm32)
+    type:        exitcode-stdio-1.0
+    main-is:     TestsWasm32.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths
 
   else
-    build-depends:
-      , aeson
-      , aeson-pretty                 ^>=0.8.9
-      , base
-      , bytestring
-      , containers
-      , extra
-      , filepath
-      , hedgehog
-      , hedgehog-classes             ^>=0.2.5.4
-      , logging-effect
-      , mtl
-      , optics
-      , pretty-simple                ^>=4.1
-      , prettyprinter
-      , prettyprinter-ansi-terminal
-      , primer
-      , primer-hedgehog
-      , primer-testlib
-      , protolude
-      , tasty                        ^>=1.4.2.1
-      , tasty-discover
-      , tasty-golden                 ^>=2.3.5
-      , tasty-hedgehog
-      , tasty-hunit
-      , text
-      , transformers
-      , uniplate
-      , uuid-types
+    type:        exitcode-stdio-1.0
+    main-is:     Test.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths -threaded
+      -rtsopts -with-rtsopts=-N
+
+  build-depends:
+    , aeson
+    , aeson-pretty                 ^>=0.8.9
+    , base
+    , bytestring
+    , containers
+    , extra
+    , filepath
+    , hedgehog
+    , hedgehog-classes             ^>=0.2.5.4
+    , logging-effect
+    , mtl
+    , optics
+    , pretty-simple                ^>=4.1
+    , prettyprinter
+    , prettyprinter-ansi-terminal
+    , primer
+    , primer-hedgehog
+    , primer-testlib
+    , protolude
+    , tasty                        ^>=1.4.2.1
+    , tasty-discover
+    , tasty-golden                 ^>=2.3.5
+    , tasty-hedgehog
+    , tasty-hunit
+    , text
+    , transformers
+    , uniplate
+    , uuid-types
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839

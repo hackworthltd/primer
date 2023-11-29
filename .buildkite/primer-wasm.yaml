@@ -1,0 +1,9 @@
+agents:
+  public: "true"
+  os: "linux"
+
+steps:
+  - label: ":haskell: :linux: Primer Wasm targets"
+    command: |
+      nix develop .#wasm --print-build-logs --command make wasm32-update
+      nix develop .#wasm --print-build-logs --command make wasm32-test-opt

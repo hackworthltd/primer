@@ -96,9 +96,10 @@ deriving via PrimerJSON a instance (Generic a, GToJSON Zero (Rep a), GToEncoding
 -- $orphanInstances
 --
 -- We define some OpenApi orphan instances in primer-service, to avoid
--- pulling in the openapi3 dependency into primer core. This is necessary to
--- build primer with ghcjs, because openapi3 transitively depends on network,
--- which ghcjs currently cannot build.
+-- pulling in the openapi3 dependency into primer core. This is
+-- necessary to build primer with ghcjs and/or the wasm32-wasi target,
+-- because openapi3 transitively depends on network, which these
+-- targets currently cannot build.
 
 -- Suitable for deriving via, when the ToJSON instance is via PrimerJSON
 instance
