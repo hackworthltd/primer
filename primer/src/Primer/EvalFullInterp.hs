@@ -5,6 +5,7 @@
 
 module Primer.EvalFullInterp (
     interp
+    , Timeout(MicroSec)
     , interp'
     , InterpError(..)
     {-
@@ -88,6 +89,7 @@ import Control.Exception (throw)
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.Primitives.PrimDef (PrimDef)
 import Primer.Core.DSL.Meta (create')
+import System.Timeout (timeout)
 
 -- A naive tree-walker / compile to closure (TODO: is this correct terminology?)
 -- We reuse Haskell's runtime to do call-by-need
@@ -113,15 +115,18 @@ data EnvTy = EnvTy
 mkEnv :: [(Either GVarName LVarName, Expr' a b c)] -> Map GVarName PrimDef -> [(TyVarName,Type' a b)] -> (EnvTm, EnvTy)
 mkEnv tms prims tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempty prims, extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty)
 
-data InterpError = NoBranch
+data InterpError = Timeout | NoBranch
  deriving stock (Eq, Show)
  deriving anyclass Exception
 
-interp :: TypeDefMap
+newtype Timeout = MicroSec Int
+
+-- Wrap the interpreter in a IO-based timeout
+interp :: Timeout -> TypeDefMap
         -> (EnvTm, EnvTy)
         -> Dir
         -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-interp tydefs env dir e =  try $ evaluate $ force $ interp' tydefs env dir e
+interp (MicroSec t) tydefs env dir e = maybeToEither Timeout <$> timeout t (evaluate $ force $ interp' tydefs env dir e)
 
 -- we keep type annotations around ??
 -- TODO: worry about name capture!

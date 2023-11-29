@@ -130,7 +130,7 @@ import Tests.Action.Prog (readerToState)
 import Tests.Eval.Utils (genDirTm, hasHoles, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
-import Primer.EvalFullInterp (InterpError(..), interp, mkEnv, BetaRecursionDepth (BRDNone, BRDLim))
+import Primer.EvalFullInterp (Timeout(MicroSec),InterpError(..), interp, mkEnv, interp')
 
 -- TODO: can I integrate with existing tests?
 -- The tests here are copy-pasted from stepwise test
@@ -138,8 +138,8 @@ unit_1 :: Assertion
 unit_1 =
   let (e, maxID) = first forgetMetadata $ create emptyHole
    in do
-        s <- evalFullTest' (BRDLim (-1)) mempty mempty Syn e
-        s @?= Left RecursionDepthExceeded
+        s <- evalFullTest' (MicroSec 0) mempty mempty Syn e
+        s @?= Left Timeout
 
 unit_2 :: Assertion
 unit_2 =
@@ -184,8 +184,8 @@ unit_5 =
         b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x") `ann` tcon tBool
         pure (a, b)
    in do
-        s <- evalFullTest' (BRDLim 100) mempty mempty Syn e
-        s @?= Left RecursionDepthExceeded
+        s <- evalFullTest' (MicroSec 100_000) mempty mempty Syn e
+        s @?= Left Timeout
 
 unit_6 :: Assertion
 unit_6 =
@@ -914,7 +914,7 @@ unit_closed_single_lets =
 -- (This was before we changed to "pushing down lets")
 unit_let_self_capture :: Assertion
 unit_let_self_capture =
-  let ( ( 
+  let ( (
             forgetMetadata -> expr2
           , forgetMetadata -> expected2
           , forgetMetadata -> expr3
@@ -927,7 +927,7 @@ unit_let_self_capture =
           e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
           expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
           pure
-            ( 
+            (
               e2
             , expect2
             , e3
@@ -1010,16 +1010,18 @@ tasty_type_preservation = withTests 1000
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
     (dir, forgetMetadata -> t, ty) <- genDirTm
-    s <- liftIO (evalFullTest' (BRDLim 100) tds globs dir t) >>= \case -- TODO: this sometimes aborts with an exception
-             Left err -> label ("error: " <> LabelName (show err)) >> discard
-             Right s' -> label "NF" >> pure s'
-    annotateShow s
-    if hasTypeLets s
-       then label ("skipped due to LetType") >> success
-       else do
-           -- TODO: sometimes this will loop!
-              s' <- checkTest ty =<< generateIDs s
-              s === forgetMetadata s' -- check no smart holes happened
+    s <- liftIO (evalFullTest' (MicroSec 100_000) tds globs dir t)
+    case s of
+             Left err -> label ("error: " <> LabelName (show err)) >> success
+             Right s' -> do
+                 label "NF"
+                 annotateShow s'
+                 if hasTypeLets s'
+                    then label ("skipped due to LetType") >> success
+                    else do
+                        -- TODO: sometimes this will loop!
+                           s'' <- checkTest ty =<< generateIDs s'
+                           s' === forgetMetadata s'' -- check no smart holes happened
 
 ---- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion
@@ -1595,8 +1597,8 @@ unit_wildcard =
    in do
         s <- evalFullTest mempty mempty Syn eTerm
         s @?= Right expectTerm
-        t <- evalFullTest' (BRDLim 20) mempty mempty Syn eDiverge
-        t @?= Left RecursionDepthExceeded
+        t <- evalFullTest' (MicroSec 100_000) mempty mempty Syn eDiverge
+        t @?= Left Timeout
 
 unit_case_prim :: Assertion
 unit_case_prim =
@@ -1642,10 +1644,8 @@ unit_lazy_head =
         e = forgetMetadata $ create' $ (hd `ann` hdTy) `aPP` (tcon tBool) `app` repTrue
         expect = forgetMetadata $ create' $ con0 cTrue `ann` tcon tBool
     in do
-        s00 <- evalFullTest' BRDNone builtinTypes mempty Syn e
-        s00 @?= Right expect
-        sLim <- evalFullTest' (BRDLim 100) builtinTypes mempty Syn e
-        sLim @?= Right expect
+        s <- evalFullTest builtinTypes mempty Syn e
+        s @?= Right expect
 
 -- * Utilities
 
@@ -1669,19 +1669,27 @@ evalFullTest' optsV id_ tydefs globals n d e = do
   pure r
 -}
 
-evalFullTest' :: HasCallStack => BetaRecursionDepth -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
+evalFullTest'' :: HasCallStack => Maybe Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 -- TODO: deal with primitives
-evalFullTest' brd tydefs defs dir = interp brd tydefs (mkEnv (mapMaybe (\(f,d) -> case d of
-      DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
-      _ -> Nothing)
-      $ M.assocs defs)
-      (M.fromList $ mapMaybe (\(f,d) -> case d of
-      DefPrim p -> Just (f,p)
-      _ -> Nothing)
-      $ M.assocs defs) mempty) dir
+evalFullTest'' t tydefs defs dir =
+    let env = mkEnv (mapMaybe (\(f,d) -> case d of
+                   DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
+                   _ -> Nothing)
+                   $ M.assocs defs)
+                   (M.fromList $ mapMaybe (\(f,d) -> case d of
+                   DefPrim p -> Just (f,p)
+                   _ -> Nothing)
+                   $ M.assocs defs) mempty
+        inter = case t of
+            Just t' -> interp t' tydefs env dir
+            Nothing -> purer . interp' tydefs env dir
+    in inter
+
+evalFullTest' :: HasCallStack => Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
+evalFullTest' = evalFullTest'' . Just
 
 evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest tydefs defs dir = evalFullTest' BRDNone tydefs defs dir
+evalFullTest = evalFullTest'' Nothing
 
 {-
 evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
