@@ -1632,6 +1632,21 @@ unit_case_prim =
         s4 <- evalFullTest mempty mempty Syn e4
         s4 @?= Right expect4
 
+-- Taking the head of an infinite list works
+-- (this tests our interpreter is lazy enough)
+unit_lazy_head :: Assertion
+unit_lazy_head =
+    let hd = lAM "a" $ lam "xs" $ caseFB_ (lvar "xs") [branch cCons [("y",Nothing),("ys",Nothing)] $ lvar "y"] emptyHole
+        hdTy = tforall "a" ktype $ (tcon tList `tapp` tvar "a") `tfun` tvar "a"
+        repTrue = letrec "r" (con cCons [con0 cTrue, lvar "r"]) (tcon tList `tapp` tcon tBool) (lvar "r")
+        e = forgetMetadata $ create' $ (hd `ann` hdTy) `aPP` (tcon tBool) `app` repTrue
+        expect = forgetMetadata $ create' $ con0 cTrue `ann` tcon tBool
+    in do
+        s00 <- evalFullTest' BRDNone builtinTypes mempty Syn e
+        s00 @?= Right expect
+        sLim <- evalFullTest' (BRDLim 100) builtinTypes mempty Syn e
+        sLim @?= Right expect
+
 -- * Utilities
 
 {-
