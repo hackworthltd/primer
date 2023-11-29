@@ -53,7 +53,8 @@ import Data.Map.Lazy qualified as Map
 import Numeric.Natural (Natural)
 import Primer.Core (
   Expr, Expr'(..), CaseFallback' (CaseFallback), caseBranchName, CaseBranch' (CaseBranch), Pattern (PatCon, PatPrim), bindName, GVarName, LVarName, Type' (..)
-  , TyVarName, TmVarRef (LocalVarRef, GlobalVarRef), mapFallback, Type, unLocalName, LocalName, unsafeMkLocalName, Bind' (Bind),
+  , TyVarName, TmVarRef (LocalVarRef, GlobalVarRef), mapFallback, Type, unLocalName, LocalName, unsafeMkLocalName, Bind' (Bind), ValConName,
+   PrimCon
  )
 import Primer.Def (
   DefMap,
@@ -115,18 +116,23 @@ data EnvTy = EnvTy
 mkEnv :: [(Either GVarName LVarName, Expr' a b c)] -> Map GVarName PrimDef -> [(TyVarName,Type' a b)] -> (EnvTm, EnvTy)
 mkEnv tms prims tys = extendTmsEnv (second forgetMetadata <$> tms) (EnvTm mempty mempty prims, extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty)
 
-data InterpError = Timeout | NoBranch
+data InterpError = Timeout
+                 | NoBranch (Either ValConName PrimCon) [Pattern]
  deriving stock (Eq, Show)
  deriving anyclass Exception
 
 newtype Timeout = MicroSec Int
 
--- Wrap the interpreter in a IO-based timeout
+-- Wrap the interpreter in a IO-based timeout, and catch InterpError exceptions
 interp :: Timeout -> TypeDefMap
         -> (EnvTm, EnvTy)
         -> Dir
         -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-interp (MicroSec t) tydefs env dir e = maybeToEither Timeout <$> timeout t (evaluate $ force $ interp' tydefs env dir e)
+interp (MicroSec t) tydefs env dir e = do
+    e' <- timeout t (try $ evaluate $ force $ interp' tydefs env dir e)
+    pure $ case e' of
+        Nothing -> Left Timeout
+        Just e'' -> e''
 
 -- we keep type annotations around ??
 -- TODO: worry about name capture!
@@ -135,6 +141,8 @@ interp' :: TypeDefMap
         -> Dir
         -> Expr' () () () -> Expr' () () ()
 -- NB: this may throw imprecise exceptions of type InterpError
+-- (but not the Timeout summand).
+-- TODO: some of this comment needs revisiting!!!
 -- We use this mechanism so that we can have a "recursion depth" limit
 -- but also lazily consume a result of a diverging-but-productive
 -- recursive call. These are common in Primer programs,
@@ -210,11 +218,11 @@ interp' tydefs env@(envTm,envTy) dir = \case
                               env) Chk
                          t
        | CaseFallback t <- fb -> interp' tydefs env Chk t
-       | otherwise -> error $ "no such branch: " <> show c
+       | otherwise -> throw $ NoBranch (Left c) $ caseBranchName <$> brs
      Ann _ (PrimCon _ c) (TCon _ ((== primConName c) -> True))
        | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' tydefs env Chk t
        | CaseFallback t <- fb -> interp' tydefs env Chk t
-       | otherwise -> error $ "no such branch: " <> show c
+       | otherwise -> throw $ NoBranch (Right c) $ caseBranchName <$> brs
      -- literals (primitive constructors) are actually synthesisable, so may come
      -- without annotations
      PrimCon _ c

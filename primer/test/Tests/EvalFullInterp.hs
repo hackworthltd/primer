@@ -132,6 +132,13 @@ import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 import Primer.EvalFullInterp (Timeout(MicroSec),InterpError(..), interp, mkEnv, interp')
 
+unit_throw_no_branch :: Assertion
+unit_throw_no_branch =
+    let e = forgetMetadata $ create' $ case_ (con0 cTrue `ann` tcon tBool) [branch cFalse [] emptyHole]
+    in do
+        s <- evalFullTest builtinTypes mempty Chk e
+        s @?= Left (NoBranch (Left cTrue) [PatCon cFalse])
+
 -- TODO: can I integrate with existing tests?
 -- The tests here are copy-pasted from stepwise test
 unit_1 :: Assertion
@@ -1669,9 +1676,10 @@ evalFullTest' optsV id_ tydefs globals n d e = do
   pure r
 -}
 
-evalFullTest'' :: HasCallStack => Maybe Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
+evalFullTest' :: HasCallStack =>
+    Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 -- TODO: deal with primitives
-evalFullTest'' t tydefs defs dir =
+evalFullTest' t tydefs defs dir =
     let env = mkEnv (mapMaybe (\(f,d) -> case d of
                    DefAST (ASTDef tm ty) -> Just (Left f,Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
                    _ -> Nothing)
@@ -1680,16 +1688,10 @@ evalFullTest'' t tydefs defs dir =
                    DefPrim p -> Just (f,p)
                    _ -> Nothing)
                    $ M.assocs defs) mempty
-        inter = case t of
-            Just t' -> interp t' tydefs env dir
-            Nothing -> purer . interp' tydefs env dir
-    in inter
-
-evalFullTest' :: HasCallStack => Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest' = evalFullTest'' . Just
+    in  interp t tydefs env dir
 
 evalFullTest :: HasCallStack => TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest = evalFullTest'' Nothing
+evalFullTest = evalFullTest' (MicroSec (-1)) -- negative time means wait forever
 
 {-
 evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
