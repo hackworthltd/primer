@@ -192,7 +192,7 @@ interp' tydefs env@(envTm,envTy) dir = \case
                                                      (Set.delete (unLocalName v) $ freeVars (Ann () e t))
                                                      env
                        in interp' tydefs env' dir b
-  -- In step interp'reter, case which does not discriminate is lazy. Same here for consistency
+  -- In step interpreter, case which does not discriminate is lazy. Same here for consistency
   Case _ _ [] (CaseFallback e) -> interp' tydefs env Chk e
   Case _ e brs fb -> -- this relies on @e@ computing to normal form lazily
 -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
