@@ -192,21 +192,23 @@ interp' brd tydefs env@(envTm,envTy) dir = \case
   LetType _ v t b -> interp' brd tydefs (extendTyEnv v (interpTy envTy t) env) dir b
   -- TODO: benchmark two implementations of letrec
   -- perhaps switch dependant on whether have recursion limit?
-  {-
   -- lift recursive lets to recusive lets in the metalanguage (haskell)
+  --
   -- this can easily cause deadlocked or infinite-size programs
   -- and can't be detected
   -- but has advantage of being lazy and having sharing
-  Letrec _ v e t b  -> let e' = interp' brd tydefs env' Chk e
-                           env' = extendTmEnvWithFVs (Right v) (Ann () e' $ interpTy envTy t)
+  Letrec _ v e t b
+     | BRDNone <- brd
+     -> let e' = interp' brd tydefs env' Chk e
+            env' = extendTmEnvWithFVs (Right v) (Ann () e' $ interpTy envTy t)
                                                      (Set.delete (unLocalName v) $ freeVars (Ann () e t))
                                                      env
                        in interp' brd tydefs env' dir b
-                       -}
   -- iteratively unroll the let. this causes reduntant work, but at least we will notice infinite loops
-  Letrec _ v e t b -> let e' n = interp' n tydefs (env' $ betaRecursionDepthPred n) Chk e
-                          t' = interpTy envTy t
-                          env' n = extendTmEnvWithFVs (Right v) (Ann () (e' n) t')
+     | otherwise
+     -> let e' n = interp' n tydefs (env' $ betaRecursionDepthPred n) Chk e
+            t' = interpTy envTy t
+            env' n = extendTmEnvWithFVs (Right v) (Ann () (e' n) t')
                                                      (Set.delete (unLocalName v) $ freeVars (Ann () e t))
                                                      env
                       in interp' brd tydefs (env' brd) dir b
