@@ -46,7 +46,7 @@ import Primer.Core.Utils (
   exprIDs,
   forgetMetadata,
   forgetTypeMetadata,
-  generateIDs,
+  generateIDs, alphaEq,
  )
 import Primer.Def (DefMap, ASTDef (ASTDef), Def (DefAST, DefPrim))
 import Primer.Eval
@@ -1029,6 +1029,23 @@ tasty_type_preservation = withTests 1000
                         -- TODO: sometimes this will loop!
                            s'' <- checkTest ty =<< generateIDs s'
                            s' === forgetMetadata s'' -- check no smart holes happened
+
+tasty_two_interp_agree :: Property
+tasty_two_interp_agree = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT testModules
+  $ do
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    tds <- asks typeDefs
+    (dir, t, ty) <- genDirTm
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
+    let optsR = RunRedexOptions{pushAndElide = True}
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    (_, ss) <- failWhenSevereLogs $ evalFullStepCount @EvalLog UnderBinders optsV optsR tds globs 1000 dir t
+    si <- liftIO (evalFullTest' (MicroSec 100_000) tds globs dir $ forgetMetadata t)
+    case (ss, si) of
+      (Right ss', Right si') -> label "both terminated" >> Hedgehog.diff (forgetMetadata ss') alphaEq si'
+      _ -> label "one failed to terminate"
 
 ---- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion
