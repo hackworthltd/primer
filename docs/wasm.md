@@ -20,6 +20,10 @@ with the following caveats:
    nix develop .#wasm
    ```
 
+   Note that the required tools are currently only available for
+   `x86_64-linux` Nix systems, so the special `wasm` Nix shell only
+   exists for that platform.
+
 2. Once you're in the special Wasm shell, it's advisable to use the
    special `wasm32` `Makefile` targets. To build the libraries, run:
 
