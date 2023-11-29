@@ -96,16 +96,10 @@ benchmarks =
           , benchExpectedDiscardLogsStep (mapEvenEnv 100) "mapEven 100" 10000
           ]
       , Group
-          "interp no lim (has no logs)"
+          "interp (has no logs)"
           [ benchExpectedInterp (mapEvenEnv 1) "mapEven 1" Syn
           , benchExpectedInterp (mapEvenEnv 10) "mapEven 10" Syn
           , benchExpectedInterp (mapEvenEnv 100) "mapEven 100" Syn
-          ]
-      , Group
-          "interp lim=500 (has no logs)"
-          [ benchExpectedInterpLim 500 (mapEvenEnv 1) "mapEven 1" Syn
-          , benchExpectedInterpLim 500 (mapEvenEnv 10) "mapEven 10" Syn
-          , benchExpectedInterpLim 500 (mapEvenEnv 100) "mapEven 100" Syn
           ]
       ]
   , Group
@@ -130,10 +124,8 @@ benchmarks =
       evalTestM (maxID e)
         $ runDiscardLogT
         $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
-    evalTestMInterpNoLim e d =
-        EFInterp.interp' EFInterp.BRDNone builtinTypes (mkEnv $ defMap e) d (forgetMetadata $ expr e)
-    evalTestMInterpLim l e d =
-        EFInterp.interp' (EFInterp.BRDLim l) builtinTypes (mkEnv $ defMap e) d (forgetMetadata $ expr e)
+    evalTestMInterp e d =
+        EFInterp.interp' builtinTypes (mkEnv $ defMap e) d (forgetMetadata $ expr e)
     mkEnv defs = EFInterp.mkEnv (mapMaybe (\(f,d) -> case d of
         -- TODO: DRY with testsuite (maybe expose evalFull from interp module?
            DefAST (ASTDef tm ty) -> Just (Left f, Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
@@ -155,8 +147,7 @@ benchmarks =
 
     benchExpectedPureLogsStep = benchExpected evalTestMPureLogsStep fst
     benchExpectedDiscardLogsStep = benchExpected evalTestMDiscardLogsStep identity
-    benchExpectedInterp = benchExpected' evalTestMInterpNoLim
-    benchExpectedInterpLim l = benchExpected' $ evalTestMInterpLim l
+    benchExpectedInterp = benchExpected' evalTestMInterp
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
