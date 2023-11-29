@@ -28,41 +28,10 @@ module Primer.Primitives (
 
 import Foreword hiding (rotate)
 
-import Codec.Picture.ColorQuant (palettizeWithAlpha)
-import Codec.Picture.Gif (
-  GifDisposalMethod (DisposalRestoreBackground),
-  GifEncode (GifEncode),
-  GifLooping (LoopingForever),
-  encodeComplexGifImage,
- )
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.ByteString.Base64 qualified as B64
 import Data.Data (Data)
 import Data.Map qualified as M
-import Diagrams.Backend.Rasterific (
-  Options (RasterificOptions),
-  Rasterific (Rasterific),
- )
-import Diagrams.Prelude (
-  Diagram,
-  V2 (..),
-  black,
-  circle,
-  deg,
-  fillColor,
-  lineWidth,
-  mkP2,
-  mkSizeSpec,
-  recommendFillColor,
-  rect,
-  rectEnvelope,
-  renderDia,
-  rotate,
-  sRGB24,
-  translate,
-  (@@),
- )
 import Numeric.Natural (Natural)
 import Primer.Builtins (
   cCons,
@@ -94,7 +63,6 @@ import Primer.Core.DSL (
   ann,
   char,
   int,
-  prim,
   tcon,
  )
 import Primer.Core.Utils (generateIDs)
@@ -353,35 +321,16 @@ primFunDef def args = case def of
     -- Since we only support translating a `Picture` expression to an image once it is in normal form,
     -- this guard will only pass when `picture` has no free variables other than `time`.
     [PrimCon () (PrimInt duration), Lam () time picture]
-      | Just (frames :: [Diagram Rasterific]) <- traverse diagramAtTime [0 .. (duration * 100) `div` frameLength - 1] ->
-          Right
-            $ prim
-            $ PrimAnimation
-            $ either
-              -- This case really shouldn't be able to happen, unless `diagrams-rasterific` is broken.
-              -- In fact, the default behaviour (`animatedGif`) is just to write the error to `stdout`,
-              -- and we only have to handle this because we need to use the lower-level `rasterGif`,
-              -- for unrelated reasons (getting the `Bytestring` without dumping it to a file).
-              mempty
-              (decodeUtf8 . B64.encode . toS)
-            $ encodeComplexGifImage
-            $ GifEncode (fromInteger width) (fromInteger height) Nothing Nothing gifLooping
-            $ flip palettizeWithAlpha DisposalRestoreBackground
-            $ map
-              ( (fromInteger frameLength,)
-                  . renderDia
-                    Rasterific
-                    (RasterificOptions (mkSizeSpec $ Just . fromInteger <$> V2 width height))
-                  . rectEnvelope
-                    (fromInteger <$> mkP2 (-width `div` 2) (-height `div` 2))
-                    (fromInteger <$> V2 width height)
-              )
-              frames
+      | Just _frames <- traverse diagramAtTime [0 .. (duration * 100) `div` frameLength - 1] ->
+          -- temporarily disabled due to dependency issues with WASM
+          -- we keep around as much as we can without `diagrams` (relies on `fsnotify`, and uses Template Haskell),
+          -- or `Rasterific` (relies on `bitvec`, which fails on WASM with GHC <9.8)
+          err
       where
         -- Note that this simple substitution hack only allows for trivial functions,
         -- i.e. those where only substitution is needed for the function body to reach a normal form.
         -- Our primitives system doesn't yet support further evaluation here.
-        diagramAtTime t = exprToDiagram $ substTime (PrimCon () (PrimInt t)) picture
+        diagramAtTime t = exprToPicture $ substTime (PrimCon () (PrimInt t)) picture
           where
             substTime a = \case
               Var () (LocalVarRef t') | t' == time -> a
@@ -389,10 +338,10 @@ primFunDef def args = case def of
               e -> e
         -- Values which are hardcoded, for now at least, for the sake of keeping the student-facing API simple.
         -- We keep the frame rate and resolution low to avoid serialising huge GIFs.
-        gifLooping = LoopingForever
+        -- gifLooping = LoopingForever
         frameLength = 10 -- in hundredths of a second, as per the GIF spec
-        width = 160
-        height = 90
+        _width :: Int = 160
+        _height :: Int = 90
     _ -> err
   PrimConst -> case args of
     [x, _] ->
@@ -403,17 +352,6 @@ primFunDef def args = case def of
       Con _ c [] | c == cZero -> Just 0
       Con _ c [x] | c == cSucc -> succ <$> exprToNat x
       _ -> Nothing
-    exprToDiagram e =
-      exprToPicture e <&> recommendFillColor black . fix \f -> \case
-        Circle r ->
-          if r == 0 -- `diagrams` crashes with a divide-by-zero if we don't catch this case
-            then mempty
-            else circle (fromInteger r) & lineWidth 0
-        Rect w h -> rect (fromInteger w) (fromInteger h) & lineWidth 0
-        Colour r g b p -> f p & fillColor (sRGB24 (fromInteger r) (fromInteger g) (fromInteger b))
-        Rotate a p -> f p & rotate (fromInteger a @@ deg)
-        Translate x y p -> f p & translate (V2 (fromInteger x) (fromInteger y))
-        CompoundPicture ps -> foldMap' f ps
     err = Left $ PrimFunError def args
 
 pictureDef :: ASTTypeDef () ()
