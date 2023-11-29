@@ -1,3 +1,39 @@
+{- WARNING!
+This code is working and complete, but the comments are hopelessly
+out-of-date and misleading!
+
+This code has been cleaned up and migrated to the brprice/interp branch,
+and have hopefully been merged into main (with proper documentation)
+(see https://github.com/hackworthltd/primer/pull/1187).
+
+I am leaving this current brprice/wip/interp alive for the history, in
+particular the "recursion stack check" -- in the past we had an explicit
+"fuel" counter so that the interpreter would not loop on a divergent term.
+This has since been replaced with an IO-based System.Timeout call,
+but the old state is still in this branch's history.
+
+The reason we changed track here is
+- We need to lazily produce the resultant AST, since the semantics of
+  Primer (the object language) are lazy
+  (in particular, code like @head (letrec l = Cons True l in l)@ should
+  reduce to @True@ (ignoring type annotations)
+- This means we can't use @ExceptT@ (i.e. @Either@) to signal the
+  "recursion depth exceeded" error, since to pattern match on the (root
+  of the) AST of a recursive call would force the @Either@, and thus
+  divergent subterms would throw a @Left@, aborting the whole computation.
+- We can however throw an "imprecise exception" (e.g. Prelude's @error@,
+  or @Control.Exception@s @throw@), from pure code. This is essentially
+  hiding an exception deep within a (recursively returned) AST, and will
+  not actually trigger unless it is forced.
+- However, to make this testable, we need to be able to catch the
+  "timeout" error in the testsuite, meaning we need to be able to run IO
+  actions in Hedgehog tests, and thus need to refactor our WT monad to
+  (optionally) include IO at the base.
+- Having done this, it is just as easy to not have the recursion-depth
+  check and use @System.Timeout@ instead, which also works in @IO@,
+  and avoids some overhead due to not tracking the depth (and makes the
+  interpretation of recursive let bindings nicer.
+-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
