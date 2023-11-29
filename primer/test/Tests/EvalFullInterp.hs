@@ -33,12 +33,14 @@ import Primer.Builtins.DSL (boolAnn, bool_, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
+  alphaEq,
   forgetMetadata,
   generateIDs,
  )
 import Primer.Def (DefMap)
 import Primer.Eval
 import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), interp, mkGlobalEnv)
+import Primer.EvalFullStep (evalFullStepCount)
 import Primer.Examples qualified as Examples (
   even,
   map,
@@ -83,6 +85,7 @@ import Primer.Test.Expected (
   mapEven,
  )
 import Primer.Test.Util (
+  failWhenSevereLogs,
   primDefs,
  )
 import Primer.TypeDef (TypeDefMap)
@@ -468,6 +471,22 @@ tasty_type_preservation = withTests 1000
           else do
             s'' <- checkTest ty =<< generateIDs s'
             s' === forgetMetadata s'' -- check no smart holes happened
+
+tasty_two_interp_agree :: Property
+tasty_two_interp_agree = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT testModules
+  $ do
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    tds <- asks typeDefs
+    (dir, t, _ty) <- genDirTm
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
+    let optsR = RunRedexOptions{pushAndElide = True}
+    (_, ss) <- failWhenSevereLogs $ evalFullStepCount @EvalLog UnderBinders optsV optsR tds globs 100 dir t
+    si <- liftIO (evalFullTest' (MicroSec 10_000) tds globs dir $ forgetMetadata t)
+    case (ss, si) of
+      (Right ss', Right si') -> label "both terminated" >> Hedgehog.diff (forgetMetadata ss') alphaEq si'
+      _ -> label "one failed to terminate"
 
 ---- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion

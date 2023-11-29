@@ -141,7 +141,9 @@ interp (MicroSec t) tydefs env dir e = do
 -- inside holes, by convincing Haskell's runtime system to do the
 -- evaluation for us, in a call-by-need fashion. We return an AST
 -- of the evaluated term, which will be type-correct (assuming the
--- input was): see 'Tests.EvalFullInterp.tasty_type_preservation'.
+-- input was): see 'Tests.EvalFullInterp.tasty_type_preservation';
+-- and will agree with iterating the small-step interpreter: see
+-- 'Tests.EvalFullInterp.tasty_two_interp_agree'.
 --
 -- Warnings:
 -- - Trying to evaluate a divergent term will (unsurprisingly) not terminate,
