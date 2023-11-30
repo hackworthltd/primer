@@ -23,6 +23,7 @@ module Primer.Core.Utils (
   freeGlobalVars,
   alphaEqTy,
   concreteTy,
+  freshen,
 ) where
 
 import Foreword
@@ -57,7 +58,7 @@ import Primer.Core (
   HasID (_id),
   ID,
   LVarName,
-  LocalName (unLocalName),
+  LocalName (LocalName, unLocalName),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyVarName,
   Type' (..),
@@ -86,7 +87,7 @@ import Primer.Core.Type.Utils (
   typeIDs,
   _freeVarsTy,
  )
-import Primer.Name (Name)
+import Primer.Name (Name (unName), unsafeMkName)
 
 -- | Regenerate all IDs (including in types and kinds), not changing any other metadata
 regenerateExprIDs :: (HasID a, HasID b, HasID c, MonadFresh ID m) => Expr' a b c -> m (Expr' a b c)
@@ -194,3 +195,13 @@ freeGlobalVars e = S.fromList [v | Var _ (GlobalVarRef v) <- universe e]
 -- | Traverse the 'ID's in an 'Expr''.
 exprIDs :: (HasID a, HasID b, HasID c) => Traversal' (Expr' a b c) ID
 exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id) `adjoin` (_exprKindMeta % _id)
+
+freshen :: Set Name -> LocalName k -> LocalName k
+freshen fvs n = go (0 :: Int)
+  where
+    go i =
+      let suffix = if i > 0 then "_" <> show i else ""
+          m = LocalName $ unsafeMkName $ unName (unLocalName n) <> suffix
+       in if unLocalName m `elem` fvs
+            then go (i + 1)
+            else m
