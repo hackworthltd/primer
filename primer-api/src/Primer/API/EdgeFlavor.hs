@@ -29,6 +29,7 @@ data EdgeFlavor
   | FunOut
   | ForallKind
   | Forall
+  | Bind
   deriving stock (Show, Read, Eq, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EdgeFlavor
   deriving anyclass (NFData)

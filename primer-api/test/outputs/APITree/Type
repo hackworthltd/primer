@@ -26,15 +26,7 @@ Tree
             { fst = FunOut
             , snd = Tree
                 { nodeId = "2"
-                , body = TextBody
-                    ( RecordPair
-                        { fst = TForall
-                        , snd = Name
-                            { qualifiedModule = Nothing
-                            , baseName = "a"
-                            }
-                        }
-                    )
+                , body = NoBody TForall
                 , childTrees =
                     [ RecordPair
                         { fst = ForallKind
@@ -122,7 +114,25 @@ Tree
                             }
                         }
                     ]
-                , rightChild = Nothing
+                , rightChild = Just
+                    ( RecordPair
+                        { fst = Bind
+                        , snd = Tree
+                            { nodeId = "2V"
+                            , body = TextBody
+                                ( RecordPair
+                                    { fst = TVarBind
+                                    , snd = Name
+                                        { qualifiedModule = Nothing
+                                        , baseName = "a"
+                                        }
+                                    }
+                                )
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        }
+                    )
                 }
             }
         ]

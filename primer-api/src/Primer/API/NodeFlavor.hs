@@ -19,19 +19,13 @@ import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 
 data NodeFlavorTextBody
   = Con
-  | Lam
-  | LAM
-  | Let
-  | LetType
-  | Letrec
-  | PatternBind
   | PatternCon
   | TCon
   | TVar
-  | TForall
-  | TLet
   | GlobalVar
   | LocalVar
+  | VarBind
+  | TVarBind
   deriving stock (Show, Read, Eq, Generic, Enum, Bounded)
   deriving (ToJSON, FromJSON) via PrimerJSON NodeFlavorTextBody
   deriving anyclass (NFData)
@@ -65,6 +59,13 @@ data NodeFlavorNoBody
   | KType
   | KHole
   | KFun
+  | Lam
+  | LAM
+  | Let
+  | LetType
+  | Letrec
+  | TLet
+  | TForall
   deriving stock (Show, Read, Eq, Generic, Enum, Bounded)
   deriving (ToJSON, FromJSON) via PrimerJSON NodeFlavorNoBody
   deriving anyclass (NFData)

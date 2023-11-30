@@ -131,7 +131,8 @@
                     "FunIn",
                     "FunOut",
                     "ForallKind",
-                    "Forall"
+                    "Forall",
+                    "Bind"
                 ],
                 "type": "string"
             },
@@ -444,7 +445,14 @@
                     "PatternWildcard",
                     "KType",
                     "KHole",
-                    "KFun"
+                    "KFun",
+                    "Lam",
+                    "LAM",
+                    "Let",
+                    "LetType",
+                    "Letrec",
+                    "TLet",
+                    "TForall"
                 ],
                 "type": "string"
             },
@@ -458,19 +466,13 @@
             "NodeFlavorTextBody": {
                 "enum": [
                     "Con",
-                    "Lam",
-                    "LAM",
-                    "Let",
-                    "LetType",
-                    "Letrec",
-                    "PatternBind",
                     "PatternCon",
                     "TCon",
                     "TVar",
-                    "TForall",
-                    "TLet",
                     "GlobalVar",
-                    "LocalVar"
+                    "LocalVar",
+                    "VarBind",
+                    "TVarBind"
                 ],
                 "type": "string"
             },
