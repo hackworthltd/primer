@@ -25,6 +25,9 @@ check:	test
 
 wasm32-check:	wasm32-test
 
+test:
+	cabal test
+
 wasm32-test:
 	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
 	wasm32-wasi-cabal build test:primer-api-test
