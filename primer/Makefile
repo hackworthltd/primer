@@ -3,8 +3,8 @@
 # Most commands assume you're running this from the top-level `nix
 # develop` shell.
 
-wasm32-primer-test	:= $(shell wasm32-wasi-cabal list-bin -v0 test:primer-test)
-wasm32-primer-test-opt	:= $(shell wasm32-wasi-cabal list-bin -O2 -v0 test:primer-test)
+wasm32-primer-test	= $(shell wasm32-wasi-cabal list-bin -v0 test:primer-test)
+wasm32-primer-test-opt	= $(shell wasm32-wasi-cabal list-bin -O2 -v0 test:primer-test)
 
 build:
 	cabal build
