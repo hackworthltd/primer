@@ -853,16 +853,34 @@ viewTreeExpr e0 = case e0 of
   Lam _ s e ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.Lam $ localName s
+      , body = NoBody Flavor.Lam
       , childTrees = [RecordPair EdgeFlavor.Lam $ viewTreeExpr e]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.VarBind $ localName s
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   LAM _ s e ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.LAM $ localName s
+      , body = NoBody Flavor.LAM
       , childTrees = [RecordPair EdgeFlavor.Lam $ viewTreeExpr e]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.TVarBind $ localName s
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   Var _ ref ->
     Tree
@@ -876,23 +894,50 @@ viewTreeExpr e0 = case e0 of
   Let _ s e1 e2 ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.Let $ localName s
+      , body = NoBody Flavor.Let
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e1, RecordPair EdgeFlavor.LetIn $ viewTreeExpr e2]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.VarBind $ localName s
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   LetType _ s t e ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.LetType $ localName s
+      , body = NoBody Flavor.LetType
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e, RecordPair EdgeFlavor.LetIn $ viewTreeType t]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.TVarBind $ localName s
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   Letrec _ s e1 t e2 ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.Letrec $ localName s
+      , body = NoBody Flavor.Letrec
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e1, RecordPair EdgeFlavor.Ann $ viewTreeType t, RecordPair EdgeFlavor.LetIn $ viewTreeExpr e2]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.VarBind $ localName s
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   Case _ e bs fb ->
     Tree
@@ -935,7 +980,7 @@ viewTreeExpr e0 = case e0 of
                                     EdgeFlavor.ConField
                                     Tree
                                       { nodeId = show $ getID m
-                                      , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
+                                      , body = TextBody $ RecordPair Flavor.VarBind $ localName v
                                       , childTrees = []
                                       , rightChild = Nothing
                                       }
@@ -985,6 +1030,10 @@ viewTreeExpr e0 = case e0 of
       , rightChild = Nothing
       }
   where
+    bindingNodeId = nodeId <> "V"
+    -- this ID will not clash with any others in the tree,
+    -- since node IDs in the input expression are unique,
+    -- and don't contain non-numerical characters
     nodeId = show $ e0 ^. _id
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
@@ -1040,19 +1089,41 @@ viewTreeType' t0 = case t0 of
   TForall _ n k t ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.TForall $ localName n
+      , body = NoBody Flavor.TForall
       , childTrees = [RecordPair EdgeFlavor.ForallKind $ viewTreeKind' k, RecordPair EdgeFlavor.Forall $ viewTreeType' t]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.TVarBind $ localName n
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   TLet _ n t b ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.TLet $ localName n
+      , body = NoBody Flavor.TLet
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeType' t, RecordPair EdgeFlavor.LetIn $ viewTreeType' b]
-      , rightChild = Nothing
+      , rightChild =
+          Just
+            $ RecordPair
+              EdgeFlavor.Bind
+              Tree
+                { nodeId = bindingNodeId
+                , body = TextBody $ RecordPair Flavor.TVarBind $ localName n
+                , childTrees = []
+                , rightChild = Nothing
+                }
       }
   where
     nodeId = t0 ^. _typeMetaLens
+    -- this ID will not clash with any others in the tree,
+    -- since node IDs in the input expression are unique,
+    -- and don't contain non-numerical characters
+    bindingNodeId = nodeId <> "V"
 
 -- | Like 'viewTreeType', but for kinds.
 viewTreeKind :: Kind -> Tree
