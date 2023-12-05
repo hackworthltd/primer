@@ -75,8 +75,8 @@ import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (
-  TestM,
-  evalTestM,
+  TestT,
+  evalTestT,
   isolateTestM,
  )
 import Primer.TypeDef (
@@ -130,7 +130,7 @@ type TypeG = Type' () ()
 
 type ExprG = Expr' () () ()
 
-newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
+newtype WT a = WT {unWT :: ReaderT Cxt (TestT IO) a}
   deriving newtype
     ( Functor
     , Applicative
@@ -138,6 +138,7 @@ newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
     , MonadReader Cxt
     , MonadFresh NameCounter
     , MonadFresh ID
+    , MonadIO
     )
 
 -- | Run an action and ignore any effect on the fresh name/id state
@@ -701,8 +702,8 @@ genInt =
   where
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
 
-hoist' :: Applicative f => Cxt -> WT a -> f a
-hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
+hoist' :: Cxt -> WT a -> IO a
+hoist' cxt = evalTestT 0 . flip runReaderT cxt . unWT
 
 -- | Convert a @PropertyT WT ()@ into a @Property@, which Hedgehog can test.
 -- It is recommended to do more than default number of tests when using this module.
