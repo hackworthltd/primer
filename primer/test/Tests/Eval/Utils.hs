@@ -10,6 +10,7 @@ module Tests.Eval.Utils (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
+import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Map qualified as Map
 import Hedgehog (PropertyT)
@@ -94,7 +95,7 @@ x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
 -- | Does this expression have any unsupported-by-the-typechecker subterms?
 -- These are @let@s binding type variables, either a 'LetType' in a term,
 -- or a 'TLet' in an embedded type.
-hasTypeLets :: Expr -> Bool
+hasTypeLets :: (Data a, Data b, Data c) => Expr' a b c -> Bool
 hasTypeLets e =
   not
     $ null [() | LetType{} <- universe e]

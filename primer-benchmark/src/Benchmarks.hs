@@ -20,16 +20,17 @@ import Primer.App (
   tcWholeProgWithImports,
  )
 import Primer.App.Utils (forgetProgTypecache)
+import Primer.Core.Utils (forgetMetadata)
 import Primer.Eval (
   NormalOrderOptions (UnderBinders),
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, avoidShadowing, groupedLets),
  )
-import Primer.EvalFull (
+import Primer.EvalFullInterp qualified as EFInterp
+import Primer.EvalFullStep (
   Dir (Syn),
-  EvalLog,
-  evalFull,
  )
+import Primer.EvalFullStep qualified as EFStep
 import Primer.Examples (
   mapOddPrimProg,
   mapOddProg,
@@ -79,17 +80,23 @@ benchmarks =
       "evalTestM"
       [ Group
           "pure logs"
-          [ benchExpectedPureLogs (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedPureLogs (mapEvenEnv 10) "mapEven 10" 1000
+          [ benchExpectedPureLogsStep (mapEvenEnv 1) "mapEven 1" 100
+          , benchExpectedPureLogsStep (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
-          -- , benchExpectedPureLogs (mapEvenEnv 100) "mapEven 100" 10000
+          -- , benchExpectedPureLogsStep (mapEvenEnv 100) "mapEven 100" 10000
           ]
       , Group
           "discard logs"
-          [ benchExpectedDiscardLogs (mapEvenEnv 1) "mapEven 1" 100
-          , benchExpectedDiscardLogs (mapEvenEnv 10) "mapEven 10" 1000
+          [ benchExpectedDiscardLogsStep (mapEvenEnv 1) "mapEven 1" 100
+          , benchExpectedDiscardLogsStep (mapEvenEnv 10) "mapEven 10" 1000
           -- This benchmark is too slow to be practical for CI.
-          -- , benchExpectedDiscardLogs (mapEvenEnv 100) "mapEven 100" 10000
+          -- , benchExpectedDiscardLogsStep (mapEvenEnv 100) "mapEven 100" 10000
+          ]
+      , Group
+          "interp (has no logs)"
+          [ benchExpectedInterp (mapEvenEnv 1) "mapEven 1" Syn
+          , benchExpectedInterp (mapEvenEnv 10) "mapEven 10" Syn
+          , benchExpectedInterp (mapEvenEnv 100) "mapEven 100" Syn
           ]
       ]
   , Group
@@ -106,14 +113,16 @@ benchmarks =
     evalOptionsN = UnderBinders
     evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     evalOptionsR = RunRedexOptions{pushAndElide = True}
-    evalTestMPureLogs e maxEvals =
+    evalTestMPureLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runPureLogT
-        $ evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
-    evalTestMDiscardLogs e maxEvals =
+        $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+    evalTestMDiscardLogsStep e maxEvals =
       evalTestM (maxID e)
         $ runDiscardLogT
-        $ evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+        $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+    evalTestMInterp e d =
+      EFInterp.interp' builtinTypes (EFInterp.mkGlobalEnv $ defMap e) d (forgetMetadata $ expr e)
 
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF
@@ -121,8 +130,16 @@ benchmarks =
         b
         (pure $ (@?= Right (zeroIDs $ expectedResult e')) . fmap zeroIDs . g)
 
-    benchExpectedPureLogs = benchExpected evalTestMPureLogs fst
-    benchExpectedDiscardLogs = benchExpected evalTestMDiscardLogs identity
+    -- as benchExpected, but 'interp' works on un-metadata'd stuff
+    benchExpected' f e n b = EnvBench e n $ \e' ->
+      NF
+        (f e')
+        b
+        (pure (@?= (forgetMetadata $ expectedResult e')))
+
+    benchExpectedPureLogsStep = benchExpected evalTestMPureLogsStep fst
+    benchExpectedDiscardLogsStep = benchExpected evalTestMDiscardLogsStep identity
+    benchExpectedInterp = benchExpected' evalTestMInterp
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 

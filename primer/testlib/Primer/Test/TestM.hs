@@ -1,6 +1,8 @@
 -- A test monad for generating names and IDs and typechecking
 module Primer.Test.TestM (
+  TestT,
   TestM,
+  evalTestT,
   evalTestM,
   isolateTestM,
 ) where
@@ -13,28 +15,33 @@ import Primer.Name (NameCounter)
 
 -- This monad is responsible for generating fresh IDs and names in tests.
 -- If we need other abilities, this will be the base monad.
-newtype TestM a = TestM {unTestM :: State Int a}
-  deriving newtype (Functor, Applicative, Monad)
+newtype TestT m a = TestT {unTestT :: StateT Int m a}
+  deriving newtype (Functor, Applicative, Monad, MonadIO)
+
+type TestM a = TestT Identity a
 
 -- | Run an action and ignore any effect on the fresh name/id state
-isolateTestM :: TestM a -> TestM a
-isolateTestM m = TestM $ do
+isolateTestM :: Monad m => TestT m a -> TestT m a
+isolateTestM m = TestT $ do
   st <- get
-  x <- unTestM m
+  x <- unTestT m
   put st
   pure x
 
-evalTestM :: ID -> TestM a -> a
-evalTestM (ID id_) = fst . flip runState id_ . unTestM
+evalTestT :: Monad m => ID -> TestT m a -> m a
+evalTestT (ID id_) = flip evalStateT id_ . unTestT
 
-instance MonadFresh ID TestM where
-  fresh = TestM $ do
+evalTestM :: ID -> TestM a -> a
+evalTestM id_ = runIdentity . evalTestT id_
+
+instance Monad m => MonadFresh ID (TestT m) where
+  fresh = TestT $ do
     i <- get
     put $ i + 1
     pure $ ID i
 
-instance MonadFresh NameCounter TestM where
-  fresh = TestM $ do
+instance Monad m => MonadFresh NameCounter (TestT m) where
+  fresh = TestT $ do
     i <- get
     put $ i + 1
     -- A bit of a hack: make the names generated a,a1,a2,... as the testsuite

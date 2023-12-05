@@ -240,7 +240,7 @@ import Primer.Def (
 import Primer.Def qualified as Def
 import Primer.Eval (NormalOrderOptions (StopAtBinders))
 import Primer.Eval.Redex (Dir (Chk), EvalLog)
-import Primer.EvalFull (TerminationBound)
+import Primer.EvalFullStep (TerminationBound)
 import Primer.JSON (
   CustomJSON (..),
   FromJSON,

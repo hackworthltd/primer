@@ -13,6 +13,7 @@ module Primer.Core.Type.Utils (
   freeVarsTy,
   boundVarsTy,
   alphaEqTy,
+  alphaEqTy',
   concreteTy,
 ) where
 
@@ -130,7 +131,12 @@ boundVarsTy = foldMap' getBoundHereDnTy . universe
 -- Note that we do not expand TLets, they must be structurally
 -- the same (perhaps with a different named binding)
 alphaEqTy :: Type' () () -> Type' () () -> Bool
-alphaEqTy = go (0, mempty, mempty)
+alphaEqTy = alphaEqTy' (0, mempty, mempty)
+
+-- Check two types for alpha equality where each may be from a
+-- different alpha-related context
+alphaEqTy' :: (Int, Map TyVarName Int, Map TyVarName Int) -> Type' () () -> Type' () () -> Bool
+alphaEqTy' = go
   where
     go _ (TEmptyHole _) (TEmptyHole _) = True
     go bs (THole _ s) (THole _ t) = go bs s t

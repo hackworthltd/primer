@@ -14,6 +14,7 @@ module Primer.Core (
   CaseFallback' (..),
   caseBranchName,
   traverseFallback,
+  mapFallback,
   module Primer.Core.Meta,
   module Primer.Core.Type,
   TypeCache (..),
@@ -347,6 +348,9 @@ traverseFallback :: Applicative f => (Expr' a b c -> f (Expr' a' b' c')) -> Case
 traverseFallback f = \case
   CaseExhaustive -> pure CaseExhaustive
   CaseFallback e -> CaseFallback <$> f e
+
+mapFallback :: (Expr' a b c -> Expr' a' b' c') -> CaseFallback' a b c -> CaseFallback' a' b' c'
+mapFallback f = runIdentity . traverseFallback (Identity . f)
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.

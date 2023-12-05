@@ -68,15 +68,15 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL (S)
-import Primer.Core.Utils (freeVarsTy)
+import Primer.Core.Utils (freeVarsTy, freshen)
 import Primer.Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Primer.Module (Module (..))
-import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
+import Primer.Name (Name, NameCounter, freshName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (
-  TestM,
-  evalTestM,
+  TestT,
+  evalTestT,
   isolateTestM,
  )
 import Primer.TypeDef (
@@ -130,7 +130,7 @@ type TypeG = Type' () ()
 
 type ExprG = Expr' () () ()
 
-newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
+newtype WT a = WT {unWT :: ReaderT Cxt (TestT IO) a}
   deriving newtype
     ( Functor
     , Applicative
@@ -138,6 +138,7 @@ newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
     , MonadReader Cxt
     , MonadFresh NameCounter
     , MonadFresh ID
+    , MonadIO
     )
 
 -- | Run an action and ignore any effect on the fresh name/id state
@@ -198,23 +199,15 @@ freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 -- the original type variable "foo" by our new term variable "foo".
 genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
 genLVarNameAvoiding ty =
-  (\vs -> freshen (foldMap' freeVarsTy ty <> foldMap' freeVarsTy vs) 0)
+  (\vs -> freshen (foldMap' (S.map unLocalName . freeVarsTy) ty <> foldMap' (S.map unLocalName . freeVarsTy) vs))
     <$> asks localTmVars
     <*> genLVarName
 
 genTyVarNameAvoiding :: TypeG -> GenT WT TyVarName
 genTyVarNameAvoiding ty =
-  (\vs -> freshen (freeVarsTy ty <> foldMap' freeVarsTy vs) 0)
+  (\vs -> freshen (S.map unLocalName (freeVarsTy ty) <> foldMap' (S.map unLocalName . freeVarsTy) vs))
     <$> asks localTmVars
     <*> genTyVarName
-
-freshen :: Set (LocalName k') -> Int -> LocalName k -> LocalName k
-freshen fvs i n =
-  let suffix = if i > 0 then "_" <> show i else ""
-      m = LocalName $ unsafeMkName $ unName (unLocalName n) <> suffix
-   in if m `elem` fvs
-        then freshen fvs (i + 1) n
-        else m
 
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
 genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
@@ -701,8 +694,8 @@ genInt =
   where
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
 
-hoist' :: Applicative f => Cxt -> WT a -> f a
-hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
+hoist' :: Cxt -> WT a -> IO a
+hoist' cxt = evalTestT 0 . flip runReaderT cxt . unWT
 
 -- | Convert a @PropertyT WT ()@ into a @Property@, which Hedgehog can test.
 -- It is recommended to do more than default number of tests when using this module.
