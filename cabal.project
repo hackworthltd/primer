@@ -7,7 +7,11 @@ packages:
   primer-service
   primer-benchmark
 
-optimization: 0
+if arch(wasm32)
+   package *
+     optimization: 2
+else
+  optimization: 0
 
 allow-newer: hedgehog-classes:hedgehog,hedgehog-classes:pretty-show,hedgehog:pretty-show
 
