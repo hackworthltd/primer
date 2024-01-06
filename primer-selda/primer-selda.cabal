@@ -18,12 +18,12 @@ library
   hs-source-dirs:     src
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DeriveAnyClass
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -51,11 +51,11 @@ library primer-selda-testlib
   hs-source-dirs:     testlib
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -92,11 +92,11 @@ test-suite primer-selda-test
 
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:

@@ -25,12 +25,12 @@ library
   other-modules:      Servant.OpenApi.OperationId
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DeriveAnyClass
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -79,11 +79,11 @@ executable primer-service
   hs-source-dirs:     exe-server
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -116,11 +116,11 @@ executable primer-client
   hs-source-dirs:     exe-client
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -175,11 +175,11 @@ test-suite primer-service-test
 
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
