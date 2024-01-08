@@ -20,12 +20,12 @@ library
   hs-source-dirs:     src
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DeriveAnyClass
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -54,11 +54,11 @@ library primer-api-hedgehog
   hs-source-dirs:     gen
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -79,12 +79,12 @@ library primer-api-testlib
   hs-source-dirs:     testlib
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DeriveAnyClass
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedStrings
 
   ghc-options:
@@ -109,11 +109,11 @@ test-suite primer-api-test
 
   default-language:   GHC2021
   default-extensions:
-    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
     LambdaCase
+    NoImplicitPrelude
     OverloadedLists
     OverloadedStrings
 
