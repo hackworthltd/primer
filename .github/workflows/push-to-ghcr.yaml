@@ -45,7 +45,7 @@ jobs:
             substituters = https://cache.nixos.org?priority=10 https://hackworthltd.cachix.org?priority=30 https://cache.iog.io?priority=40 https://cache.zw3rk.com?priority=50
 
       - name: Configure Cachix for private Hackworth Ltd cache
-        uses: cachix/cachix-action@v12
+        uses: cachix/cachix-action@v14
         with:
           name: hackworthltd-private
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
