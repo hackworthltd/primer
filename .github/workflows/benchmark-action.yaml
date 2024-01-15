@@ -38,7 +38,7 @@ jobs:
             secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
 
       - name: Install & configure Nix
-        uses: cachix/install-nix-action@v23
+        uses: cachix/install-nix-action@v25
         with:
           extra_nix_config: |
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hackworthltd.cachix.org-1:0JTCI0qDo2J+tonOalrSQP3yRNleN6bQucJ05yDltRI= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk=
