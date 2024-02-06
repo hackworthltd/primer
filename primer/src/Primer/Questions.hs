@@ -120,7 +120,7 @@ generateNameTyAvoiding ::
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
 generateNameTyAvoiding avoiding tk z =
-  uniquifyMany <$> ((Set.fromList avoiding <>) <$> getAvoidSetTy z) <*> baseNames tk
+  (uniquifyMany . (Set.fromList avoiding <>) <$> getAvoidSetTy z) <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>
