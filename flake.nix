@@ -44,7 +44,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc963";
+      ghcVersion = "ghc964";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -483,7 +483,7 @@
 
                     # Workaround for HLS in haskell.nix. Ref:
                     # https://github.com/input-output-hk/haskell.nix/issues/1981#issuecomment-1594278049
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.3";
+                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.6";
 
                     implicit-hie = "latest";
 
