@@ -19,6 +19,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "NoInput",
                         "type": "object"
                     },
                     {
@@ -37,6 +38,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "Input",
                         "type": "object"
                     }
                 ]
@@ -154,6 +156,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "EvalFullRespTimedOut",
                         "type": "object"
                     },
                     {
@@ -172,6 +175,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "EvalFullRespNormal",
                         "type": "object"
                     }
                 ]
@@ -365,6 +369,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "TextBody",
                         "type": "object"
                     },
                     {
@@ -383,6 +388,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "PrimBody",
                         "type": "object"
                     },
                     {
@@ -401,6 +407,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "BoxBody",
                         "type": "object"
                     },
                     {
@@ -419,6 +426,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "NoBody",
                         "type": "object"
                     }
                 ]
@@ -518,6 +526,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "Ok",
                         "type": "object"
                     },
                     {
@@ -540,6 +549,7 @@
                             "got",
                             "tag"
                         ],
+                        "title": "Mismatch",
                         "type": "object"
                     }
                 ]
@@ -676,6 +686,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "PrimChar",
                         "type": "object"
                     },
                     {
@@ -694,6 +705,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "PrimInt",
                         "type": "object"
                     },
                     {
@@ -712,6 +724,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "PrimAnimation",
                         "type": "object"
                     }
                 ]
@@ -819,6 +832,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "SelectionDef",
                         "type": "object"
                     },
                     {
@@ -837,6 +851,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "SelectionTypeDef",
                         "type": "object"
                     }
                 ]
@@ -970,6 +985,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "TypeDefParamNodeSelection",
                         "type": "object"
                     },
                     {
@@ -988,6 +1004,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "TypeDefConsNodeSelection",
                         "type": "object"
                     }
                 ]
@@ -1040,6 +1057,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "Type",
                         "type": "object"
                     },
                     {
@@ -1058,6 +1076,7 @@
                             "tag",
                             "contents"
                         ],
+                        "title": "Kind",
                         "type": "object"
                     }
                 ]
