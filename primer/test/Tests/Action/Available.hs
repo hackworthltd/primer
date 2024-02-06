@@ -718,8 +718,8 @@ toProgAction l a (def, loc, action) = do
         let opts'' =
               opts' <> case free of
                 Available.FreeNone -> []
-                Available.FreeVarName -> [(OptGen,) . (\t -> Available.Option t Nothing False) <$> (unName <$> genName)]
-                Available.FreeInt -> [(OptGen,) . (\t -> Available.Option t Nothing False) <$> (show <$> genInt)]
+                Available.FreeVarName -> [((OptGen,) . (\t -> Available.Option t Nothing False)) . unName <$> genName]
+                Available.FreeInt -> [((OptGen,) . (\t -> Available.Option t Nothing False)) . show <$> genInt]
                 Available.FreeChar -> [(OptGen,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
         case opts'' of
           [] -> pure NoOfferedOpts
