@@ -9,8 +9,7 @@ import Data.OpenApi (allOperations)
 import Data.Text (pack)
 import Optics (traversalVL, (%), (%~))
 import Servant (
-  HasServer (hoistServerWithContext, route),
-  ServerT,
+  HasServer (ServerT, hoistServerWithContext, route),
   type (:>),
  )
 import Servant.Client.Core (

@@ -108,9 +108,9 @@ library
     -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
-    , aeson                        >=2.0      && <2.2
+    , aeson                        >=2.0      && <2.3
     , assoc                        ^>=1.1
-    , base                         >=4.12     && <4.19
+    , base                         >=4.12     && <4.20
     , base64-bytestring            ^>=1.2.1
     , containers                   >=0.6.0.1  && <0.7.0
     , deriving-aeson               >=0.2      && <0.3.0
@@ -293,7 +293,7 @@ test-suite primer-test
     , primer-hedgehog
     , primer-testlib
     , protolude
-    , tasty                        ^>=1.4.2.1
+    , tasty                        ^>=1.5
     , tasty-discover
     , tasty-golden                 ^>=2.3.5
     , tasty-hedgehog

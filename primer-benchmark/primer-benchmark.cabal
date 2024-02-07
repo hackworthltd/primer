@@ -40,14 +40,14 @@ library
   hs-source-dirs:  src
   exposed-modules: Benchmarks
   build-depends:
-    , aeson                            >=2.0      && <2.2
-    , base                             >=4.12     && <4.19
+    , aeson                            >=2.0      && <2.3
+    , base                             >=4.12     && <4.20
     , containers                       >=0.6.0.1  && <0.7.0
     , criterion                        ^>=1.6.0.0
-    , deepseq                          ^>=1.4.6.1
+    , deepseq                          ^>=1.5
     , logging-effect                   ^>=1.4
     , primer:{primer, primer-testlib}
-    , tasty                            ^>=1.4.2.1
+    , tasty                            ^>=1.5
     , tasty-hunit                      ^>=0.10.0
     , text                             ^>=2.0
 
