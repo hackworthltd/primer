@@ -1,5 +1,7 @@
 index-state: 2024-02-06T00:00:00Z
 
+jobs: $ncpus
+
 packages:
   primer
   primer-api
@@ -13,11 +15,22 @@ if arch(wasm32)
 else
   optimization: 0
 
+benchmarks: True
+
+tests: True
+
+if !arch(wasm32)
+  documentation:            True
+  haddock-hoogle:           True
+  haddock-html:             True
+  haddock-quickjump:        True
+  haddock-hyperlink-source: True
+  haddock-internal:         True
+
 allow-newer: hedgehog-classes:hedgehog,hedgehog-classes:pretty-show,hedgehog:pretty-show
 
 package *
   ghc-options: -fwrite-ide-info
-  benchmarks: True
 
 package primer
   test-options: "--size-cutoff=32768"

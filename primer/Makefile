@@ -28,13 +28,14 @@ wasm32-check:	wasm32-test
 test:
 	cabal test
 
-wasm32-test:
+discover-wasm32-tests:
 	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+
+wasm32-test: wasm32-build discover-wasm32-tests
 	wasm32-wasi-cabal build test:primer-test
 	wasmtime --dir test::test "$(wasm32-primer-test)"
 
-wasm32-test-opt: wasm32-build-opt
-	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+wasm32-test-opt: wasm32-build-opt discover-wasm32-tests
 	wasm32-wasi-cabal build -O2 test:primer-test
 	wasmtime --dir test::test "$(wasm32-primer-test-opt)"
 

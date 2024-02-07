@@ -326,6 +326,12 @@
                   # time, because we can't do it via `wasmtime`.
                   (pkgs.haskell-nix.tool ghcVersion "tasty-discover" { })
                 ];
+
+              # The wasm32 compile target can't discover its own Tasty
+              # tests.
+              shellHook = ''
+                make discover-wasm32-tests
+              '';
             };
           };
 
