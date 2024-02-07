@@ -19,13 +19,11 @@ benchmarks: True
 
 tests: True
 
-if !arch(wasm32)
-  documentation:            True
-  haddock-hoogle:           True
-  haddock-html:             True
-  haddock-quickjump:        True
-  haddock-hyperlink-source: True
-  haddock-internal:         True
+haddock-hoogle:           True
+haddock-html:             True
+haddock-quickjump:        True
+haddock-hyperlink-source: True
+haddock-internal:         True
 
 allow-newer: hedgehog-classes:hedgehog,hedgehog-classes:pretty-show,hedgehog:pretty-show
 
