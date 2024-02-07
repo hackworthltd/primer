@@ -28,13 +28,14 @@ wasm32-check:	wasm32-test
 test:
 	cabal test
 
-wasm32-test:
+discover-wasm32-tests:
 	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+
+wasm32-test: wasm32-build discover-wasm32-tests
 	wasm32-wasi-cabal build test:primer-api-test
 	wasmtime --dir test::test "$(wasm32-primer-api-test)"
 
-wasm32-test-opt: wasm32-build-opt
-	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+wasm32-test-opt: wasm32-build-opt discover-wasm32-tests
 	wasm32-wasi-cabal build -O2 test:primer-api-test
 	wasmtime --dir test::test "$(wasm32-primer-api-test-opt)"
 
@@ -53,4 +54,4 @@ realclean:
 
 deps:
 
-.PHONY: build bench configure test docs clean realclean deps
+.PHONY: build bench configure test docs clean realclean deps discover-wasm32-tests

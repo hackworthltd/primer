@@ -15,7 +15,7 @@ $(targets):
 wasm32-update:
 	wasm32-wasi-cabal update
 
-wasm32 = wasm32-build wasm32-build-opt wasm32-configure wasm32-check wasm32-test wasm32-test-opt wasm32-clean
+wasm32 = discover-wasm32-tests wasm32-build wasm32-build-opt wasm32-configure wasm32-check wasm32-test wasm32-test-opt wasm32-clean
 
 $(wasm32):
 	$(MAKE) -C primer $@
