@@ -17,6 +17,8 @@ else
 
 benchmarks: True
 
+tests: True
+
 allow-newer: hedgehog-classes:hedgehog,hedgehog-classes:pretty-show,hedgehog:pretty-show
 
 package *
