@@ -70,14 +70,13 @@ the resources to provide any support for this environment.
 
 For interactive development workflows, both with and without Nix, we
 provide some convenient `Makefile` targets from the repository's top
-level directory:
+level directory. For example:
 
-* `make` runs `cabal configure` followed by `cabal build` across all
-  projects.
+* `make` runs `cabal configure all` followed by `cabal build all`.
 
-* `make test` runs `cabal test` across all projects.
+* `make test` runs `cabal test all`.
 
-* `make bench` runs `cabal bench` across all projects.
+* `make bench` runs `cabal bench all`.
 
 Because running the API server for local development involves a few
 different moving parts, we don't provide `make` targets for running
