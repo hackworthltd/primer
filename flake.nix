@@ -44,7 +44,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc964";
+      ghcVersion = "ghc981";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -52,12 +52,21 @@
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.14.0.0";
+      fourmoluVersion = "0.14.1.0";
 
       allOverlays = [
         inputs.haskell-nix.overlay
         inputs.self.overlays.default
       ];
+
+      # cabal-fmt needs an override for GHC 9.8.1.
+      cabal-fmt-override = {
+        version = "latest";
+        cabalProject = ''
+          packages: .
+          allow-newer: cabal-fmt:base
+        '';
+      };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
       debug = true;
@@ -195,7 +204,7 @@
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
                 hlint = "latest";
                 fourmolu = fourmoluVersion;
-                cabal-fmt = "latest";
+                cabal-fmt = cabal-fmt-override;
               };
             in
             {
@@ -316,8 +325,8 @@
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [
-                  wasm32-wasi-ghc-9_6
-                  wasm32-wasi-cabal-9_6
+                  wasm32-wasi-ghc-9_8
+                  wasm32-wasi-cabal-9_8
                   wasmtime
 
                   pkgs.gnumake
@@ -495,7 +504,7 @@
 
                     fourmolu = fourmoluVersion;
 
-                    cabal-fmt = "latest";
+                    cabal-fmt = cabal-fmt-override;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";

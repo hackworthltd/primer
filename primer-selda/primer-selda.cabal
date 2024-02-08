@@ -32,9 +32,9 @@ library
     -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
-    , aeson           >=2.0      && <2.2
-    , base            >=4.12     && <4.19
-    , bytestring      >=0.10.8.2 && <0.12.0
+    , aeson           >=2.0      && <2.3
+    , base            >=4.12     && <4.20
+    , bytestring      >=0.10.8.2 && <0.13
     , containers      >=0.6.0.1  && <0.7.0
     , logging-effect  ^>=1.4
     , mtl             >=2.2.2    && <2.4.0
@@ -116,7 +116,7 @@ test-suite primer-selda-test
     , primer:{primer, primer-testlib}
     , selda
     , selda-sqlite
-    , tasty                                              ^>=1.4.2.1
+    , tasty                                              ^>=1.5
     , tasty-discover                                     ^>=5.0
     , tasty-hunit                                        ^>=0.10.0
     , text

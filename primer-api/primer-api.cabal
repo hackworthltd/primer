@@ -34,7 +34,7 @@ library
     -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
-    , base            >=4.12    && <4.19
+    , base            >=4.12    && <4.20
     , containers      >=0.6.0.1 && <0.7.0
     , deriving-aeson  >=0.2     && <0.3.0
     , extra           >=1.7.10  && <1.8.0
@@ -149,7 +149,7 @@ test-suite primer-api-test
     , protolude
     , stm
     , stm-containers
-    , tasty                                             ^>=1.4.2.1
+    , tasty                                             ^>=1.5
     , tasty-discover
     , tasty-golden                                      ^>=2.3.5
     , tasty-hunit
