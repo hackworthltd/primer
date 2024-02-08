@@ -25,19 +25,14 @@ with the following caveats:
    exists for that platform.
 
 2. Once you're in the special Wasm shell, it's advisable to use the
-   special `wasm32` `Makefile` targets. To build the libraries, run:
+   special `Makefile.wasm32`. To build the WebAssembly targets, run:
 
    ```sh
-   make wasm32-configure
-   make wasm32-build
+   make -f Makefile.wasm32
    ```
 
-   To build the tests and run them using the `wasmtime` runtime, run:
+   And to run the tests using the `wasmtime` runtime, run:
 
    ```sh
-   make wasm32-test
+   make -f Makefile.wasm32 test
    ```
-
-   The `wasm32-test`, in particular, needs to run several steps that
-   you'd otherwise need to run by hand in order to work around
-   `wasmtime` issues.

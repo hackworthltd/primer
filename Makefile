@@ -1,33 +1,36 @@
 # NOTE:
 #
-# Most commands assume you're running this from the top-level `nix
-# develop` shell.
+# This Makefile assumes you're using the `nix develop` shell.
 
-targets = build configure check test bench generate-fixtures docs clean realclean deps
+build:	configure
+	cabal build all
 
-$(targets):
+project-targets = configure test bench haddock
+
+$(project-targets):
+	cabal $@ all
+
+package-targets = update-tests
+
+$(package-targets):
 	$(MAKE) -C primer $@
 	$(MAKE) -C primer-api $@
 	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-service $@
 	$(MAKE) -C primer-benchmark $@
 
-wasm32-update:
-	wasm32-wasi-cabal update
-
-wasm32 = discover-wasm32-tests wasm32-build wasm32-build-opt wasm32-configure wasm32-check wasm32-test wasm32-test-opt wasm32-clean
-
-$(wasm32):
-	$(MAKE) -C primer $@
-	$(MAKE) -C primer-api $@
-
-weeder:
-	cabal build all --enable-benchmarks --enable-tests
-	weeder
-	@echo "No issues found."
-
 openapi.json: build
 	cabal run -v0 primer-service:exe:primer-openapi > $@
 	openapi-generator-cli validate --recommend -i $@
 
-.PHONY: $(targets) $(wasm32-targets) weeder
+clean:
+	cabal clean
+	rm -f openapi.json
+
+.PHONY: build $(project-targets) $(package-targets) openapi.json clean
+
+# Disabled until Weeder is fixed with haskell.nix
+
+# weeder: build
+# 	weeder
+# 	@echo "No issues found."
