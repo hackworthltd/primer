@@ -1,34 +1,39 @@
 agents:
-  public: "true"
-  os: "linux"
+  queue: "nix-eval"
 
 steps:
-  - command: nix-buildkite
-    label: ":nixos: :buildkite: Build required CI jobs"
-    plugins:
-      - hackworthltd/nix-buildkite#hackworthltd-v10:
-          file: ci.nix
+  - command: nix flake archive .#
+    label: ":nixos: Archive Nix flake inputs"
+    agents:
+      queue: "nix-build"
 
-  - label: ":nixos: Archive Nix flake inputs"
-    command: nix flake archive .#
+  - command: nix-buildkite
+    label: ":nixos: :buildkite:"
+    plugins:
+      - hackworthltd/nix#v1.0.0:
+          file: ci.nix
+          agent-tags: queue=nix-build
 
   - wait
 
   - label: ":nixos: :linux: Cache the Nix shell"
     command: |
       nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+    agents:
+      queue: "nix-build"
 
   - label: ":nixos: :macos: Cache the Nix shell"
     command: |
       nix develop --print-build-logs --profile /tmp/primer --command echo "done"
     agents:
+      queue: "nix-build"
       os: "darwin"
 
   - label: ":nixos: :buildkite: :stopwatch: Run benchmarks"
     command: nix-buildkite
     agents:
-      public: "benchmarking"
+      queue: "nix-benchmark"
     plugins:
-      - hackworthltd/nix-buildkite#hackworthltd-v10:
+      - hackworthltd/nix#v1.0.0:
           file: ci-benchmarks.nix
-          agent-tags: "public=benchmarking"
+          agent-tags: queue=nix-benchmark
