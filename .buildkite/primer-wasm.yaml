@@ -1,5 +1,5 @@
 agents:
-  public: "true"
+  queue: "nix-build"
   os: "linux"
 
 steps:
