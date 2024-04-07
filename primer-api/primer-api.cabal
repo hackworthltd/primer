@@ -68,9 +68,11 @@ library primer-api-hedgehog
 
   build-depends:
     , base
-    , hedgehog                                          ^>=1.4
+    , hedgehog                ^>=1.4
+    , primer
     , primer-api
-    , primer:{primer, primer-hedgehog, primer-testlib}
+    , primer:primer-hedgehog
+    , primer:primer-testlib
 
 library primer-api-testlib
   visibility:         public
@@ -95,8 +97,9 @@ library primer-api-testlib
   build-depends:
     , base
     , logging-effect
+    , primer
     , primer-api
-    , primer:{primer, primer-testlib}
+    , primer:primer-testlib
     , stm
     , stm-containers
 
@@ -142,20 +145,22 @@ test-suite primer-api-test
     , logging-effect
     , mtl
     , optics
-    , pretty-simple                                     ^>=4.1
+    , pretty-simple           ^>=4.1
+    , primer
     , primer-api
     , primer-api-testlib
-    , primer:{primer, primer-hedgehog, primer-testlib}
+    , primer:primer-hedgehog
+    , primer:primer-testlib
     , protolude
     , stm
     , stm-containers
-    , tasty                                             ^>=1.5
+    , tasty                   ^>=1.5
     , tasty-discover
-    , tasty-golden                                      ^>=2.3.5
+    , tasty-golden            ^>=2.3.5
     , tasty-hunit
     , text
     , transformers
-    , uuid-types                                        ^>=1.0.5.1
+    , uuid-types              ^>=1.0.5.1
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839
