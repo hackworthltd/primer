@@ -193,23 +193,27 @@ test-suite primer-service-test
     , aeson-pretty
     , base
     , bytestring
-    , hedgehog                                           ^>=1.4
-    , hedgehog-quickcheck                                ^>=0.1.1
-    , hspec                                              ^>=2.11
+    , hedgehog                           ^>=1.4
+    , hedgehog-quickcheck                ^>=0.1.1
+    , hspec                              ^>=2.11
     , openapi3
-    , pretty-simple                                      ^>=4.1
-    , primer-api:{primer-api, primer-api-hedgehog}
-    , primer-selda:{primer-selda, primer-selda-testlib}
+    , pretty-simple                      ^>=4.1
+    , primer
+    , primer-api
+    , primer-api:primer-api-hedgehog
+    , primer-selda
+    , primer-selda:primer-selda-testlib
     , primer-service
-    , primer:{primer, primer-hedgehog, primer-testlib}
-    , QuickCheck                                         ^>=2.14.2
+    , primer:primer-hedgehog
+    , primer:primer-testlib
+    , QuickCheck                         ^>=2.14.2
     , servant-openapi3
-    , tasty                                              ^>=1.5
-    , tasty-discover                                     ^>=5.0
-    , tasty-golden                                       ^>=2.3.5
-    , tasty-hedgehog                                     ^>=1.4.0.2
-    , tasty-hspec                                        ^>=1.2.0.1
-    , tasty-hunit                                        ^>=0.10.0
+    , tasty                              ^>=1.5
+    , tasty-discover                     ^>=5.0
+    , tasty-golden                       ^>=2.3.5
+    , tasty-hedgehog                     ^>=1.4.0.2
+    , tasty-hspec                        ^>=1.2.0.1
+    , tasty-hunit                        ^>=0.10.0
     , text
     , time
     , uuid-types

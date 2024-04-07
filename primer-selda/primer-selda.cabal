@@ -112,13 +112,15 @@ test-suite primer-selda-test
     , exceptions
     , filepath
     , logging-effect
-    , primer-selda:{primer-selda, primer-selda-testlib}
-    , primer:{primer, primer-testlib}
+    , primer
+    , primer-selda
+    , primer-selda:primer-selda-testlib
+    , primer:primer-testlib
     , selda
     , selda-sqlite
-    , tasty                                              ^>=1.5
-    , tasty-discover                                     ^>=5.0
-    , tasty-hunit                                        ^>=0.10.0
+    , tasty                              ^>=1.5
+    , tasty-discover                     ^>=5.0
+    , tasty-hunit                        ^>=0.10.0
     , text
     , time
     , uuid-types
