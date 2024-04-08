@@ -60,7 +60,7 @@ jobs:
         # our Cachix cache without kicking off any builds.
       - name: Fetch Primer benchmark results
         run: |
-          nix build -L .#benchmarks.x86_64-linux.primer-benchmark-results-github-action-benchmark
+          nix build -L .#packages.x86_64-linux.primer-benchmark-results-github-action-benchmark
 
       - name: Publish results
         uses: benchmark-action/github-action-benchmark@v1.20.1
