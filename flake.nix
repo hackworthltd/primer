@@ -635,7 +635,7 @@
               # them.
               benchmarks =
                 let
-                  lastEnvChange = "20230130.01";
+                  lastEnvChange = "20240408.01";
                 in
                 final.callPackage ./nix/pkgs/benchmarks {
                   inherit lastEnvChange;
