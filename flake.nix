@@ -76,7 +76,6 @@
 
       imports = [
         inputs.pre-commit-hooks-nix.flakeModule
-        ./nix/flake-parts/benchmarks.nix
       ];
       systems = [ "x86_64-linux" "aarch64-darwin" ];
 
@@ -158,7 +157,6 @@
                   baseName == "SECURITY.md" ||
                   baseName == "bugreport.sh" ||
                   pkgs.lib.hasPrefix "cabal.project.local" baseName ||
-                  baseName == "ci-benchmarks.nix" ||
                   baseName == "ci.nix" ||
                   baseName == "default.nix" ||
                   baseName == "docs" ||
@@ -255,6 +253,9 @@
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
             inherit (pkgs) primer-service-docker-image;
+            inherit (pkgs) primer-benchmark-results-json;
+            inherit (pkgs) primer-criterion-results-github-action-benchmark;
+            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
           })
           // primerFlake.packages;
 
@@ -340,20 +341,6 @@
                 ];
             };
           };
-
-          # This is a non-standard flake output, but we don't want to
-          # include benchmark runs in `packages`, because we don't
-          # want them to be part of the `hydraJobs` or `ciJobs`
-          # attrsets. The benchmarks need to be run in a more
-          # controlled environment, and this gives us that
-          # flexibility.
-          benchmarks = {
-            inherit (pkgs) primer-benchmark-results-json;
-            inherit (pkgs) primer-criterion-results-github-action-benchmark;
-          }
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
-            { inherit (pkgs) primer-benchmark-results-github-action-benchmark; }
-          );
         };
 
       flake =
@@ -368,18 +355,6 @@
               };
               overlays = allOverlays;
             };
-
-          benchmarkJobs = {
-            inherit (inputs.self.benchmarks) x86_64-linux;
-
-            required-benchmarks = pkgs.releaseTools.aggregate {
-              name = "required-benchmarks";
-              constituents = builtins.map builtins.attrValues (with inputs.self; [
-                benchmarks.x86_64-linux
-              ]);
-              meta.description = "Required CI benchmarks";
-            };
-          };
         in
         {
           overlays.default = (final: prev:
@@ -635,7 +610,7 @@
               # them.
               benchmarks =
                 let
-                  lastEnvChange = "20240408.01";
+                  lastEnvChange = "20240408.02";
                 in
                 final.callPackage ./nix/pkgs/benchmarks {
                   inherit lastEnvChange;
@@ -667,13 +642,6 @@
 
               inherit primer-openapi-spec;
 
-              # Note to the reader: these derivations run benchmarks
-              # and collect the results in various formats. They're
-              # part of the flake's overlay, so they appear in any
-              # `pkgs` that uses this overlay. Hoewver, we do *not*
-              # include these in the flake's `packages` output,
-              # because we don't want them to be built/run when CI
-              # evaluates the `hydraJobs` or `ciJobs` outputs.
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
@@ -702,7 +670,6 @@
           };
 
           ciJobs = inputs.hacknix.lib.flakes.recurseIntoHydraJobs inputs.self.hydraJobs;
-          ciBenchmarks = inputs.hacknix.lib.flakes.recurseIntoHydraJobs benchmarkJobs;
         };
     };
 }

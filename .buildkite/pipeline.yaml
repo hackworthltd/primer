@@ -28,12 +28,3 @@ steps:
     agents:
       queue: "nix-build"
       os: "darwin"
-
-  - label: ":nixos: :buildkite: :stopwatch: Run benchmarks"
-    command: nix-buildkite
-    agents:
-      queue: "nix-benchmark"
-    plugins:
-      - hackworthltd/nix#v1.0.0:
-          file: ci-benchmarks.nix
-          agent-tags: queue=nix-benchmark
