@@ -50,7 +50,7 @@ library
     , primer:primer-testlib
     , tasty                  ^>=1.5
     , tasty-hunit            ^>=0.10.0
-    , text                   ^>=2.0
+    , text                   >=2.0      && <2.2
 
 benchmark primer-benchmark
   import:         options
