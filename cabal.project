@@ -92,12 +92,12 @@ if arch(wasm32)
     tag: 91d119cb0e3c5f7d866589b25158739580c8fc88
     --sha256: sha256-mu8Eq0Sg6nCF8C2sXB6ebZcLhz8TVZAbNMiorA7RVc8=
 
-  -- Upstream depends on Posix types unavailable in Wasm.
+  -- Upstream supports Wasm, but not yet released to Hackage.
   source-repository-package
     type: git
-    location: https://github.com/hackworthltd/semirings
-    tag: 369f696d9d00fe004b16b0de08888fee7a3d08c3
-    --sha256: sha256-kkHCp4Y9IqMXGaDyW5UpsmRjy0ZWZkVSo1nOhpgZUQ0=
+    location: https://github.com/chessai/semirings
+    tag: 2631c542b57abc9bc9e92db273ab8e80ae88048c
+    --sha256: sha256-M6zLBUjVFacCyDm4oxjQ0gVn1J0BmKWOy3MFfUzWJN8=
 
   -- Upstream uses custom setup, which breaks on Wasm.
   source-repository-package
