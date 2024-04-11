@@ -41,8 +41,8 @@ library
     , primer          ^>=0.7.2
     , selda           ^>=0.5.2.1
     , selda-sqlite    ^>=0.1.7.2
-    , text            ^>=2.0
-    , time            >=1.11     && <1.13
+    , text            >=2.0      && <2.1
+    , time            >=1.11     && <1.15
     , uuid-types      ^>=1.0.5.1
 
 library primer-selda-testlib
