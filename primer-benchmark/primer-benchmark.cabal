@@ -41,7 +41,7 @@ library
   exposed-modules: Benchmarks
   build-depends:
     , aeson                  >=2.0      && <2.3
-    , base                   >=4.12     && <4.20
+    , base                   >=4.12     && <4.21
     , containers             >=0.6.0.1  && <0.7.0
     , criterion              ^>=1.6.0.0
     , deepseq                ^>=1.5

@@ -47,7 +47,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc982";
+      ghcVersion = "ghc910X";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -55,7 +55,7 @@
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.14.1.0";
+      fourmoluVersion = "0.15.0.0";
 
       allOverlays = [
         inputs.haskell-nix.overlay
@@ -204,8 +204,10 @@
               # we're using.
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
                 hlint = "latest";
-                fourmolu = fourmoluVersion;
-                cabal-fmt = cabal-fmt-override;
+                #fourmolu = fourmoluVersion;
+
+                # Not working with GHC 9.10
+                #cabal-fmt = cabal-fmt-override;
               };
             in
             {
@@ -214,8 +216,11 @@
                 src = ./.;
                 hooks = {
                   hlint.enable = true;
-                  fourmolu.enable = true;
-                  cabal-fmt.enable = true;
+                  #fourmolu.enable = true;
+
+                  # Not working with GHC 9.10
+                  #cabal-fmt.enable = true;
+
                   nixpkgs-fmt.enable = true;
                   # Note: doesn't appear to pick up `bugreport.sh`.
                   # https://github.com/hackworthltd/primer/issues/1018
@@ -229,8 +234,10 @@
                 tools = {
                   nixpkgs-fmt = pkgs.lib.mkForce pkgs.nixpkgs-fmt;
                   hlint = pkgs.lib.mkForce haskellNixTools.hlint;
-                  fourmolu = pkgs.lib.mkForce haskellNixTools.fourmolu;
-                  cabal-fmt = pkgs.lib.mkForce haskellNixTools.cabal-fmt;
+                  #fourmolu = pkgs.lib.mkForce haskellNixTools.fourmolu;
+
+                  # Not working with GHC 9.10
+                  #cabal-fmt = pkgs.lib.mkForce haskellNixTools.cabal-fmt;
                 };
 
                 excludes = [
@@ -465,28 +472,29 @@
                   #exactDeps = true;
                   withHoogle = true;
 
-                  tools = {
-                    ghcid = "latest";
+                  # tools = {
+                  #   #ghcid = "latest";
 
-                    # Workaround for HLS in haskell.nix. Ref:
-                    # https://github.com/input-output-hk/haskell.nix/issues/1981#issuecomment-1594278049
-                    haskell-language-server.src = inputs."hls-2.7";
+                  #   # Workaround for HLS in haskell.nix. Ref:
+                  #   # https://github.com/input-output-hk/haskell.nix/issues/1981#issuecomment-1594278049
+                  #   haskell-language-server.src = inputs."hls-2.7";
 
-                    implicit-hie = "latest";
+                  #   implicit-hie = "latest";
 
-                    cabal = "latest";
-                    hlint = "latest";
+                  #   cabal = "latest";
+                  #   hlint = "latest";
 
-                    # Disabled, as it doesn't currently build with Nix.
-                    #weeder = weederVersion;
+                  #   # Disabled, as it doesn't currently build with Nix.
+                  #   #weeder = weederVersion;
 
-                    fourmolu = fourmoluVersion;
+                  #   #fourmolu = fourmoluVersion;
 
-                    cabal-fmt = cabal-fmt-override;
+                  #   # Not working with GHC 9.10
+                  #   #cabal-fmt = cabal-fmt-override;
 
-                    #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-                    tasty-discover = "latest";
-                  };
+                  #   #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+                  #   tasty-discover = "latest";
+                  # };
 
                   buildInputs = (with final; [
                     nixpkgs-fmt
