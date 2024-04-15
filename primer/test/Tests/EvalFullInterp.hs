@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- TODO: DRY with EvalFullStep tests
@@ -13,7 +14,18 @@ import Hedgehog hiding (Property, Var, check, property, test, withDiscards, with
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (LabelName (LabelName))
 import Hedgehog.Range qualified as Range
+import Primer.App (
+  EvalBoundedInterpReq (..),
+  EvalBoundedInterpResp (..),
+  EvalInterpReq (..),
+  EvalInterpResp (..),
+  handleEvalBoundedInterpRequest,
+  handleEvalInterpRequest,
+  importModules,
+  newEmptyApp,
+ )
 import Primer.Builtins (
+  boolDef,
   cCons,
   cFalse,
   cJust,
@@ -40,8 +52,11 @@ import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), interp, mkGl
 import Primer.EvalFullStep (evalFullStepCount)
 import Primer.Gen.Core.Typed (forAllT, propertyWT)
 import Primer.Module (
+  Module (..),
+  builtinModule,
   builtinTypes,
   moduleDefsQualified,
+  primitiveModule,
  )
 import Primer.Primitives (
   PrimDef (
@@ -70,16 +85,20 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
-import Primer.Test.Eval qualified as EvalTest
-import Primer.Test.Expected (
-  Expected (defMap, expectedResult, expr),
-  mapEven,
+import Primer.Test.App (
+  runAppTestM,
  )
+import Primer.Test.Eval qualified as EvalTest
+import Primer.Test.Expected qualified as Expected
 import Primer.Test.Util (
   failWhenSevereLogs,
   primDefs,
  )
-import Primer.TypeDef (TypeDefMap)
+import Primer.TypeDef (
+  TypeDef (TypeDefAST),
+  TypeDefMap,
+  generateTypeDefIDs,
+ )
 import Primer.Typecheck (
   typeDefs,
  )
@@ -89,16 +108,33 @@ import Tasty (
   withDiscards,
   withTests,
  )
-import Test.Tasty.HUnit (Assertion, (@?=))
-import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules)
+import Test.Tasty.HUnit (
+  Assertion,
+  assertFailure,
+  (@?=),
+ )
+import Tests.Action.Prog (readerToState)
+import Tests.Eval.Utils (
+  genDirTm,
+  hasTypeLets,
+  testModules,
+  (~=),
+ )
 import Tests.Gen.Core.Typed (checkTest)
 
 unit_throw_no_branch :: Assertion
 unit_throw_no_branch =
-  let e = create1 $ case_ (con0 cTrue `ann` tcon tBool) [branch cFalse [] emptyHole]
+  let e = create1 EvalTest.illTypedMissingBranch
    in do
         s <- evalFullTest builtinTypes mempty Chk e
         s @?= Left (NoBranch (Left cTrue) [PatCon cFalse])
+
+unit_throw_no_branch_prim :: Assertion
+unit_throw_no_branch_prim =
+  let e = create1 EvalTest.illTypedMissingBranchPrim
+   in do
+        s <- evalFullTest builtinTypes mempty Chk e
+        s @?= Left (NoBranch (Right (PrimChar 'a')) [PatPrim (PrimChar 'b')])
 
 unit_1 :: Assertion
 unit_1 =
@@ -153,10 +189,10 @@ unit_7 =
 
 unit_8 :: Assertion
 unit_8 =
-  let e = mapEven 10
+  let e = Expected.mapEven 10
    in do
-        s <- evalFullTest builtinTypes (defMap e) Syn (forgetMetadata $ expr e)
-        s @?= Right (forgetMetadata $ expectedResult e)
+        s <- evalFullTest builtinTypes (Expected.defMap e) Syn (forgetMetadata $ Expected.expr e)
+        s @?= Right (forgetMetadata $ Expected.expectedResult e)
 
 -- A worker/wrapper'd map
 unit_9 :: Assertion
@@ -859,70 +895,283 @@ unit_prim_partial_map =
         s <- evalFullTest builtinTypes (gs <> prims) Syn e
         s @?= Right r
 
--- TODO: enable when have EvalFullRequest with interp
----- Test that handleEvalFullRequest will reduce imported terms
--- unit_eval_full_modules :: Assertion
--- unit_eval_full_modules =
---  let test = do
---        builtinModule' <- builtinModule
---        primitiveModule' <- primitiveModule
---        importModules [primitiveModule', builtinModule']
---        foo <- pfun ToUpper `app` char 'a'
---        resp <-
---          readerToState
---            $ handleEvalFullRequest
---              EvalFullReq
---                { evalFullReqExpr = foo
---                , evalFullCxtDir = Chk
---                , evalFullMaxSteps = 2
---                , evalFullOptions = UnderBinders
---                }
---        expect <- char 'A'
---        pure $ case resp of
---          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
---          EvalFullRespNormal e -> e ~= expect
---      a = newEmptyApp
---   in runAppTestM a test <&> fst >>= \case
---        Left err -> assertFailure $ show err
---        Right assertion -> assertion
+-- Test that 'handleEvalInterpRequest' will reduce imported terms
+unit_eval_interp_full_modules :: Assertion
+unit_eval_interp_full_modules =
+  let test = do
+        builtinModule' <- builtinModule
+        primitiveModule' <- primitiveModule
+        importModules [primitiveModule', builtinModule']
+        foo <- pfun ToUpper `app` char 'a'
+        (EvalInterpRespNormal e) <-
+          readerToState
+            $ handleEvalInterpRequest
+              EvalInterpReq
+                { expr = foo
+                , dir = Chk
+                }
+        expect <- char 'A'
+        pure $ e ~= expect
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
----- TODO: enable when have EvalFullRequest with interp
----- Test that handleEvalFullRequest will reduce case analysis of imported types
--- unit_eval_full_modules_scrutinize_imported_type :: Assertion
--- unit_eval_full_modules_scrutinize_imported_type =
---  let test = do
---        m' <- m
---        importModules [m']
---        foo <-
---          case_
---            (con0 cTrue `ann` tcon tBool)
---            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
---        resp <-
---          readerToState
---            $ handleEvalFullRequest
---            $ EvalFullReq
---              { evalFullReqExpr = foo
---              , evalFullCxtDir = Chk
---              , evalFullMaxSteps = 2
---              , evalFullOptions = UnderBinders
---              }
---        expect <- con0 cFalse
---        pure $ case resp of
---          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
---          EvalFullRespNormal e -> e ~= expect
---      a = newEmptyApp
---   in runAppTestM a test <&> fst >>= \case
---        Left err -> assertFailure $ show err
---        Right assertion -> assertion
---  where
---    m = do
---      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
---      pure
---        $ Module
---          { moduleName = qualifiedModule tBool
---          , moduleTypes = Map.singleton (baseName tBool) boolDef'
---          , moduleDefs = mempty
---          }
+-- Test that 'handleEvalBoundedInterpRequest' will reduce imported terms
+unit_eval_interp_full_modules_bounded :: Assertion
+unit_eval_interp_full_modules_bounded =
+  let test = do
+        builtinModule' <- builtinModule
+        primitiveModule' <- primitiveModule
+        importModules [primitiveModule', builtinModule']
+        foo <- pfun ToUpper `app` char 'a'
+        resp <-
+          readerToState
+            $ handleEvalBoundedInterpRequest
+              EvalBoundedInterpReq
+                { expr = foo
+                , dir = Chk
+                , timeout = MicroSec 100
+                }
+        expect <- char 'A'
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= expect
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
+-- Test that 'handleEvalInterpRequest' will reduce case analysis of
+-- imported types
+unit_eval_interp_full_modules_scrutinize_imported_type :: Assertion
+unit_eval_interp_full_modules_scrutinize_imported_type =
+  let test = do
+        m' <- m
+        importModules [m']
+        foo <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        (EvalInterpRespNormal e) <-
+          readerToState
+            $ handleEvalInterpRequest
+            $ EvalInterpReq
+              { expr = foo
+              , dir = Chk
+              }
+        expect <- con0 cFalse
+        pure $ e ~= expect
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that 'handleEvalBoundedInterpRequest' will reduce case analysis
+-- of imported types
+unit_eval_interp_full_modules_scrutinize_imported_type_bounded :: Assertion
+unit_eval_interp_full_modules_scrutinize_imported_type_bounded =
+  let test = do
+        m' <- m
+        importModules [m']
+        foo <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        resp <-
+          readerToState
+            $ handleEvalBoundedInterpRequest
+            $ EvalBoundedInterpReq
+              { expr = foo
+              , dir = Chk
+              , timeout = MicroSec 100
+              }
+        expect <- con0 cFalse
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= expect
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that 'handleEvalBoundedInterpRequest' will return timeouts.
+unit_eval_interp_handle_eval_bounded_timeout :: Assertion
+unit_eval_interp_handle_eval_bounded_timeout =
+  let test = do
+        m' <- m
+        importModules [m']
+        e <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
+        resp <-
+          readerToState
+            $ handleEvalBoundedInterpRequest
+            $ EvalBoundedInterpReq
+              { expr = e
+              , dir = Chk
+              , timeout = MicroSec 10_000
+              }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> err @?= Timeout
+          EvalBoundedInterpRespNormal _ -> assertFailure "expected timeout"
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that 'handleEvalBoundedInterpRequest' will return an error
+-- when a case branch is missing.
+unit_eval_interp_handle_eval_bounded_missing_branch :: Assertion
+unit_eval_interp_handle_eval_bounded_missing_branch =
+  let test = do
+        m' <- m
+        importModules [m']
+        e <- case_ (con0 cTrue `ann` tcon tBool) [branch cFalse [] emptyHole]
+        resp <-
+          readerToState
+            $ handleEvalBoundedInterpRequest
+            $ EvalBoundedInterpReq
+              { expr = e
+              , dir = Chk
+              , timeout = MicroSec 10_000
+              }
+        let expect = NoBranch (Left cTrue) [PatCon cFalse]
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> err @?= expect
+          EvalBoundedInterpRespNormal _ -> assertFailure "expected NoBranch"
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that 'handleEvalInterpRequest' will throw an 'InterpError'
+-- exception when a case branch is missing.
+unit_eval_interp_handle_eval_missing_branch :: Assertion
+unit_eval_interp_handle_eval_missing_branch =
+  let test = do
+        m' <- m
+        importModules [m']
+        foo <- case_ (con0 cTrue `ann` tcon tBool) [branch cFalse [] emptyHole]
+        tryJust
+          (\(ex :: InterpError) -> Just ex)
+          $ readerToState
+          $ handleEvalInterpRequest
+          $ EvalInterpReq
+            { expr = foo
+            , dir = Chk
+            }
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ "expected NoBranch exception, got " ++ show err
+        Right ex -> ex @?= Left (NoBranch (Left cTrue) [PatCon cFalse])
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that 'handleEvalBoundedInterpRequest' will return an error
+-- when a case branch is missing (primitive version).
+unit_eval_interp_handle_eval_bounded_missing_branch_prim :: Assertion
+unit_eval_interp_handle_eval_bounded_missing_branch_prim =
+  let test = do
+        m' <- m
+        importModules [m']
+        e <- case_ (char 'a' `ann` tcon tChar) [branchPrim (PrimChar 'b') emptyHole]
+        resp <-
+          readerToState
+            $ handleEvalBoundedInterpRequest
+            $ EvalBoundedInterpReq
+              { expr = e
+              , dir = Chk
+              , timeout = MicroSec 10_000
+              }
+        let expect = NoBranch (Right (PrimChar 'a')) [PatPrim (PrimChar 'b')]
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> err @?= expect
+          EvalBoundedInterpRespNormal _ -> assertFailure "expected NoBranch"
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
+
+-- Test that 'handleEvalInterpRequest' will throw an 'InterpError'
+-- exception when a case branch is missing (primitive version).
+unit_eval_interp_handle_eval_missing_branch_prim :: Assertion
+unit_eval_interp_handle_eval_missing_branch_prim =
+  let test = do
+        m' <- m
+        importModules [m']
+        foo <- case_ (char 'a' `ann` tcon tChar) [branchPrim (PrimChar 'b') emptyHole]
+        tryJust
+          (\(ex :: InterpError) -> Just ex)
+          $ readerToState
+          $ handleEvalInterpRequest
+          $ EvalInterpReq
+            { expr = foo
+            , dir = Chk
+            }
+      a = newEmptyApp
+   in runAppTestM a test <&> fst >>= \case
+        Left err -> assertFailure $ "expected NoBranch exception, got " ++ show err
+        Right ex -> ex @?= Left (NoBranch (Right (PrimChar 'a')) [PatPrim (PrimChar 'b')])
+  where
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure
+        $ Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = M.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
 
 -- There's a similar test in the step evaluator test suite, but the
 -- implementation is sufficiently different that it doesn't make sense

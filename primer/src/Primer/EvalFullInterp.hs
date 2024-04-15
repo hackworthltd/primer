@@ -51,6 +51,12 @@ import Primer.Def (ASTDef (ASTDef), Def (DefAST, DefPrim), DefMap)
 import Primer.Eval.Redex (
   Dir (Chk, Syn),
  )
+import Primer.JSON (
+  CustomJSON (..),
+  FromJSON,
+  PrimerJSON,
+  ToJSON,
+ )
 import Primer.Name (Name)
 import Primer.Primitives (primConName, primFunDef)
 import Primer.Primitives.PrimDef (PrimDef)
@@ -113,10 +119,13 @@ data InterpError
   | NoBranch (Either ValConName PrimCon) [Pattern]
   | UnknownTyCon TyConName
   | UnknownValCon TyConName ValConName
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Read, Generic)
   deriving anyclass (Exception)
+  deriving (FromJSON, ToJSON) via PrimerJSON InterpError
 
 newtype Timeout = MicroSec Int
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Timeout
 
 -- | Wrap the interpreter in a IO-based timeout, and catch 'InterpError' exceptions
 interp ::
