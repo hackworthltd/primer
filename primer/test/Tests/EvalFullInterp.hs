@@ -7,9 +7,8 @@
 -- Finally, a few tests were added.)
 module Tests.EvalFullInterp where
 
-import Foreword hiding (unlines)
-
 import Data.Map qualified as M
+import Foreword hiding (unlines)
 import Hedgehog hiding (Property, Var, check, property, test, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (LabelName (LabelName))
@@ -20,16 +19,14 @@ import Primer.Builtins (
   cJust,
   cMakePair,
   cNothing,
-  cSucc,
   cTrue,
   cZero,
   tBool,
   tList,
   tMaybe,
   tNat,
-  tPair,
  )
-import Primer.Builtins.DSL (boolAnn, bool_, list_, nat)
+import Primer.Builtins.DSL (boolAnn, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
@@ -41,12 +38,6 @@ import Primer.Def (DefMap)
 import Primer.Eval
 import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), interp, mkGlobalEnv)
 import Primer.EvalFullStep (evalFullStepCount)
-import Primer.Examples qualified as Examples (
-  even,
-  map,
-  map',
-  odd,
- )
 import Primer.Gen.Core.Typed (forAllT, propertyWT)
 import Primer.Module (
   builtinTypes,
@@ -73,13 +64,13 @@ import Primer.Primitives (
     IntToNat,
     IsSpace,
     NatToHex,
-    PrimConst,
     ToUpper
   ),
   tChar,
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.Eval qualified as EvalTest
 import Primer.Test.Expected (
   Expected (defMap, expectedResult, expr),
   mapEven,
@@ -123,43 +114,30 @@ unit_2 =
         s <- evalFullTest mempty mempty Syn e
         s @?= Right e
 
--- Check we don't have shadowing issues in types
 unit_3 :: Assertion
 unit_3 =
-  let (expr, expected) = create2 $ do
-        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall "b" ktype (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let b' = "b_1"
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" ktype (tvar "a") `tapp` tforall b' ktype (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
-        pure (e, expect)
+  let (expr, expected) = create2 $ EvalTest.noTypeShadowing "b_1"
    in do
         s <- evalFullTest mempty mempty Syn expr
         s @?= Right expected
 
--- Check we don't have shadowing issues in terms
 unit_4 :: Assertion
 unit_4 =
-  let (expr, expected) = create2 $ do
-        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        let b' = "b_1"
-        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
-        pure (e, expect)
+  let (expr, expected) = create2 $ EvalTest.noTermShadowing "b_1"
    in do
         s <- evalFullTest mempty mempty Syn expr
         s @?= Right expected
 
 unit_5 :: Assertion
 unit_5 =
-  let e = forgetMetadata $ create' $ letrec "x" (lvar "x") (tcon tBool) (lvar "x")
+  let e = forgetMetadata $ create' EvalTest.recursiveLetRec'
    in do
         s <- evalFullTest' (MicroSec 10_000) mempty mempty Syn e
         s @?= Left Timeout
 
 unit_6 :: Assertion
 unit_6 =
-  let (e, expt) = create2 $ do
-        tr <- con0 cTrue
-        an <- ann (pure tr) (tcon tBool)
-        pure (an, tr)
+  let (e, expt) = create2 EvalTest.annotatedConstructor
    in do
         s <- evalFullTest mempty mempty Syn e
         s @?= Right e
@@ -168,17 +146,14 @@ unit_6 =
 
 unit_7 :: Assertion
 unit_7 =
-  let e = create1 $ do
-        let l = lam "x" $ lvar "x" `app` lvar "x"
-        (l `ann` tEmptyHole) `app` l
+  let e = create1 EvalTest.stuckTerm
    in do
         s <- evalFullTest mempty mempty Syn e
         s @?= Right e
 
 unit_8 :: Assertion
 unit_8 =
-  let n = 10
-      e = mapEven n
+  let e = mapEven 10
    in do
         s <- evalFullTest builtinTypes (defMap e) Syn (forgetMetadata $ expr e)
         s @?= Right (forgetMetadata $ expectedResult e)
@@ -186,41 +161,15 @@ unit_8 =
 -- A worker/wrapper'd map
 unit_9 :: Assertion
 unit_9 =
-  let n = 10
-      modName = mkSimpleModuleName "TestModule"
-      (globals, forgetMetadata -> e, forgetMetadata -> expected) = create' $ do
-        (mapName, mapDef) <- Examples.map' modName
-        (evenName, evenDef) <- Examples.even modName
-        (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
-        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
-        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
-        pure (globs, expr, expect)
+  let modName = mkSimpleModuleName "TestModule"
+      (globals, forgetMetadata -> e, forgetMetadata -> expected) = create' $ EvalTest.workerMap modName 10
    in do
         s <- evalFullTest builtinTypes (M.fromList globals) Syn e
         s @?= Right expected
 
--- A case redex must have an scrutinee which is an annotated constructor.
--- Plain constructors are not well-typed here, for bidirectionality reasons,
--- although they just fail to reduce rather than the evaluator throwing a type error.
 unit_10 :: Assertion
 unit_10 =
-  let (s, t, expected) = create3 $ do
-        annCase <-
-          case_
-            (con0 cZero `ann` tcon tNat)
-            [ branch cZero [] $ con0 cTrue
-            , branch cSucc [("n", Nothing)] $ con0 cFalse
-            ]
-        noannCase <-
-          case_
-            (con0 cZero)
-            [ branch cZero [] $ con0 cTrue
-            , branch cSucc [("n", Nothing)] $ con0 cFalse
-            ]
-        expect <- con0 cTrue
-        pure (annCase, noannCase, expect)
+  let (s, t, expected) = create3 EvalTest.caseRedex
    in do
         s' <- evalFullTest builtinTypes mempty Syn s
         s' @?= Right expected
@@ -230,62 +179,35 @@ unit_10 =
 unit_11 :: Assertion
 unit_11 =
   let modName = mkSimpleModuleName "TestModule"
-      (globals, forgetMetadata -> e, forgetMetadata -> expected) = create' $ do
-        (evenName, evenDef) <- Examples.even modName
-        (oddName, oddDef) <- Examples.odd modName
-        let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
-        let expr1 =
-              let_ "x" (con0 cZero)
-                $ lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
-                `ann` ty
-        expr <- expr1 `app` con0 cZero
-        let globs = [(evenName, evenDef), (oddName, oddDef)]
-        expect <-
-          con cMakePair [con0 cTrue, con0 cZero]
-            `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
-        pure (globs, expr, expect)
+      (globals, forgetMetadata -> e, forgetMetadata -> expected) = create' $ EvalTest.annotatedPair modName
    in do
         s <- evalFullTest builtinTypes (M.fromList globals) Syn e
         s @?= Right expected
 
 unit_12 :: Assertion
 unit_12 =
-  let (e, expected) = create2 $ do
-        -- 'f' is a bit silly here, but could just as well be a definition of 'even'
-        let f =
-              lam "x"
-                $ case_
-                  (lvar "x")
-                  [ branch cZero [] $ con0 cTrue
-                  , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
-                  ]
-        expr <- let_ "n" (con0 cZero) $ letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
-        expect <- con0 cTrue `ann` tcon tBool
-        pure (expr, expect)
+  let (e, expected) = create2 EvalTest.letrecLambda
    in do
         s <- evalFullTest builtinTypes mempty Syn e
         s @?= Right expected
 
 unit_13 :: Assertion
 unit_13 =
-  let (e, expected) = create2 $ do
-        expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
-        expect <- con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
-        pure (expr, expect)
+  let (e, expected) = create2 EvalTest.constructorEtaAbstraction
    in do
         s <- evalFullTest builtinTypes mempty Syn e
         s @?= Right expected
 
 unit_14 :: Assertion
 unit_14 =
-  let (e, expected) = create2 $ do
-        expr <- (lam "x" (lam "x" $ lvar "x") `ann` (tcon tBool `tfun` (tcon tNat `tfun` tcon tNat))) `app` con0 cTrue `app` con0 cZero
-        expect <- con0 cZero `ann` tcon tNat
-        pure (expr, expect)
+  let (e, expected) = create2 EvalTest.lambdaShadow
    in do
         s <- evalFullTest builtinTypes mempty Syn e
         s @?= Right expected
 
+-- Note that this test has a similar test in the step evaluator test
+-- suite, but it's sufficiently different that it needs its own
+-- implementation.
 unit_15 :: Assertion
 unit_15 =
   let (expr, expected) = create2 $ do
@@ -301,28 +223,25 @@ unit_15 =
 
 unit_map_hole :: Assertion
 unit_map_hole =
-  let n = 3
-      modName = mkSimpleModuleName "TestModule"
-      (globals, forgetMetadata -> expr, forgetMetadata -> expected) = create' $ do
-        (mapName, mapDef) <- Examples.map modName
-        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
-        e <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lst
-        let globs = [(mapName, mapDef)]
-        expect <- list_ (take n $ ((emptyHole `ann` (tcon tNat `tfun` tcon tBool)) `app`) <$> iterate (con1 cSucc) (con0 cZero)) `ann` (tcon tList `tapp` tcon tBool)
-        pure (M.fromList globs, e, expect)
+  let modName = mkSimpleModuleName "TestModule"
+      (globals, forgetMetadata -> expr, forgetMetadata -> expected) = create' $ EvalTest.mapHole modName
    in do
         sO <- evalFullTest builtinTypes globals Syn expr
         sO @?= Right expected
 
 unit_hole_ann_case :: Assertion
 unit_hole_ann_case =
-  let tm = create1 $ hole $ ann (case_ emptyHole []) (tcon tBool)
+  let tm = create1 EvalTest.holeAnnotateCase
    in do
         t <- evalFullTest builtinTypes mempty Chk tm
         t @?= Right tm
 
 -- Check we don't have variable capture in
 -- let x = y in case ? of C x -> x ; D y -> x
+--
+-- There's a similar test in the step evaluator test suite, but that
+-- one checks not-fully-evaluated steps, which don't apply to the
+-- interpreter, so the tests are implemented separately.
 unit_case_let_capture :: Assertion
 unit_case_let_capture =
   let (expr, expected) = create2 $ do
@@ -348,6 +267,9 @@ unit_case_let_capture =
 -- tlet x = C in D x x
 --   ==>
 -- D C C
+--
+-- As above, there's a similar test in the step evaluator, but they're
+-- implemented differently due to not checking partial results here.
 unit_tlet :: Assertion
 unit_tlet =
   let (expr, expected) = create2 $ do
@@ -359,6 +281,9 @@ unit_tlet =
         r @?= Right expected
 
 -- tlet x = C in ty ==> ty  when x not occur free in ty
+--
+-- As above, there's a similar test in the step evaluator, but they're
+-- implemented differently due to not checking partial results here.
 unit_tlet_elide :: Assertion
 unit_tlet_elide = do
   let (expr, expected) = create2 $ do
@@ -371,6 +296,9 @@ unit_tlet_elide = do
 
 -- tlet x = x in x
 -- x
+--
+-- As above, there's a similar test in the step evaluator, but they're
+-- implemented differently due to not checking partial results here.
 unit_tlet_self_capture :: Assertion
 unit_tlet_self_capture = do
   let (expr, expected) = create2 $ do
@@ -381,6 +309,8 @@ unit_tlet_self_capture = do
         r <- evalFullTest mempty mempty Syn expr
         r @?= Right expected
 
+-- This test is mainly for the step evaluator, but we check it here as
+-- well just for completeness.
 unit_closed_let_beta :: Assertion
 unit_closed_let_beta =
   let (expr, expected) = create2 $ do
@@ -404,6 +334,8 @@ unit_closed_let_beta =
         r <- evalFullTest mempty mempty Syn expr
         r @?= Right expected
 
+-- This test is mainly for the step evaluator, but we check it here as
+-- well just for completeness.
 unit_closed_single_lets :: Assertion
 unit_closed_single_lets =
   let (expr, expected) = create2 $ do
@@ -426,6 +358,13 @@ unit_closed_single_lets =
         r <- evalFullTest mempty mempty Syn expr
         r @?= Right expected
 
+-- This test checks a set of expressions that previously caused
+-- variable capture in the step evaluator. We test it here, as well,
+-- out of an abundance of caution.
+--
+-- There's a similar test in the step evaluator test suite, but that
+-- one checks not-fully-evaluated steps, which don't apply to the
+-- interpreter, so the tests are implemented separately.
 unit_let_self_capture :: Assertion
 unit_let_self_capture =
   let ( forgetMetadata -> expr2
@@ -452,6 +391,10 @@ unit_let_self_capture =
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)
+--
+-- There's a similar test in the step evaluator test suite, but the
+-- implementation is sufficiently different that it doesn't make sense
+-- to combine them.
 tasty_type_preservation :: Property
 tasty_type_preservation = withTests 1000
   $ withDiscards 2000
@@ -488,10 +431,9 @@ tasty_two_interp_agree = withTests 1000
       (Right ss', Right si') -> label "both terminated" >> Hedgehog.diff (forgetMetadata ss') alphaEq si'
       _ -> label "one failed to terminate"
 
----- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion
 unit_prim_stuck =
-  let (forgetMetadata -> f, prims) = create' $ (,) <$> pfun ToUpper <*> primDefs
+  let (forgetMetadata -> f, prims) = create' EvalTest.unsaturatedPrimitive
    in do
         s <- evalFullTest mempty prims Syn f
         s @?= Right f
@@ -887,14 +829,7 @@ unit_prim_int_fromNat =
 unit_prim_ann :: Assertion
 unit_prim_ann =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
-        create'
-          $ (,,)
-          <$> ( pfun ToUpper
-                  `ann` (tcon tChar `tfun` tcon tChar)
-              )
-          `app` (char 'a' `ann` tcon tChar)
-          <*> char 'A'
-          <*> primDefs
+        create' EvalTest.primitiveAnnotation
    in do
         s <- evalFullTest builtinTypes prims Syn e
         s @?= Right r
@@ -902,14 +837,7 @@ unit_prim_ann =
 unit_prim_lazy_1 :: Assertion
 unit_prim_lazy_1 =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
-        create'
-          $ (,,)
-          <$> pfun PrimConst
-          `app` bool_ True
-          `app` emptyHole
-          <*> bool_ True
-          `ann` tcon tBool
-          <*> primDefs
+        create' EvalTest.lazyPrimitive1
    in do
         s <- evalFullTest builtinTypes prims Syn e
         s @?= Right r
@@ -917,14 +845,7 @@ unit_prim_lazy_1 =
 unit_prim_lazy_2 :: Assertion
 unit_prim_lazy_2 =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
-        create'
-          $ (,,)
-          <$> pfun PrimConst
-          `app` bool_ True
-          `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
-          <*> bool_ True
-          `ann` tcon tBool
-          <*> primDefs
+        create' EvalTest.lazyPrimitive2
    in do
         s <- evalFullTest builtinTypes prims Syn e
         s @?= Right r
@@ -933,26 +854,7 @@ unit_prim_partial_map :: Assertion
 unit_prim_partial_map =
   let modName = mkSimpleModuleName "TestModule"
       (forgetMetadata -> e, forgetMetadata -> r, gs, prims) =
-        create' $ do
-          (mapName, mapDef) <- Examples.map' modName
-          (,,,)
-            <$> gvar mapName
-            `aPP` tcon tChar
-            `aPP` tcon tChar
-            `app` pfun ToUpper
-            `app` list_
-              [ char 'a'
-              , char 'b'
-              , char 'c'
-              ]
-            <*> list_
-              [ char 'A'
-              , char 'B'
-              , char 'C'
-              ]
-            `ann` (tcon tList `tapp` tcon tChar)
-            <*> pure (M.singleton mapName mapDef)
-            <*> primDefs
+        create' $ EvalTest.primitivePartialMap modName
    in do
         s <- evalFullTest builtinTypes (gs <> prims) Syn e
         s @?= Right r
@@ -1022,6 +924,9 @@ unit_prim_partial_map =
 --          , moduleDefs = mempty
 --          }
 
+-- There's a similar test in the step evaluator test suite, but the
+-- implementation is sufficiently different that it doesn't make sense
+-- to combine them.
 unit_wildcard :: Assertion
 unit_wildcard =
   let loop = letrec "x" (lvar "x") (tcon tNat) (lvar "x")
@@ -1034,6 +939,9 @@ unit_wildcard =
         t <- evalFullTest' (MicroSec 10_000) mempty mempty Syn eDiverge
         t @?= Left Timeout
 
+-- There's a similar test in the step evaluator test suite, but the
+-- implementation is sufficiently different that it doesn't make sense
+-- to combine them.
 unit_case_prim :: Assertion
 unit_case_prim =
   let e1 = create1 $ caseFB_ (char 'a') [] (con0 cTrue)
@@ -1089,7 +997,7 @@ evalFullTest' t tydefs = interp t tydefs . mkGlobalEnv
 evalFullTest :: TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 evalFullTest = evalFullTest' (MicroSec (-1)) -- negative time means wait forever
 
-unaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> Assertion
+unaryPrimTest :: (HasCallStack) => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
         create'
@@ -1101,7 +1009,8 @@ unaryPrimTest f x y =
    in do
         s <- evalFullTest mempty prims Syn e
         s @?= Right r
-binaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
+
+binaryPrimTest :: (HasCallStack) => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
         create'
