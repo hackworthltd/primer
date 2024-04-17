@@ -1479,7 +1479,7 @@ type MonadQueryApp m e = (Monad m, MonadReader App m, MonadError e m)
 -- state. This is important to ensure that we can reliably replay the
 -- log without having ID mismatches.
 newtype EditAppM m e a = EditAppM (StateT App (ExceptT e m) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState App, MonadError e, MonadLog l)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState App, MonadError e, MonadLog l)
 
 -- | Run an 'EditAppM' action, returning a result and an updated
 -- 'App'.
