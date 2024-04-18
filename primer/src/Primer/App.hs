@@ -1494,7 +1494,7 @@ runEditAppM (EditAppM m) appState =
 -- Actions run in this monad cannot modify the 'App'. We use 'ExceptT'
 -- here for compatibility with 'EditApp'.
 newtype QueryAppM m e a = QueryAppM (ReaderT App (ExceptT e m) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError e, MonadLog l)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader App, MonadError e, MonadLog l)
 
 -- | Run a 'QueryAppM' action, returning a result.
 runQueryAppM :: QueryAppM m e a -> App -> m (Either e a)

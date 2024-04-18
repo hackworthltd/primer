@@ -18,6 +18,7 @@ import Primer.API (
   copySession,
   deleteSession,
   edit,
+  evalBoundedInterp',
   evalFull',
   findSessions,
   flushSessions,
@@ -73,6 +74,9 @@ import Primer.Database (
  )
 import Primer.Def (astDefExpr, astDefType, defAST)
 import Primer.Eval (NormalOrderOptions (UnderBinders))
+import Primer.EvalFullInterp (
+  Timeout (MicroSec),
+ )
 import Primer.Examples (
   comprehensive,
   even3App,
@@ -491,7 +495,7 @@ test_eval_undo =
       step "create session"
       sid <- newSession $ NewSessionReq "a new session" True
       let scope = mkSimpleModuleName "Main"
-      step "eval"
+      step "evalFull'"
       void $ evalFull' sid (Just 100) (Just UnderBinders) $ qualifyName scope "main"
       step "insert λ"
       let getMain = do
@@ -532,6 +536,8 @@ test_eval_undo =
       _ <- undo sid
       step "redo"
       _ <- redo sid
+      step "evalBoundedInterp'"
+      void $ evalBoundedInterp' sid (Just $ MicroSec 100) $ qualifyName scope "main"
       step "undo *2"
       _ <- undo sid >> undo sid
       step "redo"
