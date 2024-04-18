@@ -12,6 +12,8 @@ import Foreword
 
 import Primer.App (
   App,
+  EvalBoundedInterpReq (..),
+  EvalBoundedInterpResp (..),
   EvalFullReq (..),
   EvalFullResp (..),
   EvalReq (..),
@@ -152,6 +154,12 @@ data SessionAPI mode = SessionAPI
           :> Summary "Evaluate the given expression to normal form (or time out)"
           :> ReqBody '[JSON] EvalFullReq
           :> Post '[JSON] (Either ProgError EvalFullResp)
+  , evalBoundedInterp ::
+      mode
+        :- "eval-bounded-interp"
+          :> Summary "Using the interpreter, evaluate the given expression to normal form (or time out)"
+          :> ReqBody '[JSON] EvalBoundedInterpReq
+          :> Post '[JSON] (Either ProgError EvalBoundedInterpResp)
   }
   deriving stock (Generic)
 

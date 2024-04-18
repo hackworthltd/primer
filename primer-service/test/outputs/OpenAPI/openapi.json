@@ -138,6 +138,97 @@
                 ],
                 "type": "string"
             },
+            "EvalBoundedInterpResp": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "tag": {
+                                "enum": [
+                                    "EvalBoundedInterpRespTimeout"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag"
+                        ],
+                        "title": "EvalBoundedInterpRespTimeout",
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "tag": {
+                                "enum": [
+                                    "EvalBoundedInterpRespNoBranch"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag"
+                        ],
+                        "title": "EvalBoundedInterpRespNoBranch",
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/GlobalName"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EvalBoundedInterpRespUnknownTyCon"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "title": "EvalBoundedInterpRespUnknownTyCon",
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/GlobalName"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EvalBoundedInterpRespUnknownValCon"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "title": "EvalBoundedInterpRespUnknownValCon",
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EvalBoundedInterpRespNormal"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "title": "EvalBoundedInterpRespNormal",
+                        "type": "object"
+                    }
+                ]
+            },
             "EvalFullResp": {
                 "oneOf": [
                     {
@@ -1647,6 +1738,63 @@
                     }
                 },
                 "summary": "Evaluate the named definition to normal form (or time out)"
+            }
+        },
+        "/openapi/sessions/{sessionId}/eval-bounded-interp": {
+            "post": {
+                "operationId": "eval-bounded-interp",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "timeoutMicroseconds",
+                        "required": false,
+                        "schema": {
+                            "exclusiveMaximum": false,
+                            "exclusiveMinimum": false,
+                            "maximum": 100000,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GlobalName"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EvalBoundedInterpResp"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body` or `timeoutMicroseconds`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Using the interpreter, evaluate the named definition to normal form (or time out)"
             }
         },
         "/openapi/sessions/{sessionId}/name": {

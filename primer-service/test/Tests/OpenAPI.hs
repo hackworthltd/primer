@@ -26,6 +26,7 @@ import Hedgehog.Range qualified as R
 import Primer.API (
   ApplyActionBody (..),
   Def (Def),
+  EvalBoundedInterpResp (..),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Module (Module),
   NewSessionReq (..),
@@ -333,6 +334,16 @@ tasty_PaginatedMeta = testToJSON genPaginatedMeta
 genPaginatedSession :: Gen (Paginated Session)
 genPaginatedSession = Paginated <$> genPaginatedMeta <*> G.list (R.linear 0 10) genSession
 
+genEvalBoundedInterpResp :: ExprGen EvalBoundedInterpResp
+genEvalBoundedInterpResp =
+  G.choice
+    [ pure EvalBoundedInterpRespTimeout
+    , pure EvalBoundedInterpRespNoBranch
+    , EvalBoundedInterpRespUnknownTyCon <$> genTyConName
+    , EvalBoundedInterpRespUnknownValCon <$> genValConName
+    , EvalBoundedInterpRespNormal <$> genExprTree
+    ]
+
 tasty_Paginated :: Property
 tasty_Paginated = testToJSON genPaginatedSession
 
@@ -383,6 +394,8 @@ instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
 instance Arbitrary EvalFullResp where
   arbitrary = elements [EvalFullRespNormal, EvalFullRespTimedOut] <*> hedgehog (evalExprGen 0 genExprTree)
+instance Arbitrary EvalBoundedInterpResp where
+  arbitrary = hedgehog $ evalExprGen 0 genEvalBoundedInterpResp
 instance Arbitrary CreateTypeDefBody where
   arbitrary = CreateTypeDefBody <$> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary NewSessionReq where

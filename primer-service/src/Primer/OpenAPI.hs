@@ -45,6 +45,7 @@ import Optics (
 import Primer.API (
   ApplyActionBody,
   Def,
+  EvalBoundedInterpResp,
   EvalFullResp,
   Module,
   NewSessionReq,
@@ -214,3 +215,4 @@ parseQueryParamRead :: Read a => Text -> Text -> Either Text a
 parseQueryParamRead m t = maybeToEither ("unknown " <> m <> ": " <> t) $ readMaybe t
 
 deriving via PrimerJSON EvalFullResp instance ToSchema EvalFullResp
+deriving via PrimerJSON EvalBoundedInterpResp instance ToSchema EvalBoundedInterpResp

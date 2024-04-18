@@ -1388,7 +1388,13 @@ data EvalBoundedInterpResp
     EvalBoundedInterpRespUnknownTyCon TyConName
   | -- | The interpreter encountered an undefined value constructor.
     -- This error should never occur in a well typed program.
-    EvalBoundedInterpRespUnknownValCon TyConName ValConName
+    --
+    -- Note: this should be a 'Recordpair TyConName ValConName', but
+    -- that doesn't serialize properly in our OpenAPI serialization
+    -- scheme, so instead we only include the unknwon 'ValConName' in
+    -- this error. See:
+    -- https://github.com/hackworthltd/primer/issues/1246
+    EvalBoundedInterpRespUnknownValCon ValConName
   | -- | The evaluation succeeded. The 'Tree' represents the normal form
     -- of the expression being evaluated.
     EvalBoundedInterpRespNormal Tree
@@ -1440,7 +1446,7 @@ evalBoundedInterp' = curry3 $ logAPI (noError EvalBoundedInterp') $ \(sid, timeo
         App.EvalBoundedInterpRespFailed Timeout -> EvalBoundedInterpRespTimeout
         App.EvalBoundedInterpRespFailed (NoBranch _ _) -> EvalBoundedInterpRespNoBranch
         App.EvalBoundedInterpRespFailed (UnknownTyCon n) -> EvalBoundedInterpRespUnknownTyCon n
-        App.EvalBoundedInterpRespFailed (UnknownValCon tn vn) -> EvalBoundedInterpRespUnknownValCon tn vn
+        App.EvalBoundedInterpRespFailed (UnknownValCon _ vn) -> EvalBoundedInterpRespUnknownValCon vn
         App.EvalBoundedInterpRespNormal e' -> EvalBoundedInterpRespNormal $ viewTreeExpr e'
     noErr :: Either Void a -> a
     noErr = \case

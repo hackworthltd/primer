@@ -56,6 +56,7 @@ library
     , primer                     ^>=0.7.2
     , primer-api                 ^>=0.7.2
     , refined                    ^>=0.8
+    , semirings                  ^>=0.6
     , servant                    >=0.18     && <0.20.2
     , servant-client             >=0.18     && <0.20.2
     , servant-client-core        >=0.18     && <0.20.2
