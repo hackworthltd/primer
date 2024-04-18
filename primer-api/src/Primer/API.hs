@@ -1188,16 +1188,18 @@ evalStep ::
   SessionId ->
   EvalReq ->
   PrimerM m (Either ProgError EvalResp)
-evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
-  liftQueryAppM (handleEvalRequest req) sid
+evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) -> do
+  app <- getApp sid
+  runQueryAppM (handleEvalRequest req) app
 
 evalFull ::
   (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
   SessionId ->
   EvalFullReq ->
   PrimerM m (Either ProgError App.EvalFullResp)
-evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) ->
-  liftQueryAppM (handleEvalFullRequest req) sid
+evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) -> do
+  app <- getApp sid
+  runQueryAppM (handleEvalFullRequest req) app
 
 -- | This type is the API's view of a 'App.EvalFullResp
 -- (this is expected to evolve as we flesh out the API)
@@ -1219,14 +1221,15 @@ evalFull' ::
   Maybe NormalOrderOptions ->
   GVarName ->
   PrimerM m EvalFullResp
-evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) ->
-  noErr <$> liftQueryAppM (q lim closed d) sid
+evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) -> do
+  app <- getApp sid
+  noErr <$> runQueryAppM (q lim closed d) app
   where
     q ::
       Maybe TerminationBound ->
       Maybe NormalOrderOptions ->
       GVarName ->
-      QueryAppM (PureLog (WithSeverity l)) Void EvalFullResp
+      QueryAppM (PrimerM m) Void EvalFullResp
     q lim closed d = do
       -- We don't care about uniqueness of this ID, and we do not want to
       -- disturb any FreshID state, since that could break undo/redo.
