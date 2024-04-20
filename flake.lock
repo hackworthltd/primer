@@ -617,23 +617,6 @@
         "type": "github"
       }
     },
-    "hls-2.7_2": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1708965829,
-        "narHash": "sha256-LfJ+TBcBFq/XKoiNI7pc4VoHg4WmuzsFxYJ3Fu+Jf+M=",
-        "owner": "haskell",
-        "repo": "haskell-language-server",
-        "rev": "50322b0a4aefb27adc5ec42f5055aaa8f8e38001",
-        "type": "github"
-      },
-      "original": {
-        "owner": "haskell",
-        "ref": "2.7.0.0",
-        "repo": "haskell-language-server",
-        "type": "github"
-      }
-    },
     "hpc-coveralls": {
       "flake": false,
       "locked": {
@@ -1113,7 +1096,6 @@
         "ghc-wasm": "ghc-wasm",
         "hacknix": "hacknix",
         "haskell-nix": "haskell-nix",
-        "hls-2.7": "hls-2.7_2",
         "nixpkgs": [
           "haskell-nix",
           "nixpkgs-unstable"
