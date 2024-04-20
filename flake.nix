@@ -4,9 +4,6 @@
   inputs = {
     haskell-nix.url = "github:input-output-hk/haskell.nix";
 
-    # Until `haskell.nix` catches up.
-    "hls-2.7" = { url = "github:haskell/haskell-language-server/2.7.0.0"; flake = false; };
-
     # We use this for some convenience functions only.
     hacknix.url = "github:hackworthltd/hacknix";
 
@@ -468,9 +465,7 @@
                   tools = {
                     ghcid = "latest";
 
-                    # Workaround for HLS in haskell.nix. Ref:
-                    # https://github.com/input-output-hk/haskell.nix/issues/1981#issuecomment-1594278049
-                    haskell-language-server.src = inputs."hls-2.7";
+                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.7";
 
                     implicit-hie = "latest";
 
