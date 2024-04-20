@@ -35,6 +35,8 @@ module Primer.App (
   newEmptyProg',
   newProg,
   newProg',
+  allDefs,
+  allTypes,
   progAllModules,
   progAllDefs,
   progAllTypeDefs,

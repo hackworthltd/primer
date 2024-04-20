@@ -16,6 +16,8 @@ import Optics
 import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullOptions, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
+  allDefs,
+  allTypes,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,
@@ -26,6 +28,7 @@ import Primer.Builtins (
   cFalse,
   cJust,
   cMakePair,
+  cNil,
   cNothing,
   cTrue,
   cZero,
@@ -46,6 +49,14 @@ import Primer.Core.Utils (
 import Primer.Def (DefMap)
 import Primer.Eval
 import Primer.EvalFullStep
+import Primer.Examples (
+  even3App,
+  even3Prog,
+  mapOddApp,
+  mapOddPrimApp,
+  mapOddPrimProg,
+  mapOddProg,
+ )
 import Primer.Gen.Core.Typed (WT, forAllT, genChk, isolateWT, propertyWT)
 import Primer.Log (runPureLogT)
 import Primer.Module (
@@ -96,6 +107,7 @@ import Primer.Test.TestM (
 import Primer.Test.Util (
   assertNoSevereLogs,
   failWhenSevereLogs,
+  gvn,
   primDefs,
   testNoSevereLogs,
   zeroIDs,
@@ -1681,9 +1693,42 @@ unit_prim_partial_map =
         s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 91 Syn e
         s ~== r
 
+unit_evalFull_even3 :: Assertion
+unit_evalFull_even3 =
+  let (prog, maxID, _) = even3Prog
+      types = allTypes prog
+      defs = allDefs prog
+      (expr, _) = create $ gvar $ gvn ["Even3"] "even 3?"
+      (expect, _) = create $ con0 cFalse
+   in do
+        s <- evalFullTest maxID types defs 100 Chk expr
+        s <~==> Right expect
+
+unit_evalFull_mapOdd2 :: Assertion
+unit_evalFull_mapOdd2 =
+  let (prog, maxID, _) = mapOddProg 2
+      types = allTypes prog
+      defs = allDefs prog
+      (expr, _) = create $ gvar $ gvn ["MapOdd"] "mapOdd"
+      (expect, _) = create $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+   in do
+        s <- evalFullTest maxID types defs 200 Chk expr
+        s <~==> Right expect
+
+unit_evalFull_mapOddPrim2 :: Assertion
+unit_evalFull_mapOddPrim2 =
+  let (prog, maxID, _) = mapOddPrimProg 2
+      types = allTypes prog
+      defs = allDefs prog
+      (expr, _) = create $ gvar $ gvn ["MapOdd"] "mapOdd"
+      (expect, _) = create $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+   in do
+        s <- evalFullTest maxID types defs 200 Chk expr
+        s <~==> Right expect
+
 -- Test that handleEvalFullRequest will reduce imported terms
-unit_eval_full_modules :: Assertion
-unit_eval_full_modules =
+unit_handleEvalFullRequest_modules :: Assertion
+unit_handleEvalFullRequest_modules =
   let test = do
         builtinModule' <- builtinModule
         primitiveModule' <- primitiveModule
@@ -1708,8 +1753,8 @@ unit_eval_full_modules =
         Right assertion -> assertion
 
 -- Test that handleEvalFullRequest will reduce case analysis of imported types
-unit_eval_full_modules_scrutinize_imported_type :: Assertion
-unit_eval_full_modules_scrutinize_imported_type =
+unit_handleEvalFullRequest_modules_scrutinize_imported_type :: Assertion
+unit_handleEvalFullRequest_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
@@ -1743,6 +1788,71 @@ unit_eval_full_modules_scrutinize_imported_type =
           , moduleTypes = Map.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
           }
+
+unit_handleEvalFullRequest_even3 :: Assertion
+unit_handleEvalFullRequest_even3 =
+  let test = do
+        expr <- gvar $ gvn ["Even3"] "even 3?"
+        resp <-
+          readerToState
+            $ handleEvalFullRequest
+            $ EvalFullReq
+              { evalFullReqExpr = expr
+              , evalFullCxtDir = Chk
+              , evalFullMaxSteps = 200
+              , evalFullOptions = UnderBinders
+              }
+        expect <- con0 cFalse
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+   in runAppTestM even3App test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
+unit_handleEvalFullRequest_mapOdd :: Assertion
+unit_handleEvalFullRequest_mapOdd =
+  let test = do
+        expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+        resp <-
+          readerToState
+            $ handleEvalFullRequest
+            $ EvalFullReq
+              { evalFullReqExpr = expr
+              , evalFullCxtDir = Chk
+              , evalFullMaxSteps = 400
+              , evalFullOptions = UnderBinders
+              }
+        -- Note that the 'mapOddApp' includes a program runs @mapOdd@ over a list of [0..3]
+        expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+   in runAppTestM mapOddApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
+unit_handleEvalFullRequest_mapOddPrim :: Assertion
+unit_handleEvalFullRequest_mapOddPrim =
+  let test = do
+        expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+        resp <-
+          readerToState
+            $ handleEvalFullRequest
+            $ EvalFullReq
+              { evalFullReqExpr = expr
+              , evalFullCxtDir = Chk
+              , evalFullMaxSteps = 300
+              , evalFullOptions = UnderBinders
+              }
+        -- Note that the 'mapOddPrimApp' includes a program runs @mapOddPrim@ over a list of [0..3]
+        expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+   in runAppTestM mapOddPrimApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- Test that evaluation does not duplicate node IDs
 tasty_unique_ids :: Property

@@ -895,9 +895,44 @@ unit_prim_partial_map =
         s <- evalFullTest builtinTypes (gs <> prims) Syn e
         s @?= Right r
 
+-- https://github.com/hackworthltd/primer/issues/1247
+
+-- unit_interp_even3 :: Assertion
+-- unit_interp_even3 =
+--   let (prog, _, _) = even3Prog
+--       types = allTypes prog
+--       defs = allDefs prog
+--       expr = create1 $ gvar $ gvn ["Even3"] "even 3?"
+--       expect = create1 $ con0 cFalse
+--    in do
+--         s <- evalFullTest types defs Chk expr
+--         s @?= Right expect
+
+-- unit_interp_mapOdd2 :: Assertion
+-- unit_interp_mapOdd2 =
+--   let (prog, _, _) = mapOddProg 2
+--       types = allTypes prog
+--       defs = allDefs prog
+--       expr = create1 $ gvar $ gvn ["MapOdd"] "mapOdd"
+--       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+--    in do
+--         s <- evalFullTest types defs Chk expr
+--         s @?= Right expect
+
+-- unit_interp_mapOddPrim2 :: Assertion
+-- unit_interp_mapOddPrim2 =
+--   let (prog, _, _) = mapOddPrimProg 2
+--       types = allTypes prog
+--       defs = allDefs prog
+--       expr = create1 $ gvar $ gvn ["MapOdd"] "mapOdd"
+--       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+--    in do
+--         s <- evalFullTest types defs Chk expr
+--         s @?= Right expect
+
 -- Test that 'handleEvalInterpRequest' will reduce imported terms
-unit_eval_interp_full_modules :: Assertion
-unit_eval_interp_full_modules =
+unit_handleEvalInterpRequest_modules :: Assertion
+unit_handleEvalInterpRequest_modules =
   let test = do
         builtinModule' <- builtinModule
         primitiveModule' <- primitiveModule
@@ -918,8 +953,8 @@ unit_eval_interp_full_modules =
         Right assertion -> assertion
 
 -- Test that 'handleEvalBoundedInterpRequest' will reduce imported terms
-unit_eval_interp_full_modules_bounded :: Assertion
-unit_eval_interp_full_modules_bounded =
+unit_handleEvalBoundedInterpRequest_modules :: Assertion
+unit_handleEvalBoundedInterpRequest_modules =
   let test = do
         builtinModule' <- builtinModule
         primitiveModule' <- primitiveModule
@@ -942,10 +977,65 @@ unit_eval_interp_full_modules_bounded =
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
+-- https://github.com/hackworthltd/primer/issues/1247
+
+-- unit_handleEvalInterpRequest_even3 :: Assertion
+-- unit_handleEvalInterpRequest_even3 =
+--   let test = do
+--         expr <- gvar $ gvn ["Even3"] "even 3?"
+--         (EvalInterpRespNormal e) <-
+--           readerToState
+--             $ handleEvalInterpRequest
+--             $ EvalInterpReq
+--               { expr = expr
+--               , dir = Chk
+--               }
+--         expect <- con0 cFalse
+--         pure $ e ~= expect
+--    in runAppTestM even3App test <&> fst >>= \case
+--         Left err -> assertFailure $ show err
+--         Right assertion -> assertion
+
+-- unit_handleEvalInterpRequest_mapOdd :: Assertion
+-- unit_handleEvalInterpRequest_mapOdd =
+--   let test = do
+--         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         (EvalInterpRespNormal e) <-
+--           readerToState
+--             $ handleEvalInterpRequest
+--             $ EvalInterpReq
+--               { expr = expr
+--               , dir = Chk
+--               }
+--         -- Note that the 'mapOddApp' includes a program runs @mapOdd@ over a list of [0..3]
+--         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+--         pure $ e ~= expect
+--    in runAppTestM mapOddApp test <&> fst >>= \case
+--         Left err -> assertFailure $ show err
+--         Right assertion -> assertion
+
+-- unit_handleEvalInterpRequest_mapOddPrim :: Assertion
+-- unit_handleEvalInterpRequest_mapOddPrim =
+--   let test = do
+--         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         (EvalInterpRespNormal e) <-
+--           readerToState
+--             $ handleEvalInterpRequest
+--             $ EvalInterpReq
+--               { expr = expr
+--               , dir = Chk
+--               }
+--         -- Note that the 'mapOddPrimApp' includes a program runs @mapOdd@ over a list of [0..3]
+--         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+--         pure $ e ~= expect
+--    in runAppTestM mapOddPrimApp test <&> fst >>= \case
+--         Left err -> assertFailure $ show err
+--         Right assertion -> assertion
+
 -- Test that 'handleEvalInterpRequest' will reduce case analysis of
 -- imported types
-unit_eval_interp_full_modules_scrutinize_imported_type :: Assertion
-unit_eval_interp_full_modules_scrutinize_imported_type =
+unit_handleEvalInterpRequest_modules_scrutinize_imported_type :: Assertion
+unit_handleEvalInterpRequest_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
@@ -978,8 +1068,8 @@ unit_eval_interp_full_modules_scrutinize_imported_type =
 
 -- Test that 'handleEvalBoundedInterpRequest' will reduce case analysis
 -- of imported types
-unit_eval_interp_full_modules_scrutinize_imported_type_bounded :: Assertion
-unit_eval_interp_full_modules_scrutinize_imported_type_bounded =
+unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type :: Assertion
+unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
@@ -1013,9 +1103,73 @@ unit_eval_interp_full_modules_scrutinize_imported_type_bounded =
           , moduleDefs = mempty
           }
 
+-- https://github.com/hackworthltd/primer/issues/1247
+
+-- unit_handleEvalBoundedInterpRequest_even3 :: Assertion
+-- unit_handleEvalBoundedInterpRequest_even3 =
+--   let test = do
+--         expr <- gvar $ gvn ["Even3"] "even 3?"
+--         resp <-
+--           readerToState
+--             $ handleEvalBoundedInterpRequest
+--             $ EvalBoundedInterpReq
+--               { expr = expr
+--               , dir = Chk
+--               , timeout = MicroSec 10_000
+--               }
+--         expect <- con0 cFalse
+--         pure $ case resp of
+--           EvalBoundedInterpRespFailed err -> assertFailure $ show err
+--           EvalBoundedInterpRespNormal e -> e ~= expect
+--    in runAppTestM even3App test <&> fst >>= \case
+--         Left err -> assertFailure $ show err
+--         Right assertion -> assertion
+
+-- unit_handleEvalBoundedInterpRequest_mapOdd :: Assertion
+-- unit_handleEvalBoundedInterpRequest_mapOdd =
+--   let test = do
+--         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         resp <-
+--           readerToState
+--             $ handleEvalBoundedInterpRequest
+--             $ EvalBoundedInterpReq
+--               { expr = expr
+--               , dir = Chk
+--               , timeout = MicroSec 10_000
+--               }
+--         -- Note that the 'mapOddApp' includes a program runs @mapOdd@ over a list of [0..3]
+--         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+--         pure $ case resp of
+--           EvalBoundedInterpRespFailed err -> assertFailure $ show err
+--           EvalBoundedInterpRespNormal e -> e ~= expect
+--    in runAppTestM mapOddApp test <&> fst >>= \case
+--         Left err -> assertFailure $ show err
+--         Right assertion -> assertion
+
+-- unit_handleEvalBoundedInterpRequest_mapOddPrim :: Assertion
+-- unit_handleEvalBoundedInterpRequest_mapOddPrim =
+--   let test = do
+--         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         resp <-
+--           readerToState
+--             $ handleEvalBoundedInterpRequest
+--             $ EvalBoundedInterpReq
+--               { expr = expr
+--               , dir = Chk
+--               , timeout = MicroSec 10_000
+--               }
+--         -- Note that the 'mapOddPrimApp' includes a program runs @mapOdd@ over a list of [0..3]
+--         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+--         pure $ case resp of
+--           EvalBoundedInterpRespFailed err -> assertFailure $ show err
+--           EvalBoundedInterpRespNormal e -> e ~= expect
+--    in runAppTestM mapOddPrimApp test <&> fst >>= \case
+--         Left err -> assertFailure $ show err
+--         Right assertion -> assertion
+
 -- Test that 'handleEvalBoundedInterpRequest' will return timeouts.
-unit_eval_interp_handle_eval_bounded_timeout :: Assertion
-unit_eval_interp_handle_eval_bounded_timeout =
+unit_handleEvalBoundedInterpRequest_timeout :: Assertion
+unit_handleEvalBoundedInterpRequest_timeout =
   let test = do
         m' <- m
         importModules [m']
@@ -1047,8 +1201,8 @@ unit_eval_interp_handle_eval_bounded_timeout =
 
 -- Test that 'handleEvalBoundedInterpRequest' will return an error
 -- when a case branch is missing.
-unit_eval_interp_handle_eval_bounded_missing_branch :: Assertion
-unit_eval_interp_handle_eval_bounded_missing_branch =
+unit_handleEvalBoundedInterpRequest_missing_branch :: Assertion
+unit_handleEvalBoundedInterpRequest_missing_branch =
   let test = do
         m' <- m
         importModules [m']
@@ -1081,8 +1235,8 @@ unit_eval_interp_handle_eval_bounded_missing_branch =
 
 -- Test that 'handleEvalInterpRequest' will throw an 'InterpError'
 -- exception when a case branch is missing.
-unit_eval_interp_handle_eval_missing_branch :: Assertion
-unit_eval_interp_handle_eval_missing_branch =
+unit_handleEvalInterpRequest_missing_branch :: Assertion
+unit_handleEvalInterpRequest_missing_branch =
   let test = do
         m' <- m
         importModules [m']
@@ -1111,8 +1265,8 @@ unit_eval_interp_handle_eval_missing_branch =
 
 -- Test that 'handleEvalBoundedInterpRequest' will return an error
 -- when a case branch is missing (primitive version).
-unit_eval_interp_handle_eval_bounded_missing_branch_prim :: Assertion
-unit_eval_interp_handle_eval_bounded_missing_branch_prim =
+unit_handleEvalBoundedInterpRequest_missing_branch_prim :: Assertion
+unit_handleEvalBoundedInterpRequest_missing_branch_prim =
   let test = do
         m' <- m
         importModules [m']
@@ -1145,8 +1299,8 @@ unit_eval_interp_handle_eval_bounded_missing_branch_prim =
 
 -- Test that 'handleEvalInterpRequest' will throw an 'InterpError'
 -- exception when a case branch is missing (primitive version).
-unit_eval_interp_handle_eval_missing_branch_prim :: Assertion
-unit_eval_interp_handle_eval_missing_branch_prim =
+unit_handleEvalInterpRequest_missing_branch_prim :: Assertion
+unit_handleEvalInterpRequest_missing_branch_prim =
   let test = do
         m' <- m
         importModules [m']

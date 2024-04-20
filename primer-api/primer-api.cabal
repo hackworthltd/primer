@@ -156,6 +156,7 @@ test-suite primer-api-test
     , stm-containers
     , tasty                   ^>=1.5
     , tasty-discover
+    , tasty-expected-failure  ^>=0.12.3
     , tasty-golden            ^>=2.3.5
     , tasty-hunit
     , text
