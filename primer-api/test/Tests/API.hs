@@ -70,9 +70,6 @@ import Primer.App (
  )
 import Primer.App qualified as App
 import Primer.Builtins (
-  cCons,
-  cFalse,
-  cNil,
   cTrue,
   cZero,
   tBool,
@@ -101,8 +98,14 @@ import Primer.EvalFullInterp (
 import Primer.Examples (
   comprehensive,
   even3App,
+  even3MainExpected,
+  even3MainName,
   mapOddApp,
+  mapOddMainExpected,
+  mapOddMainName,
   mapOddPrimApp,
+  mapOddPrimMainExpected,
+  mapOddPrimMainName,
  )
 import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Primer.Module (moduleDefsQualified)
@@ -114,7 +117,6 @@ import Primer.Test.Util (
   assertException,
   constructSaturatedCon,
   constructTCon,
-  gvn,
   (@?=),
  )
 import Primer.UUIDv4 (nextRandom)
@@ -517,10 +519,10 @@ test_evalFull_even3 =
       let step = liftIO . step'
       step "Add the even3App to the session"
       sid <- addSession "even3App" even3App
-      step "Eval even3"
-      let expr = create' $ gvar $ gvn ["Even3"] "even 3?"
+      step "Eval main"
+      let expr = create' $ gvar even3MainName
       resp <- evalFull sid (App.EvalFullReq expr Chk 1000 UnderBinders)
-      let expected = create' $ con0 cFalse
+      let expected = even3MainExpected
       case resp of
         Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
         Right (App.EvalFullRespTimedOut e) -> liftIO $ assertFailure $ "timed out: " <> show e
@@ -534,9 +536,9 @@ test_evalFull_mapOdd =
       step "Add the mapOddApp to the session"
       sid <- addSession "mapOddApp" mapOddApp
       step "Eval mapOdd"
-      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      let expr = create' $ gvar mapOddMainName
       resp <- evalFull sid (App.EvalFullReq expr Chk 1000 UnderBinders)
-      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      let expected = mapOddMainExpected
       case resp of
         Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
         Right (App.EvalFullRespTimedOut e) -> liftIO $ assertFailure $ "timed out: " <> show e
@@ -550,9 +552,9 @@ test_evalFull_mapOddPrim =
       step "Add the mapOddPrimApp to the session"
       sid <- addSession "mapOddPrimApp" mapOddPrimApp
       step "Eval mapOdd"
-      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      let expr = create' $ gvar mapOddPrimMainName
       resp <- evalFull sid (App.EvalFullReq expr Chk 1000 UnderBinders)
-      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      let expected = mapOddPrimMainExpected
       case resp of
         Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
         Right (App.EvalFullRespTimedOut e) -> liftIO $ assertFailure $ "timed out: " <> show e
@@ -565,9 +567,9 @@ test_evalFull'_even3 =
       let step = liftIO . step'
       step "Add the even3App to the session"
       sid <- addSession "even3App" even3App
-      step "Eval even3"
-      resp <- evalFull' sid (Just 1000) (Just UnderBinders) $ gvn ["Even3"] "even 3?"
-      let expected = viewTreeExpr $ create' $ con0 cFalse
+      step "Eval main"
+      resp <- evalFull' sid (Just 1000) (Just UnderBinders) even3MainName
+      let expected = viewTreeExpr even3MainExpected
       case resp of
         EvalFullRespTimedOut e -> liftIO $ assertFailure $ "timed out: " <> show e
         EvalFullRespNormal e -> zTIds e @?= zTIds expected
@@ -580,8 +582,8 @@ test_evalFull'_mapOdd =
       step "Add the mapOddApp to the session"
       sid <- addSession "mapOddApp" mapOddApp
       step "Eval mapOdd"
-      resp <- evalFull' sid (Just 1000) (Just UnderBinders) $ gvn ["MapOdd"] "mapOdd"
-      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      resp <- evalFull' sid (Just 1000) (Just UnderBinders) mapOddMainName
+      let expected = viewTreeExpr mapOddMainExpected
       case resp of
         EvalFullRespTimedOut e -> liftIO $ assertFailure $ "timed out: " <> show e
         EvalFullRespNormal e -> zTIds e @?= zTIds expected
@@ -594,8 +596,8 @@ test_evalFull'_mapOddPrim =
       step "Add the mapOddPrimApp to the session"
       sid <- addSession "mapOddPrimApp" mapOddPrimApp
       step "Eval mapOdd"
-      resp <- evalFull' sid (Just 1000) (Just UnderBinders) $ gvn ["MapOdd"] "mapOdd"
-      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      resp <- evalFull' sid (Just 1000) (Just UnderBinders) mapOddPrimMainName
+      let expected = viewTreeExpr mapOddPrimMainExpected
       case resp of
         EvalFullRespTimedOut e -> liftIO $ assertFailure $ "timed out: " <> show e
         EvalFullRespNormal e -> zTIds e @?= zTIds expected
@@ -608,10 +610,10 @@ test_evalInterp_even3 = expectFailBecause "interpreter can't reduce top-level de
       let step = liftIO . step'
       step "Add the even3App to the session"
       sid <- addSession "even3App" even3App
-      step "Eval even3"
-      let expr = create' $ gvar $ gvn ["Even3"] "even 3?"
+      step "Eval main"
+      let expr = create' $ gvar even3MainName
       resp <- evalInterp sid $ App.EvalInterpReq expr Chk
-      let expected = create' $ con0 cFalse
+      let expected = even3MainExpected
       case resp of
         Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
         Right (App.EvalInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
@@ -625,9 +627,9 @@ test_evalInterp_mapOdd = expectFailBecause "interpreter can't reduce top-level d
       step "Add the mapOddApp to the session"
       sid <- addSession "mapOddApp" mapOddApp
       step "Eval mapOdd"
-      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      let expr = create' $ gvar mapOddMainName
       resp <- evalInterp sid $ App.EvalInterpReq expr Chk
-      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      let expected = mapOddMainExpected
       case resp of
         Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
         Right (App.EvalInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
@@ -641,9 +643,9 @@ test_evalInterp_mapOddPrim = expectFailBecause "interpreter can't reduce top-lev
       step "Add the mapOddPrimApp to the session"
       sid <- addSession "mapOddPrimApp" mapOddPrimApp
       step "Eval mapOdd"
-      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      let expr = create' $ gvar mapOddPrimMainName
       resp <- evalInterp sid $ App.EvalInterpReq expr Chk
-      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      let expected = mapOddPrimMainExpected
       case resp of
         Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
         Right (App.EvalInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
@@ -656,9 +658,9 @@ test_evalInterp'_even3 = expectFailBecause "interpreter can't reduce top-level d
       let step = liftIO . step'
       step "Add the even3App to the session"
       sid <- addSession "even3App" even3App
-      step "Eval even3"
-      (EvalInterpRespNormal e) <- evalInterp' sid $ gvn ["Even3"] "even 3?"
-      let expected = viewTreeExpr $ create' $ con0 cFalse
+      step "Eval main"
+      (EvalInterpRespNormal e) <- evalInterp' sid even3MainName
+      let expected = viewTreeExpr even3MainExpected
       zTIds e @?= zTIds expected
 
 -- https://github.com/hackworthltd/primer/issues/1247
@@ -670,8 +672,8 @@ test_evalInterp'_mapOdd = expectFailBecause "interpreter can't reduce top-level 
       step "Add the mapOddApp to the session"
       sid <- addSession "mapOddApp" mapOddApp
       step "Eval mapOdd"
-      (EvalInterpRespNormal e) <- evalInterp' sid $ gvn ["MapOdd"] "mapOdd"
-      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      (EvalInterpRespNormal e) <- evalInterp' sid mapOddMainName
+      let expected = viewTreeExpr mapOddMainExpected
       zTIds e @?= zTIds expected
 
 -- https://github.com/hackworthltd/primer/issues/1247
@@ -683,8 +685,8 @@ test_evalInterp'_mapOddPrim = expectFailBecause "interpreter can't reduce top-le
       step "Add the mapOddPrimApp to the session"
       sid <- addSession "mapOddPrimApp" mapOddPrimApp
       step "Eval mapOdd"
-      (EvalInterpRespNormal e) <- evalInterp' sid $ gvn ["MapOdd"] "mapOdd"
-      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      (EvalInterpRespNormal e) <- evalInterp' sid mapOddPrimMainName
+      let expected = viewTreeExpr mapOddPrimMainExpected
       zTIds e @?= zTIds expected
 
 -- https://github.com/hackworthltd/primer/issues/1247
@@ -695,10 +697,10 @@ test_evalBoundedInterp_even3 = expectFailBecause "interpreter can't reduce top-l
       let step = liftIO . step'
       step "Add the even3App to the session"
       sid <- addSession "even3App" even3App
-      step "Eval even3"
-      let expr = create' $ gvar $ gvn ["Even3"] "even 3?"
+      step "Eval main"
+      let expr = create' $ gvar even3MainName
       resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
-      let expected = create' $ con0 cFalse
+      let expected = even3MainExpected
       case resp of
         Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
         Right (App.EvalBoundedInterpRespFailed err) -> liftIO $ assertFailure $ "InterpError: " <> show err
@@ -713,9 +715,9 @@ test_evalBoundedInterp_mapOdd = expectFailBecause "interpreter can't reduce top-
       step "Add the mapOddApp to the session"
       sid <- addSession "mapOddApp" mapOddApp
       step "Eval mapOdd"
-      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      let expr = create' $ gvar mapOddMainName
       resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
-      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      let expected = mapOddMainExpected
       case resp of
         Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
         Right (App.EvalBoundedInterpRespFailed err) -> liftIO $ assertFailure $ "InterpError: " <> show err
@@ -730,9 +732,9 @@ test_evalBoundedInterp_mapOddPrim = expectFailBecause "interpreter can't reduce 
       step "Add the mapOddPrimApp to the session"
       sid <- addSession "mapOddPrimApp" mapOddPrimApp
       step "Eval mapOdd"
-      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      let expr = create' $ gvar mapOddPrimMainName
       resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
-      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      let expected = mapOddPrimMainExpected
       case resp of
         Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
         Right (App.EvalBoundedInterpRespFailed err) -> liftIO $ assertFailure $ "InterpError: " <> show err
@@ -746,9 +748,9 @@ test_evalBoundedInterp'_even3 = expectFailBecause "interpreter can't reduce top-
       let step = liftIO . step'
       step "Add the even3App to the session"
       sid <- addSession "even3App" even3App
-      step "Eval even3"
-      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) $ gvn ["Even3"] "even 3?"
-      let expected = viewTreeExpr $ create' $ con0 cFalse
+      step "Eval main"
+      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) even3MainName
+      let expected = viewTreeExpr even3MainExpected
       case resp of
         EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
         e -> liftIO $ assertFailure $ show e
@@ -762,8 +764,8 @@ test_evalBoundedInterp'_mapOdd = expectFailBecause "interpreter can't reduce top
       step "Add the mapOddApp to the session"
       sid <- addSession "mapOddApp" mapOddApp
       step "Eval mapOdd"
-      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) $ gvn ["MapOdd"] "mapOdd"
-      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) mapOddMainName
+      let expected = viewTreeExpr mapOddMainExpected
       case resp of
         EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
         e -> liftIO $ assertFailure $ show e
@@ -777,8 +779,8 @@ test_evalBoundedInterp'_mapOddPrim = expectFailBecause "interpreter can't reduce
       step "Add the mapOddPrimApp to the session"
       sid <- addSession "mapOddPrimApp" mapOddPrimApp
       step "Eval mapOdd"
-      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) $ gvn ["MapOdd"] "mapOdd"
-      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) mapOddPrimMainName
+      let expected = viewTreeExpr mapOddPrimMainExpected
       case resp of
         EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
         e -> liftIO $ assertFailure $ show e

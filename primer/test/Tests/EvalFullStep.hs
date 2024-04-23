@@ -51,9 +51,15 @@ import Primer.Eval
 import Primer.EvalFullStep
 import Primer.Examples (
   even3App,
+  even3MainExpected,
+  even3MainName,
   even3Prog,
   mapOddApp,
+  mapOddMainExpected,
+  mapOddMainName,
   mapOddPrimApp,
+  mapOddPrimMainExpected,
+  mapOddPrimMainName,
   mapOddPrimProg,
   mapOddProg,
  )
@@ -107,7 +113,6 @@ import Primer.Test.TestM (
 import Primer.Test.Util (
   assertNoSevereLogs,
   failWhenSevereLogs,
-  gvn,
   primDefs,
   testNoSevereLogs,
   zeroIDs,
@@ -1698,8 +1703,8 @@ unit_evalFull_even3 =
   let (prog, maxID, _) = even3Prog
       types = progTypeDefMap prog
       defs = progDefMap prog
-      (expr, _) = create $ gvar $ gvn ["Even3"] "even 3?"
-      (expect, _) = create $ con0 cFalse
+      (expr, _) = create $ gvar even3MainName
+      expect = even3MainExpected
    in do
         s <- evalFullTest maxID types defs 100 Chk expr
         s <~==> Right expect
@@ -1709,7 +1714,7 @@ unit_evalFull_mapOdd2 =
   let (prog, maxID, _) = mapOddProg 2
       types = progTypeDefMap prog
       defs = progDefMap prog
-      (expr, _) = create $ gvar $ gvn ["MapOdd"] "mapOdd"
+      (expr, _) = create $ gvar mapOddMainName
       (expect, _) = create $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
    in do
         s <- evalFullTest maxID types defs 200 Chk expr
@@ -1720,7 +1725,7 @@ unit_evalFull_mapOddPrim2 =
   let (prog, maxID, _) = mapOddPrimProg 2
       types = progTypeDefMap prog
       defs = progDefMap prog
-      (expr, _) = create $ gvar $ gvn ["MapOdd"] "mapOdd"
+      (expr, _) = create $ gvar mapOddPrimMainName
       (expect, _) = create $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
    in do
         s <- evalFullTest maxID types defs 200 Chk expr
@@ -1792,7 +1797,7 @@ unit_handleEvalFullRequest_modules_scrutinize_imported_type =
 unit_handleEvalFullRequest_even3 :: Assertion
 unit_handleEvalFullRequest_even3 =
   let test = do
-        expr <- gvar $ gvn ["Even3"] "even 3?"
+        expr <- gvar even3MainName
         resp <-
           readerToState
             $ handleEvalFullRequest
@@ -1802,10 +1807,9 @@ unit_handleEvalFullRequest_even3 =
               , evalFullMaxSteps = 200
               , evalFullOptions = UnderBinders
               }
-        expect <- con0 cFalse
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
-          EvalFullRespNormal e -> e ~= expect
+          EvalFullRespNormal e -> e ~= even3MainExpected
    in runAppTestM even3App test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
@@ -1813,7 +1817,7 @@ unit_handleEvalFullRequest_even3 =
 unit_handleEvalFullRequest_mapOdd :: Assertion
 unit_handleEvalFullRequest_mapOdd =
   let test = do
-        expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+        expr <- gvar mapOddMainName
         resp <-
           readerToState
             $ handleEvalFullRequest
@@ -1823,11 +1827,9 @@ unit_handleEvalFullRequest_mapOdd =
               , evalFullMaxSteps = 400
               , evalFullOptions = UnderBinders
               }
-        -- Note that the 'mapOddApp' includes a program runs @mapOdd@ over a list of [0..3]
-        expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
-          EvalFullRespNormal e -> e ~= expect
+          EvalFullRespNormal e -> e ~= mapOddMainExpected
    in runAppTestM mapOddApp test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
@@ -1835,7 +1837,7 @@ unit_handleEvalFullRequest_mapOdd =
 unit_handleEvalFullRequest_mapOddPrim :: Assertion
 unit_handleEvalFullRequest_mapOddPrim =
   let test = do
-        expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+        expr <- gvar mapOddPrimMainName
         resp <-
           readerToState
             $ handleEvalFullRequest
@@ -1845,11 +1847,9 @@ unit_handleEvalFullRequest_mapOddPrim =
               , evalFullMaxSteps = 300
               , evalFullOptions = UnderBinders
               }
-        -- Note that the 'mapOddPrimApp' includes a program runs @mapOddPrim@ over a list of [0..3]
-        expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
-          EvalFullRespNormal e -> e ~= expect
+          EvalFullRespNormal e -> e ~= mapOddPrimMainExpected
    in runAppTestM mapOddPrimApp test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
