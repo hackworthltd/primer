@@ -32,8 +32,8 @@ import Primer.Core.Meta (
  )
 import Primer.Examples qualified as Examples
 import Primer.Log (
-  PureLog,
-  runPureLog,
+  PureLogT,
+  runPureLogT,
  )
 import Primer.Module (
   Module (
@@ -53,13 +53,13 @@ import Primer.Test.Util (
   assertNoSevereLogs,
  )
 
-newtype AppTestM a = AppTestM
+newtype AppTestT m a = AppTestT
   { unAppTestM ::
       ( StateT
           App
           ( ExceptT
               ProgError
-              (PureLog (WithSeverity LogMsg))
+              (PureLogT (WithSeverity LogMsg) m)
           )
       )
         a
@@ -68,28 +68,39 @@ newtype AppTestM a = AppTestM
     ( Functor
     , Applicative
     , Monad
+    , MonadIO
     , MonadLog (WithSeverity LogMsg)
     , MonadState App
     , MonadError ProgError
+    , MonadCatch
+    , MonadThrow
     )
   deriving
     ( MonadFresh ID
     , MonadFresh NameCounter
     )
-    via FreshViaApp AppTestM
+    via FreshViaApp (AppTestT m)
 
--- Recall that Assertion = IO ()
--- This is in IO as it asserts that there were no severe log messages
+type AppTestM a = AppTestT IO a
+
+-- Recall that @Assertion = IO ()@
+--
+-- This is in 'MonadIO' as it asserts that there were no severe log
+-- messages
+runAppTestT :: (MonadIO m) => App -> AppTestT m a -> m (Either ProgError a, App)
+runAppTestT a m = do
+  (r, logs) <- runAppTestT' a m
+  liftIO $ assertNoSevereLogs logs $> r
+
+runAppTestT' :: (Monad m) => App -> AppTestT m a -> m ((Either ProgError a, App), Seq (WithSeverity LogMsg))
+runAppTestT' a m = do
+  (r, logs) <- runPureLogT $ runExceptT $ flip runStateT a $ unAppTestM m
+  case r of
+    Left err -> pure ((Left err, a), logs)
+    Right (res, app') -> pure ((Right res, app'), logs)
+
 runAppTestM :: App -> AppTestM a -> IO (Either ProgError a, App)
-runAppTestM a m =
-  let (r, logs) = runAppTestM' a m
-   in assertNoSevereLogs logs $> r
-
-runAppTestM' :: App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
-runAppTestM' a m =
-  case runPureLog $ runExceptT $ flip runStateT a $ unAppTestM m of
-    (Left err, logs) -> ((Left err, a), logs)
-    (Right (res, app'), logs) -> ((Right res, app'), logs)
+runAppTestM = runAppTestT
 
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,

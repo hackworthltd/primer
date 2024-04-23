@@ -1,3 +1,5 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 module Tests.Undo where
 
 import Foreword
@@ -9,7 +11,9 @@ import Primer.App (
   ProgError,
   appProg,
   handleEditRequest,
+  handleEvalBoundedInterpRequest,
   handleEvalFullRequest,
+  handleEvalInterpRequest,
   handleMutationRequest,
   progModules,
  )
@@ -25,6 +29,9 @@ import Primer.Core (
  )
 import Primer.Def (astDefExpr, defAST)
 import Primer.Eval (Dir (Syn), NormalOrderOptions (UnderBinders))
+import Primer.EvalFullInterp (
+  Timeout (MicroSec),
+ )
 import Primer.Module (
   moduleDefsQualified,
   moduleName,
@@ -74,6 +81,93 @@ unit_redo_eval =
               , App.evalFullCxtDir = Syn
               , App.evalFullMaxSteps = 10
               , App.evalFullOptions = UnderBinders
+              }
+      edit1 = handleEditRequest action1
+      edit2 = handleEditRequest . action2
+      undo = handleMutationRequest App.Undo
+      redo = handleMutationRequest App.Redo
+      run' act app = fmap snd . expectSuccess =<< runAppTestM app act
+   in do
+        originalApp' <- run' eval originalApp
+        newApp1 <- run' edit1 originalApp'
+        i <- case fmap astDefExpr . defAST =<< foldMap' moduleDefsQualified (progModules $ appProg newApp1) M.!? qualifyName scope "main" of
+          Just (App _ _ e) -> pure $ getID e
+          _ -> liftIO $ assertFailure "unexpected form of main"
+        newApp <- run' (edit2 i) newApp1
+        a3 <- run' undo newApp
+        a4 <- run' redo a3
+        a5 <- run' undo a4
+        a6 <- run' undo a5
+        a7 <- run' redo a6
+        a8 <- run' redo a7
+        finalApp <- run' eval a8
+        finalApp @?= newApp
+
+unit_redo_eval_interp :: Assertion
+unit_redo_eval_interp =
+  let originalApp = App.newApp
+      scope = mainModuleName $ appProg originalApp
+      action1 =
+        [ MoveToDef $ qualifyName scope "main"
+        , BodyAction [InsertSaturatedVar $ GlobalVarRef Integer.even]
+        ]
+      action2 i =
+        [ MoveToDef $ qualifyName scope "main"
+        , BodyAction
+            [ SetCursor i
+            , ConstructPrim $ PrimInt 4
+            ]
+        ]
+      eval =
+        readerToState
+          $ handleEvalInterpRequest
+            App.EvalInterpReq
+              { App.expr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
+              , App.dir = Syn
+              }
+      edit1 = handleEditRequest action1
+      edit2 = handleEditRequest . action2
+      undo = handleMutationRequest App.Undo
+      redo = handleMutationRequest App.Redo
+      run' act app = fmap snd . expectSuccess =<< runAppTestM app act
+   in do
+        originalApp' <- run' eval originalApp
+        newApp1 <- run' edit1 originalApp'
+        i <- case fmap astDefExpr . defAST =<< foldMap' moduleDefsQualified (progModules $ appProg newApp1) M.!? qualifyName scope "main" of
+          Just (App _ _ e) -> pure $ getID e
+          _ -> liftIO $ assertFailure "unexpected form of main"
+        newApp <- run' (edit2 i) newApp1
+        a3 <- run' undo newApp
+        a4 <- run' redo a3
+        a5 <- run' undo a4
+        a6 <- run' undo a5
+        a7 <- run' redo a6
+        a8 <- run' redo a7
+        finalApp <- run' eval a8
+        finalApp @?= newApp
+
+unit_redo_eval_interp_bounded :: Assertion
+unit_redo_eval_interp_bounded =
+  let originalApp = App.newApp
+      scope = mainModuleName $ appProg originalApp
+      action1 =
+        [ MoveToDef $ qualifyName scope "main"
+        , BodyAction [InsertSaturatedVar $ GlobalVarRef Integer.even]
+        ]
+      action2 i =
+        [ MoveToDef $ qualifyName scope "main"
+        , BodyAction
+            [ SetCursor i
+            , ConstructPrim $ PrimInt 4
+            ]
+        ]
+      eval =
+        readerToState
+          $ handleEvalBoundedInterpRequest
+            App.EvalBoundedInterpReq
+              { App.expr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
+              , App.dir = Syn
+              , App.timeout = MicroSec 100
               }
       edit1 = handleEditRequest action1
       edit2 = handleEditRequest . action2

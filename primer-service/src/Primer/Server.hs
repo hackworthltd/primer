@@ -28,6 +28,9 @@ import Control.Monad.Log (LoggingT, WithSeverity, runLoggingT)
 import Control.Monad.Log qualified as Log
 import Data.HashMap.Strict.InsOrd qualified as IOHM
 import Data.OpenApi (OpenApi, Reference (Reference), Referenced (Inline, Ref), ToSchema, toSchema)
+import Data.Semiring (
+  fromNatural,
+ )
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT (fromStrict)
@@ -68,6 +71,7 @@ import Primer.API (
   createDefinition,
   createTypeDef,
   edit,
+  evalBoundedInterp',
   evalFull',
   findSessions,
   listSessions,
@@ -90,6 +94,9 @@ import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Eval (EvalLog)
+import Primer.EvalFullInterp (
+  Timeout (MicroSec),
+ )
 import Primer.Finite (getFinite)
 import Primer.Log (ConvertLogMessage, logInfo, logWarning)
 import Primer.Name (unsafeMkName)
@@ -198,6 +205,7 @@ openAPISessionServer sid =
     , OpenAPI.typeDef = openAPITypeDefServer sid
     , OpenAPI.actions = openAPIActionServer sid
     , OpenAPI.evalFull = evalFull' sid . fmap getFinite
+    , OpenAPI.evalBoundedInterp = evalBoundedInterp' sid . fmap (MicroSec . fromNatural . getFinite)
     , OpenAPI.undo = undo sid
     , OpenAPI.redo = redo sid
     }
@@ -254,6 +262,7 @@ sessionAPIServer sid =
     , S.questionAPI = questionAPIServer sid
     , S.evalStep = API.evalStep sid
     , S.evalFull = API.evalFull sid
+    , S.evalBoundedInterp = API.evalBoundedInterp sid
     }
 
 questionAPIServer :: ConvertServerLogs l => SessionId -> S.QuestionAPI (AsServerT (Primer l))

@@ -35,6 +35,8 @@ module Primer.App (
   newEmptyProg',
   newProg,
   newProg',
+  allDefs,
+  allTypes,
   progAllModules,
   progAllDefs,
   progAllTypeDefs,
@@ -54,12 +56,18 @@ module Primer.App (
   handleEditRequest,
   handleEvalRequest,
   handleEvalFullRequest,
+  handleEvalInterpRequest,
+  handleEvalBoundedInterpRequest,
   importModules,
   MutationRequest (..),
   EvalReq (..),
   EvalResp (..),
   EvalFullReq (..),
   EvalFullResp (..),
+  EvalInterpReq (..),
+  EvalInterpResp (..),
+  EvalBoundedInterpReq (..),
+  EvalBoundedInterpResp (..),
   lookupASTDef,
   liftError,
 ) where
@@ -181,7 +189,9 @@ import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (
+  forgetMetadata,
   freeVars,
+  generateIDs,
   generateKindIDs,
   generateTypeIDs,
   regenerateExprIDs,
@@ -202,6 +212,13 @@ import Primer.Eval (AvoidShadowing (AvoidShadowing))
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
 import Primer.Eval.Redex (EvalLog, RunRedexOptions (RunRedexOptions, pushAndElide), ViewRedexOptions (ViewRedexOptions, groupedLets))
+import Primer.EvalFullInterp (
+  InterpError,
+  Timeout,
+  interp,
+  interp',
+  mkGlobalEnv,
+ )
 import Primer.EvalFullStep (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Log (ConvertLogMessage)
@@ -525,6 +542,53 @@ data EvalFullResp
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalFullResp
 
+-- | A request to evaluate an expression to its normal form using the
+-- interpreter.
+--
+-- Caution: depending on the expression being evaluated, the
+-- evaluation may not terminate, and/or may grow in unbounded size.
+data EvalInterpReq = EvalInterpReq
+  { expr :: Expr
+  -- ^ The expression to evaluate.
+  , dir :: Dir
+  -- ^ Indicates whether 'expr' is in a 'Syn' or 'Chk' context, so we
+  -- can tell if is an embedding.
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalInterpReq
+
+-- | A response to a 'EvalBoundedInterpReq'.
+newtype EvalInterpResp
+  = -- | The evaluation succeeded, and the 'Expr' is the result.
+    EvalInterpRespNormal Expr
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalInterpResp
+
+-- | A request to evaluate an expression to its normal form using the
+-- interpreter, but bounded in time.
+data EvalBoundedInterpReq = EvalBoundedInterpReq
+  { expr :: Expr
+  -- ^ The expression to evaluate.
+  , dir :: Dir
+  -- ^ Indicates whether 'expr' is in a 'Syn' or 'Chk' context, so we
+  -- can tell if is an embedding.
+  , timeout :: Timeout
+  -- ^ An evaluation timeout, in microseconds. If the timeout is
+  -- exceeded, the evaluation will be halted, and no expression will
+  -- be returned; the interpreter's results are all-or-nothing.
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalBoundedInterpReq
+
+-- | A response to a 'EvalBoundedInterpReq'.
+data EvalBoundedInterpResp
+  = -- | An 'InterpError' exception occurred during evaluation.
+    EvalBoundedInterpRespFailed InterpError
+  | -- | The evaluation succeeded, and the 'Expr' is the result.
+    EvalBoundedInterpRespNormal Expr
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalBoundedInterpResp
+
 -- * Request handlers
 
 -- | Handle a question
@@ -632,6 +696,57 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
+
+-- | Handle an 'EvalInterpReq'.
+--
+-- Caution: depending on the expression being evaluated, the
+-- evaluation may not terminate, and/or may grow in unbounded size. If
+-- your application is not prepared to handle this situation, you may
+-- want to use 'handleEvalBoundedInterpRequest', instead.
+--
+-- N.B.: this action may 'Control.Exception.throw' an imprecise
+-- exception of type 'InterpError' in the event that the expression to
+-- be evaluated is not well typed. In normal use, however, this
+-- condition should not arise. See 'Primer.EvalFullInterp.interp'',
+-- which this action uses, for details. (Note that the
+-- 'InterpError.Timeout' exception value will never be thrown, as
+-- explained above.)
+handleEvalInterpRequest ::
+  (MonadQueryApp m e) =>
+  EvalInterpReq ->
+  m EvalInterpResp
+handleEvalInterpRequest (EvalInterpReq{expr, dir}) = do
+  app <- ask
+  let prog = appProg app
+  let env = mkGlobalEnv (allDefs prog)
+  result <- runFreshM app $ generateIDs $ interp' (allTypes prog) env dir (forgetMetadata expr)
+  pure $ EvalInterpRespNormal result
+
+-- | Handle an 'EvalBoundedInterpReq'.
+--
+-- Unlike 'handleEvalInterpRequest', this action will terminate the
+-- evaluation request if it exceeds the given timeout, in which case
+-- no partial evaluation result is returned, only a
+-- 'InterpError.Timeout' error value. Also unlike
+-- 'handleEvalInterpRequest', if an exception occurs during evaluation
+-- due to an ill typed term, the exception will be caught and reported
+-- via an appropriate 'InterpError' value.
+--
+-- Unlike other actions in this module, this action must be run within
+-- a 'MonadIO' context, because the exceptions it catches during
+-- interpretation can only be caught in the 'IO' monad.
+handleEvalBoundedInterpRequest ::
+  (MonadIO m, MonadQueryApp m e) =>
+  EvalBoundedInterpReq ->
+  m EvalBoundedInterpResp
+handleEvalBoundedInterpRequest (EvalBoundedInterpReq{expr, dir, timeout}) = do
+  app <- ask
+  let prog = appProg app
+  let env = mkGlobalEnv (allDefs prog)
+  result <- liftIO $ interp timeout (allTypes prog) env dir (forgetMetadata expr)
+  case result of
+    Left x -> pure $ EvalBoundedInterpRespFailed x
+    Right e' -> runFreshM app $ generateIDs e' <&> EvalBoundedInterpRespNormal
 
 -- | Handle a 'ProgAction'
 applyProgAction :: forall m. MonadEdit m ProgError => Prog -> ProgAction -> m Prog
@@ -1366,7 +1481,7 @@ type MonadQueryApp m e = (Monad m, MonadReader App m, MonadError e m)
 -- state. This is important to ensure that we can reliably replay the
 -- log without having ID mismatches.
 newtype EditAppM m e a = EditAppM (StateT App (ExceptT e m) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState App, MonadError e, MonadLog l)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState App, MonadError e, MonadLog l)
 
 -- | Run an 'EditAppM' action, returning a result and an updated
 -- 'App'.
@@ -1381,7 +1496,7 @@ runEditAppM (EditAppM m) appState =
 -- Actions run in this monad cannot modify the 'App'. We use 'ExceptT'
 -- here for compatibility with 'EditApp'.
 newtype QueryAppM m e a = QueryAppM (ReaderT App (ExceptT e m) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError e, MonadLog l)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader App, MonadError e, MonadLog l)
 
 -- | Run a 'QueryAppM' action, returning a result.
 runQueryAppM :: QueryAppM m e a -> App -> m (Either e a)

@@ -54,6 +54,12 @@ module Primer.API (
   evalFull,
   EvalFullResp (..),
   evalFull',
+  evalBoundedInterp,
+  EvalBoundedInterpResp (..),
+  evalBoundedInterp',
+  evalInterp,
+  EvalInterpResp (..),
+  evalInterp',
   flushSessions,
   createDefinition,
   createTypeDef,
@@ -127,7 +133,9 @@ import Primer.App (
   DefSelection (..),
   EditAppM,
   Editable,
+  EvalBoundedInterpReq (..),
   EvalFullReq (..),
+  EvalInterpReq (..),
   EvalReq (..),
   EvalResp (..),
   Level,
@@ -141,7 +149,9 @@ import Primer.App (
   TypeDefParamSelection (..),
   TypeDefSelection (..),
   appProg,
+  handleEvalBoundedInterpRequest,
   handleEvalFullRequest,
+  handleEvalInterpRequest,
   handleEvalRequest,
   handleGetProgramRequest,
   handleMutationRequest,
@@ -240,6 +250,10 @@ import Primer.Def (
 import Primer.Def qualified as Def
 import Primer.Eval (NormalOrderOptions (StopAtBinders))
 import Primer.Eval.Redex (Dir (Chk), EvalLog)
+import Primer.EvalFullInterp (
+  InterpError (..),
+  Timeout (MicroSec),
+ )
 import Primer.EvalFullStep (TerminationBound)
 import Primer.JSON (
   CustomJSON (..),
@@ -432,6 +446,10 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
   | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, Maybe NormalOrderOptions, GVarName) EvalFullResp)
+  | EvalBoundedInterp (ReqResp (SessionId, EvalBoundedInterpReq) (Either ProgError App.EvalBoundedInterpResp))
+  | EvalBoundedInterp' (ReqResp (SessionId, Maybe Timeout, GVarName) EvalBoundedInterpResp)
+  | EvalInterp (ReqResp (SessionId, EvalInterpReq) (Either ProgError App.EvalInterpResp))
+  | EvalInterp' (ReqResp (SessionId, GVarName) EvalInterpResp)
   | FlushSessions (ReqResp () ())
   | CreateDef (ReqResp (SessionId, ModuleName, Maybe Text) Prog)
   | CreateTypeDef (ReqResp (SessionId, TyConName, [ValConName]) Prog)
@@ -1248,6 +1266,188 @@ evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) -> do
       pure $ case x of
         App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'
         App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr e'
+    noErr :: Either Void a -> a
+    noErr = \case
+      Right a -> a
+      Left v -> absurd v
+
+-- | Using the interpreter, evaluate an expression given by the
+-- 'EvalInterpReq', in the context of the application contained
+-- in the given 'SessionId'.
+--
+-- Caution: depending on the expression being evaluated, the
+-- evaluation may not terminate, and/or may grow in unbounded size. If
+-- your application is not prepared to handle this situation, you may
+-- want to use 'evalBoundedInterp', instead.
+--
+-- N.B.: this action may 'Control.Exception.throw' an imprecise
+-- exception of type 'InterpError' in the event that the expression to
+-- be evaluated is not well typed. In normal use, however, this
+-- condition should not arise. See 'Primer.EvalFullInterp.interp'',
+-- which this action uses, for details. (Note that the
+-- 'InterpError.Timeout' exception value will never be thrown by this
+-- action, as explained above.)
+evalInterp ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  EvalInterpReq ->
+  PrimerM m (Either ProgError App.EvalInterpResp)
+evalInterp = curry $ logAPI (leftResultError EvalInterp) $ \(sid, req) -> do
+  app <- getApp sid
+  runQueryAppM (handleEvalInterpRequest req) app
+
+-- | This type is the API's view of a 'App.EvalInterpResp'.
+newtype EvalInterpResp
+  = EvalInterpRespNormal Tree
+  deriving stock (Show, Read, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON EvalInterpResp
+
+-- | Using the interpreter, evaluate the top-level definition whose
+-- name is given in the 'GVarName', in the context of the application
+-- contained in the given 'SessionId'.
+--
+-- This is a simplified version of 'evalInterp', intended for
+-- non-Haskell clients.
+--
+-- Caution: depending on the expression being evaluated, the
+-- evaluation may not terminate, and/or may grow in unbounded size. If
+-- your application is not prepared to handle this situation, you may
+-- want to use 'evalBoundedInterp'', instead.
+--
+-- N.B.: this action may 'Control.Exception.throw' an imprecise
+-- exception of type 'InterpError' in the event that the expression to
+-- be evaluated is not well typed. In normal use, however, this
+-- condition should not arise. See 'Primer.EvalFullInterp.interp'',
+-- which this action uses, for details. (Note that the
+-- 'InterpError.Timeout' exception value will never be thrown by this
+-- action, as explained above.)
+evalInterp' ::
+  forall m l.
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  GVarName ->
+  PrimerM m EvalInterpResp
+evalInterp' = curry $ logAPI (noError EvalInterp') $ \(sid, d) -> do
+  app <- getApp sid
+  noErr <$> runQueryAppM (q d) app
+  where
+    q ::
+      GVarName ->
+      QueryAppM (PrimerM m) Void EvalInterpResp
+    q d = do
+      -- We don't care about uniqueness of this ID, and we do not want to
+      -- disturb any FreshID state, since that could break undo/redo.
+      -- The reason we don't care about uniqueness is that this node will never
+      -- exist alongside anything else that it may clash with, as the first
+      -- evaluation step will be to inline this definition, removing the node.
+      let e = create' $ DSL.gvar d
+      (App.EvalInterpRespNormal e') <-
+        handleEvalInterpRequest
+          $ EvalInterpReq
+            { expr = e
+            , dir = Chk
+            }
+      pure $ EvalInterpRespNormal $ viewTreeExpr e'
+    noErr :: Either Void a -> a
+    noErr = \case
+      Right a -> a
+      Left v -> absurd v
+
+-- | Using the interpreter, evaluate an expression given by the
+-- 'EvalBoundedInterpReq', in the context of the application contained
+-- in the given 'SessionId'. The evaluation time is bounded by the
+-- timeout provided in the same 'EvalBoundedInterpReq'.
+--
+-- Note that, unlike evaluation requests that use the step evaluator,
+-- if this action times out during evaluation, the result is an error,
+-- not a partially-evaluated expression.
+evalBoundedInterp ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  EvalBoundedInterpReq ->
+  PrimerM m (Either ProgError App.EvalBoundedInterpResp)
+evalBoundedInterp = curry $ logAPI (leftResultError EvalBoundedInterp) $ \(sid, req) -> do
+  app <- getApp sid
+  runQueryAppM (handleEvalBoundedInterpRequest req) app
+
+-- | This type is a simplified version of 'App.EvalBoundedInterpResp'.
+-- It is intended for non-Haskell clients.
+--
+-- (Specifically, this type exists so we don't need to serialize
+-- complicated 'Primer.EvalFullInterp.InterpError' values that are
+-- likely not helpful for a non-Haskell API client.)
+data EvalBoundedInterpResp
+  = -- | The evaluation timed out.
+    EvalBoundedInterpRespTimeout
+  | -- | The interpreter encountered a @match@ expression with at
+    -- least one missing branch. This error should never occur in a
+    -- well typed program.
+    EvalBoundedInterpRespNoBranch
+  | -- | The interpreter encountered an undefined type constructor.
+    -- This error should never occur in a well typed program.
+    EvalBoundedInterpRespUnknownTyCon TyConName
+  | -- | The interpreter encountered an undefined value constructor.
+    -- This error should never occur in a well typed program.
+    --
+    -- Note: this should be a 'Recordpair TyConName ValConName', but
+    -- that doesn't serialize properly in our OpenAPI serialization
+    -- scheme, so instead we only include the unknwon 'ValConName' in
+    -- this error. See:
+    -- https://github.com/hackworthltd/primer/issues/1246
+    EvalBoundedInterpRespUnknownValCon ValConName
+  | -- | The evaluation succeeded. The 'Tree' represents the normal form
+    -- of the expression being evaluated.
+    EvalBoundedInterpRespNormal Tree
+  deriving stock (Show, Read, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON EvalBoundedInterpResp
+
+-- | Using the interpreter, evaluate the top-level definition whose
+-- name is given in the 'GVarName', in the context of the application
+-- contained in the given 'SessionId'. The evaluation time is bounded
+-- by the 'Timeout' argument, or is limited to 10 microseconds if the
+-- timeout is not provided.
+--
+-- Note that, unlike evaluation requests that use the step evaluator,
+-- if this action times out during evaluation, the result is an error,
+-- not a partially-evaluated expression.
+--
+-- This is a simplified version of 'evalBoundedInterp', intended for
+-- non-Haskell clients.
+evalBoundedInterp' ::
+  forall m l.
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  Maybe Timeout ->
+  GVarName ->
+  PrimerM m EvalBoundedInterpResp
+evalBoundedInterp' = curry3 $ logAPI (noError EvalBoundedInterp') $ \(sid, timeout, d) -> do
+  app <- getApp sid
+  noErr <$> runQueryAppM (q timeout d) app
+  where
+    q ::
+      Maybe Timeout ->
+      GVarName ->
+      QueryAppM (PrimerM m) Void EvalBoundedInterpResp
+    q timeout d = do
+      -- We don't care about uniqueness of this ID, and we do not want to
+      -- disturb any FreshID state, since that could break undo/redo.
+      -- The reason we don't care about uniqueness is that this node will never
+      -- exist alongside anything else that it may clash with, as the first
+      -- evaluation step will be to inline this definition, removing the node.
+      let e = create' $ DSL.gvar d
+      x <-
+        handleEvalBoundedInterpRequest
+          $ EvalBoundedInterpReq
+            { expr = e
+            , dir = Chk
+            , timeout = fromMaybe (MicroSec 10) timeout
+            }
+      pure $ case x of
+        App.EvalBoundedInterpRespFailed Timeout -> EvalBoundedInterpRespTimeout
+        App.EvalBoundedInterpRespFailed (NoBranch _ _) -> EvalBoundedInterpRespNoBranch
+        App.EvalBoundedInterpRespFailed (UnknownTyCon n) -> EvalBoundedInterpRespUnknownTyCon n
+        App.EvalBoundedInterpRespFailed (UnknownValCon _ vn) -> EvalBoundedInterpRespUnknownValCon vn
+        App.EvalBoundedInterpRespNormal e' -> EvalBoundedInterpRespNormal $ viewTreeExpr e'
     noErr :: Either Void a -> a
     noErr = \case
       Right a -> a

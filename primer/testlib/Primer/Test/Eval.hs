@@ -1,4 +1,6 @@
 module Primer.Test.Eval (
+  illTypedMissingBranch,
+  illTypedMissingBranchPrim,
   noTermShadowing,
   noTypeShadowing,
   recursiveLetRec',
@@ -42,6 +44,7 @@ import Primer.Core (
   GVarName,
   LVarName,
   ModuleName,
+  PrimCon (PrimChar),
   TyVarName,
  )
 import Primer.Core.DSL (
@@ -50,6 +53,7 @@ import Primer.Core.DSL (
   ann,
   app,
   branch,
+  branchPrim,
   case_,
   char,
   con,
@@ -96,6 +100,15 @@ import Primer.Primitives.DSL (
 import Primer.Test.Util (
   primDefs,
  )
+
+-- | An ill typed term: a pattern match with a missing branch.
+illTypedMissingBranch :: S Expr
+illTypedMissingBranch = case_ (con0 cTrue `ann` tcon tBool) [branch cFalse [] emptyHole]
+
+-- | An ill typed term: a pattern match on a primitive with a missing
+-- branch.
+illTypedMissingBranchPrim :: S Expr
+illTypedMissingBranchPrim = case_ (char 'a' `ann` tcon tChar) [branchPrim (PrimChar 'b') emptyHole]
 
 -- | Ensure we don't have shadowing issues with types.
 --

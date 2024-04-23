@@ -16,7 +16,14 @@ module Primer.Servant.OpenAPI (
 import Foreword
 
 import Data.OpenApi (OpenApi, ToSchema)
-import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection, TypeOrKind)
+import Primer.API (
+  ApplyActionBody,
+  EvalBoundedInterpResp,
+  EvalFullResp,
+  Prog,
+  Selection,
+  TypeOrKind,
+ )
 import Primer.Action.Available qualified as Available
 import Primer.App (Level)
 import Primer.Core (GVarName, ModuleName)
@@ -88,6 +95,10 @@ data SessionsAPI mode = SessionsAPI
 -- | A static bound on the maximum requested timeout for evaluation endpoint
 type EvalFullStepLimit = 300
 
+-- | A static bound on the maximum requested timeout (in microseconds)
+-- for evaluation via the interpreter.
+type EvalBoundedInterpLimit = 100_000 -- 100ms
+
 -- | The session-specific bits of the API.
 data SessionAPI mode = SessionAPI
   { deleteSession :: DeleteSession mode
@@ -128,6 +139,14 @@ data SessionAPI mode = SessionAPI
           :> QueryParam "closed" NormalOrderOptions
           :> ReqBody '[JSON] GVarName
           :> Post '[JSON] EvalFullResp
+  , evalBoundedInterp ::
+      mode
+        :- "eval-bounded-interp"
+          :> Summary "Using the interpreter, evaluate the named definition to normal form (or time out)"
+          :> OperationId "eval-bounded-interp"
+          :> QueryParam "timeoutMicroseconds" (Finite 0 EvalBoundedInterpLimit)
+          :> ReqBody '[JSON] GVarName
+          :> Post '[JSON] EvalBoundedInterpResp
   , undo ::
       mode
         :- "undo"

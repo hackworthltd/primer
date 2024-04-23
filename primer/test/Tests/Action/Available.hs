@@ -54,6 +54,7 @@ import Primer.App (
   DefSelection (..),
   EditAppM,
   Editable (..),
+  EvalBoundedInterpReq (EvalBoundedInterpReq),
   EvalFullReq (EvalFullReq),
   EvalReq (EvalReq),
   Level (Beginner, Expert, Intermediate),
@@ -79,6 +80,7 @@ import Primer.App (
   checkAppWellFormed,
   checkProgWellFormed,
   handleEditRequest,
+  handleEvalBoundedInterpRequest,
   handleEvalFullRequest,
   handleEvalRequest,
   handleMutationRequest,
@@ -155,6 +157,9 @@ import Primer.Def (
   defAST,
  )
 import Primer.Eval (EvalError (NotRedex), NormalOrderOptions (StopAtBinders, UnderBinders))
+import Primer.EvalFullInterp (
+  Timeout (MicroSec),
+ )
 import Primer.EvalFullStep (Dir (Chk))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
@@ -167,9 +172,13 @@ import Primer.Gen.Core.Typed (
   genSyn,
   genWTKind,
   genWTType,
+  isolateWT,
   propertyWT,
  )
-import Primer.Log (PureLog, runPureLog)
+import Primer.Log (
+  PureLogT,
+  runPureLogT,
+ )
 import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
@@ -345,6 +354,7 @@ tasty_multiple_requests_accepted = withTests 500
               , Just (1, Eval1)
               , if null $ appDefs a' then Nothing else Just (1, EvalFull)
               , Just (1, Question)
+              , if null $ appDefs a' then Nothing else Just (1, EvalBoundedInterp)
               , if undoLogEmpty $ appProg a' then Nothing else Just (2, Undo)
               , if redoLogEmpty $ appProg a' then Nothing else Just (2, Redo)
               , Just (1, RenameModule)
@@ -375,6 +385,11 @@ tasty_multiple_requests_accepted = withTests 500
             steps <- forAllT $ Gen.integral $ Range.linear 0 100
             optsN <- forAllT $ Gen.element @[] [StopAtBinders, UnderBinders]
             actionSucceeds (readerToState $ handleEvalFullRequest $ EvalFullReq tld Chk steps optsN) appN
+          EvalBoundedInterp -> do
+            g <- forAllT $ Gen.element $ appDefs appN
+            tld <- gvar g
+            usec <- forAllT $ Gen.integral $ Range.linear 0 1000
+            actionSucceeds (readerToState $ handleEvalBoundedInterpRequest $ EvalBoundedInterpReq tld Chk (MicroSec usec)) appN
           Question -> do
             -- Obtain a non-exhaustive case warning if we add a new question
             let _w :: Question q -> ()
@@ -441,6 +456,7 @@ data Act
   | AddTy
   | Eval1
   | EvalFull
+  | EvalBoundedInterp
   | Question
   | Undo
   | Redo
@@ -448,23 +464,24 @@ data Act
   | AvailAct
   deriving stock (Show)
 
--- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
+-- Helpers for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
+
 runEditAppMLogs ::
-  HasCallStack =>
-  EditAppM (PureLog (WithSeverity ())) ProgError a ->
+  (HasCallStack) =>
+  EditAppM (PureLogT (WithSeverity ()) WT) ProgError a ->
   App ->
   PropertyT WT (Either ProgError a, App)
-runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
-  (r, logs) -> testNoSevereLogs logs >> pure r
+runEditAppMLogs m a = do
+  (r, logs) <- lift $ isolateWT $ runPureLogT $ runEditAppM m a
+  testNoSevereLogs logs >> pure r
 
--- Helper for tasty_available_actions_accepted and tasty_chained_actions_undo_accepted
-actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+actionSucceeds :: HasCallStack => EditAppM (PureLogT (WithSeverity ()) WT) ProgError a -> App -> PropertyT WT App
 actionSucceeds m a =
   runEditAppMLogs m a >>= \case
     (Left err, _) -> annotateShow err >> failure
     (Right _, a') -> ensureSHNormal a' $> a'
 
-actionSucceedsOrNotRedex :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+actionSucceedsOrNotRedex :: HasCallStack => EditAppM (PureLogT (WithSeverity ()) WT) ProgError a -> App -> PropertyT WT App
 actionSucceedsOrNotRedex m a =
   runEditAppMLogs m a >>= \case
     (Left (EvalError NotRedex), _) -> do
@@ -478,7 +495,7 @@ actionSucceedsOrNotRedex m a =
 -- Similar to 'actionSucceeds' but bearing in mind that
 -- if we submit our own name rather than an offered one, then
 -- we should expect that name capture/clashing may happen
-actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT (SucceedOrCapture App)
+actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLogT (WithSeverity ()) WT) ProgError a -> App -> PropertyT WT (SucceedOrCapture App)
 actionSucceedsOrCapture m a = do
   a' <- runEditAppMLogs m a
   case a' of

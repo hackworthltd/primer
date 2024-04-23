@@ -20,6 +20,7 @@ module Primer.Client (
   generateNames,
   evalStep,
   evalFull,
+  evalBoundedInterp,
   getProgramOpenApi,
   availableActionsOpenAPI,
   actionOptionsOpenAPI,
@@ -37,6 +38,8 @@ import Primer.API qualified
 import Primer.Action.Available (Action, InputAction, NoInputAction, Options)
 import Primer.App (
   App,
+  EvalBoundedInterpReq,
+  EvalBoundedInterpResp,
   EvalFullReq,
   EvalFullResp,
   EvalReq,
@@ -166,6 +169,10 @@ evalStep sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.
 -- | As 'Primer.API.evalFull'.
 evalFull :: SessionId -> EvalFullReq -> ClientM (Either ProgError EvalFullResp)
 evalFull sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.evalFull /: req
+
+-- | As 'Primer.API.evalBoundedInterp'.
+evalBoundedInterp :: SessionId -> EvalBoundedInterpReq -> ClientM (Either ProgError EvalBoundedInterpResp)
+evalBoundedInterp sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.evalBoundedInterp /: req
 
 availableActionsOpenAPI :: SessionId -> Level -> Primer.API.Selection -> ClientM [Action]
 availableActionsOpenAPI sid = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessionAPI /: sid // OpenAPI.actions // OpenAPI.available

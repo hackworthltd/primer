@@ -40,6 +40,7 @@ module Primer.Examples (
   -- * Toy 'App's.
   even3App,
   mapOddApp,
+  mapOddPrimApp,
 ) where
 
 import Foreword hiding (
@@ -543,4 +544,10 @@ even3App =
 mapOddApp :: App
 mapOddApp =
   let (p, id_, nc) = mapOddProg 4
+   in mkApp id_ nc p
+
+-- | An 'App' containing 'mapOddPrimProg'.
+mapOddPrimApp :: App
+mapOddPrimApp =
+  let (p, id_, nc) = mapOddPrimProg 4
    in mkApp id_ nc p

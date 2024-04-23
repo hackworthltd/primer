@@ -9,6 +9,9 @@ import Data.Text.Lazy qualified as TL
 import Hedgehog hiding (Property, Var, property)
 import Optics ((.~))
 import Primer.API (
+  EvalBoundedInterpResp (..),
+  EvalFullResp (..),
+  EvalInterpResp (..),
   NewSessionReq (..),
   OkOrMismatch (Mismatch, Ok, expected, got),
   PrimerErr,
@@ -18,7 +21,12 @@ import Primer.API (
   copySession,
   deleteSession,
   edit,
+  evalBoundedInterp,
+  evalBoundedInterp',
+  evalFull,
   evalFull',
+  evalInterp,
+  evalInterp',
   findSessions,
   flushSessions,
   getApp,
@@ -60,7 +68,18 @@ import Primer.App (
   Selection' (SelectionDef),
   newApp,
  )
-import Primer.Builtins (cTrue, cZero, tBool, tList, tMaybe, tNat)
+import Primer.App qualified as App
+import Primer.Builtins (
+  cCons,
+  cFalse,
+  cNil,
+  cTrue,
+  cZero,
+  tBool,
+  tList,
+  tMaybe,
+  tNat,
+ )
 import Primer.Core
 import Primer.Core.DSL hiding (app)
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
@@ -72,10 +91,18 @@ import Primer.Database (
   fromSessionName,
  )
 import Primer.Def (astDefExpr, astDefType, defAST)
-import Primer.Eval (NormalOrderOptions (UnderBinders))
+import Primer.Eval (
+  Dir (Chk),
+  NormalOrderOptions (UnderBinders),
+ )
+import Primer.EvalFullInterp (
+  Timeout (MicroSec),
+ )
 import Primer.Examples (
   comprehensive,
   even3App,
+  mapOddApp,
+  mapOddPrimApp,
  )
 import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Primer.Module (moduleDefsQualified)
@@ -87,6 +114,7 @@ import Primer.Test.Util (
   assertException,
   constructSaturatedCon,
   constructTCon,
+  gvn,
   (@?=),
  )
 import Primer.UUIDv4 (nextRandom)
@@ -96,6 +124,9 @@ import Tasty (
   property,
  )
 import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.ExpectedFailure (
+  expectFailBecause,
+ )
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit hiding ((@?=))
 import Text.Pretty.Simple (pShowNoColor)
@@ -479,6 +510,279 @@ test_renameSession_too_long =
       step "it should be truncated at 64 characters"
       name @?= toS (replicate 64 'a')
 
+test_evalFull_even3 :: TestTree
+test_evalFull_even3 =
+  testCaseSteps "evalFull even3" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the even3App to the session"
+      sid <- addSession "even3App" even3App
+      step "Eval even3"
+      let expr = create' $ gvar $ gvn ["Even3"] "even 3?"
+      resp <- evalFull sid (App.EvalFullReq expr Chk 1000 UnderBinders)
+      let expected = create' $ con0 cFalse
+      case resp of
+        Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
+        Right (App.EvalFullRespTimedOut e) -> liftIO $ assertFailure $ "timed out: " <> show e
+        Right (App.EvalFullRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+test_evalFull_mapOdd :: TestTree
+test_evalFull_mapOdd =
+  testCaseSteps "evalFull mapOdd" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddApp to the session"
+      sid <- addSession "mapOddApp" mapOddApp
+      step "Eval mapOdd"
+      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      resp <- evalFull sid (App.EvalFullReq expr Chk 1000 UnderBinders)
+      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
+        Right (App.EvalFullRespTimedOut e) -> liftIO $ assertFailure $ "timed out: " <> show e
+        Right (App.EvalFullRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+test_evalFull_mapOddPrim :: TestTree
+test_evalFull_mapOddPrim =
+  testCaseSteps "evalFull mapOddPrim" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddPrimApp to the session"
+      sid <- addSession "mapOddPrimApp" mapOddPrimApp
+      step "Eval mapOdd"
+      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      resp <- evalFull sid (App.EvalFullReq expr Chk 1000 UnderBinders)
+      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
+        Right (App.EvalFullRespTimedOut e) -> liftIO $ assertFailure $ "timed out: " <> show e
+        Right (App.EvalFullRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+test_evalFull'_even3 :: TestTree
+test_evalFull'_even3 =
+  testCaseSteps "evalFull' even3" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the even3App to the session"
+      sid <- addSession "even3App" even3App
+      step "Eval even3"
+      resp <- evalFull' sid (Just 1000) (Just UnderBinders) $ gvn ["Even3"] "even 3?"
+      let expected = viewTreeExpr $ create' $ con0 cFalse
+      case resp of
+        EvalFullRespTimedOut e -> liftIO $ assertFailure $ "timed out: " <> show e
+        EvalFullRespNormal e -> zTIds e @?= zTIds expected
+
+test_evalFull'_mapOdd :: TestTree
+test_evalFull'_mapOdd =
+  testCaseSteps "evalFull' mapOdd" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddApp to the session"
+      sid <- addSession "mapOddApp" mapOddApp
+      step "Eval mapOdd"
+      resp <- evalFull' sid (Just 1000) (Just UnderBinders) $ gvn ["MapOdd"] "mapOdd"
+      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        EvalFullRespTimedOut e -> liftIO $ assertFailure $ "timed out: " <> show e
+        EvalFullRespNormal e -> zTIds e @?= zTIds expected
+
+test_evalFull'_mapOddPrim :: TestTree
+test_evalFull'_mapOddPrim =
+  testCaseSteps "evalFull' mapOddPrim" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddPrimApp to the session"
+      sid <- addSession "mapOddPrimApp" mapOddPrimApp
+      step "Eval mapOdd"
+      resp <- evalFull' sid (Just 1000) (Just UnderBinders) $ gvn ["MapOdd"] "mapOdd"
+      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        EvalFullRespTimedOut e -> liftIO $ assertFailure $ "timed out: " <> show e
+        EvalFullRespNormal e -> zTIds e @?= zTIds expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalInterp_even3 :: TestTree
+test_evalInterp_even3 = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalInterp even3" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the even3App to the session"
+      sid <- addSession "even3App" even3App
+      step "Eval even3"
+      let expr = create' $ gvar $ gvn ["Even3"] "even 3?"
+      resp <- evalInterp sid $ App.EvalInterpReq expr Chk
+      let expected = create' $ con0 cFalse
+      case resp of
+        Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
+        Right (App.EvalInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalInterp_mapOdd :: TestTree
+test_evalInterp_mapOdd = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalInterp mapOdd" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddApp to the session"
+      sid <- addSession "mapOddApp" mapOddApp
+      step "Eval mapOdd"
+      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      resp <- evalInterp sid $ App.EvalInterpReq expr Chk
+      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
+        Right (App.EvalInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalInterp_mapOddPrim :: TestTree
+test_evalInterp_mapOddPrim = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalInterp mapOddPrim" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddPrimApp to the session"
+      sid <- addSession "mapOddPrimApp" mapOddPrimApp
+      step "Eval mapOdd"
+      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      resp <- evalInterp sid $ App.EvalInterpReq expr Chk
+      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        Left e -> liftIO $ assertFailure $ "ProgError: " <> show e
+        Right (App.EvalInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalInterp'_even3 :: TestTree
+test_evalInterp'_even3 = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalInterp' even3" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the even3App to the session"
+      sid <- addSession "even3App" even3App
+      step "Eval even3"
+      (EvalInterpRespNormal e) <- evalInterp' sid $ gvn ["Even3"] "even 3?"
+      let expected = viewTreeExpr $ create' $ con0 cFalse
+      zTIds e @?= zTIds expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalInterp'_mapOdd :: TestTree
+test_evalInterp'_mapOdd = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalInterp' mapOdd" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddApp to the session"
+      sid <- addSession "mapOddApp" mapOddApp
+      step "Eval mapOdd"
+      (EvalInterpRespNormal e) <- evalInterp' sid $ gvn ["MapOdd"] "mapOdd"
+      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      zTIds e @?= zTIds expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalInterp'_mapOddPrim :: TestTree
+test_evalInterp'_mapOddPrim = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalInterp' mapOddPrim" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddPrimApp to the session"
+      sid <- addSession "mapOddPrimApp" mapOddPrimApp
+      step "Eval mapOdd"
+      (EvalInterpRespNormal e) <- evalInterp' sid $ gvn ["MapOdd"] "mapOdd"
+      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      zTIds e @?= zTIds expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalBoundedInterp_even3 :: TestTree
+test_evalBoundedInterp_even3 = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalBoundedInterp even3" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the even3App to the session"
+      sid <- addSession "even3App" even3App
+      step "Eval even3"
+      let expr = create' $ gvar $ gvn ["Even3"] "even 3?"
+      resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
+      let expected = create' $ con0 cFalse
+      case resp of
+        Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
+        Right (App.EvalBoundedInterpRespFailed err) -> liftIO $ assertFailure $ "InterpError: " <> show err
+        Right (App.EvalBoundedInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalBoundedInterp_mapOdd :: TestTree
+test_evalBoundedInterp_mapOdd = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalBoundedInterp mapOdd" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddApp to the session"
+      sid <- addSession "mapOddApp" mapOddApp
+      step "Eval mapOdd"
+      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
+      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
+        Right (App.EvalBoundedInterpRespFailed err) -> liftIO $ assertFailure $ "InterpError: " <> show err
+        Right (App.EvalBoundedInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalBoundedInterp_mapOddPrim :: TestTree
+test_evalBoundedInterp_mapOddPrim = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalBoundedInterp mapOddPrim" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddPrimApp to the session"
+      sid <- addSession "mapOddPrimApp" mapOddPrimApp
+      step "Eval mapOdd"
+      let expr = create' $ gvar $ gvn ["MapOdd"] "mapOdd"
+      resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
+      let expected = create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
+        Right (App.EvalBoundedInterpRespFailed err) -> liftIO $ assertFailure $ "InterpError: " <> show err
+        Right (App.EvalBoundedInterpRespNormal e) -> forgetMetadata e @?= forgetMetadata expected
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalBoundedInterp'_even3 :: TestTree
+test_evalBoundedInterp'_even3 = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalBoundedInterp' even3" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the even3App to the session"
+      sid <- addSession "even3App" even3App
+      step "Eval even3"
+      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) $ gvn ["Even3"] "even 3?"
+      let expected = viewTreeExpr $ create' $ con0 cFalse
+      case resp of
+        EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
+        e -> liftIO $ assertFailure $ show e
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalBoundedInterp'_mapOdd :: TestTree
+test_evalBoundedInterp'_mapOdd = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalBoundedInterp' mapOdd" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddApp to the session"
+      sid <- addSession "mapOddApp" mapOddApp
+      step "Eval mapOdd"
+      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) $ gvn ["MapOdd"] "mapOdd"
+      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
+        e -> liftIO $ assertFailure $ show e
+
+-- https://github.com/hackworthltd/primer/issues/1247
+test_evalBoundedInterp'_mapOddPrim :: TestTree
+test_evalBoundedInterp'_mapOddPrim = expectFailBecause "interpreter can't reduce top-level definitions" $ do
+  testCaseSteps "evalBoundedInterp' mapOddPrim" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add the mapOddPrimApp to the session"
+      sid <- addSession "mapOddPrimApp" mapOddPrimApp
+      step "Eval mapOdd"
+      resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) $ gvn ["MapOdd"] "mapOdd"
+      let expected = viewTreeExpr $ create' $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
+      case resp of
+        EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
+        e -> liftIO $ assertFailure $ show e
+
 test_eval_undo :: TestTree
 test_eval_undo =
   testCaseSteps "eval plays nicely with undo/redo" $ \step' -> do
@@ -491,7 +795,7 @@ test_eval_undo =
       step "create session"
       sid <- newSession $ NewSessionReq "a new session" True
       let scope = mkSimpleModuleName "Main"
-      step "eval"
+      step "evalFull'"
       void $ evalFull' sid (Just 100) (Just UnderBinders) $ qualifyName scope "main"
       step "insert λ"
       let getMain = do
@@ -532,6 +836,8 @@ test_eval_undo =
       _ <- undo sid
       step "redo"
       _ <- redo sid
+      step "evalBoundedInterp'"
+      void $ evalBoundedInterp' sid (Just $ MicroSec 100) $ qualifyName scope "main"
       step "undo *2"
       _ <- undo sid >> undo sid
       step "redo"
@@ -734,6 +1040,9 @@ test_selectioninfo =
                 }
           )
 
+zTIds :: Tree -> Tree
+zTIds = treeIds .~ "0"
+
 zeroTKIds :: TypeOrKind -> TypeOrKind
 zeroTKIds = \case
   Type om -> Type $ zOMIds om
@@ -743,5 +1052,3 @@ zeroTKIds = \case
     zOMIds = \case
       Ok t -> Ok $ zTIds t
       Mismatch t1 t2 -> Mismatch (zTIds t1) (zTIds t2)
-    zTIds :: Tree -> Tree
-    zTIds = treeIds .~ "0"
