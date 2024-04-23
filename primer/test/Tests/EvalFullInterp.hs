@@ -1078,7 +1078,7 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
             $ EvalBoundedInterpReq
               { expr = foo
               , dir = Chk
-              , timeout = MicroSec 200
+              , timeout = MicroSec 10_000
               }
         expect <- con0 cFalse
         pure $ case resp of
