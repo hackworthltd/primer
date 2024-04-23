@@ -16,11 +16,11 @@ import Optics
 import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullOptions, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
-  allDefs,
-  allTypes,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,
+  progDefMap,
+  progTypeDefMap,
  )
 import Primer.Builtins (
   boolDef,
@@ -1696,8 +1696,8 @@ unit_prim_partial_map =
 unit_evalFull_even3 :: Assertion
 unit_evalFull_even3 =
   let (prog, maxID, _) = even3Prog
-      types = allTypes prog
-      defs = allDefs prog
+      types = progTypeDefMap prog
+      defs = progDefMap prog
       (expr, _) = create $ gvar $ gvn ["Even3"] "even 3?"
       (expect, _) = create $ con0 cFalse
    in do
@@ -1707,8 +1707,8 @@ unit_evalFull_even3 =
 unit_evalFull_mapOdd2 :: Assertion
 unit_evalFull_mapOdd2 =
   let (prog, maxID, _) = mapOddProg 2
-      types = allTypes prog
-      defs = allDefs prog
+      types = progTypeDefMap prog
+      defs = progDefMap prog
       (expr, _) = create $ gvar $ gvn ["MapOdd"] "mapOdd"
       (expect, _) = create $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
    in do
@@ -1718,8 +1718,8 @@ unit_evalFull_mapOdd2 =
 unit_evalFull_mapOddPrim2 :: Assertion
 unit_evalFull_mapOddPrim2 =
   let (prog, maxID, _) = mapOddPrimProg 2
-      types = allTypes prog
-      defs = allDefs prog
+      types = progTypeDefMap prog
+      defs = progDefMap prog
       (expr, _) = create $ gvar $ gvn ["MapOdd"] "mapOdd"
       (expect, _) = create $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
    in do

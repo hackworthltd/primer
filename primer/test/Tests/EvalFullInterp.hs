@@ -900,8 +900,8 @@ unit_prim_partial_map =
 -- unit_interp_even3 :: Assertion
 -- unit_interp_even3 =
 --   let (prog, _, _) = even3Prog
---       types = allTypes prog
---       defs = allDefs prog
+--       types = progTypeDefMap prog
+--       defs = progDefMap prog
 --       expr = create1 $ gvar $ gvn ["Even3"] "even 3?"
 --       expect = create1 $ con0 cFalse
 --    in do
@@ -911,8 +911,8 @@ unit_prim_partial_map =
 -- unit_interp_mapOdd2 :: Assertion
 -- unit_interp_mapOdd2 =
 --   let (prog, _, _) = mapOddProg 2
---       types = allTypes prog
---       defs = allDefs prog
+--       types = progTypeDefMap prog
+--       defs = progDefMap prog
 --       expr = create1 $ gvar $ gvn ["MapOdd"] "mapOdd"
 --       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
 --    in do
@@ -922,8 +922,8 @@ unit_prim_partial_map =
 -- unit_interp_mapOddPrim2 :: Assertion
 -- unit_interp_mapOddPrim2 =
 --   let (prog, _, _) = mapOddPrimProg 2
---       types = allTypes prog
---       defs = allDefs prog
+--       types = progTypeDefMap prog
+--       defs = progDefMap prog
 --       expr = create1 $ gvar $ gvn ["MapOdd"] "mapOdd"
 --       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
 --    in do

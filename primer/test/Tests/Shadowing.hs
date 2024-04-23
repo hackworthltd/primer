@@ -12,7 +12,14 @@ import Hedgehog (annotateShow, discard, failure, forAll, label, success, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Primer.Action.Available (Action (NoInput), NoInputAction (LetToRec))
-import Primer.App (App, appProg, handleEditRequest, progAllDefs, progAllTypeDefs, runEditAppM)
+import Primer.App (
+  App,
+  appProg,
+  handleEditRequest,
+  progDefMap,
+  progTypeDefMap,
+  runEditAppM,
+ )
 import Primer.Core (
   Expr,
   Expr' (Case, Var),
@@ -299,8 +306,8 @@ tasty_available_actions_shadow = withDiscards 2000
 noShadowingApp :: App -> [(Either (TypeDef () ()) Def, Shadowing)]
 noShadowingApp a =
   let p = appProg a
-      tds = snd <$> toList (progAllTypeDefs p)
-      ds = snd <$> toList (progAllDefs p)
+      tds = toList (progTypeDefMap p)
+      ds = toList (progDefMap p)
    in map (\d -> (Left d, noShadowingTypeDef d)) tds <> map (\d -> (Right d, noShadowingDef d)) ds
   where
     combineShadow ShadowingNotExists s = s

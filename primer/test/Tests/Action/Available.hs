@@ -87,12 +87,13 @@ import Primer.App (
   handleQuestion,
   nextProgID,
   progAllDefs,
-  progAllTypeDefs,
   progAllTypeDefsMeta,
   progCxt,
+  progDefMap,
   progImports,
   progModules,
   progSmartHoles,
+  progTypeDefMap,
   redoLogEmpty,
   runEditAppM,
   undoLogEmpty,
@@ -660,7 +661,7 @@ genAction ::
     )
 genAction l a = do
   let allTypes = map (forgetTypeDefMetadata . snd) $ progAllTypeDefsMeta $ appProg a
-      allDefs = map snd $ progAllDefs $ appProg a
+      allDefs = progDefMap $ appProg a
   (loc, mut, s) <- genLoc a
   let acts = case (loc, s) of
         (Left (_, def), SelectionTypeDef (TypeDefSelection defName Nothing)) ->
@@ -718,14 +719,14 @@ toProgAction l a (def, loc, action) = do
       Available.NoInput act' -> do
         progActs <-
           either (\e -> annotateShow e >> failure) pure
-            $ toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' loc act'
+            $ toProgActionNoInput (progDefMap $ appProg a) def' loc act'
         pure $ NoOpt progActs
       Available.Input act' -> do
         Available.Options{Available.opts, Available.free} <-
           maybe (annotate "id not found" >> failure) pure
             $ Available.options
-              (map snd $ progAllTypeDefs $ appProg a)
-              (map snd $ progAllDefs $ appProg a)
+              (progTypeDefMap $ appProg a)
+              (progDefMap $ appProg a)
               (progCxt $ appProg a)
               l
               def'
