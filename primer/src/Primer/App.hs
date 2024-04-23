@@ -35,8 +35,8 @@ module Primer.App (
   newEmptyProg',
   newProg,
   newProg',
-  allDefs,
-  allTypes,
+  progDefMap,
+  progTypeDefMap,
   progAllModules,
   progAllDefs,
   progAllTypeDefs,
@@ -476,16 +476,18 @@ importModules ms = do
   let p' = p & #progImports %~ (<> checkedImports)
   modify (\a -> a & #currentState % #prog .~ p')
 
--- | Get all type definitions from all modules (including imports)
-allTypes :: Prog -> TypeDefMap
-allTypes = fmap snd . progAllTypeDefs
+-- | Given a 'Prog', return its 'TypeDefMap' (i.e., all type
+-- definitions from all modules, including imports).
+progTypeDefMap :: Prog -> TypeDefMap
+progTypeDefMap = fmap snd . progAllTypeDefs
 
 allTypesMeta :: Prog -> Map TyConName (TypeDef TypeMeta KindMeta)
 allTypesMeta = fmap snd . progAllTypeDefsMeta
 
--- | Get all definitions from all modules (including imports)
-allDefs :: Prog -> DefMap
-allDefs = fmap snd . progAllDefs
+-- | Given a 'Prog', return its 'DefMap' (i.e., all term definitions
+-- from all modules, including imports).
+progDefMap :: Prog -> DefMap
+progDefMap = fmap snd . progAllDefs
 
 -- | The action log
 --  This is the canonical store of the program - we can recreate any current or
@@ -599,7 +601,7 @@ handleQuestion :: MonadQueryApp m ProgError => Question a -> m a
 handleQuestion = \case
   VariablesInScope defid exprid -> do
     node <- focusNode' defid exprid
-    defs <- asks $ allDefs . appProg
+    defs <- asks $ progDefMap . appProg
     let (tyvars, termvars, globals) = case node of
           Left zE -> variablesInScopeExpr defs zE
           Right zT -> (variablesInScopeTy zT, [], [])
@@ -622,7 +624,7 @@ focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
 focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
-focusNodeImports prog = focusNodeDefs $ allDefs prog
+focusNodeImports prog = focusNodeDefs $ progDefMap prog
 
 focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
 focusNodeDefs defs defname nodeid =
@@ -670,11 +672,11 @@ handleEvalRequest req = do
   app <- ask
   let prog = appProg app
   let as = AvoidShadowing
-  result <- runFreshM app $ Eval.step as (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
+  result <- runFreshM app $ Eval.step as (progTypeDefMap prog) (progDefMap prog) (evalReqExpr req) Syn (evalReqRedex req)
   case result of
     Left err -> throwError' err
     Right (expr, detail) -> do
-      redexes <- Eval.redexes as (allTypes prog) (allDefs prog) Syn expr
+      redexes <- Eval.redexes as (progTypeDefMap prog) (progDefMap prog) Syn expr
       pure
         EvalResp
           { evalRespExpr = expr
@@ -692,7 +694,7 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
   let prog = appProg app
   let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
-  result <- runFreshM app $ evalFull evalFullOptions optsV optsR (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  result <- runFreshM app $ evalFull evalFullOptions optsV optsR (progTypeDefMap prog) (progDefMap prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
@@ -718,8 +720,8 @@ handleEvalInterpRequest ::
 handleEvalInterpRequest (EvalInterpReq{expr, dir}) = do
   app <- ask
   let prog = appProg app
-  let env = mkGlobalEnv (allDefs prog)
-  result <- runFreshM app $ generateIDs $ interp' (allTypes prog) env dir (forgetMetadata expr)
+  let env = mkGlobalEnv (progDefMap prog)
+  result <- runFreshM app $ generateIDs $ interp' (progTypeDefMap prog) env dir (forgetMetadata expr)
   pure $ EvalInterpRespNormal result
 
 -- | Handle an 'EvalBoundedInterpReq'.
@@ -742,8 +744,8 @@ handleEvalBoundedInterpRequest ::
 handleEvalBoundedInterpRequest (EvalBoundedInterpReq{expr, dir, timeout}) = do
   app <- ask
   let prog = appProg app
-  let env = mkGlobalEnv (allDefs prog)
-  result <- liftIO $ interp timeout (allTypes prog) env dir (forgetMetadata expr)
+  let env = mkGlobalEnv (progDefMap prog)
+  result <- liftIO $ interp timeout (progTypeDefMap prog) env dir (forgetMetadata expr)
   case result of
     Left x -> pure $ EvalBoundedInterpRespFailed x
     Right e' -> runFreshM app $ generateIDs e' <&> EvalBoundedInterpRespNormal
@@ -2145,7 +2147,7 @@ liftError :: MonadError ProgError m => (e -> ProgError) -> ExceptT e m b -> m b
 liftError = modifyError
 
 allConNames :: Prog -> [(TyConName, [ValConName])]
-allConNames p = ifoldMap (\tn td -> pure (tn, valConName <$> typeDefConstructors td)) $ allTypes p
+allConNames p = ifoldMap (\tn td -> pure (tn, valConName <$> typeDefConstructors td)) $ progTypeDefMap p
   where
     typeDefConstructors td = maybe [] astTypeDefConstructors $ typeDefAST td
 

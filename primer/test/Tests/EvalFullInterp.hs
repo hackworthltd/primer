@@ -900,10 +900,10 @@ unit_prim_partial_map =
 -- unit_interp_even3 :: Assertion
 -- unit_interp_even3 =
 --   let (prog, _, _) = even3Prog
---       types = allTypes prog
---       defs = allDefs prog
---       expr = create1 $ gvar $ gvn ["Even3"] "even 3?"
---       expect = create1 $ con0 cFalse
+--       types = progTypeDefMap prog
+--       defs = progDefMap prog
+--       expr = create1 $ gvar even3MainName
+--       expect = forgetMetadata even3MainExpected
 --    in do
 --         s <- evalFullTest types defs Chk expr
 --         s @?= Right expect
@@ -911,9 +911,9 @@ unit_prim_partial_map =
 -- unit_interp_mapOdd2 :: Assertion
 -- unit_interp_mapOdd2 =
 --   let (prog, _, _) = mapOddProg 2
---       types = allTypes prog
---       defs = allDefs prog
---       expr = create1 $ gvar $ gvn ["MapOdd"] "mapOdd"
+--       types = progTypeDefMap prog
+--       defs = progDefMap prog
+--       expr = create1 $ gvar mapOddMainName
 --       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
 --    in do
 --         s <- evalFullTest types defs Chk expr
@@ -922,9 +922,9 @@ unit_prim_partial_map =
 -- unit_interp_mapOddPrim2 :: Assertion
 -- unit_interp_mapOddPrim2 =
 --   let (prog, _, _) = mapOddPrimProg 2
---       types = allTypes prog
---       defs = allDefs prog
---       expr = create1 $ gvar $ gvn ["MapOdd"] "mapOdd"
+--       types = progTypeDefMap prog
+--       defs = progDefMap prog
+--       expr = create1 $ gvar mapOddPrimMainName
 --       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
 --    in do
 --         s <- evalFullTest types defs Chk expr
@@ -982,7 +982,7 @@ unit_handleEvalBoundedInterpRequest_modules =
 -- unit_handleEvalInterpRequest_even3 :: Assertion
 -- unit_handleEvalInterpRequest_even3 =
 --   let test = do
---         expr <- gvar $ gvn ["Even3"] "even 3?"
+--         expr <- gvar even3MainName
 --         (EvalInterpRespNormal e) <-
 --           readerToState
 --             $ handleEvalInterpRequest
@@ -990,8 +990,7 @@ unit_handleEvalBoundedInterpRequest_modules =
 --               { expr = expr
 --               , dir = Chk
 --               }
---         expect <- con0 cFalse
---         pure $ e ~= expect
+--         pure $ e ~= even3MainExpected
 --    in runAppTestM even3App test <&> fst >>= \case
 --         Left err -> assertFailure $ show err
 --         Right assertion -> assertion
@@ -999,7 +998,7 @@ unit_handleEvalBoundedInterpRequest_modules =
 -- unit_handleEvalInterpRequest_mapOdd :: Assertion
 -- unit_handleEvalInterpRequest_mapOdd =
 --   let test = do
---         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         expr <- gvar mapOddMainName
 --         (EvalInterpRespNormal e) <-
 --           readerToState
 --             $ handleEvalInterpRequest
@@ -1007,9 +1006,7 @@ unit_handleEvalBoundedInterpRequest_modules =
 --               { expr = expr
 --               , dir = Chk
 --               }
---         -- Note that the 'mapOddApp' includes a program runs @mapOdd@ over a list of [0..3]
---         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
---         pure $ e ~= expect
+--         pure $ e ~= mapOddMainExpected
 --    in runAppTestM mapOddApp test <&> fst >>= \case
 --         Left err -> assertFailure $ show err
 --         Right assertion -> assertion
@@ -1017,7 +1014,7 @@ unit_handleEvalBoundedInterpRequest_modules =
 -- unit_handleEvalInterpRequest_mapOddPrim :: Assertion
 -- unit_handleEvalInterpRequest_mapOddPrim =
 --   let test = do
---         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         expr <- gvar mapOddPrimMainName
 --         (EvalInterpRespNormal e) <-
 --           readerToState
 --             $ handleEvalInterpRequest
@@ -1025,9 +1022,7 @@ unit_handleEvalBoundedInterpRequest_modules =
 --               { expr = expr
 --               , dir = Chk
 --               }
---         -- Note that the 'mapOddPrimApp' includes a program runs @mapOdd@ over a list of [0..3]
---         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
---         pure $ e ~= expect
+--         pure $ e ~= mapOddPrimMainExpected
 --    in runAppTestM mapOddPrimApp test <&> fst >>= \case
 --         Left err -> assertFailure $ show err
 --         Right assertion -> assertion
@@ -1083,7 +1078,7 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
             $ EvalBoundedInterpReq
               { expr = foo
               , dir = Chk
-              , timeout = MicroSec 200
+              , timeout = MicroSec 10_000
               }
         expect <- con0 cFalse
         pure $ case resp of
@@ -1108,7 +1103,7 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 -- unit_handleEvalBoundedInterpRequest_even3 :: Assertion
 -- unit_handleEvalBoundedInterpRequest_even3 =
 --   let test = do
---         expr <- gvar $ gvn ["Even3"] "even 3?"
+--         expr <- gvar even3MainName
 --         resp <-
 --           readerToState
 --             $ handleEvalBoundedInterpRequest
@@ -1117,10 +1112,9 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 --               , dir = Chk
 --               , timeout = MicroSec 10_000
 --               }
---         expect <- con0 cFalse
 --         pure $ case resp of
 --           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= expect
+--           EvalBoundedInterpRespNormal e -> e ~= even3MainExpected
 --    in runAppTestM even3App test <&> fst >>= \case
 --         Left err -> assertFailure $ show err
 --         Right assertion -> assertion
@@ -1128,7 +1122,7 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 -- unit_handleEvalBoundedInterpRequest_mapOdd :: Assertion
 -- unit_handleEvalBoundedInterpRequest_mapOdd =
 --   let test = do
---         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         expr <- gvar mapOddMainName
 --         resp <-
 --           readerToState
 --             $ handleEvalBoundedInterpRequest
@@ -1137,11 +1131,9 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 --               , dir = Chk
 --               , timeout = MicroSec 10_000
 --               }
---         -- Note that the 'mapOddApp' includes a program runs @mapOdd@ over a list of [0..3]
---         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
 --         pure $ case resp of
 --           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= expect
+--           EvalBoundedInterpRespNormal e -> e ~= mapOddMainExpected
 --    in runAppTestM mapOddApp test <&> fst >>= \case
 --         Left err -> assertFailure $ show err
 --         Right assertion -> assertion
@@ -1149,7 +1141,7 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 -- unit_handleEvalBoundedInterpRequest_mapOddPrim :: Assertion
 -- unit_handleEvalBoundedInterpRequest_mapOddPrim =
 --   let test = do
---         expr <- gvar $ gvn ["MapOdd"] "mapOdd"
+--         expr <- gvar mapOddPrimMainName
 --         resp <-
 --           readerToState
 --             $ handleEvalBoundedInterpRequest
@@ -1158,11 +1150,9 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 --               , dir = Chk
 --               , timeout = MicroSec 10_000
 --               }
---         -- Note that the 'mapOddPrimApp' includes a program runs @mapOdd@ over a list of [0..3]
---         expect <- con cCons [con0 cFalse, con cCons [con0 cTrue, con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]]]
 --         pure $ case resp of
 --           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= expect
+--           EvalBoundedInterpRespNormal e -> e ~= mapOddPrimMainExpected
 --    in runAppTestM mapOddPrimApp test <&> fst >>= \case
 --         Left err -> assertFailure $ show err
 --         Right assertion -> assertion

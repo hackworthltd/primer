@@ -159,12 +159,13 @@ import Primer.App (
   newApp,
   newEmptyApp,
   progAllDefs,
-  progAllTypeDefs,
   progAllTypeDefsMeta,
   progCxt,
+  progDefMap,
   progImports,
   progModules,
   progSelection,
+  progTypeDefMap,
   redoLogEmpty,
   runEditAppM,
   runQueryAppM,
@@ -1494,7 +1495,7 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefsMeta prog
-      allDefs' = snd <$> allDefs
+      allDefs' = progDefMap prog
       allTypeDefs' = forgetTypeDefMetadata . snd <$> allTypeDefs
   case selection of
     SelectionDef sel -> do
@@ -1526,11 +1527,11 @@ actionOptions ::
 actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selection, action) -> do
   app <- getApp sid
   let prog = appProg app
-      allDefs = progAllDefs prog
-      allTypeDefs = progAllTypeDefs prog
+      allDefs = progDefMap prog
+      allTypeDefs = progTypeDefMap prog
   def <- snd <$> findASTTypeOrTermDef prog selection
   maybe (throwM $ ActionOptionsNoID selection) pure
-    $ Available.options (snd <$> allTypeDefs) (snd <$> allDefs) (progCxt prog) level def selection action
+    $ Available.options allTypeDefs allDefs (progCxt prog) level def selection action
 
 findASTDef :: MonadThrow m => Map GVarName (Editable, Def.Def) -> GVarName -> m (Editable, ASTDef)
 findASTDef allDefs def = case allDefs Map.!? def of
@@ -1562,7 +1563,7 @@ applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selec
   def <- snd <$> findASTTypeOrTermDef prog selection
   actions <-
     either (throwM . ToProgActionError (Available.NoInput action)) pure
-      $ toProgActionNoInput (snd <$> progAllDefs prog) def selection action
+      $ toProgActionNoInput (progDefMap prog) def selection action
   applyActions sid actions
 
 applyActionInput ::

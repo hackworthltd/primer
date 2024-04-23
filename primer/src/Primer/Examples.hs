@@ -41,6 +41,14 @@ module Primer.Examples (
   even3App,
   mapOddApp,
   mapOddPrimApp,
+
+  -- * Metadata about the examples.
+  even3MainName,
+  even3MainExpected,
+  mapOddMainName,
+  mapOddMainExpected,
+  mapOddPrimMainName,
+  mapOddPrimMainExpected,
 ) where
 
 import Foreword hiding (
@@ -64,6 +72,7 @@ import Primer.Builtins.DSL (
   nat,
  )
 import Primer.Core (
+  Expr,
   GVarName,
   ID,
   ModuleName (unModuleName),
@@ -81,6 +90,7 @@ import Primer.Core.DSL (
   con0,
   con1,
   create,
+  create',
   emptyHole,
   gvar,
   gvar',
@@ -360,10 +370,10 @@ evenOddModule modName =
       , nextID
       )
 
--- | A program whose @main@ asks whether 3 is even.
-even3Prog :: (Prog, ID, NameCounter)
-even3Prog =
+even3 :: (Prog, ID, NameCounter, GVarName, Expr)
+even3 =
   let modName = mkSimpleModuleName "Even3"
+      mainName = "even 3?"
       ((builtinMod, defs), nextID) = create $ do
         builtinModule' <- builtinModule
         (_, evenDef) <- even modName
@@ -372,7 +382,7 @@ even3Prog =
           type_ <- tcon B.tBool
           term <- gvar (qualifyName modName "even") `app` con1 B.cSucc (con1 B.cSucc $ con1 B.cSucc $ con0 B.cZero)
           pure $ DefAST $ ASTDef term type_
-        let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
+        let globs = [("even", evenDef), ("odd", oddDef), (mainName, even3Def)]
         pure (builtinModule', globs)
    in ( defaultProg
           { progImports = [builtinMod]
@@ -386,12 +396,18 @@ even3Prog =
           }
       , nextID
       , toEnum 0
+      , qualifyName modName mainName
+      , create' $ con0 B.cFalse
       )
 
--- | A program whose @main@ 'map's 'odd' over a list of 'B.tNat'.
-mapOddProg :: Int -> (Prog, ID, NameCounter)
-mapOddProg len =
+-- | A program whose @main@ asks whether 3 is even.
+even3Prog :: (Prog, ID, NameCounter)
+even3Prog = prog even3
+
+mapOdd :: Int -> (Prog, ID, NameCounter, GVarName, Expr)
+mapOdd len =
   let modName = mkSimpleModuleName "MapOdd"
+      mainName = "mapOdd"
       ((builtinMod, defs), nextID) = create $ do
         builtinModule' <- builtinModule
         (_, evenDef) <- even modName
@@ -402,7 +418,7 @@ mapOddProg len =
           term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
           type_ <- tcon B.tList `tapp` tcon B.tBool
           pure $ DefAST $ ASTDef term type_
-        let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
+        let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), (mainName, mapOddDef)]
         pure (builtinModule', globs)
    in ( defaultProg
           { progImports = [builtinMod]
@@ -416,14 +432,18 @@ mapOddProg len =
           }
       , nextID
       , toEnum 0
+      , qualifyName modName mainName
+      , create' $ con B.cCons [con0 B.cFalse, con B.cCons [con0 B.cTrue, con B.cCons [con0 B.cFalse, con B.cCons [con0 B.cTrue, con B.cNil []]]]]
       )
 
--- | A program whose @main@ 'map's 'odd' over a list of 'P.tInt'.
--- This is the same as 'mapOddProg', except it works over primitive
--- integers, rather than inductively-defined naturals.
-mapOddPrimProg :: Int -> (Prog, ID, NameCounter)
-mapOddPrimProg len =
+-- | A program whose @main@ 'map's 'odd' over a list of 'B.tNat'.
+mapOddProg :: Int -> (Prog, ID, NameCounter)
+mapOddProg = prog . mapOdd
+
+mapOddPrim :: Int -> (Prog, ID, NameCounter, GVarName, Expr)
+mapOddPrim len =
   let modName = mkSimpleModuleName "MapOdd"
+      mainName = "mapOdd"
       ((builtinMod, primitiveMod, defs), nextID) = create $ do
         builtinModule' <- builtinModule
         primitiveModule' <- primitiveModule
@@ -444,7 +464,7 @@ mapOddPrimProg len =
           let lst = list_ $ take len $ int <$> [0 ..]
           term <- gvar mapName `aPP` tcon P.tInt `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
-        let globs = [("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
+        let globs = [("odd", oddDef), ("map", mapDef), (mainName, mapOddDef)]
         pure (builtinModule', primitiveModule', globs)
    in ( defaultProg
           { progImports = [builtinMod, primitiveMod]
@@ -458,7 +478,15 @@ mapOddPrimProg len =
           }
       , nextID
       , toEnum 0
+      , qualifyName modName mainName
+      , create' $ con B.cCons [con0 B.cFalse, con B.cCons [con0 B.cTrue, con B.cCons [con0 B.cFalse, con B.cCons [con0 B.cTrue, con B.cNil []]]]]
       )
+
+-- | A program whose @main@ 'map's 'odd' over a list of 'P.tInt'.
+-- This is the same as 'mapOddProg', except it works over primitive
+-- integers, rather than inductively-defined naturals.
+mapOddPrimProg :: Int -> (Prog, ID, NameCounter)
+mapOddPrimProg = prog . mapOddPrim
 
 -- | A "bad" version of 'even3Prog' where the type of @even 3?@ is
 -- specified as @Nat@.
@@ -551,3 +579,36 @@ mapOddPrimApp :: App
 mapOddPrimApp =
   let (p, id_, nc) = mapOddPrimProg 4
    in mkApp id_ nc p
+
+prog :: (Prog, ID, NameCounter, GVarName, Expr) -> (Prog, ID, NameCounter)
+prog f =
+  let (p, i, n, _, _) = f
+   in (p, i, n)
+
+main :: (Prog, ID, NameCounter, GVarName, Expr) -> GVarName
+main f =
+  let (_, _, _, m, _) = f
+   in m
+
+expected :: (Prog, ID, NameCounter, GVarName, Expr) -> Expr
+expected f =
+  let (_, _, _, _, expect) = f
+   in expect
+
+even3MainName :: GVarName
+even3MainName = main even3
+
+even3MainExpected :: Expr
+even3MainExpected = expected even3
+
+mapOddMainName :: GVarName
+mapOddMainName = main $ mapOdd 4
+
+mapOddMainExpected :: Expr
+mapOddMainExpected = expected $ mapOdd 4
+
+mapOddPrimMainName :: GVarName
+mapOddPrimMainName = main $ mapOddPrim 4
+
+mapOddPrimMainExpected :: Expr
+mapOddPrimMainExpected = expected $ mapOddPrim 4
