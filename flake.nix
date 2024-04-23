@@ -16,11 +16,14 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+
     # Let haskell.nix dictate the nixpkgs we use, as that will ensure
     # better haskell.nix cache hits.
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
     hacknix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
   };
@@ -73,6 +76,7 @@
 
       imports = [
         inputs.pre-commit-hooks-nix.flakeModule
+        inputs.treefmt-nix.flakeModule
       ];
       systems = [ "x86_64-linux" "aarch64-darwin" ];
 
@@ -195,49 +199,16 @@
               overlays = allOverlays;
             };
 
-          pre-commit =
-            let
-              # Override the default nix-pre-commit-hooks tools with the version
-              # we're using.
-              haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-                hlint = "latest";
-                fourmolu = fourmoluVersion;
-                cabal-fmt = cabal-fmt-override;
-              };
-            in
-            {
-              check.enable = true;
-              settings = {
-                src = ./.;
-                hooks = {
-                  hlint.enable = true;
-                  fourmolu.enable = true;
-                  cabal-fmt.enable = true;
-                  nixpkgs-fmt.enable = true;
-                  # Note: doesn't appear to pick up `bugreport.sh`.
-                  # https://github.com/hackworthltd/primer/issues/1018
-                  shellcheck.enable = true;
-                  actionlint.enable = true;
-                };
-
-                # We need to force these due to
-                #
-                # https://github.com/cachix/pre-commit-hooks.nix/issues/204
-                tools = {
-                  nixpkgs-fmt = pkgs.lib.mkForce pkgs.nixpkgs-fmt;
-                  hlint = pkgs.lib.mkForce haskellNixTools.hlint;
-                  fourmolu = pkgs.lib.mkForce haskellNixTools.fourmolu;
-                  cabal-fmt = pkgs.lib.mkForce haskellNixTools.cabal-fmt;
-                };
-
-                excludes = [
-                  "primer/test/outputs"
-                  "primer-api/test/outputs"
-                  "primer-service/test/outputs"
-                  ".buildkite/"
-                ];
+          pre-commit = {
+            check.enable = true;
+            settings = {
+              src = ./.;
+              hooks = {
+                treefmt.enable = true;
+                actionlint.enable = true;
               };
             };
+          };
 
           packages = {
             inherit (pkgs) primer-service primer-client primer-openapi-spec;
@@ -319,8 +290,48 @@
             })
             // primerFlake.apps;
 
+          treefmt.config =
+            let
+              haskellExcludes = [
+                "primer/test/outputs"
+                "primer-api/test/outputs"
+                "primer-service/test/outputs"
+              ];
+
+              haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
+                hlint = "latest";
+                fourmolu = fourmoluVersion;
+                cabal-fmt = cabal-fmt-override;
+              };
+            in
+            {
+              projectRootFile = "flake.nix";
+
+              programs.hlint = {
+                enable = true;
+                package = haskellNixTools.hlint;
+              };
+              programs.cabal-fmt = {
+                enable = true;
+                package = haskellNixTools.cabal-fmt;
+              };
+              programs.fourmolu = {
+                enable = true;
+                package = haskellNixTools.fourmolu;
+              };
+              programs.nixpkgs-fmt.enable = true;
+              programs.shellcheck.enable = true;
+
+              settings.formatter.hlint.excludes = haskellExcludes;
+              settings.formatter.fourmolu.excludes = haskellExcludes;
+            };
+
           devShells = {
-            default = primerFlake.devShell;
+            default = primerFlake.devShell // {
+              inputsFrom = [
+                config.treefmt.build.devShell
+              ];
+            };
           } // (pkgs.lib.optionalAttrs (system == "x86_64-linux")) {
             # Unfortunately, this is only available on x86_64-linux.
             wasm = pkgs.mkShell {
