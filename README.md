@@ -50,11 +50,14 @@ subject to change.
   [DoS](https://en.wikipedia.org/wiki/Denial-of-service_attack) the
   server on which it runs.
 
-* The current implementation of the evaluator is very slow. Running
-  very large programs, or even small programs that generate many
-  reduction steps, is not practical at this time. We're well aware of
-  this limitation, and we plan to focus on evaluation performance once
-  version 1.0 of the language specification is complete.
+* The current implementation of the step evaluator is very slow.
+  Running very large programs, or even small programs that generate
+  many reduction steps, is not practical at this time. Primer now also
+  features an interpreter which is up to a few orders of magnitude
+  faster than the step evaluator, but we lose the ability to step
+  through programs redex-at-a-time as we can with the step evaluator.
+  We plan to do future research to attempt to combine the two
+  approaches somehow.
 
 * Even the most minor frontend requests result in the entire program
   AST being sent over the network, rather than only what's changed.
