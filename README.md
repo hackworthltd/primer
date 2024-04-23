@@ -86,9 +86,10 @@ subject to change.
 * At the moment, Primer is a pure functional programming language,
   with no effects system. This means, for example, it's not currently
   possible to [draw animated cats](https://scratch.mit.edu) using
-  Primer. We plan to implement an effects system in version 2.0 of the
-  language specification, but that will work will not begin for some
-  time.
+  Primer. We're currently undecided on whether to add an effects
+  system to version 2.0 of the language, or to eschew language-level
+  effects entirely in favor of a different approach more suited to
+  novices.
   
 * We've yet to do any rigorous testing of Primer with students, and
   none at all in classrooms. Primer may turn out not be an effective
