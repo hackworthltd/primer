@@ -35,6 +35,7 @@ import Database.Selda (
   MonadSelda,
   OuterCols,
   Query,
+  Relational,
   Row,
   SeldaError,
   SeldaT,
@@ -165,6 +166,7 @@ data SessionRow = SessionRow
   deriving stock (Generic)
 
 instance SqlRow SessionRow
+instance Relational SessionRow
 
 -- | The database's sessions table.
 sessions :: Table SessionRow

@@ -62,17 +62,17 @@ if arch(wasm32)
 -- Hackage, plus some GHC 9.6 fixes from a community fork.
 source-repository-package
   type: git
-  location: https://github.com/guibou/selda
-  tag: 54c12169ce8cd46a7b3c698f65cea55e41a13fe6
+  location: https://github.com/novadiscovery/selda
+  tag: 2e3dc54d7de8365b3be84da76f08327dc8b40f61
   subdir: selda
-  --sha256: 0q8m8asmb83mpa3j3adlrhc446xif7gv6lql20gv05k33lmbjfhg
+  --sha256: 0fw336sb03sc54pzmkz6jn989zvbnwnzypb9n0ackprymnvh8mym
 
 source-repository-package
   type: git
-  location: https://github.com/guibou/selda
-  tag: 54c12169ce8cd46a7b3c698f65cea55e41a13fe6
+  location: https://github.com/novadiscovery/selda
+  tag: 2e3dc54d7de8365b3be84da76f08327dc8b40f61
   subdir: selda-sqlite
-  --sha256: 0q8m8asmb83mpa3j3adlrhc446xif7gv6lql20gv05k33lmbjfhg
+  --sha256: 0fw336sb03sc54pzmkz6jn989zvbnwnzypb9n0ackprymnvh8mym
 
 -- Wasm workarounds.
 --
