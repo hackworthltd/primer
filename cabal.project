@@ -30,17 +30,7 @@ haddock-quickjump:        True
 haddock-hyperlink-source: True
 haddock-internal:         True
 
-allow-newer:
-  , hedgehog-classes:hedgehog
-  , hedgehog-classes:pretty-show
-  , hedgehog:pretty-show
-  , logging-effect:base
-  , refined:base
-  , refined:deepseq
-  , refined:template-haskell
-  , refined:aeson
-  , these-skinny:base
-  , selda:bytestring
+allow-newer: all
 
 package *
   ghc-options: -fwrite-ide-info

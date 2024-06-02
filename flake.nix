@@ -47,7 +47,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc982";
+      ghcVersion = "ghc9101";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -61,6 +61,16 @@
         inputs.haskell-nix.overlay
         inputs.self.overlays.default
       ];
+
+      # cabal needs an override for GHC 9.10.1.
+      cabal-override =
+        {
+          version = "latest";
+          cabalProject = ''
+            packages: .
+            allow-newer: all
+          '';
+        };
 
       # cabal-fmt needs an override for GHC 9.8.1.
       cabal-fmt-override = {
@@ -300,8 +310,8 @@
 
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
                 hlint = "latest";
-                fourmolu = fourmoluVersion;
-                cabal-fmt = cabal-fmt-override;
+                #fourmolu = fourmoluVersion;
+                #cabal-fmt = cabal-fmt-override;
               };
             in
             {
@@ -311,14 +321,14 @@
                 enable = true;
                 package = haskellNixTools.hlint;
               };
-              programs.cabal-fmt = {
-                enable = true;
-                package = haskellNixTools.cabal-fmt;
-              };
-              programs.fourmolu = {
-                enable = true;
-                package = haskellNixTools.fourmolu;
-              };
+              # programs.cabal-fmt = {
+              #   enable = true;
+              #   package = haskellNixTools.cabal-fmt;
+              # };
+              # programs.fourmolu = {
+              #   enable = true;
+              #   package = haskellNixTools.fourmolu;
+              # };
               programs.nixpkgs-fmt.enable = true;
               programs.shellcheck.enable = true;
 
@@ -474,21 +484,21 @@
                   withHoogle = true;
 
                   tools = {
-                    ghcid = "latest";
+                    #ghcid = "latest";
 
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.8";
+                    #haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.8";
 
                     implicit-hie = "latest";
 
-                    cabal = "latest";
-                    hlint = "latest";
+                    cabal = cabal-override;
+                    #hlint = "latest";
 
                     # Disabled, as it doesn't currently build with Nix.
                     #weeder = weederVersion;
 
-                    fourmolu = fourmoluVersion;
+                    #fourmolu = fourmoluVersion;
 
-                    cabal-fmt = cabal-fmt-override;
+                    #cabal-fmt = cabal-fmt-override;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
