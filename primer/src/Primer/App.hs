@@ -1737,7 +1737,6 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     let sharedScope =
           if fromDefName == toDefName
             then -- We rely here on the fact that there are no binders in kinds
-
               getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c)
                 $ Right
                 $ either identity unfocusKindT tgt
