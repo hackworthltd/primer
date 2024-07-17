@@ -476,7 +476,7 @@
                   tools = {
                     ghcid = "latest";
 
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.8";
+                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.9";
 
                     implicit-hie = "latest";
 
