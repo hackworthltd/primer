@@ -85,7 +85,7 @@ unit_shadow_no_reused_binders =
         e0 <-
           ( lam "f" (lvar "f" `app` lvar "f")
               `ann` ((tEmptyHole `tfun` tEmptyHole) `tfun` tEmptyHole)
-            )
+          )
             `app` lam "g" (lam "y" $ lvar "g" `app` lvar "y")
         e4 <-
           ( let_
@@ -98,7 +98,7 @@ unit_shadow_no_reused_binders =
               )
               (lam "y" $ lvar "g" `app` lvar "y")
               `ann` tEmptyHole
-            )
+          )
             `ann` tEmptyHole
         let z = "a88"
         e5 <-
@@ -112,7 +112,7 @@ unit_shadow_no_reused_binders =
               )
               (lam z $ let_ "y" (lvar z) $ lvar "g" `app` lvar "y")
               `ann` tEmptyHole
-            )
+          )
             `ann` tEmptyHole
         pure (e0, [(0, e0), (4, e4), (5, e5)])
    in do

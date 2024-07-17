@@ -89,12 +89,13 @@ renameVar x y expr = case expr of
   APP{} -> substAllChildren
   Con{} -> substAllChildren
   PrimCon{} -> substAllChildren
-  -- We assume the term is well-scoped, so do not have any references to the
-  -- term vars x,y inside any type child (e.g. annotation), so no need to
-  -- consider renaming inside them. However, but we do need to worry about
-  -- references to the type var y (term and type variables are in the same
-  -- namespace) -- we do not want to capture such a y.
   where
+    -- We assume the term is well-scoped, so do not have any references to the
+    -- term vars x,y inside any type child (e.g. annotation), so no need to
+    -- consider renaming inside them. However, but we do need to worry about
+    -- references to the type var y (term and type variables are in the same
+    -- namespace) -- we do not want to capture such a y.
+
     substAllChildren = do
       guard $ noneOf (typesInExpr % getting _freeVarsTy % _2) (`sameVarRef` y) expr
       descendM (renameVar x y) expr
