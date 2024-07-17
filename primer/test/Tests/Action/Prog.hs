@@ -1313,8 +1313,7 @@ unit_ConFieldAction =
 unit_ParamKindAction_1 :: Assertion
 unit_ParamKindAction_1 =
   progActionTest
-    ( defaultProgEditableTypeDefs (pure [])
-    )
+    (defaultProgEditableTypeDefs (pure []))
     [ParamKindAction tT pB [SetCursor 45, ConstructKFun]]
     $ expectSuccess
     $ \_ prog' -> do
@@ -1327,8 +1326,7 @@ unit_ParamKindAction_1 =
 unit_ParamKindAction_2 :: Assertion
 unit_ParamKindAction_2 =
   progActionTest
-    ( defaultProgEditableTypeDefs (pure [])
-    )
+    (defaultProgEditableTypeDefs (pure []))
     [ ParamKindAction tT pB [SetCursor 45, ConstructKFun]
     , ParamKindAction tT pB [SetCursor 51, ConstructKType]
     ]
@@ -1337,8 +1335,7 @@ unit_ParamKindAction_2 =
 unit_ParamKindAction_2b :: Assertion
 unit_ParamKindAction_2b =
   progActionTest
-    ( defaultProgEditableTypeDefs (pure [])
-    )
+    (defaultProgEditableTypeDefs (pure []))
     [ ParamKindAction tT pB [SetCursor 45, ConstructKFun]
     , ParamKindAction tT pB [SetCursor 51, Delete]
     ]
@@ -1353,8 +1350,7 @@ unit_ParamKindAction_2b =
 unit_ParamKindAction_3 :: Assertion
 unit_ParamKindAction_3 =
   progActionTest
-    ( defaultProgEditableTypeDefs (pure [])
-    )
+    (defaultProgEditableTypeDefs (pure []))
     [ ParamKindAction tT pA [SetCursor 44, Delete]
     ]
     $ expectSuccess
@@ -1368,8 +1364,7 @@ unit_ParamKindAction_3 =
 unit_ParamKindAction_bad_id :: Assertion
 unit_ParamKindAction_bad_id =
   progActionTest
-    ( defaultProgEditableTypeDefs (pure [])
-    )
+    (defaultProgEditableTypeDefs (pure []))
     [ ParamKindAction tT pB [SetCursor 45, ConstructKFun]
     , ParamKindAction tT pB [SetCursor 0, ConstructKType]
     ]

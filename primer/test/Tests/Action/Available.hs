@@ -587,8 +587,7 @@ genLoc a = do
                       [
                         ( 1
                         , pure
-                            ( typeDefParamNodeSel Nothing
-                            )
+                            (typeDefParamNodeSel Nothing)
                         )
                       ,
                         ( 3
@@ -599,8 +598,7 @@ genLoc a = do
                                   KFun m k1 k2 -> [getID m] <> allKindIDs k1 <> allKindIDs k2
                             id <- Gen.element @[] $ allKindIDs k
                             pure
-                              ( typeDefParamNodeSel $ Just id
-                              )
+                              (typeDefParamNodeSel $ Just id)
                         )
                       ]
               )
@@ -622,8 +620,7 @@ genLoc a = do
                                 (n, t) <- Gen.element $ zip [0 ..] as
                                 i <- Gen.element $ t ^.. typeIDs
                                 pure
-                                  ( typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i
-                                  )
+                                  (typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i)
                             )
                           ]
               )

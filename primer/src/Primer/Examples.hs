@@ -267,8 +267,7 @@ comprehensive' typeable modName = do
               ( hole
                   (con B.cJust [emptyHole] `ann` (tcon B.tMaybe `tapp` tEmptyHole))
               )
-              ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
-              )
+              (if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName")
           )
           ( thole
               (tcon B.tMaybe)
