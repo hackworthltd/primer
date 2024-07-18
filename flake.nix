@@ -47,7 +47,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc982";
+      ghcVersion = "ghc9101";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -62,7 +62,7 @@
         inputs.self.overlays.default
       ];
 
-      # cabal-fmt needs an override for GHC 9.8.1.
+      # cabal-fmt needs an override for GHC > 9.8.1.
       cabal-fmt-override = {
         version = "latest";
         cabalProject = ''
@@ -299,22 +299,30 @@
               ];
 
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-                hlint = "latest";
+                # Disabled for GHC 9.10.
+                # https://github.com/ndmitchell/hlint/pull/1594
+                #hlint = "latest";
                 fourmolu = fourmoluVersion;
-                cabal-fmt = cabal-fmt-override;
+
+                # Disabled for GHC 9.10.
+                # https://github.com/input-output-hk/haskell.nix/issues/2205
+                #cabal-fmt = cabal-fmt-override;
               };
             in
             {
               projectRootFile = "flake.nix";
 
-              programs.hlint = {
-                enable = true;
-                package = haskellNixTools.hlint;
-              };
-              programs.cabal-fmt = {
-                enable = true;
-                package = haskellNixTools.cabal-fmt;
-              };
+              # Disabled for GHC 9.10.
+              # programs.hlint = {
+              #   enable = true;
+              #   package = haskellNixTools.hlint;
+              # };
+
+              # Disabled for GHC 9.10.
+              # programs.cabal-fmt = {
+              #   enable = true;
+              #   package = haskellNixTools.cabal-fmt;
+              # };
               programs.fourmolu = {
                 enable = true;
                 package = haskellNixTools.fourmolu;
@@ -322,7 +330,9 @@
               programs.nixpkgs-fmt.enable = true;
               programs.shellcheck.enable = true;
 
-              settings.formatter.hlint.excludes = haskellExcludes;
+              # Disabled for GHC 9.10.
+              #settings.formatter.hlint.excludes = haskellExcludes;
+
               settings.formatter.fourmolu.excludes = haskellExcludes;
             };
 
@@ -337,8 +347,8 @@
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [
-                  wasm32-wasi-ghc-9_8
-                  wasm32-wasi-cabal-9_8
+                  wasm32-wasi-ghc-9_10
+                  wasm32-wasi-cabal-9_10
                   wasmtime
 
                   pkgs.gnumake
@@ -481,14 +491,17 @@
                     implicit-hie = "latest";
 
                     cabal = "latest";
-                    hlint = "latest";
+
+                    # Disabled for GHC 9.10.
+                    #hlint = "latest";
 
                     # Disabled, as it doesn't currently build with Nix.
                     #weeder = weederVersion;
 
                     fourmolu = fourmoluVersion;
 
-                    cabal-fmt = cabal-fmt-override;
+                    # Disabled for GHC 9.10.
+                    #cabal-fmt = cabal-fmt-override;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";

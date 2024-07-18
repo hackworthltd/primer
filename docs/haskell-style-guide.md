@@ -100,7 +100,7 @@ import Foreword
 * We can't make promises on backward compatibility with GHC releases older than the one we're currently using to develop the project, but we won't break compatibility arbitrarily.
 * We will make a best-effort attempt to test all supported GHC versions in CI.
 * As a general rule, we would like to avoid CPP-style conditional compilation, except as a last resort.
-* We expect the 1.0 release of the project to have a minimum requirement of at least [GHC `9.6.1`](https://www.haskell.org/ghc/download_ghc_9_6_1.html), as we want to take advantage of that version's support for [JavaScript](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/javascript.html) and [WebAssembly](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/wasm.html?highlight=wasm) targets.
+* We expect the 1.0 release of the project to have a minimum requirement of at least [GHC `9.10.1`](https://www.haskell.org/ghc/download_ghc_9_6_1.html), as we want to take advantage of that version's support for [JavaScript](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/javascript.html) and [WebAssembly](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/wasm.html?highlight=wasm) targets.
 * We do not plan to support Haskell implementations other than GHC.
 
 ## Spelling & grammar
