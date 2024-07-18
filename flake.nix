@@ -299,21 +299,16 @@
               ];
 
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-                # Disabled for GHC 9.10.
-                # https://github.com/ndmitchell/hlint/pull/1594
-                #hlint = "latest";
                 fourmolu = fourmoluVersion;
               };
             in
             {
               projectRootFile = "flake.nix";
 
-              # Disabled for GHC 9.10.
-              # programs.hlint = {
-              #   enable = true;
-              #   package = haskellNixTools.hlint;
-              # };
-
+              programs.hlint = {
+                enable = true;
+                package = pkgs.hlint;
+              };
               programs.cabal-fmt = {
                 enable = true;
                 package = pkgs.cabal-fmt;
@@ -325,9 +320,7 @@
               programs.nixpkgs-fmt.enable = true;
               programs.shellcheck.enable = true;
 
-              # Disabled for GHC 9.10.
-              #settings.formatter.hlint.excludes = haskellExcludes;
-
+              settings.formatter.hlint.excludes = haskellExcludes;
               settings.formatter.fourmolu.excludes = haskellExcludes;
             };
 
@@ -373,6 +366,7 @@
           overlays.default = (final: prev:
             let
               ghc982Tools = final.haskell-nix.tools "ghc982" {
+                hlint = "latest";
                 cabal-fmt = "latest";
               };
 
@@ -491,9 +485,6 @@
 
                     cabal = "latest";
 
-                    # Disabled for GHC 9.10.
-                    #hlint = "latest";
-
                     # Disabled, as it doesn't currently build with Nix.
                     #weeder = weederVersion;
 
@@ -508,6 +499,7 @@
                     sqlite
                     openapi-generator-cli
 
+                    hlint
                     cabal-fmt
 
                     # For Language Server support.
@@ -663,7 +655,7 @@
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
 
-              inherit (ghc982Tools) cabal-fmt;
+              inherit (ghc982Tools) cabal-fmt hlint;
             }
           );
 
