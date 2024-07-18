@@ -303,10 +303,6 @@
                 # https://github.com/ndmitchell/hlint/pull/1594
                 #hlint = "latest";
                 fourmolu = fourmoluVersion;
-
-                # Disabled for GHC 9.10.
-                # https://github.com/input-output-hk/haskell.nix/issues/2205
-                #cabal-fmt = cabal-fmt-override;
               };
             in
             {
@@ -318,11 +314,10 @@
               #   package = haskellNixTools.hlint;
               # };
 
-              # Disabled for GHC 9.10.
-              # programs.cabal-fmt = {
-              #   enable = true;
-              #   package = haskellNixTools.cabal-fmt;
-              # };
+              programs.cabal-fmt = {
+                enable = true;
+                package = pkgs.cabal-fmt;
+              };
               programs.fourmolu = {
                 enable = true;
                 package = haskellNixTools.fourmolu;
@@ -377,6 +372,10 @@
         {
           overlays.default = (final: prev:
             let
+              ghc982Tools = final.haskell-nix.tools "ghc982" {
+                cabal-fmt = "latest";
+              };
+
               sqitch = final.callPackage ./nix/pkgs/sqitch {
                 sqliteSupport = true;
               };
@@ -500,9 +499,6 @@
 
                     fourmolu = fourmoluVersion;
 
-                    # Disabled for GHC 9.10.
-                    #cabal-fmt = cabal-fmt-override;
-
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
                   };
@@ -511,6 +507,8 @@
                     nixpkgs-fmt
                     sqlite
                     openapi-generator-cli
+
+                    cabal-fmt
 
                     # For Language Server support.
                     nodejs-18_x
@@ -664,6 +662,8 @@
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
+
+              inherit (ghc982Tools) cabal-fmt;
             }
           );
 
