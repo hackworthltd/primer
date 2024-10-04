@@ -97,22 +97,26 @@ mkEnv tms prims tys =
 -- | Convert an environment into the form needed for 'interp'
 mkGlobalEnv :: DefMap -> (EnvTm, EnvTy)
 mkGlobalEnv defs =
-  mkEnv
-    ( mapMaybe
-        ( \(f, d) -> case d of
-            DefAST (ASTDef tm ty) -> Just (Left f, Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
-            _ -> Nothing
-        )
-        $ Map.assocs defs
-    )
-    ( Map.mapMaybe
-        ( \case
-            DefPrim p -> Just p
-            _ -> Nothing
-        )
-        defs
-    )
-    mempty
+  ( EnvTm
+      { vars = mempty
+      , env =
+          Map.mapKeysMonotonic Left $
+            Map.mapMaybe
+              ( \case
+                  DefAST (ASTDef tm ty) -> Just (Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
+                  _ -> Nothing
+              )
+              defs
+      , prims =
+          Map.mapMaybe
+            ( \case
+                DefPrim p -> Just p
+                _ -> Nothing
+            )
+            defs
+      }
+  , EnvTy mempty mempty
+  )
 
 data InterpError
   = Timeout
