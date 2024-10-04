@@ -1,6 +1,8 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Primer.EvalFullInterp (
   interp,
@@ -10,21 +12,24 @@ module Primer.EvalFullInterp (
   Dir (..),
   mkEnv,
   mkGlobalEnv,
+  EnvTm (..),
+  globalsAsLetrecs,
 ) where
 
 import Foreword
 
 import Control.Exception (throw)
+import Data.Generics.Uniplate.Operations (transform)
 import Data.Map.Lazy qualified as Map
 import Data.Set qualified as Set
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
-  CaseFallback' (CaseFallback),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr' (..),
   GVarName,
   LVarName,
-  LocalName,
+  LocalName (..),
   Pattern (PatCon, PatPrim),
   PrimCon,
   TmVarRef (GlobalVarRef, LocalVarRef),
@@ -35,7 +40,10 @@ import Primer.Core (
   bindName,
   caseBranchName,
   mapFallback,
+  mkSimpleModuleName,
+  qualifyName,
   unLocalName,
+  unsafeMkLocalName,
  )
 import Primer.Core.DSL.Meta (create')
 import Primer.Core.Transform (decomposeTAppCon, unfoldApp)
@@ -47,7 +55,7 @@ import Primer.Core.Utils (
   freeVarsTy,
   freshen,
  )
-import Primer.Def (ASTDef (ASTDef), Def (DefAST, DefPrim), DefMap)
+import Primer.Def (ASTDef (ASTDef), Def (DefAST, DefPrim), DefMap, defAST)
 import Primer.Eval.Redex (
   Dir (Chk, Syn),
  )
@@ -58,15 +66,17 @@ import Primer.JSON (
   ToJSON,
  )
 import Primer.Name (Name)
+import Primer.Pretty (compact, prettyPrintExpr)
 import Primer.Primitives (primConName, primFunDef)
 import Primer.Primitives.PrimDef (PrimDef)
 import Primer.TypeDef (
   ASTTypeDef (ASTTypeDef),
   TypeDef (TypeDefAST),
   TypeDefMap,
-  ValCon (valConArgs, valConName),
+  ValCon (ValCon, valConArgs, valConName),
  )
 import System.Timeout (timeout)
+import Prelude qualified
 
 -- Invariant: vars is the set of free vars in the values of the map
 -- Thus the binders we need to rename before going under them.
@@ -131,6 +141,70 @@ newtype Timeout = MicroSec Int
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Timeout
 
+globalsAsLetrecs :: DefMap -> Expr' () () () -> (Expr' () () (), (TyConName, TypeDef () ()))
+globalsAsLetrecs defs =
+  (,(tupleTypeName, TypeDefAST tupleType))
+    . Letrec
+      ()
+      allDefsAsTupleVar
+      allDefsAsTuple
+      (TCon () tupleTypeName)
+    -- TODO this is necessary at the moment but a tad overkill
+    -- since we've already run it on most of the subexpression
+    . replaceAllVars
+  where
+    astDefs =
+      map (second (\(ASTDef e t) -> (forgetMetadata e, forgetTypeMetadata t)))
+        $ mapMaybe (traverse defAST)
+        $ Map.toList defs
+    allDefsAsTuple =
+      Con () tupleConName
+        $ map
+          (\(_, (e, _)) -> replaceAllVars e)
+          astDefs
+    tupleType =
+      ASTTypeDef
+        []
+        [ ValCon
+            tupleConName
+            $ map (snd . snd) astDefs
+        ]
+        []
+    getFromTuple =
+      Map.fromList
+        $ map
+          ( \(i, (gv, _)) ->
+              ( gv
+              , Case
+                  ()
+                  (Var () $ LocalVarRef allDefsAsTupleVar)
+                  [ CaseBranch
+                      (PatCon tupleConName)
+                      (map (Bind () . patternBindingName . fst) $ zip [0 ..] astDefs)
+                      (Var () $ LocalVarRef $ patternBindingName i)
+                  ]
+                  CaseExhaustive
+              )
+          )
+        $ zip
+          [0 ..]
+          astDefs
+    -- TODO is this lazy enough?
+    replaceAllVars =
+      transform \case
+        Var () (GlobalVarRef v) -> case Map.lookup v getFromTuple of
+          Just e -> e
+          -- TODO handle better (this should really never happen)
+          Nothing -> Prelude.error "unknown global var"
+        e -> e
+    -- TODO use fresh names
+    patternBindingName = unsafeMkLocalName . ("pattern binding " <>) . show @Int
+    allDefsAsTupleVar = unsafeMkLocalName "the whole thing"
+    tupleConName :: ValConName
+    tupleConName = qualifyName (mkSimpleModuleName "tuple") "tuple"
+    tupleTypeName :: TyConName
+    tupleTypeName = qualifyName (mkSimpleModuleName "tuple") "tuple"
+
 -- | Wrap the interpreter in a IO-based timeout, and catch 'InterpError' exceptions
 interp ::
   Timeout ->
@@ -140,10 +214,16 @@ interp ::
   Expr' () () () ->
   IO (Either InterpError (Expr' () () ()))
 interp (MicroSec t) tydefs env dir e = do
+  -- r <- timeout t $ putStrLn $ take 10_000 $ show @_ @Prelude.String $ interp' tydefs env dir e
+  -- print r
+  -- pure $ Left Timeout
+
   e' <- timeout t (try $ evaluate $ force $ interp' tydefs env dir e)
-  pure $ case e' of
-    Nothing -> Left Timeout
-    Just e'' -> e''
+  case e' of
+    Nothing -> pure $ Left Timeout
+    Just e'' -> do
+      -- either mempty (prettyPrintExpr compact) e''
+      pure e''
 
 {- HLINT ignore interp' "Avoid restricted function" -}
 -- (we are intentionally using 'throw' here

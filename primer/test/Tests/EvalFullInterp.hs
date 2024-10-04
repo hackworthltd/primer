@@ -23,6 +23,8 @@ import Primer.App (
   handleEvalInterpRequest,
   importModules,
   newEmptyApp,
+  progDefMap,
+  progTypeDefMap,
  )
 import Primer.Builtins (
   boolDef,
@@ -48,8 +50,9 @@ import Primer.Core.Utils (
  )
 import Primer.Def (DefMap)
 import Primer.Eval
-import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), interp, mkGlobalEnv)
+import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), globalsAsLetrecs, interp, mkGlobalEnv)
 import Primer.EvalFullStep (evalFullStepCount)
+import Primer.Examples (even3MainExpected, even3MainName, even3Prog)
 import Primer.Gen.Core.Typed (forAllT, propertyWT)
 import Primer.Module (
   Module (..),
@@ -897,16 +900,16 @@ unit_prim_partial_map =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_interp_even3 :: Assertion
--- unit_interp_even3 =
---   let (prog, _, _) = even3Prog
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar even3MainName
---       expect = forgetMetadata even3MainExpected
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_even3 :: Assertion
+unit_interp_even3 =
+  let (prog, _, _) = even3Prog
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar even3MainName
+      expect = forgetMetadata even3MainExpected
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
 
 -- unit_interp_mapOdd2 :: Assertion
 -- unit_interp_mapOdd2 =
@@ -1385,10 +1388,14 @@ unit_lazy_head =
 -- * Utilities
 
 evalFullTest' :: Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest' t tydefs = interp t tydefs . mkGlobalEnv
+evalFullTest' t tydefs dm dir e = do
+  let (e', tupleType) = globalsAsLetrecs dm e
+      tydefs' = uncurry M.insert tupleType tydefs
+      env = mkGlobalEnv mempty --TODO not sure this is right - include primitives
+  interp t tydefs' env dir e'
 
 evalFullTest :: TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest = evalFullTest' (MicroSec (-1)) -- negative time means wait forever
+evalFullTest = evalFullTest' (MicroSec 1_000_000) -- negative time means wait forever
 
 unaryPrimTest :: (HasCallStack) => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
