@@ -62,14 +62,7 @@ source-repository-package
   type: git
   location: https://github.com/novadiscovery/selda
   tag: 2e3dc54d7de8365b3be84da76f08327dc8b40f61
-  subdir: selda
-  --sha256: 0fw336sb03sc54pzmkz6jn989zvbnwnzypb9n0ackprymnvh8mym
-
-source-repository-package
-  type: git
-  location: https://github.com/novadiscovery/selda
-  tag: 2e3dc54d7de8365b3be84da76f08327dc8b40f61
-  subdir: selda-sqlite
+  subdir: selda selda-sqlite
   --sha256: 0fw336sb03sc54pzmkz6jn989zvbnwnzypb9n0ackprymnvh8mym
 
 -- Wasm workarounds.
