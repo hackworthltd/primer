@@ -63,7 +63,7 @@ jobs:
           nix build -L .#packages.x86_64-linux.primer-benchmark-results-github-action-benchmark
 
       - name: Publish results
-        uses: benchmark-action/github-action-benchmark@v1.20.3
+        uses: benchmark-action/github-action-benchmark@v1.20.4
         with:
           name: Primer benchmarks
           tool: "customSmallerIsBetter"
