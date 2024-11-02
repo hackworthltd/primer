@@ -431,6 +431,17 @@
                     doHoogle = true;
                   }
                   {
+                    # Some packages are not visible to haskell.nix's planner, and need
+                    # to be added manually.
+                    #
+                    # Ref:
+                    # https://github.com/input-output-hk/haskell.nix/commit/61fbe408c01b6d61d010e6fb8e78bd19b5b025cc
+                    package-keys = [
+                      "bytestring-builder"
+                      "diagrams"
+                      "fail"
+                    ];
+
                     # These packages don't generate HIE files. See:
                     # https://github.com/input-output-hk/haskell.nix/issues/1242
                     packages.mtl-compat.writeHieFiles = false;
