@@ -503,6 +503,12 @@
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
+
+                    # Required until http-client-tls mess is resolved.
+                    #
+                    # Ref:
+                    # https://github.com/input-output-hk/haskell.nix/issues/2277
+                    hoogle.index-state = "2024-10-01T00:00:00Z";
                   };
 
                   buildInputs = (with final; [

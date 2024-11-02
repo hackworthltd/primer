@@ -135,7 +135,7 @@ executable primer-client
     , bytestring            >=0.10.8.2 && <0.13
     , directory
     , exceptions
-    , http-client-tls       ^>=0.3.6.1
+    , http-client-tls       ==0.3.6.3
     , optparse-applicative
     , primer
     , primer-service
