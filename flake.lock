@@ -268,6 +268,8 @@
         "url": "https://gitlab.haskell.org/ghc/ghc-wasm-meta"
       },
       "original": {
+        "ref": "refs/heads/master",
+        "rev": "a04cc1a2206d2030326e1d49be9c6a94ee4283a3",
         "type": "git",
         "url": "https://gitlab.haskell.org/ghc/ghc-wasm-meta"
       }
