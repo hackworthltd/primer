@@ -68,7 +68,7 @@ library primer-api-hedgehog
 
   build-depends:
     , base
-    , hedgehog                ^>=1.4
+    , hedgehog                ^>=1.5
     , primer
     , primer-api
     , primer:primer-hedgehog
