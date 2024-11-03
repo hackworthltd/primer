@@ -25,7 +25,7 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
+    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta?ref=refs/heads/master&rev=a04cc1a2206d2030326e1d49be9c6a94ee4283a3";
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -431,6 +431,17 @@
                     doHoogle = true;
                   }
                   {
+                    # Some packages are not visible to haskell.nix's planner, and need
+                    # to be added manually.
+                    #
+                    # Ref:
+                    # https://github.com/input-output-hk/haskell.nix/commit/61fbe408c01b6d61d010e6fb8e78bd19b5b025cc
+                    package-keys = [
+                      "bytestring-builder"
+                      "diagrams"
+                      "fail"
+                    ];
+
                     # These packages don't generate HIE files. See:
                     # https://github.com/input-output-hk/haskell.nix/issues/1242
                     packages.mtl-compat.writeHieFiles = false;
@@ -492,6 +503,12 @@
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
+
+                    # Required until http-client-tls mess is resolved.
+                    #
+                    # Ref:
+                    # https://github.com/input-output-hk/haskell.nix/issues/2277
+                    hoogle.index-state = "2024-10-01T00:00:00Z";
                   };
 
                   buildInputs = (with final; [
