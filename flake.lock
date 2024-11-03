@@ -259,17 +259,15 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1725254321,
-        "narHash": "sha256-lGBOi5kLXiadh+9erNcr4Ek+gpOe3BPthSvhkFQcdNQ=",
+        "lastModified": 1729816601,
+        "narHash": "sha256-/GrnRM/5f8DdC+8kuGLJijMBsUULZW5QJU3JcJFGJoc=",
         "ref": "refs/heads/master",
-        "rev": "a04cc1a2206d2030326e1d49be9c6a94ee4283a3",
-        "revCount": 183,
+        "rev": "64e6c8942a7805c0b3a2a7b74846ad962d142208",
+        "revCount": 191,
         "type": "git",
         "url": "https://gitlab.haskell.org/ghc/ghc-wasm-meta"
       },
       "original": {
-        "ref": "refs/heads/master",
-        "rev": "a04cc1a2206d2030326e1d49be9c6a94ee4283a3",
         "type": "git",
         "url": "https://gitlab.haskell.org/ghc/ghc-wasm-meta"
       }

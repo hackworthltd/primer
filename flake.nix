@@ -25,7 +25,7 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta?ref=refs/heads/master&rev=a04cc1a2206d2030326e1d49be9c6a94ee4283a3";
+    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -330,8 +330,6 @@
                 config.treefmt.build.devShell
               ];
             };
-          } // (pkgs.lib.optionalAttrs (system == "x86_64-linux")) {
-            # Unfortunately, this is only available on x86_64-linux.
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [

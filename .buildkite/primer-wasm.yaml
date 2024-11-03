@@ -21,6 +21,16 @@ steps:
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 test
 
+  - label: ":haskell: :macos: Primer Wasm tests"
+    if: |
+      build.branch =~ /^gh-readonly-queue\// ||
+      build.pull_request.labels includes "Run Wasm tests"
+    command: |
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 test
+    agents:
+      os: "darwin"
+
   - label: ":haskell: :linux: Primer Wasm build"
     if: |
       build.branch !~ /^gh-readonly-queue\// &&
@@ -28,3 +38,13 @@ steps:
     command: |
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32
+
+  - label: ":haskell: :macos: Primer Wasm build"
+    if: |
+      build.branch !~ /^gh-readonly-queue\// &&
+      !(build.pull_request.labels includes "Run Wasm tests")
+    command: |
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32
+    agents:
+      os: "darwin"
