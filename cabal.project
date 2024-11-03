@@ -15,25 +15,29 @@ else
     primer-benchmark
 
 if arch(wasm32)
-   package *
-     optimization: 2
+  haddock-hoogle:           False
+  haddock-html:             False
+  haddock-quickjump:        False
+  haddock-hyperlink-source: False
+  haddock-internal:         False
+  package *
+    optimization: 2
+    ghc-options: -fno-external-interpreter
 else
   optimization: 0
+  haddock-hoogle:           True
+  haddock-html:             True
+  haddock-quickjump:        True
+  haddock-hyperlink-source: True
+  haddock-internal:         True
+  package *
+    ghc-options: -fwrite-ide-info
 
 benchmarks: True
 
 tests: True
 
-haddock-hoogle:           True
-haddock-html:             True
-haddock-quickjump:        True
-haddock-hyperlink-source: True
-haddock-internal:         True
-
-allow-newer: servant-openapi3:base, openapi3:*, selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show
-
-package *
-  ghc-options: -fwrite-ide-info
+allow-newer: servant-openapi3:base, openapi3:*, selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time
 
 package primer
   test-options: "--size-cutoff=32768"
