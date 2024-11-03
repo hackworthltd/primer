@@ -162,7 +162,7 @@ library primer-hedgehog
     , base
     , containers
     , extra
-    , hedgehog        ^>=1.4
+    , hedgehog        ^>=1.5
     , mmorph          ^>=1.2.0
     , mtl
     , primer
