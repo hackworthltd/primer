@@ -442,12 +442,13 @@
                       "fail"
                     ];
 
-                    # These packages don't generate HIE files. See:
+                    # These packages don't/can't generate HIE files. See:
                     # https://github.com/input-output-hk/haskell.nix/issues/1242
                     packages.mtl-compat.writeHieFiles = false;
                     packages.bytestring-builder.writeHieFiles = false;
                     packages.fail.writeHieFiles = false;
                     packages.diagrams.writeHieFiles = false;
+                    packages.happy-lib.writeHieFiles = false;
                   }
                   {
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.

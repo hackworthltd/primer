@@ -1,4 +1,4 @@
-index-state: 2024-07-13T00:00:00Z
+index-state: 2024-11-02T00:00:00Z
 
 jobs: $ncpus
 
@@ -30,7 +30,7 @@ haddock-quickjump:        True
 haddock-hyperlink-source: True
 haddock-internal:         True
 
-allow-newer: all
+allow-newer: servant-openapi3:base, openapi3:*, selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show
 
 package *
   ghc-options: -fwrite-ide-info
