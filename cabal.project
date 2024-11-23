@@ -79,6 +79,9 @@ source-repository-package
 -- dependencies*, using Nix while in the Nix development shell.
 
 if arch(wasm32)
+  -- Required for TemplateHaskell support on Wasm targets.
+  shared: True
+
   -- Upstream requires `happy` at build time, which doesn't work on Wasm
   -- targets.
   source-repository-package
