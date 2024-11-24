@@ -22,7 +22,17 @@ $(test-targets):
 update:
 	$(CABAL) update
 
+frontend:
+	$(MAKE) -C primer-miso frontend
+
+frontend-prod:
+	$(MAKE) -C primer-miso frontend-prod
+
+serve-frontend:
+	$(MAKE) -C primer-miso serve-frontend
+
 clean:
 	$(CABAL) clean
+	$(MAKE) -C primer-miso clean
 
 .PHONY: build configure $(test-targets) update clean
