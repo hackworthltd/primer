@@ -70,6 +70,7 @@ module Primer.App (
   EvalBoundedInterpResp (..),
   lookupASTDef,
   liftError,
+  applyProgAction,
 ) where
 
 import Foreword hiding (mod)
