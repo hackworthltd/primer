@@ -1,0 +1,26 @@
+# NOTE:
+#
+# This Makefile assumes you're using the `nix develop .#wasm` shell.
+
+CABAL = wasm32-wasi-cabal
+
+build:	configure
+	$(CABAL) build
+
+frontend: build
+	./build-frontend.sh
+
+frontend-prod: build
+	./build-frontend.sh -Oz
+
+serve-frontend: frontend
+	simple-http-server -i -p 8000 -- dist
+
+configure:
+	$(CABAL) configure
+
+clean:
+	$(CABAL) clean
+	rm -rf dist/
+
+.PHONY: build configure clean
