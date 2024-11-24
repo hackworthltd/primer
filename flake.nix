@@ -333,11 +333,11 @@
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [
-                  wasm32-wasi-ghc-9_10
-                  wasm32-wasi-cabal-9_10
-                  wasmtime
+                  all_9_10
 
                   pkgs.gnumake
+                  pkgs.simple-http-server
+                  pkgs.brotli
 
                   # We need to run native `tasty-discover` at compile
                   # time, because we can't do it via `wasmtime`.
