@@ -100,8 +100,8 @@ step ::
   Dir ->
   ID ->
   m (Either EvalError (Expr, EvalDetail))
-step as tydefs globals expr d i = runExceptT
-  $ case findNodeByID i d expr of
+step as tydefs globals expr d i = runExceptT $
+  case findNodeByID i d expr of
     Just (cxt, Left (d', z)) -> do
       (node', detail) <- tryReduceExpr as tydefs globals cxt d' (target z)
       let expr' = unfocusExpr $ replace node' z

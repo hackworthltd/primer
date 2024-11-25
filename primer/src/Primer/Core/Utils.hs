@@ -236,10 +236,8 @@ alphaEq = go (0, mempty, mempty)
           ( zipWith
               ( \(CaseBranch c1 (fmap bindName -> vs1) t1)
                  (CaseBranch c2 (fmap bindName -> vs2) t2) ->
-                    c1
-                      == c2
-                      && length vs1
-                      == length vs2
+                    c1 == c2
+                      && length vs1 == length vs2
                       && go (foldl' (uncurry . newTm) bs $ zip vs1 vs2) t1 t2
               )
               brs1

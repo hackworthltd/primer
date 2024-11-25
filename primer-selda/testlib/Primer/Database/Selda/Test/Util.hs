@@ -90,8 +90,8 @@ mkSessionRow :: Int -> IO SessionRow
 mkSessionRow n = do
   u <- nextRandom
   now <- lowPrecisionCurrentTime
-  pure
-    $ SessionRow
+  pure $
+    SessionRow
       { uuid = u
       , gitversion = "test-version"
       , app = Aeson.encode newApp
@@ -104,8 +104,8 @@ mkSessionRow' :: (Int -> Text) -> Int -> IO SessionRow
 mkSessionRow' mkName n = do
   u <- nextRandom
   now <- lowPrecisionCurrentTime
-  pure
-    $ SessionRow
+  pure $
+    SessionRow
       { uuid = u
       , gitversion = "test-version"
       , app = Aeson.encode newApp

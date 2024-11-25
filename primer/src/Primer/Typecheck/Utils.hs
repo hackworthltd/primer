@@ -147,11 +147,11 @@ getGlobalNames = do
   let ctors =
         Map.foldMapWithKey
           ( \t def ->
-              S.fromList
-                $ (f t :)
-                $ map (f . valConName)
-                $ maybe [] astTypeDefConstructors
-                $ typeDefAST def
+              S.fromList $
+                (f t :) $
+                  map (f . valConName) $
+                    maybe [] astTypeDefConstructors $
+                      typeDefAST def
           )
           tyDefs
   pure $ S.union topLevel ctors

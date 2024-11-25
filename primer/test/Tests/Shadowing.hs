@@ -210,10 +210,8 @@ checkShadowing t =
 
 -- Check evaluation does not introduce shadowing, except in some known cases
 tasty_eval_full_shadow :: Property
-tasty_eval_full_shadow = withTests 500
-  $ withDiscards 2000
-  $ propertyWTInExtendedGlobalCxt testModules
-  $ do
+tasty_eval_full_shadow = withTests 500 $
+  withDiscards 2000 . propertyWTInExtendedGlobalCxt testModules $ do
     let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = True}
     let optsR = RunRedexOptions{pushAndElide = True}
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
@@ -235,9 +233,8 @@ tasty_eval_full_shadow = withTests 500
 
 tasty_eval_shadow :: Property
 tasty_eval_shadow =
-  withDiscards 2000
-    $ propertyWTInExtendedGlobalCxt testModules
-    $ do
+  withDiscards 2000 $
+    propertyWTInExtendedGlobalCxt testModules $ do
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t, _ty) <- genDirTm
@@ -264,9 +261,8 @@ getEvalResultExpr = \case
   Right e -> e
 
 tasty_available_actions_shadow :: Property
-tasty_available_actions_shadow = withDiscards 2000
-  $ propertyWT []
-  $ do
+tasty_available_actions_shadow = withDiscards 2000 $
+  propertyWT [] $ do
     l <- forAllT $ Gen.element enumerate
     cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
     a <- forAllT $ genApp SmartHoles cxt

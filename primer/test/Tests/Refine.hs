@@ -251,9 +251,8 @@ tasty_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
 
 -- if refine _ T S = Just (I:IS,_) , then refine _ T (S $ I) = Just (IS,_); here "S $ I" means "inspect S, I assert they match and strip off a layer"
 tasty_matches :: Property
-tasty_matches = withDiscards 2000
-  $ propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule]
-  $ do
+tasty_matches = withDiscards 2000 $
+  propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
     tgt <- forAllT $ genWTType (KType ())
     src <- forAllT $ genWTType (KType ())
     cxt <- ask

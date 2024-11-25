@@ -262,16 +262,15 @@ mkTests deps (defName, DefAST def') =
           Input a
             . fromMaybe (error "id not found")
             $ Available.options typeDefs defs cxt level (Right def) id a
-   in testGroup testName
-        $ enumeratePairs
-        <&> \(level, mut) ->
+   in testGroup testName $
+        enumeratePairs <&> \(level, mut) ->
           let defActions = map (offered level $ SelectionDef $ DefSelection defName Nothing) $ Available.forDef defs level mut d
               bodyActions =
                 map
                   ( \id ->
                       ( id
-                      , map (offered level $ SelectionDef $ DefSelection defName $ Just $ NodeSelection BodyNode id)
-                          $ Available.forBody
+                      , map (offered level $ SelectionDef $ DefSelection defName $ Just $ NodeSelection BodyNode id) $
+                          Available.forBody
                             typeDefs
                             level
                             mut
@@ -290,42 +289,37 @@ mkTests deps (defName, DefAST def') =
                   )
                   . toListOf (_typeMeta % _id)
                   $ astDefType def
-           in goldenVsString (show level <> ":" <> show mut) ("test/outputs/available-actions" </> testName </> show level <> "-" <> show mut <> ".fragment")
-                $ pure
-                . BS.fromStrict
-                . encodeUtf8
-                . TL.toStrict
-                . pShowNoColor
-                $ Output
-                  { defActions
-                  , bodyActions
-                  , sigActions
-                  }
+           in goldenVsString (show level <> ":" <> show mut) ("test/outputs/available-actions" </> testName </> show level <> "-" <> show mut <> ".fragment") $
+                pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
+                  Output
+                    { defActions
+                    , bodyActions
+                    , sigActions
+                    }
 
 -- Any offered action will complete successfully,
 -- other than one with a student-specified name that introduces capture.
 tasty_available_actions_accepted :: Property
-tasty_available_actions_accepted = withTests 500
-  $ withDiscards 2000
-  $ propertyWT []
-  $ do
-    l <- forAllT $ Gen.element enumerate
-    cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
-    -- We only test SmartHoles mode (which is the only supported student-facing
-    -- mode - NoSmartHoles is only used for internal sanity testing etc)
-    a <- forAllT $ genApp SmartHoles cxt
-    (def'', loc, action) <- forAllT $ genAction l a
-    annotateShow def''
-    annotateShow loc
-    annotateShow action
-    let (_defName, def) = (bimap fst fst def'', bimap snd snd def'')
-    collect action
-    pa <- toProgAction l a (def, loc, action)
-    case pa of
-      NoOpt progActs -> void $ actionSucceeds (handleEditRequest progActs) a
-      OptOffered _ progActs -> void $ actionSucceeds (handleEditRequest progActs) a
-      OptGen _ progActs -> void $ actionSucceedsOrCapture (handleEditRequest progActs) a
-      NoOfferedOpts -> annotate "no options" >> success
+tasty_available_actions_accepted = withTests 500 $
+  withDiscards 2000 $
+    propertyWT [] $ do
+      l <- forAllT $ Gen.element enumerate
+      cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
+      -- We only test SmartHoles mode (which is the only supported student-facing
+      -- mode - NoSmartHoles is only used for internal sanity testing etc)
+      a <- forAllT $ genApp SmartHoles cxt
+      (def'', loc, action) <- forAllT $ genAction l a
+      annotateShow def''
+      annotateShow loc
+      annotateShow action
+      let (_defName, def) = (bimap fst fst def'', bimap snd snd def'')
+      collect action
+      pa <- toProgAction l a (def, loc, action)
+      case pa of
+        NoOpt progActs -> void $ actionSucceeds (handleEditRequest progActs) a
+        OptOffered _ progActs -> void $ actionSucceeds (handleEditRequest progActs) a
+        OptGen _ progActs -> void $ actionSucceedsOrCapture (handleEditRequest progActs) a
+        NoOfferedOpts -> annotate "no options" >> success
 
 -- Running multiple "things" one after the other will succeed
 -- (other than student-specified names causing capture), where a "thing" is one of:
@@ -335,112 +329,111 @@ tasty_available_actions_accepted = withTests 500
 --   - running some full evaluation
 --   - asking a @Question@
 tasty_multiple_requests_accepted :: Property
-tasty_multiple_requests_accepted = withTests 500
-  $ withDiscards 2000
-  $ propertyWT []
-  $ do
-    l <- forAllT $ Gen.element enumerate
-    cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
-    -- We only test SmartHoles mode (which is the only supported student-facing
-    -- mode - NoSmartHoles is only used for internal sanity testing etc)
-    app0 <- forAllT $ genApp SmartHoles cxt
-    numActions <- forAllT $ Gen.int $ Range.linear 1 20
-    let appDefs = foldMap' (M.keys . moduleDefsQualified) . progModules . appProg
-        genAction' a' =
-          Gen.frequency
-            $ second pure
-            <$> catMaybes
-              [ Just (3, AddTm)
-              , Just (2, AddTy)
-              , Just (1, Eval1)
-              , if null $ appDefs a' then Nothing else Just (1, EvalFull)
-              , Just (1, Question)
-              , if null $ appDefs a' then Nothing else Just (1, EvalBoundedInterp)
-              , if undoLogEmpty $ appProg a' then Nothing else Just (2, Undo)
-              , if redoLogEmpty $ appProg a' then Nothing else Just (2, Redo)
-              , Just (1, RenameModule)
-              , Just (10, AvailAct)
-              ]
-    void $ iterateNM numActions app0 $ \appN ->
-      forAllT (genAction' appN) >>= \a -> do
-        collect a
-        case a of
-          AddTm -> do
-            m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg appN
-            n <- forAllT $ Gen.choice [Just . unName <$> genName, pure Nothing]
-            actionSucceedsOrCapture (handleMutationRequest $ Edit [CreateDef m n]) appN
-              >>= ignoreCaptureClash appN
-          AddTy -> do
-            m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg appN
-            n <- qualifyName m <$> forAllT genName
-            actionSucceedsOrCapture (handleMutationRequest $ Edit [AddTypeDef n $ ASTTypeDef [] [] []]) appN
-              >>= ignoreCaptureClash appN
-          Eval1 -> do
-            (e', _) <- forAllT genSyn
-            e <- generateIDs e'
-            i <- forAllT $ Gen.element $ e ^.. exprIDs
-            actionSucceedsOrNotRedex (readerToState $ handleEvalRequest $ EvalReq e i) appN
-          EvalFull -> do
-            g <- forAllT $ Gen.element $ appDefs appN
-            tld <- gvar g
-            steps <- forAllT $ Gen.integral $ Range.linear 0 100
-            optsN <- forAllT $ Gen.element @[] [StopAtBinders, UnderBinders]
-            actionSucceeds (readerToState $ handleEvalFullRequest $ EvalFullReq tld Chk steps optsN) appN
-          EvalBoundedInterp -> do
-            g <- forAllT $ Gen.element $ appDefs appN
-            tld <- gvar g
-            usec <- forAllT $ Gen.integral $ Range.linear 0 1000
-            actionSucceeds (readerToState $ handleEvalBoundedInterpRequest $ EvalBoundedInterpReq tld Chk (MicroSec usec)) appN
-          Question -> do
-            -- Obtain a non-exhaustive case warning if we add a new question
-            let _w :: Question q -> ()
-                _w = \case
-                  VariablesInScope{} -> ()
-                  GenerateName{} -> ()
-            (_, e, w) <- forAllT $ genLoc appN
-            -- We only support questions in editable modules
-            case e of
-              Editable -> pure ()
-              NonEditable -> discard
-            (def, node) <- case w of
-              SelectionDef (DefSelection{def, node = Just node}) -> pure (def, node.meta)
-              SelectionDef (DefSelection{node = Nothing}) -> discard
-              -- We don't currently support questions on typedefs
-              SelectionTypeDef _ -> discard
-            (_, q) <-
-              forAllWithT fst
-                $ Gen.choice
-                  [ pure ("VariablesInScope", void $ handleQuestion (VariablesInScope def node))
-                  , ("GenerateName",) . void . handleQuestion . GenerateName def node <$> do
-                      k <- genWTKind
-                      Gen.choice
-                        [ Left <$> Gen.maybe (genWTType k)
-                        , pure $ Right $ Just k
-                        , pure $ Right Nothing
-                        ]
+tasty_multiple_requests_accepted = withTests 500 $
+  withDiscards 2000 $
+    propertyWT [] $ do
+      l <- forAllT $ Gen.element enumerate
+      cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, primitiveModule]]
+      -- We only test SmartHoles mode (which is the only supported student-facing
+      -- mode - NoSmartHoles is only used for internal sanity testing etc)
+      app0 <- forAllT $ genApp SmartHoles cxt
+      numActions <- forAllT $ Gen.int $ Range.linear 1 20
+      let appDefs = foldMap' (M.keys . moduleDefsQualified) . progModules . appProg
+          genAction' a' =
+            Gen.frequency $
+              second pure
+                <$> catMaybes
+                  [ Just (3, AddTm)
+                  , Just (2, AddTy)
+                  , Just (1, Eval1)
+                  , if null $ appDefs a' then Nothing else Just (1, EvalFull)
+                  , Just (1, Question)
+                  , if null $ appDefs a' then Nothing else Just (1, EvalBoundedInterp)
+                  , if undoLogEmpty $ appProg a' then Nothing else Just (2, Undo)
+                  , if redoLogEmpty $ appProg a' then Nothing else Just (2, Redo)
+                  , Just (1, RenameModule)
+                  , Just (10, AvailAct)
                   ]
-            actionSucceeds (readerToState q) appN
-          Undo -> actionSucceeds (handleMutationRequest App.Undo) appN
-          Redo -> actionSucceeds (handleMutationRequest App.Redo) appN
-          AvailAct -> do
-            (def'', loc, action) <- forAllT $ genAction l appN
-            annotateShow def''
-            annotateShow loc
-            annotateShow action
-            let def = bimap snd snd def''
-            collect action
-            pa <- toProgAction l appN (def, loc, action)
-            case pa of
-              NoOpt progActs -> actionSucceeds (handleEditRequest progActs) appN
-              OptOffered _ progActs -> actionSucceeds (handleEditRequest progActs) appN
-              OptGen _ progActs ->
-                actionSucceedsOrCapture (handleEditRequest progActs) appN
-                  >>= ignoreCaptureClash appN
-              NoOfferedOpts -> annotate "ignoring - no options" >> pure appN
-          RenameModule -> do
-            m <- forAllT $ moduleName <$> Gen.element (progModules $ appProg appN)
-            n <- forAllT (Gen.nonEmpty (Range.linear 1 5) genName)
-            actionSucceedsOrCapture (handleMutationRequest $ Edit [App.RenameModule m $ unName <$> n]) appN >>= ignoreCaptureClash appN
+      void $ iterateNM numActions app0 $ \appN ->
+        forAllT (genAction' appN) >>= \a -> do
+          collect a
+          case a of
+            AddTm -> do
+              m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg appN
+              n <- forAllT $ Gen.choice [Just . unName <$> genName, pure Nothing]
+              actionSucceedsOrCapture (handleMutationRequest $ Edit [CreateDef m n]) appN
+                >>= ignoreCaptureClash appN
+            AddTy -> do
+              m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg appN
+              n <- qualifyName m <$> forAllT genName
+              actionSucceedsOrCapture (handleMutationRequest $ Edit [AddTypeDef n $ ASTTypeDef [] [] []]) appN
+                >>= ignoreCaptureClash appN
+            Eval1 -> do
+              (e', _) <- forAllT genSyn
+              e <- generateIDs e'
+              i <- forAllT $ Gen.element $ e ^.. exprIDs
+              actionSucceedsOrNotRedex (readerToState $ handleEvalRequest $ EvalReq e i) appN
+            EvalFull -> do
+              g <- forAllT $ Gen.element $ appDefs appN
+              tld <- gvar g
+              steps <- forAllT $ Gen.integral $ Range.linear 0 100
+              optsN <- forAllT $ Gen.element @[] [StopAtBinders, UnderBinders]
+              actionSucceeds (readerToState $ handleEvalFullRequest $ EvalFullReq tld Chk steps optsN) appN
+            EvalBoundedInterp -> do
+              g <- forAllT $ Gen.element $ appDefs appN
+              tld <- gvar g
+              usec <- forAllT $ Gen.integral $ Range.linear 0 1000
+              actionSucceeds (readerToState $ handleEvalBoundedInterpRequest $ EvalBoundedInterpReq tld Chk (MicroSec usec)) appN
+            Question -> do
+              -- Obtain a non-exhaustive case warning if we add a new question
+              let _w :: Question q -> ()
+                  _w = \case
+                    VariablesInScope{} -> ()
+                    GenerateName{} -> ()
+              (_, e, w) <- forAllT $ genLoc appN
+              -- We only support questions in editable modules
+              case e of
+                Editable -> pure ()
+                NonEditable -> discard
+              (def, node) <- case w of
+                SelectionDef (DefSelection{def, node = Just node}) -> pure (def, node.meta)
+                SelectionDef (DefSelection{node = Nothing}) -> discard
+                -- We don't currently support questions on typedefs
+                SelectionTypeDef _ -> discard
+              (_, q) <-
+                forAllWithT fst $
+                  Gen.choice
+                    [ pure ("VariablesInScope", void $ handleQuestion (VariablesInScope def node))
+                    , ("GenerateName",) . void . handleQuestion . GenerateName def node <$> do
+                        k <- genWTKind
+                        Gen.choice
+                          [ Left <$> Gen.maybe (genWTType k)
+                          , pure $ Right $ Just k
+                          , pure $ Right Nothing
+                          ]
+                    ]
+              actionSucceeds (readerToState q) appN
+            Undo -> actionSucceeds (handleMutationRequest App.Undo) appN
+            Redo -> actionSucceeds (handleMutationRequest App.Redo) appN
+            AvailAct -> do
+              (def'', loc, action) <- forAllT $ genAction l appN
+              annotateShow def''
+              annotateShow loc
+              annotateShow action
+              let def = bimap snd snd def''
+              collect action
+              pa <- toProgAction l appN (def, loc, action)
+              case pa of
+                NoOpt progActs -> actionSucceeds (handleEditRequest progActs) appN
+                OptOffered _ progActs -> actionSucceeds (handleEditRequest progActs) appN
+                OptGen _ progActs ->
+                  actionSucceedsOrCapture (handleEditRequest progActs) appN
+                    >>= ignoreCaptureClash appN
+                NoOfferedOpts -> annotate "ignoring - no options" >> pure appN
+            RenameModule -> do
+              m <- forAllT $ moduleName <$> Gen.element (progModules $ appProg appN)
+              n <- forAllT (Gen.nonEmpty (Range.linear 1 5) genName)
+              actionSucceedsOrCapture (handleMutationRequest $ Edit [App.RenameModule m $ unName <$> n]) appN >>= ignoreCaptureClash appN
   where
     ignoreCaptureClash a = \case
       Succeed b -> pure b
@@ -715,13 +708,13 @@ toProgAction l a (def, loc, action) = do
     Just action' -> case action' of
       Available.NoInput act' -> do
         progActs <-
-          either (\e -> annotateShow e >> failure) pure
-            $ toProgActionNoInput (progDefMap $ appProg a) def' loc act'
+          either (\e -> annotateShow e >> failure) pure $
+            toProgActionNoInput (progDefMap $ appProg a) def' loc act'
         pure $ NoOpt progActs
       Available.Input act' -> do
         Available.Options{Available.opts, Available.free} <-
-          maybe (annotate "id not found" >> failure) pure
-            $ Available.options
+          maybe (annotate "id not found" >> failure) pure $
+            Available.options
               (progTypeDefMap $ appProg a)
               (progDefMap $ appProg a)
               (progCxt $ appProg a)
@@ -948,12 +941,12 @@ offeredActionTest' sh l inputDef position action = do
         ms <- sequence [builtinModule, primitiveModule]
         prog0 <- defaultEmptyProg
         d <- inputDef
-        pure
-          $ prog0
-          & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
-          & (#progImports .~ ms)
-          -- Temporarily disable smart holes, so what is written in unit tests is what is in the prog
-          & (#progSmartHoles .~ NoSmartHoles)
+        pure $
+          prog0
+            & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
+            & (#progImports .~ ms)
+            -- Temporarily disable smart holes, so what is written in unit tests is what is in the prog
+            & (#progSmartHoles .~ NoSmartHoles)
   -- Typecheck everything to fill in typecaches.
   -- This lets us test offered names for renaming variable binders.
   let progChecked = runTypecheckTestM NoSmartHoles $ checkProgWellFormed progRaw
@@ -964,19 +957,19 @@ offeredActionTest' sh l inputDef position action = do
             Just (DefAST def@(ASTDef e t)) -> (progImports p, e, t, def, qualifyName (moduleName m) "main", p & #progSmartHoles .~ sh)
             _ -> error "offeredActionTest: didn't find 'main'"
           _ -> error "offeredActionTest: expected exactly one progModule"
-  let id' = evalTestM (nextProgID prog)
-        $ runExceptT
-        $ flip runReaderT (buildTypingContextFromModules modules sh)
-        $ case position of
-          InBody pos' -> do
-            ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves pos'
-            case typeMoves pos' of
-              Nothing -> pure $ getID ez
-              Just ms -> do
-                tz' <- enterType ez
-                tz <- foldlM (flip moveType) tz' ms
-                pure $ getID tz
-          InSig moves -> getID <$> foldlM (flip move) (focus sig) moves
+  let id' = evalTestM (nextProgID prog) $
+        runExceptT $
+          flip runReaderT (buildTypingContextFromModules modules sh) $
+            case position of
+              InBody pos' -> do
+                ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves pos'
+                case typeMoves pos' of
+                  Nothing -> pure $ getID ez
+                  Just ms -> do
+                    tz' <- enterType ez
+                    tz <- foldlM (flip moveType) tz' ms
+                    pure $ getID tz
+              InSig moves -> getID <$> foldlM (flip move) (focus sig) moves
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
@@ -988,8 +981,8 @@ offeredActionTest' sh l inputDef position action = do
   let options = Available.options cxt.typeDefs defs cxt l (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id)
   action' <- case action of
     Left a ->
-      pure
-        $ if Available.NoInput a `elem` offered
+      pure $
+        if Available.NoInput a `elem` offered
           then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id) a
           else Left $ ActionNotOffered (Available.NoInput a) offered
     Right (a, o) -> do
@@ -997,8 +990,8 @@ offeredActionTest' sh l inputDef position action = do
         then case options a of
           Nothing -> assertFailure "Available.options returned Nothing"
           Just os ->
-            pure
-              $ if o `elem` os.opts
+            pure $
+              if o `elem` os.opts
                 then Right $ toProgActionInput (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id) o a
                 else Left $ OptionNotOffered o os.opts
         else pure $ Left $ ActionNotOffered (Available.Input a) offered

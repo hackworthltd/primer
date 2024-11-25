@@ -158,26 +158,26 @@ prettyExpr opts = \case
     col Yellow "let"
       <+> lname v
       <+> col Yellow "="
-        <> inlineblock opts (pE e)
-        <> col Yellow "in"
-        <> line
-        <> indent' 2 (pE e')
+      <> inlineblock opts (pE e)
+      <> col Yellow "in"
+      <> line
+      <> indent' 2 (pE e')
   LetType _ v t e ->
     col Yellow "let type"
       <+> lname v
       <+> col Yellow "="
-        <> inlineblock opts (pT t)
-        <> col Yellow "in"
-        <> line
-        <> indent' 2 (pE e)
+      <> inlineblock opts (pT t)
+      <> col Yellow "in"
+      <> line
+      <> indent' 2 (pE e)
   Letrec _ v e t e' ->
     col Yellow "let rec"
       <+> lname v
       <+> col Yellow "="
-        <> inlineblock opts (typeann e t)
-        <> col Yellow "in"
-        <> line
-        <> indent' 2 (pE e')
+      <> inlineblock opts (typeann e t)
+      <> col Yellow "in"
+      <> line
+      <> indent' 2 (pE e')
   PrimCon _ p -> prim p
   where
     pT = prettyType opts
@@ -246,16 +246,19 @@ prettyType opts typ = case typ of
   TForall _ n _ t ->
     (if inlineLambda opts then group else identity)
       ( col Yellow "∀"
-          <+> lname n <> col Yellow "." <> line <> indent' 2 (pT t)
+          <+> lname n
+          <> col Yellow "."
+          <> line
+          <> indent' 2 (pT t)
       )
   TLet _ v t b ->
     col Yellow "let"
       <+> lname v
       <+> col Yellow "="
-        <> inlineblock opts (pT t)
-        <> col Yellow "in"
-        <> line
-        <> indent' 2 (pT b)
+      <> inlineblock opts (pT t)
+      <> col Yellow "in"
+      <> line
+      <> indent' 2 (pT b)
   where
     pT = prettyType opts
 

@@ -581,10 +581,10 @@ viewCaseRedex opts tydefs = \case
       Nothing -> mzero
       Just tyargsFromAnn -> do
         tyargs <- do
-          unless (length params == length tyargsFromAnn)
-            $ logWarning
-            $ CaseRedexNotSaturated
-            $ forgetTypeMetadata annotation
+          unless (length params == length tyargsFromAnn) $
+            logWarning $
+              CaseRedexNotSaturated $
+                forgetTypeMetadata annotation
           pure $ zip params tyargsFromAnn
         (patterns, br) <- extractBranch (PatCon c) brs fb
         renameBindings mCase scrut brs fb patterns orig
@@ -640,8 +640,8 @@ viewCaseRedex opts tydefs = \case
     renameBindings meta scrutinee branches fallbackBranch patterns orig =
       let avoid = freeVars scrutinee <> mwhen opts.avoidShadowing (bindersBelow $ focus scrutinee)
           binders = maybe mempty (S.fromList . map (unLocalName . bindName)) patterns
-       in hoistMaybe
-            $ if S.disjoint avoid binders
+       in hoistMaybe $
+            if S.disjoint avoid binders
               then Nothing
               else Just $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     formCaseRedex ::
@@ -683,12 +683,12 @@ viewRedex ::
 viewRedex opts tydefs globals dir = \case
   orig@(Var _ (GlobalVarRef gvar))
     | Just (DefAST def) <- gvar `M.lookup` globals ->
-        pure
-          $ InlineGlobal{gvar, def, orig}
+        pure $
+          InlineGlobal{gvar, def, orig}
   Let mLet var rhs (Var mVar (LocalVarRef var'))
     | var == var' ->
-        pure
-          $ InlineLet
+        pure $
+          InlineLet
             { var
             , expr = rhs
             , letID = getID mLet
@@ -696,8 +696,8 @@ viewRedex opts tydefs globals dir = \case
             }
   Letrec mLet var rhs ty (Var mVar (LocalVarRef var'))
     | var == var' ->
-        pure
-          $ InlineLetrec
+        pure $
+          InlineLetrec
             { var
             , expr = rhs
             , ty
@@ -712,8 +712,8 @@ viewRedex opts tydefs globals dir = \case
     , not opts.aggressiveElision || n `S.member` freeVars expr'
     , S.disjoint (getBoundHereDn expr') (setOf (_2 % (_freeVarsLetBinding `summing` to letBindingName)) letBinding1)
     , not opts.avoidShadowing || S.disjoint (getBoundHereDn expr') (boundVarsLetBinding . snd $ letBinding1) ->
-        pure
-          $ PushLet
+        pure $
+          PushLet
             { bindings = pure $ first getID letBinding1
             , expr = expr'
             , orig
@@ -724,8 +724,8 @@ viewRedex opts tydefs globals dir = \case
     , not opts.aggressiveElision || null unused
     , S.disjoint (getBoundHereDn body) (setOf (folded % _2 % (_freeVarsLetBinding `summing` to letBindingName)) $ letBinding1 : letBindings)
     , not opts.avoidShadowing || S.disjoint (getBoundHereDn body) (foldMap' (boundVarsLetBinding . snd) $ letBinding1 : letBindings) ->
-        pure
-          $ PushLet
+        pure $
+          PushLet
             { bindings = first getID <$> letBinding1 :| letBindings
             , expr = body
             , orig
@@ -736,8 +736,8 @@ viewRedex opts tydefs globals dir = \case
     | not opts.groupedLets
     , letBindingName (snd letBinding1) `S.notMember` freeVars expr'
     , opts.aggressiveElision || isLeaf expr' ->
-        pure
-          $ ElideLet
+        pure $
+          ElideLet
             { letBindingsDrop = pure $ first getID letBinding1
             , letBindingsKeep = mempty
             , body = expr'
@@ -746,8 +746,8 @@ viewRedex opts tydefs globals dir = \case
     | opts.groupedLets
     , (letBindingsKeep, nonEmpty -> Just letBindingsDrop) <- partitionLets (letBinding1 : letBindings) body
     , opts.aggressiveElision || isLeaf body ->
-        pure
-          $ ElideLet
+        pure $
+          ElideLet
             { letBindingsDrop = first getID <$> letBindingsDrop
             , letBindingsKeep
             , body
@@ -764,8 +764,8 @@ viewRedex opts tydefs globals dir = \case
       then pure $ RenameBindingsLAM{tyvar = v, meta, body, avoid, orig = l}
       else mzero
   orig@(App _ (Ann _ (Lam m var body) (TFun _ srcTy tgtTy)) app) ->
-    pure
-      $ Beta
+    pure $
+      Beta
         { var
         , body
         , srcTy
@@ -775,15 +775,14 @@ viewRedex opts tydefs globals dir = \case
         , lamID = getID m
         }
   e@App{} ->
-    lift
-      $ hoistMaybe
-      $ tryPrimFun (M.mapMaybe defPrim globals) e
-      >>= \(primFun, args, result) ->
-        pure ApplyPrimFun{result, primFun, args, orig = e}
+    lift $
+      hoistMaybe $
+        tryPrimFun (M.mapMaybe defPrim globals) e >>= \(primFun, args, result) ->
+          pure ApplyPrimFun{result, primFun, args, orig = e}
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
   orig@(APP _ (Ann _ (LAM m a body) (TForall _ forallVar forallKind tgtTy)) argTy) ->
-    pure
-      $ BETA
+    pure $
+      BETA
         { tyvar = a
         , body
         , forallVar
@@ -871,8 +870,8 @@ viewRedexType :: ViewRedexOptions -> Type -> Reader Cxt (Maybe RedexType)
 viewRedexType opts = \case
   TLet mLet v s (TVar mVar var)
     | v == var ->
-        purer
-          $ InlineLetInType
+        purer $
+          InlineLetInType
             { var
             , ty = s
             , letID = getID mLet
@@ -885,8 +884,8 @@ viewRedexType opts = \case
     , not opts.aggressiveElision || letTypeBindingName' (snd letBinding1) `S.member` freeVarsTy ty'
     , S.disjoint (getBoundHereDnTy ty') (setOf (_2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) letBinding1)
     , not opts.avoidShadowing || S.disjoint (getBoundHereDnTy ty') (boundVarsLetBindingTy . snd $ letBinding1) ->
-        purer
-          $ PushLetType
+        purer $
+          PushLetType
             { bindings = pure $ first getID letBinding1
             , intoTy = ty'
             , origTy = orig
@@ -897,8 +896,8 @@ viewRedexType opts = \case
     , not opts.aggressiveElision || null unused
     , S.disjoint (getBoundHereDnTy body) (setOf (folded % _2 % (_freeVarsLetTypeBinding `summing` to letTypeBindingName')) (letBinding1 : letBindings))
     , not opts.avoidShadowing || S.disjoint (getBoundHereDnTy body) (foldMap' (boundVarsLetBindingTy . snd) $ letBinding1 : letBindings) ->
-        purer
-          $ PushLetType
+        purer $
+          PushLetType
             { bindings = first getID <$> letBinding1 :| letBindings
             , intoTy = body
             , origTy = orig
@@ -906,8 +905,8 @@ viewRedexType opts = \case
     | not opts.groupedLets
     , letTypeBindingName' (snd letBinding1) `S.notMember` freeVarsTy ty'
     , opts.aggressiveElision || isLeaf ty' ->
-        purer
-          $ ElideLetInType
+        purer $
+          ElideLetInType
             { letBindingsDrop = pure $ first getID letBinding1
             , letBindingsKeep = mempty
             , body = ty'
@@ -916,8 +915,8 @@ viewRedexType opts = \case
     | opts.groupedLets
     , (letBindingsKeep, nonEmpty -> Just letBindingsDrop) <- partitionLetsTy (letBinding1 : letBindings) body
     , opts.aggressiveElision || isLeaf body ->
-        purer
-          $ ElideLetInType
+        purer $
+          ElideLetInType
             { letBindingsDrop = first getID <$> letBindingsDrop
             , letBindingsKeep
             , body
@@ -925,11 +924,10 @@ viewRedexType opts = \case
             }
   orig@(TForall meta origBinder kind body) -> do
     avoid <- liftA2 (<>) cxtToAvoidTy $ when' opts.avoidShadowing cxtToAvoidTyShadow
-    pure
-      $ if origBinder `S.member` avoid
+    pure $
+      if origBinder `S.member` avoid
         then
-          pure
-            $
+          pure $
             -- If anything we may substitute would cause capture, we should rename this binder
             RenameForall
               { meta
@@ -1088,9 +1086,9 @@ runRedex opts = \case
     , conID
     } -> do
       let binderNames = maybe mempty (map bindName) binders
-      unless (isNothing binders || (length args == length argTys && length args == length binderNames))
-        $ logWarning
-        $ CaseRedexWrongArgNum con args argTys binderNames
+      unless (isNothing binders || (length args == length argTys && length args == length binderNames)) $
+        logWarning $
+          CaseRedexWrongArgNum con args argTys binderNames
       let freshLocalNameLike n avoid =
             if S.member n avoid
               then freshLocalName avoid
@@ -1251,8 +1249,8 @@ filterLetsTy ls t = filterLets' (toList ls) (S.map unLocalName $ freeVarsTy t)
 
 filterLets' :: [LetBinding] -> Set Name -> [LetBinding]
 filterLets' ls fvs =
-  fst
-    $ foldr
+  fst $
+    foldr
       ( \l (ls', fvs') ->
           let ln = letBindingName l
            in if ln `S.member` fvs'
@@ -1266,8 +1264,8 @@ filterLets' ls fvs =
 -- note that some of the unused may be used in later unused, but not in later used or in the term
 partitionLets :: [(a, LetBinding)] -> Expr -> ([(a, LetBinding)], [(a, LetBinding)])
 partitionLets ls e =
-  fst
-    $ foldr
+  fst $
+    foldr
       ( \l ((used, unused), fvs') ->
           let ln = letBindingName $ snd l
            in if ln `S.member` fvs'
@@ -1281,8 +1279,8 @@ partitionLets ls e =
 -- note that some of the unused may be used in later unused, but not in later used or in the term
 partitionLetsTy :: [(a, LetTypeBinding)] -> Type -> ([(a, LetTypeBinding)], [(a, LetTypeBinding)])
 partitionLetsTy ls t =
-  fst
-    $ foldr
+  fst $
+    foldr
       ( \l@(_, LetTypeBind n l') ((used, unused), fvs') ->
           if n `S.member` fvs'
             then ((l : used, unused), S.delete n fvs' `S.union` freeVarsTy l')

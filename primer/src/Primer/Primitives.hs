@@ -253,33 +253,33 @@ primFunDef def args = case def of
     _ -> err
   IntQuotient -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right
-        $ maybeAnn (tcon tInt) int
-        $ if y == 0
-          then Nothing
-          else Just $ x `div` y
+      Right $
+        maybeAnn (tcon tInt) int $
+          if y == 0
+            then Nothing
+            else Just $ x `div` y
     _ -> err
   IntRemainder -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right
-        $ maybeAnn (tcon tInt) int
-        $ if y == 0
-          then Nothing
-          else Just $ x `mod` y
+      Right $
+        maybeAnn (tcon tInt) int $
+          if y == 0
+            then Nothing
+            else Just $ x `mod` y
     _ -> err
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right
-        $ int
-        $ if y == 0 then 0 else x `div` y
+      Right $
+        int $
+          if y == 0 then 0 else x `div` y
     _ -> err
   IntRem -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right
-        $ int
-        $ if y == 0
-          then x
-          else x `mod` y
+      Right $
+        int $
+          if y == 0
+            then x
+            else x `mod` y
     _ -> err
   IntLT -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
@@ -307,11 +307,11 @@ primFunDef def args = case def of
     _ -> err
   IntToNat -> case args of
     [PrimCon _ (PrimInt x)] ->
-      Right
-        $ maybeAnn (tcon tNat) nat
-        $ if x < 0
-          then Nothing
-          else Just $ fromInteger x
+      Right $
+        maybeAnn (tcon tNat) nat $
+          if x < 0
+            then Nothing
+            else Just $ fromInteger x
     _ -> err
   IntFromNat -> case args of
     [exprToNat -> Just n] ->

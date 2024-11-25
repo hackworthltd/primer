@@ -267,9 +267,9 @@ interp' tydefs env@(envTm, envTy) dir = \case
              in interp'
                   tydefs
                   ( extendTmsEnv
-                      ( zip (Right . bindName <$> xs)
-                          $ zipWith (\a argTy -> Ann () a $ interpTy envTy' argTy) as
-                          $ ctorArgTys tycon c
+                      ( zip (Right . bindName <$> xs) $
+                          zipWith (\a argTy -> Ann () a $ interpTy envTy' argTy) as $
+                            ctorArgTys tycon c
                       )
                       env
                   )
