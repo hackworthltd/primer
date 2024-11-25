@@ -8,15 +8,11 @@ haddock-style: single-line
 newlines-between-decls: 1
 single-constraint-parens: auto
 
+# Foreword might not actually re-export _all_ operators from these modules,
+# but this is a lot nicer than explicitly listing all of the ones that it does.
+# For some reason they're not picked up with `module Foreword exports Protolude`.
 reexports:
-  - module Foreword exports Protolude
-fixities:
-  # The `optics` composition operator.
-  # We have no way of telling Fourmolu that Foreword hides the same-named operator from Protolude.
-  - infixl 9 %
-  # It's not clear why Fourmolu doesn't recognise that we get these from Protolude...
-  - infixl 1 &
-  - infixr 6 <>
-  - infixr 0 $
-  - infixl 4 <$>
-  - infixl 4 <*>
+  - module Foreword exports Prelude
+  - module Foreword exports Control.Applicative
+  - module Foreword exports Data.Function
+  - module Foreword exports Data.Monoid
