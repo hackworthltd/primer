@@ -41,9 +41,8 @@ Differences from upstream:
 - Add `NoLexicalNegation` to override this package's default, in order to avoid a syntax error in `unRelativize`.
 - Use `optics` instead of `lens`.
 - Make some adjustments so that y-coordinates are always non-negative, with the root being at zero.
+- Avoid partial `maximum` function.
 -}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -72,7 +71,6 @@ import Foreword hiding (second)
 import Control.Arrow (second, (&&&), (***))
 
 import Data.Default
-import Data.Foldable (maximum)
 import Data.Tree
 
 import Linear
@@ -172,7 +170,7 @@ instance Monoid (Extent n) where
 --   next to one another.  The first argument is the separation to
 --   leave between them.
 fit :: (Num n, Ord n) => n -> Extent n -> Extent n -> n
-fit hSep (Extent ps) (Extent qs) = maximum (0 : zipWith (\(_, p) (q, _) -> p - q + hSep) ps qs)
+fit hSep (Extent ps) (Extent qs) = maximum (0 :| zipWith (\(_, p) (q, _) -> p - q + hSep) ps qs)
 
 -- | Fit a list of subtree extents together using a left-biased
 --   algorithm.  Compute a list of positions (relative to the leftmost
@@ -265,11 +263,13 @@ symmLayout = symmLayout' def
 unRelativize ::
   (Num n, Ord n) =>
   SymmLayoutOpts n a -> P2 n -> Rel Tree n a -> Tree (a, P2 n)
-unRelativize opts curPt (Node (a, hOffs) ts) =
-  Node (a, rootPt) (map (unRelativize opts (rootPt .+^ (vOffs *^ unit_Y))) ts)
+unRelativize opts curPt (Node (a, hOffs) ts0) = Node (a, rootPt) $ case nonEmpty ts0 of
+  Nothing -> []
+  Just ts -> toList (fmap (unRelativize opts (rootPt .+^ (vOffs *^ unit_Y))) ts)
+    where
+      vOffs =
+        -fst ((opts ^. slHeight) a)
+          + (maximum . map (snd . (opts ^. slHeight) . fst . rootLabel) $ ts)
+          + (opts ^. slVSep)
   where
     rootPt = curPt .+^ (hOffs *^ unitX)
-    vOffs =
-      -fst ((opts ^. slHeight) a)
-        + (maximum . map (snd . (opts ^. slHeight) . fst . rootLabel) $ ts)
-        + (opts ^. slVSep)

@@ -4,12 +4,11 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Primer.Miso (start) where
 
-import Foreword hiding (minimum)
+import Foreword
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
@@ -80,7 +79,8 @@ updateModel =
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
-  div_ [] $
+  div_
+    []
     [ div_
         [ style_
             [ ("display", "grid")
@@ -264,7 +264,7 @@ viewTreeExpr e =
 viewTreeType ::
   (Data b, Data c) =>
   Type' b c ->
-  (Tree.Tree (MeasuredView (TermMeta' a b c)))
+  Tree.Tree (MeasuredView (TermMeta' a b c))
 viewTreeType t =
   Tree.Node
     ( over #view (div_ [onClick $ Right $ Left $ t ^. _typeMetaLens] . pure) $
