@@ -55,10 +55,10 @@ unit_binders_below_type =
 unit_binders_below :: Assertion
 unit_binders_below =
   let e =
-        create'
-          $ ann
-            ( lam "x"
-                $ case_
+        create' $
+          ann
+            ( lam "x" $
+                case_
                   (lAM "y" emptyHole)
                   [branch' (["M"], "C") [("z", Nothing), ("w", Nothing)] $ aPP (hole $ lam "v" emptyHole) (tapp tEmptyHole $ tforall "a" ktype $ tforall "b" ktype tEmptyHole)]
             )

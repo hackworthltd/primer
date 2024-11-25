@@ -203,9 +203,9 @@ annotatedPair modName = do
   (oddName, oddDef) <- Examples.odd modName
   let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
   let expr1 =
-        let_ "x" (con0 cZero)
-          $ lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
-          `ann` ty
+        let_ "x" (con0 cZero) $
+          lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
+            `ann` ty
   expr <- expr1 `app` con0 cZero
   let globs = [(evenName, evenDef), (oddName, oddDef)]
   expect <-
@@ -218,8 +218,8 @@ letrecLambda :: S (Expr, Expr)
 letrecLambda = do
   -- 'f' is a bit silly here, but could just as well be a definition of 'even'
   let f =
-        lam "x"
-          $ case_
+        lam "x" $
+          case_
             (lvar "x")
             [ branch cZero [] $ con0 cTrue
             , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
@@ -267,7 +267,7 @@ primitiveAnnotation =
     <$> ( pfun ToUpper
             `ann` (tcon tChar `tfun` tcon tChar)
         )
-    `app` (char 'a' `ann` tcon tChar)
+      `app` (char 'a' `ann` tcon tChar)
     <*> char 'A'
     <*> primDefs
 
@@ -275,20 +275,20 @@ lazyPrimitive1 :: S (Expr, Expr, DefMap)
 lazyPrimitive1 =
   (,,)
     <$> pfun PrimConst
-    `app` bool_ True
-    `app` emptyHole
+      `app` bool_ True
+      `app` emptyHole
     <*> bool_ True
-    `ann` tcon tBool
+      `ann` tcon tBool
     <*> primDefs
 
 lazyPrimitive2 :: S (Expr, Expr, DefMap)
 lazyPrimitive2 =
   (,,)
     <$> pfun PrimConst
-    `app` bool_ True
-    `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
+      `app` bool_ True
+      `app` letrec "x" (lvar "x") (tcon tNat) (lvar "x")
     <*> bool_ True
-    `ann` tcon tBool
+      `ann` tcon tBool
     <*> primDefs
 
 primitivePartialMap :: ModuleName -> S (Expr, Expr, DefMap, DefMap)
@@ -296,19 +296,19 @@ primitivePartialMap modName = do
   (mapName, mapDef) <- Examples.map' modName
   (,,,)
     <$> gvar mapName
-    `aPP` tcon tChar
-    `aPP` tcon tChar
-    `app` pfun ToUpper
-    `app` list_
-      [ char 'a'
-      , char 'b'
-      , char 'c'
-      ]
+      `aPP` tcon tChar
+      `aPP` tcon tChar
+      `app` pfun ToUpper
+      `app` list_
+        [ char 'a'
+        , char 'b'
+        , char 'c'
+        ]
     <*> list_
       [ char 'A'
       , char 'B'
       , char 'C'
       ]
-    `ann` (tcon tList `tapp` tcon tChar)
+      `ann` (tcon tList `tapp` tcon tChar)
     <*> pure (M.singleton mapName mapDef)
     <*> primDefs

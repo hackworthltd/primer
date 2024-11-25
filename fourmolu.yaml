@@ -8,3 +8,15 @@ haddock-style: single-line
 newlines-between-decls: 1
 single-constraint-parens: auto
 
+reexports:
+  - module Foreword exports Protolude
+fixities:
+  # The `optics` composition operator.
+  # We have no way of telling Fourmolu that Foreword hides the same-named operator from Protolude.
+  - infixl 9 %
+  # It's not clear why Fourmolu doesn't recognise that we get these from Protolude...
+  - infixl 1 &
+  - infixr 6 <>
+  - infixr 0 $
+  - infixl 4 <$>
+  - infixl 4 <*>

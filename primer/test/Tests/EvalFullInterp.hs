@@ -283,8 +283,8 @@ unit_case_let_capture =
   let (expr, expected) = create2 $ do
         let l = let_ "x" (lvar "y")
         e0 <-
-          l
-            $ case_
+          l $
+            case_
               emptyHole
               [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
               , branch' (["M"], "D") [("y", Nothing)] (lvar "x")
@@ -376,13 +376,13 @@ unit_closed_single_lets :: Assertion
 unit_closed_single_lets =
   let (expr, expected) = create2 $ do
         e0 <-
-          let_ "x" (con0 cFalse)
-            $ let_ "y" (con0 cTrue)
-            $ con
-              cMakePair
-              [ lvar "x"
-              , lvar "y"
-              ]
+          let_ "x" (con0 cFalse) $
+            let_ "y" (con0 cTrue) $
+              con
+                cMakePair
+                [ lvar "x"
+                , lvar "y"
+                ]
         e4 <-
           con
             cMakePair
@@ -432,10 +432,8 @@ unit_let_self_capture =
 -- implementation is sufficiently different that it doesn't make sense
 -- to combine them.
 tasty_type_preservation :: Property
-tasty_type_preservation = withTests 1000
-  $ withDiscards 2000
-  $ propertyWT testModules
-  $ do
+tasty_type_preservation = withTests 1000 $
+  withDiscards 2000 . propertyWT testModules $ do
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
     (dir, forgetMetadata -> t, ty) <- genDirTm
@@ -452,10 +450,8 @@ tasty_type_preservation = withTests 1000
             s' === forgetMetadata s'' -- check no smart holes happened
 
 tasty_two_interp_agree :: Property
-tasty_two_interp_agree = withTests 1000
-  $ withDiscards 2000
-  $ propertyWT testModules
-  $ do
+tasty_two_interp_agree = withTests 1000 $
+  withDiscards 2000 . propertyWT testModules $ do
     let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
     tds <- asks typeDefs
     (dir, t, _ty) <- genDirTm
@@ -500,8 +496,8 @@ tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
       (dir, forgetMetadata -> e, forgetMetadata -> r, prims) =
-        create'
-          $ if n <= 15
+        create' $
+          if n <= 15
             then
               (Chk,,,)
                 <$> case_
@@ -524,9 +520,9 @@ tasty_prim_hex_nat = withTests 20 . property $ do
             else
               (Syn,,,)
                 <$> pfun NatToHex
-                `app` ne
+                  `app` ne
                 <*> con cNothing []
-                `ann` (tcon tMaybe `tapp` tcon tChar)
+                  `ann` (tcon tMaybe `tapp` tcon tChar)
                 <*> primDefs
   s <- evalIO $ evalFullTest builtinTypes prims dir e
   s === Right r
@@ -550,11 +546,11 @@ unit_prim_char_eq_2 =
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
   let (forgetMetadata -> e, prims) =
-        create'
-          $ (,)
-          <$> pfun EqChar
-          `app` char 'a'
-          <*> primDefs
+        create' $
+          (,)
+            <$> pfun EqChar
+              `app` char 'a'
+            <*> primDefs
    in do
         s <- evalFullTest mempty prims Syn e
         s @?= Right e
@@ -939,8 +935,8 @@ unit_handleEvalInterpRequest_modules =
         importModules [primitiveModule', builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         (EvalInterpRespNormal e) <-
-          readerToState
-            $ handleEvalInterpRequest
+          readerToState $
+            handleEvalInterpRequest
               EvalInterpReq
                 { expr = foo
                 , dir = Chk
@@ -961,8 +957,8 @@ unit_handleEvalBoundedInterpRequest_modules =
         importModules [primitiveModule', builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         resp <-
-          readerToState
-            $ handleEvalBoundedInterpRequest
+          readerToState $
+            handleEvalBoundedInterpRequest
               EvalBoundedInterpReq
                 { expr = foo
                 , dir = Chk
@@ -1039,12 +1035,12 @@ unit_handleEvalInterpRequest_modules_scrutinize_imported_type =
             (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         (EvalInterpRespNormal e) <-
-          readerToState
-            $ handleEvalInterpRequest
-            $ EvalInterpReq
-              { expr = foo
-              , dir = Chk
-              }
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = foo
+                , dir = Chk
+                }
         expect <- con0 cFalse
         pure $ e ~= expect
       a = newEmptyApp
@@ -1054,8 +1050,8 @@ unit_handleEvalInterpRequest_modules_scrutinize_imported_type =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1073,13 +1069,13 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
             (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
-          readerToState
-            $ handleEvalBoundedInterpRequest
-            $ EvalBoundedInterpReq
-              { expr = foo
-              , dir = Chk
-              , timeout = MicroSec 10_000
-              }
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = foo
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
         expect <- con0 cFalse
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> assertFailure $ show err
@@ -1091,8 +1087,8 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1165,13 +1161,13 @@ unit_handleEvalBoundedInterpRequest_timeout =
         importModules [m']
         e <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
         resp <-
-          readerToState
-            $ handleEvalBoundedInterpRequest
-            $ EvalBoundedInterpReq
-              { expr = e
-              , dir = Chk
-              , timeout = MicroSec 10_000
-              }
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = e
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> err @?= Timeout
           EvalBoundedInterpRespNormal _ -> assertFailure "expected timeout"
@@ -1182,8 +1178,8 @@ unit_handleEvalBoundedInterpRequest_timeout =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1198,13 +1194,13 @@ unit_handleEvalBoundedInterpRequest_missing_branch =
         importModules [m']
         e <- case_ (con0 cTrue `ann` tcon tBool) [branch cFalse [] emptyHole]
         resp <-
-          readerToState
-            $ handleEvalBoundedInterpRequest
-            $ EvalBoundedInterpReq
-              { expr = e
-              , dir = Chk
-              , timeout = MicroSec 10_000
-              }
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = e
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
         let expect = NoBranch (Left cTrue) [PatCon cFalse]
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> err @?= expect
@@ -1216,8 +1212,8 @@ unit_handleEvalBoundedInterpRequest_missing_branch =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1246,8 +1242,8 @@ unit_handleEvalInterpRequest_missing_branch =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1262,13 +1258,13 @@ unit_handleEvalBoundedInterpRequest_missing_branch_prim =
         importModules [m']
         e <- case_ (char 'a' `ann` tcon tChar) [branchPrim (PrimChar 'b') emptyHole]
         resp <-
-          readerToState
-            $ handleEvalBoundedInterpRequest
-            $ EvalBoundedInterpReq
-              { expr = e
-              , dir = Chk
-              , timeout = MicroSec 10_000
-              }
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = e
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
         let expect = NoBranch (Right (PrimChar 'a')) [PatPrim (PrimChar 'b')]
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> err @?= expect
@@ -1280,8 +1276,8 @@ unit_handleEvalBoundedInterpRequest_missing_branch_prim =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1310,8 +1306,8 @@ unit_handleEvalInterpRequest_missing_branch_prim =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure
-        $ Module
+      pure $
+        Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = M.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1342,8 +1338,8 @@ unit_case_prim =
       e2 = create1 $ caseFB_ (char 'a') [branchPrim (PrimChar 'a') $ con0 cFalse] (con0 cTrue)
       expect2 = create1 $ con0 cFalse
       e3 =
-        create1
-          $ caseFB_
+        create1 $
+          caseFB_
             (char 'b')
             [ branchPrim (PrimChar 'a') $ con0 cTrue
             , branchPrim (PrimChar 'b') $ con0 cFalse
@@ -1351,8 +1347,8 @@ unit_case_prim =
             (con0 cTrue)
       expect3 = create1 $ con0 cFalse
       e4 =
-        create1
-          $ caseFB_
+        create1 $
+          caseFB_
             ( (lam "x" (lvar "x") `ann` (tcon tChar `tfun` tcon tChar))
                 `app` char 'a'
             )
@@ -1393,12 +1389,12 @@ evalFullTest = evalFullTest' (MicroSec (-1)) -- negative time means wait forever
 unaryPrimTest :: (HasCallStack) => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
-        create'
-          $ (,,)
-          <$> pfun f
-          `app` x
-          <*> y
-          <*> primDefs
+        create' $
+          (,,)
+            <$> pfun f
+              `app` x
+            <*> y
+            <*> primDefs
    in do
         s <- evalFullTest mempty prims Syn e
         s @?= Right r
@@ -1406,13 +1402,13 @@ unaryPrimTest f x y =
 binaryPrimTest :: (HasCallStack) => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let (forgetMetadata -> e, forgetMetadata -> r, prims) =
-        create'
-          $ (,,)
-          <$> pfun f
-          `app` x
-          `app` y
-          <*> z
-          <*> primDefs
+        create' $
+          (,,)
+            <$> pfun f
+              `app` x
+              `app` y
+            <*> z
+            <*> primDefs
    in do
         s <- evalFullTest mempty prims Syn e
         s @?= Right r

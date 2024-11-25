@@ -293,8 +293,8 @@ focusType z = case target z of
 focusKind :: (Data b, Data c) => TypeZ' a b c -> Maybe (KindZ' a b c)
 focusKind (ZipNest z f) = case target z of
   TForall m n k t ->
-    pure
-      $ ZipNest
+    pure $
+      ZipNest
         ( ZipNest
             (focus k)
             $ \k' -> replace (TForall m n k' t) z
@@ -489,8 +489,8 @@ findNodeWithParent id x = do
     InExpr ez -> (ExprNode $ target ez, ExprNode . target <$> up ez)
     InType tz ->
       ( TypeNode $ target tz
-      , Just
-          $ maybe
+      , Just $
+          maybe
             (ExprNode $ target $ unfocusType tz)
             (TypeNode . target)
             (up tz)

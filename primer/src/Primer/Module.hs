@@ -124,9 +124,9 @@ renameModule' fromName toName = transformBi (\n -> if n == fromName then toName 
 -- change in the future.
 nextModuleID :: Module -> ID
 nextModuleID m =
-  getMax
-    $ foldMap' (Max . nextID) (moduleDefs m)
-    <> foldMap' (Max . nextIDTypeDef) (moduleTypes m)
+  getMax $
+    foldMap' (Max . nextID) (moduleDefs m)
+      <> foldMap' (Max . nextIDTypeDef) (moduleTypes m)
 
 -- | This module depends on the builtin module, due to some terms referencing builtin types.
 -- It contains all primitive types and terms.
@@ -149,8 +149,8 @@ builtinModule = do
   maybeDef' <- generateTypeDefIDs $ TypeDefAST maybeDef
   pairDef' <- generateTypeDefIDs $ TypeDefAST pairDef
   eitherDef' <- generateTypeDefIDs $ TypeDefAST eitherDef
-  pure
-    $ Module
+  pure $
+    Module
       { moduleName = builtinModuleName
       , moduleTypes =
           M.fromList

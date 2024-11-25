@@ -588,9 +588,8 @@ deleteSession = logAPI (noError DeleteSession) $ \sid -> do
 listSessions :: (MonadIO m, MonadAPILog l m) => OffsetLimit -> PrimerM m (Page Session)
 listSessions = logAPI (noError ListSessions) $ \ol -> do
   q <- asks dbOpQueue
-  callback <- liftIO
-    $ atomically
-    $ do
+  callback <- liftIO $
+    atomically $ do
       cb <- newEmptyTMVar
       writeTBQueue q $ Database.ListSessions ol cb
       pure cb
@@ -603,9 +602,8 @@ findSessions :: (MonadIO m, MonadAPILog l m) => Text -> OffsetLimit -> PrimerM m
 findSessions = curry $ logAPI (noError FindSessions) $ \case
   (substr, ol) -> do
     q <- asks dbOpQueue
-    callback <- liftIO
-      $ atomically
-      $ do
+    callback <- liftIO $
+      atomically $ do
         cb <- newEmptyTMVar
         writeTBQueue q $ Database.FindSessions substr ol cb
         pure cb
@@ -793,9 +791,8 @@ viewProg p =
                   , constructors = case d of
                       TypeDef.TypeDefPrim _ -> Nothing
                       TypeDef.TypeDefAST t ->
-                        Just
-                          $ astTypeDefConstructors t
-                          <&> \(TypeDef.ValCon nameCon argsCon) ->
+                        Just $
+                          astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
                             ValCon
                               { name = nameCon
                               , fields = viewTreeType' . over _typeKindMeta (show . view _id) . over _typeMeta (show . view _id) <$> argsCon
@@ -875,8 +872,8 @@ viewTreeExpr e0 = case e0 of
       , body = NoBody Flavor.Lam
       , childTrees = [RecordPair EdgeFlavor.Lam $ viewTreeExpr e]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -891,8 +888,8 @@ viewTreeExpr e0 = case e0 of
       , body = NoBody Flavor.LAM
       , childTrees = [RecordPair EdgeFlavor.Lam $ viewTreeExpr e]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -916,8 +913,8 @@ viewTreeExpr e0 = case e0 of
       , body = NoBody Flavor.Let
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e1, RecordPair EdgeFlavor.LetIn $ viewTreeExpr e2]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -932,8 +929,8 @@ viewTreeExpr e0 = case e0 of
       , body = NoBody Flavor.LetType
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e, RecordPair EdgeFlavor.LetIn $ viewTreeType t]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -948,8 +945,8 @@ viewTreeExpr e0 = case e0 of
       , body = NoBody Flavor.Letrec
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeExpr e1, RecordPair EdgeFlavor.Ann $ viewTreeType t, RecordPair EdgeFlavor.LetIn $ viewTreeExpr e2]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -1111,8 +1108,8 @@ viewTreeType' t0 = case t0 of
       , body = NoBody Flavor.TForall
       , childTrees = [RecordPair EdgeFlavor.ForallKind $ viewTreeKind' k, RecordPair EdgeFlavor.Forall $ viewTreeType' t]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -1127,8 +1124,8 @@ viewTreeType' t0 = case t0 of
       , body = NoBody Flavor.TLet
       , childTrees = [RecordPair EdgeFlavor.LetEqual $ viewTreeType' t, RecordPair EdgeFlavor.LetIn $ viewTreeType' b]
       , rightChild =
-          Just
-            $ RecordPair
+          Just $
+            RecordPair
               EdgeFlavor.Bind
               Tree
                 { nodeId = bindingNodeId
@@ -1257,8 +1254,8 @@ evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) -> do
       -- evaluation step will be to inline this definition, removing the node.
       let e = create' $ DSL.gvar d
       x <-
-        handleEvalFullRequest
-          $ EvalFullReq
+        handleEvalFullRequest $
+          EvalFullReq
             { evalFullReqExpr = e
             , evalFullCxtDir = Chk
             , evalFullMaxSteps = fromMaybe 10 lim
@@ -1343,8 +1340,8 @@ evalInterp' = curry $ logAPI (noError EvalInterp') $ \(sid, d) -> do
       -- evaluation step will be to inline this definition, removing the node.
       let e = create' $ DSL.gvar d
       (App.EvalInterpRespNormal e') <-
-        handleEvalInterpRequest
-          $ EvalInterpReq
+        handleEvalInterpRequest $
+          EvalInterpReq
             { expr = e
             , dir = Chk
             }
@@ -1437,8 +1434,8 @@ evalBoundedInterp' = curry3 $ logAPI (noError EvalBoundedInterp') $ \(sid, timeo
       -- evaluation step will be to inline this definition, removing the node.
       let e = create' $ DSL.gvar d
       x <-
-        handleEvalBoundedInterpRequest
-          $ EvalBoundedInterpReq
+        handleEvalBoundedInterpRequest $
+          EvalBoundedInterpReq
             { expr = e
             , dir = Chk
             , timeout = fromMaybe (MicroSec 10) timeout
@@ -1467,8 +1464,8 @@ createDefinition ::
   Maybe Text ->
   PrimerM m Prog
 createDefinition =
-  curry3
-    $ logAPI (noError CreateDef) \(sid, moduleName, mDefName) ->
+  curry3 $
+    logAPI (noError CreateDef) \(sid, moduleName, mDefName) ->
       edit sid (App.Edit [App.CreateDef moduleName mDefName])
         >>= either (throwM . AddDefError moduleName mDefName) (pure . viewProg)
 
@@ -1480,8 +1477,8 @@ createTypeDef ::
   [ValConName] ->
   PrimerM m Prog
 createTypeDef =
-  curry3
-    $ logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
+  curry3 $
+    logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
       edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`TypeDef.ValCon` []) valcons) []])
         >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg)
 
@@ -1530,8 +1527,8 @@ actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selectio
       allDefs = progDefMap prog
       allTypeDefs = progTypeDefMap prog
   def <- snd <$> findASTTypeOrTermDef prog selection
-  maybe (throwM $ ActionOptionsNoID selection) pure
-    $ Available.options allTypeDefs allDefs (progCxt prog) level def selection action
+  maybe (throwM $ ActionOptionsNoID selection) pure $
+    Available.options allTypeDefs allDefs (progCxt prog) level def selection action
 
 findASTDef :: MonadThrow m => Map GVarName (Editable, Def.Def) -> GVarName -> m (Editable, ASTDef)
 findASTDef allDefs def = case allDefs Map.!? def of
@@ -1562,8 +1559,8 @@ applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selec
   prog <- getProgram sid
   def <- snd <$> findASTTypeOrTermDef prog selection
   actions <-
-    either (throwM . ToProgActionError (Available.NoInput action)) pure
-      $ toProgActionNoInput (progDefMap prog) def selection action
+    either (throwM . ToProgActionError (Available.NoInput action)) pure $
+      toProgActionNoInput (progDefMap prog) def selection action
   applyActions sid actions
 
 applyActionInput ::
@@ -1576,8 +1573,8 @@ applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, act
   prog <- getProgram sid
   def <- snd <$> findASTTypeOrTermDef prog body.selection
   actions <-
-    either (throwM . ToProgActionError (Available.Input action)) pure
-      $ toProgActionInput def body.selection body.option action
+    either (throwM . ToProgActionError (Available.Input action)) pure $
+      toProgActionInput def body.selection body.option action
   applyActions sid actions
 
 data ApplyActionBody = ApplyActionBody

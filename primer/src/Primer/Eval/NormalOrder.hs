@@ -135,10 +135,10 @@ foldMapExpr opts extract topDir = go mempty . (topDir,) . focus
           -- Prefer to compute inside the body of a let, but otherwise compute in the binding
           -- NB: we never push lets into lets, so the Cxt is reset for non-body children
           Just (ViewLet{bindingVL, bodyVL, typeChildrenVL, termChildrenVL}) ->
-            msum
-              $ go (cxtAddLet bindingVL lets) bodyVL
-              : map (goType mempty) typeChildrenVL
-                <> map (go mempty) termChildrenVL
+            msum $
+              go (cxtAddLet bindingVL lets) bodyVL
+                : map (goType mempty) typeChildrenVL
+                  <> map (go mempty) termChildrenVL
           -- Since stuck things other than lets are stuck on the first child or
           -- its type annotation, we can handle them all uniformly
           -- Since this node is not a let, the context is reset
@@ -146,9 +146,9 @@ foldMapExpr opts extract topDir = go mempty . (topDir,) . focus
             case (opts, lets) of
               (StopAtBinders, Cxt (_ : _)) -> mzero
               _ ->
-                msum
-                  $ (goType mempty =<< focusType' ez) -- NB: no binders in term scope over a type child
-                  : map (go mempty) (exprChildren opts dez)
+                msum $
+                  (goType mempty =<< focusType' ez) -- NB: no binders in term scope over a type child
+                    : map (go mempty) (exprChildren opts dez)
     goType :: Cxt -> TypeZ -> f a
     goType lets tz =
       extract.ty tz lets

@@ -65,11 +65,11 @@ unify ::
   m (Maybe (M.Map TyVarName Type))
 unify cxt unificationVars s t = do
   result <-
-    runExceptT
-      $ flip execStateT mempty
-      $ flip runReaderT initEnv
-      $ unU
-      $ unify' s t
+    runExceptT $
+      flip execStateT mempty $
+        flip runReaderT initEnv $
+          unU $
+            unify' s t
   case result of
     Left _err -> pure Nothing
     Right sb -> do

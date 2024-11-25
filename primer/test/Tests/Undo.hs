@@ -74,8 +74,8 @@ unit_redo_eval =
             ]
         ]
       eval =
-        readerToState
-          $ handleEvalFullRequest
+        readerToState $
+          handleEvalFullRequest
             App.EvalFullReq
               { App.evalFullReqExpr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
               , App.evalFullCxtDir = Syn
@@ -119,8 +119,8 @@ unit_redo_eval_interp =
             ]
         ]
       eval =
-        readerToState
-          $ handleEvalInterpRequest
+        readerToState $
+          handleEvalInterpRequest
             App.EvalInterpReq
               { App.expr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
               , App.dir = Syn
@@ -162,8 +162,8 @@ unit_redo_eval_interp_bounded =
             ]
         ]
       eval =
-        readerToState
-          $ handleEvalBoundedInterpRequest
+        readerToState $
+          handleEvalBoundedInterpRequest
             App.EvalBoundedInterpReq
               { App.expr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
               , App.dir = Syn

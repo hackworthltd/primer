@@ -371,14 +371,14 @@ forTypeDef ::
   [Action]
 forTypeDef _ NonEditable _ _ _ _ = mempty
 forTypeDef l Editable tydefs defs tdName td =
-  sortByPriority l
-    $ [ Input RenameType
-      , Input AddCon
-      , NoInput DeleteTypeDef
-      ]
-    <> mwhen
-      (l == Expert && not (typeInUse tdName td tydefs defs))
-      [Input AddTypeParam]
+  sortByPriority l $
+    [ Input RenameType
+    , Input AddCon
+    , NoInput DeleteTypeDef
+    ]
+      <> mwhen
+        (l == Expert && not (typeInUse tdName td tydefs defs))
+        [Input AddTypeParam]
 
 forTypeDefParamNode ::
   TyVarName ->
@@ -391,21 +391,20 @@ forTypeDefParamNode ::
   [Action]
 forTypeDefParamNode _ _ NonEditable _ _ _ _ = mempty
 forTypeDefParamNode paramName l Editable tydefs defs tdName td =
-  sortByPriority l
-    $ [ Input RenameTypeParam
-      ]
-    <> mwhen
-      ( l
-          == Expert
-          && not
-            ( typeInUse tdName td tydefs defs
-                || elemOf
-                  (to astTypeDefConstructors % folded % to valConArgs % folded % getting _freeVarsTy % _2)
-                  paramName
-                  td
-            )
-      )
-      [NoInput DeleteTypeParam]
+  sortByPriority l $
+    [ Input RenameTypeParam
+    ]
+      <> mwhen
+        ( l == Expert
+            && not
+              ( typeInUse tdName td tydefs defs
+                  || elemOf
+                    (to astTypeDefConstructors % folded % to valConArgs % folded % getting _freeVarsTy % _2)
+                    paramName
+                    td
+              )
+        )
+        [NoInput DeleteTypeParam]
 
 forTypeDefParamKindNode ::
   TyVarName ->
@@ -458,12 +457,12 @@ forTypeDefConsFieldNode ::
   [Action]
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable _ _ _ td =
-  sortByPriority l
-    $ mwhen ((view _id <$> fieldType) == Just id) [NoInput DeleteConField]
-    <> case findTypeOrKind id =<< fieldType of
-      Nothing -> mempty
-      Just (Left t) -> forType l t
-      Just (Right k) -> forKind l k
+  sortByPriority l $
+    mwhen ((view _id <$> fieldType) == Just id) [NoInput DeleteConField]
+      <> case findTypeOrKind id =<< fieldType of
+        Nothing -> mempty
+        Just (Left t) -> forType l t
+        Just (Right k) -> forKind l k
   where
     fieldType = getTypeDefConFieldType td con index
 
@@ -626,22 +625,21 @@ options typeDefs defs cxt level def0 sel0 = \case
       findNode >>= \case
         ExprNode e
           | Just t <- exprType e -> do
-              pure
-                $ (locals <&> \(ln, t') -> (localOpt' (t `eqType` t') $ unLocalName ln, t'))
-                <> (globals <&> \(gn, t') -> (globalOpt' (t `eqType` t') gn, t'))
+              pure $
+                (locals <&> \(ln, t') -> (localOpt' (t `eqType` t') $ unLocalName ln, t'))
+                  <> (globals <&> \(gn, t') -> (globalOpt' (t `eqType` t') gn, t'))
         _ ->
-          pure
-            $ (first (localOpt . unLocalName) <$> locals)
-            <> (first globalOpt <$> globals)
+          pure $
+            (first (localOpt . unLocalName) <$> locals)
+              <> (first globalOpt <$> globals)
     valConOpts =
       let vcs = allNonPrimValCons typeDefs
        in do
             findNode >>= \case
               ExprNode e
                 | Just t <- exprType e -> do
-                    pure
-                      $ vcs
-                      <&> \vc@(vc', tc, _) ->
+                    pure $
+                      vcs <&> \vc@(vc', tc, _) ->
                         -- Since all datatypes are regular ADTs (not GADTs), the only things needed for
                         -- a value constructor to be a correct fit for a hole are
                         -- - the hole's type is "a type constructor applied to a bunch of things"
@@ -718,9 +716,8 @@ sortByPriority ::
   [Action] ->
   [Action]
 sortByPriority l =
-  sortOn
-    $ ($ l)
-    . \case
+  sortOn $
+    ($ l) . \case
       NoInput a -> case a of
         MakeCase -> P.makeCase
         MakeApp -> P.applyFunction

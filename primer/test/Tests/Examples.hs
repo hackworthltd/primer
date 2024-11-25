@@ -35,8 +35,8 @@ checkExamplesRequest =
   where
     others = ModuleName $ pure "OtherExamples"
     otherExamples =
-      Module others mempty
-        $ Map.fromList
+      Module others mempty $
+        Map.fromList
           [ first baseName $ create' $ not others
           , first baseName $ create' $ comprehensiveWellTyped others
           ]
@@ -51,8 +51,8 @@ unit_check_examples = case runTypecheckTestM
 unit_comprehensive_ill_typed :: Assertion
 unit_comprehensive_ill_typed = case runTypecheckTestM
   NoSmartHoles
-  ( checkEverything NoSmartHoles
-      $ CheckEverything
+  ( checkEverything NoSmartHoles $
+      CheckEverything
         { trusted = [create' builtinModule]
         , toCheck = [Module modName mempty $ Map.fromList [first baseName $ create' $ comprehensive modName]]
         }

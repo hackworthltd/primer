@@ -808,30 +808,30 @@ test_eval_undo =
           Just e@EmptyHole{} -> pure $ getID e
           _ -> liftIO $ assertFailure "unexpected form of main"
       _ <-
-        expectSuccess
-          $ edit sid
-          $ Edit
-            [ MoveToDef $ qualifyName scope "main"
-            , BodyAction
-                [ SetCursor i1
-                , InsertSaturatedVar $ GlobalVarRef Integer.even
-                ]
-            ]
+        expectSuccess $
+          edit sid $
+            Edit
+              [ MoveToDef $ qualifyName scope "main"
+              , BodyAction
+                  [ SetCursor i1
+                  , InsertSaturatedVar $ GlobalVarRef Integer.even
+                  ]
+              ]
       step "insert 4"
       i2 <-
         getMain >>= \case
           Just (App _ _ e) -> pure $ getID e
           _ -> liftIO $ assertFailure "unexpected form of main"
       _ <-
-        expectSuccess
-          $ edit sid
-          $ Edit
-            [ MoveToDef $ qualifyName scope "main"
-            , BodyAction
-                [ SetCursor i2
-                , ConstructPrim $ PrimInt 4
-                ]
-            ]
+        expectSuccess $
+          edit sid $
+            Edit
+              [ MoveToDef $ qualifyName scope "main"
+              , BodyAction
+                  [ SetCursor i2
+                  , ConstructPrim $ PrimInt 4
+                  ]
+              ]
       step "get edited App"
       app0 <- getApp sid
       step "undo"
@@ -876,12 +876,12 @@ test_selectioninfo =
                 Just e@EmptyHole{} -> pure $ getID e
                 _ -> assertFailure' $ "unexpected form of " <> toS (unName d)
             _ <-
-              expectSuccess
-                $ edit sid
-                $ Edit
-                  [ MoveToDef $ qualifyName scope d
-                  , BodyAction $ SetCursor i : as
-                  ]
+              expectSuccess $
+                edit sid $
+                  Edit
+                    [ MoveToDef $ qualifyName scope d
+                    , BodyAction $ SetCursor i : as
+                    ]
             pure ()
       let mkType d as = do
             _ <- expectSuccess $ edit sid $ Edit [CreateDef scope $ Just $ unName d]
@@ -890,12 +890,12 @@ test_selectioninfo =
                 Just e@TEmptyHole{} -> pure $ getID e
                 _ -> assertFailure' $ "unexpected form of " <> toS (unName d)
             _ <-
-              expectSuccess
-                $ edit sid
-                $ Edit
-                  [ MoveToDef $ qualifyName scope d
-                  , SigAction $ SetCursor i : as
-                  ]
+              expectSuccess $
+                edit sid $
+                  Edit
+                    [ MoveToDef $ qualifyName scope d
+                    , SigAction $ SetCursor i : as
+                    ]
             pure ()
 
       step "tm1 :: ? = not {? Zero ?}"
@@ -917,15 +917,15 @@ test_selectioninfo =
           e -> assertFailure' $ "unexpected form of tm1: " <> show e
       step "tm1 mismatch info"
       tm1tk <-
-        getSelectionTypeOrKind sid
-          $ SelectionDef
-          $ DefSelection (qualifyName scope "tm1")
-          $ Just
-          $ NodeSelection BodyNode htm1
+        getSelectionTypeOrKind sid $
+          SelectionDef $
+            DefSelection (qualifyName scope "tm1") $
+              Just $
+                NodeSelection BodyNode htm1
       zeroTKIds tm1tk
         @?= zeroTKIds
-          ( Type
-              $ Mismatch
+          ( Type $
+              Mismatch
                 { got = viewTreeType $ create' $ tcon tNat
                 , expected = viewTreeType $ create' $ tcon tBool
                 }
@@ -952,15 +952,15 @@ test_selectioninfo =
           e -> assertFailure' $ "unexpected form of tm2: " <> show e
       step "tm2 mismatch info"
       tm2tk <-
-        getSelectionTypeOrKind sid
-          $ SelectionDef
-          $ DefSelection (qualifyName scope "tm2")
-          $ Just
-          $ NodeSelection BodyNode htm2
+        getSelectionTypeOrKind sid $
+          SelectionDef $
+            DefSelection (qualifyName scope "tm2") $
+              Just $
+                NodeSelection BodyNode htm2
       zeroTKIds tm2tk
         @?= zeroTKIds
-          ( Type
-              $ Mismatch
+          ( Type $
+              Mismatch
                 { got = viewTreeType $ create' $ tcon tNat
                 , -- We require @expected@ to be an empty hole, matching
                   -- the behaviour of @? True@
@@ -990,15 +990,15 @@ test_selectioninfo =
           e -> assertFailure' $ "unexpected form of ty1: " <> show e
       step "ty1 mismatch info"
       ty1tk <-
-        getSelectionTypeOrKind sid
-          $ SelectionDef
-          $ DefSelection (qualifyName scope "ty1")
-          $ Just
-          $ NodeSelection SigNode hty1
+        getSelectionTypeOrKind sid $
+          SelectionDef $
+            DefSelection (qualifyName scope "ty1") $
+              Just $
+                NodeSelection SigNode hty1
       zeroTKIds ty1tk
         @?= zeroTKIds
-          ( Kind
-              $ Mismatch
+          ( Kind $
+              Mismatch
                 { got = viewTreeKind $ create' $ ktype `kfun` ktype
                 , expected = viewTreeKind $ create' ktype
                 }
@@ -1024,15 +1024,15 @@ test_selectioninfo =
           e -> assertFailure' $ "unexpected form of ty2: " <> show e
       step "ty2 mismatch info"
       ty2tk <-
-        getSelectionTypeOrKind sid
-          $ SelectionDef
-          $ DefSelection (qualifyName scope "ty2")
-          $ Just
-          $ NodeSelection SigNode hty2
+        getSelectionTypeOrKind sid $
+          SelectionDef $
+            DefSelection (qualifyName scope "ty2") $
+              Just $
+                NodeSelection SigNode hty2
       zeroTKIds ty2tk
         @?= zeroTKIds
-          ( Kind
-              $ Mismatch
+          ( Kind $
+              Mismatch
                 { got = viewTreeKind $ create' ktype
                 , -- We require @expected@ to be @?@, matching the behaviour of an empty hole.
                   -- Arguably we should change both this and the empty hole case to
