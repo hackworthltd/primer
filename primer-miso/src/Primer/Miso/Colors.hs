@@ -1,4 +1,27 @@
-module Primer.Miso.Colors where
+module Primer.Miso.Colors (
+  whitePrimary,
+  blackPrimary,
+  bluePrimary,
+  blueSecondary,
+  bluePrimaryHover,
+  blueSecondaryHover,
+  blueTertiary,
+  blueQuaternary,
+  greyPrimary,
+  greySecondary,
+  greyTertiary,
+  greyQuaternary,
+  greyPrimaryHover,
+  redPrimary,
+  redSecondary,
+  redPrimaryHover,
+  redSecondaryHover,
+  redTertiary,
+  greenPrimary,
+  yellowPrimary,
+  yellowSecondary,
+)
+where
 
 import Miso.String (MisoString)
 

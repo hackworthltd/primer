@@ -15,6 +15,7 @@ module Foreword (
   module Unsafe,
   module Catch,
   module Foldable,
+  module Foldable1,
   module TypeEquality,
 
   -- * Helper functions
@@ -73,11 +74,15 @@ import Protolude hiding (
   gcast,
   handle,
   handleJust,
+  head,
   ignore,
   lenientDecode,
   mask,
   mask_,
   maximum,
+  maximumBy,
+  minimum,
+  minimumBy,
   moduleName,
   onException,
   orElse,
@@ -102,6 +107,7 @@ import Protolude qualified as P
 import Protolude.Unsafe as Unsafe (unsafeHead)
 
 import Data.Foldable as Foldable (foldMap')
+import Data.Foldable1 as Foldable1
 import Data.Type.Equality as TypeEquality (type (~))
 
 -- We want @exceptions@ rather than @base@'s equivalents.
