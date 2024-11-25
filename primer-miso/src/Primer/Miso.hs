@@ -13,7 +13,7 @@ import Foreword hiding (minimum)
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
-import Data.Default (Default (..))
+import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
 import Data.Map qualified as Map
 import Data.Tree (Tree)
@@ -21,7 +21,7 @@ import Data.Tree qualified as Tree
 import GHC.Base (error)
 import Linear (R1 (_x), V2 (V2))
 import Linear.Affine ((.+^), (.-^))
-import Miso hiding (P)
+import Miso hiding (P, node)
 import Optics hiding (view)
 import Optics.State.Operators ((?=))
 import Primer.App
@@ -164,8 +164,8 @@ viewNode opts extraOuterStyles extraInnerStyles =
                           <> extraInnerStyles
                     ]
                     [ text case opts of
-                        SyntaxNode{text} -> text
-                        HoleNode{empty} -> if empty then "?" else "⚠️"
+                        SyntaxNode{text = t} -> t
+                        HoleNode{empty = e} -> if e then "?" else "⚠️"
                         PrimNode pc -> case pc of
                           PrimChar c' -> show c'
                           PrimInt n -> show n
@@ -179,14 +179,14 @@ viewNode opts extraOuterStyles extraInnerStyles =
                     _ -> bluePrimary
           where
             borderColor = case opts of
-              SyntaxNode{..} -> color
+              SyntaxNode{color} -> color
               HoleNode{} -> redTertiary
               PrimNode{} -> greenPrimary
               ConNode{} -> greenPrimary
               VarNode{} -> blueQuaternary
               PatternBoxNode{} -> yellowPrimary
             backgroundColor = case opts of
-              SyntaxNode{..} -> color
+              SyntaxNode{color} -> color
               PatternBoxNode{} -> yellowPrimary <> "33" -- 1/5 opacity
               _ -> whitePrimary
     }
@@ -350,7 +350,7 @@ viewTreeWithDimensions outerPadding t =
     nodes =
       toNonEmpty $
         symmLayout' @Double
-          ( def
+          ( Default.def
               & (slHSep .~ padding)
               & (slVSep .~ padding)
               & (slWidth .~ \node -> (-(node.dimensions.x / 2), node.dimensions.x / 2))
