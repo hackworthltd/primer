@@ -1,21 +1,39 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Things which should really be upstreamed rather than living in this project.
-module Primer.Miso.Util where
+module Primer.Miso.Util (
+  startAppWithSavedState,
+  P2,
+  unitX,
+  unit_X,
+  unitY,
+  unit_Y,
+  tcBasicProg,
+  runTC,
+  TypeT,
+  TermMeta',
+  NodeSelectionT,
+  ExprMetaT,
+  TypeMetaT,
+  KindMetaT,
+  ASTDefT (..),
+  kindsInType,
+  bindingsInExpr,
+  typeBindingsInExpr,
+  bindingsInType,
+  nodeSelectionType,
+) where
 
 import Foreword hiding (zero)
 
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Foldable1 qualified
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso
@@ -80,17 +98,6 @@ instance HasField "y" (V2 a) a where
 instance (HasField "y" (f a) a) => HasField "y" (Point f a) a where
   getField = getField @"y" . unP
 
-{- Foreword -}
-
--- replace unsafe `minimum`
-type Foldable1 = Data.Foldable1.Foldable1
-minimum :: (Foldable1 t) => t Double -> Double
-minimum = Data.Foldable1.minimum
-maximum :: (Foldable1 t) => t Double -> Double
-maximum = Data.Foldable1.maximum
-toNonEmpty :: (Foldable1 t) => t a -> NonEmpty a
-toNonEmpty = Data.Foldable1.toNonEmpty
-
 {- Primer -}
 
 -- `tcWholeProg` throws away information by not returning a prog containing `ExprT`s
@@ -100,8 +107,8 @@ tcBasicProg p ASTDef{..} =
   runTC
     . flip (runReaderT @_ @(M TypeError)) (progCxt p)
     $ ASTDefT
-      <$> (check (forgetTypeMetadata astDefType) astDefExpr)
-      <*> (checkKind (KType ()) astDefType)
+      <$> check (forgetTypeMetadata astDefType) astDefExpr
+      <*> checkKind (KType ()) astDefType
 
 -- TODO this is all basically copied from unexposed parts of Primer library - find a way to expose
 newtype M e a = M {unM :: StateT (ID, NameCounter) (Except e) a}

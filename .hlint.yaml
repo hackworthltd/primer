@@ -75,10 +75,14 @@
   - {name: Data.Text.init, within: []}
   - {name: Data.Text.last, within: []}
 
-  - {name: minimum, within: []} # Partial
-  - {name: minimumBy, within: []} # Partial
-  - {name: maximum, within: []} # Partial
-  - {name: maximumBy, within: []} # Partial
+  - {name: Data.Foldable.minimum, within: []} # Partial
+  - {name: Data.Foldable.minimumBy, within: []} # Partial
+  - {name: Data.Foldable.maximum, within: []} # Partial
+  - {name: Data.Foldable.maximumBy, within: []} # Partial
+  - {name: Data.List.minimum, within: []} # Partial
+  - {name: Data.List.minimumBy, within: []} # Partial
+  - {name: Data.List.maximum, within: []} # Partial
+  - {name: Data.List.maximumBy, within: []} # Partial
 
   # Same, but for Data.Text
   - {name: Data.Text.maximum, within: []}
