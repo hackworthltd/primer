@@ -33,11 +33,14 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-We can't use `diagrams-contrib` since it pulls in `diagrams-lib`, which in turn uses `fsnotify`, which uses `unix-compat`, which contains some C code that fails to build. It potentially makes sense to avoid such a huge dependency tree anyway. Besides, this is all a temporary solution in lieu of a better layout algorithm, such as a Haskell implementation of Tidy.
+We can't use `diagrams-contrib` since it pulls in `diagrams-lib`, which in turn uses `fsnotify`,
+which uses `unix-compat`, which contains some C code that fails to compile to Wasm.
+It potentially makes sense to avoid such a huge dependency tree anyway.
+Besides, this is all a temporary solution in lieu of a better layout algorithm,
+such as a Haskell implementation of Tidy.
 
 Differences from upstream:
 - Remove everything but the simple symmetric layout algorithm.
-- Vendor some further required definitions from the `diagrams` family. These are all in one block at the very top of the module body.
 - Add `NoLexicalNegation` to override this package's default, in order to avoid a syntax error in `unRelativize`.
 - Use `optics` instead of `lens`.
 - Make some adjustments so that y-coordinates are always non-negative, with the root being at zero.
