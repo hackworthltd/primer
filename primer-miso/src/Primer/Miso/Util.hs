@@ -75,6 +75,7 @@ startAppWithSavedState app = do
 {- Linear -}
 
 -- defined in `diagrams` but no clear reason why they aren't in `linear` itself
+-- https://github.com/ekmett/linear/issues/180
 type P2 = Point V2
 unitX :: (R1 v, Additive v, Num n) => v n
 unitX = zero & lensVL _x .~ 1
@@ -85,6 +86,7 @@ unitY = zero & lensVL _y .~ 1
 unit_Y :: (R2 v, Additive v, Num n) => v n
 unit_Y = zero & lensVL _y .~ (-1)
 
+-- https://github.com/ekmett/linear/issues/181
 -- this style would be simplest but isn't possible due to the implementation of `OverloadedRecordDot`:
 -- instance R1 t => HasField "x" (t a) a where
 --     getField = flip (^.) $ lensVL _x
