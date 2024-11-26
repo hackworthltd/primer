@@ -35,6 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 We can't use `diagrams-contrib` since it pulls in `diagrams-lib`, which in turn uses `fsnotify`,
 which uses `unix-compat`, which contains some C code that fails to compile to Wasm.
+See https://github.com/diagrams/diagrams-lib/issues/370.
 It potentially makes sense to avoid such a huge dependency tree anyway.
 Besides, this is all a temporary solution in lieu of a better layout algorithm,
 such as a Haskell implementation of Tidy.
