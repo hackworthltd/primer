@@ -195,8 +195,8 @@ lcmDef = do
                       (apps (gvar gcd) [lvar "x", lvar "y"])
                       ( apps
                           (pfun IntQuot)
-                          [ app (gvar abs)
-                              $ apps
+                          [ app (gvar abs) $
+                              apps
                                 (pfun IntMul)
                                 [lvar "x", lvar "y"]
                           , lvar "m"

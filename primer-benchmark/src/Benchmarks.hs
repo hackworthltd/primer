@@ -114,13 +114,13 @@ benchmarks =
     evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
     evalOptionsR = RunRedexOptions{pushAndElide = True}
     evalTestMPureLogsStep e maxEvals =
-      evalTestM (maxID e)
-        $ runPureLogT
-        $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+      evalTestM (maxID e) $
+        runPureLogT $
+          EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMDiscardLogsStep e maxEvals =
-      evalTestM (maxID e)
-        $ runDiscardLogT
-        $ EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+      evalTestM (maxID e) $
+        runDiscardLogT $
+          EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMInterp e d =
       EFInterp.interp' builtinTypes (EFInterp.mkGlobalEnv $ defMap e) d (forgetMetadata $ expr e)
 
@@ -143,9 +143,8 @@ benchmarks =
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
-    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog
-      $ pure
-      $ \case
+    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $
+      pure $ \case
         Left err -> assertFailure $ "Failed to typecheck: " <> show err
         Right p -> assertBool "Unexpected smarthole changes" $ forgetProgTypecache p == forgetProgTypecache prog
 
@@ -165,10 +164,8 @@ runTests :: [Benchmark] -> TestTree
 runTests = testGroup "Benchmark result tests" . map go
   where
     go (EnvBench act n b) = withResource act (const $ pure ()) $ \e ->
-      testCase (toS n)
-        $ e
-        >>= testBenchmarkable
-        . b
+      testCase (toS n) $
+        e >>= testBenchmarkable . b
     go (Group n bs) = testGroup (toS n) $ map go bs
 
     testBenchmarkable (NF f x test) = test >>= ($ f x)

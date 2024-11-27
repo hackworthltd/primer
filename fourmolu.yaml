@@ -8,3 +8,11 @@ haddock-style: single-line
 newlines-between-decls: 1
 single-constraint-parens: auto
 
+# Foreword might not actually re-export _all_ operators from these modules,
+# but this is a lot nicer than explicitly listing all of the ones that it does.
+# For some reason they're not picked up with `module Foreword exports Protolude`.
+reexports:
+  - module Foreword exports Prelude
+  - module Foreword exports Control.Applicative
+  - module Foreword exports Data.Function
+  - module Foreword exports Data.Monoid

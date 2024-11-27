@@ -26,14 +26,10 @@ packFinite = fmap Finite . eitherToMaybe . refine
 instance (KnownNat l, KnownNat u) => ToParamSchema (Finite l u) where
   toParamSchema _ =
     toParamSchema (Proxy @Natural)
-      & #minimum
-      ?~ fromIntegral (natVal $ Proxy @l)
-      & #exclusiveMinimum
-      ?~ False
-      & #maximum
-      ?~ fromIntegral (natVal $ Proxy @u)
-      & #exclusiveMaximum
-      ?~ False
+      & #minimum ?~ fromIntegral (natVal $ Proxy @l)
+      & #exclusiveMinimum ?~ False
+      & #maximum ?~ fromIntegral (natVal $ Proxy @u)
+      & #exclusiveMaximum ?~ False
 
 instance (KnownNat l, KnownNat u, l <= u) => FromHttpApiData (Finite l u) where
   parseUrlPiece x = do

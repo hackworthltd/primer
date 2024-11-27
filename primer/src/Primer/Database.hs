@@ -413,15 +413,15 @@ instance Exception NullDbException
 instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
   insertSession _ id_ a n t = do
     ss <- ask
-    result <- liftIO
-      $ atomically
-      $ do
-        lookup <- StmMap.lookup id_ ss
-        case lookup of
-          Nothing -> do
-            StmMap.insert (SessionData a n t) id_ ss
-            pure $ Right ()
-          Just _ -> pure $ Left $ NullDbException "insertSession failed because session already exists"
+    result <- liftIO $
+      atomically $
+        do
+          lookup <- StmMap.lookup id_ ss
+          case lookup of
+            Nothing -> do
+              StmMap.insert (SessionData a n t) id_ ss
+              pure $ Right ()
+            Just _ -> pure $ Left $ NullDbException "insertSession failed because session already exists"
     case result of
       Left e -> throwM e
       Right _ -> pure ()
@@ -463,15 +463,15 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
 
 updateOrFail :: (MonadThrow m, MonadIO m) => SessionId -> (SessionData -> SessionData) -> Sessions -> m ()
 updateOrFail id_ f ss = do
-  result <- liftIO
-    $ atomically
-    $ do
-      lookup <- StmMap.lookup id_ ss
-      case lookup of
-        Nothing -> pure $ Left $ NullDbException "updateSessionName lookup failed"
-        Just s -> do
-          StmMap.insert (f s) id_ ss
-          pure $ Right ()
+  result <- liftIO $
+    atomically $
+      do
+        lookup <- StmMap.lookup id_ ss
+        case lookup of
+          Nothing -> pure $ Left $ NullDbException "updateSessionName lookup failed"
+          Just s -> do
+            StmMap.insert (f s) id_ ss
+            pure $ Right ()
   case result of
     Left e -> throwM e
     Right _ -> pure ()

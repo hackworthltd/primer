@@ -407,8 +407,8 @@ newEmptyProgImporting imported =
               ]
           , progImports = imported'
           , progSelection =
-              Just
-                $ SelectionDef
+              Just $
+                SelectionDef
                   DefSelection
                     { def = qualifyName moduleName defName
                     , node = Nothing
@@ -462,17 +462,17 @@ importModules ms = do
   let currentModules = progAllModules p
   let currentNames = moduleName <$> currentModules
   let newNames = moduleName <$> ms
-  unless (disjoint currentNames newNames && not (anySame newNames))
-    $ throwError
-    $ ActionError
-    $ ImportNameClash
-    $ (currentNames `intersect` newNames)
-    <> (newNames \\ ordNub newNames)
+  unless (disjoint currentNames newNames && not (anySame newNames)) $
+    throwError $
+      ActionError $
+        ImportNameClash $
+          (currentNames `intersect` newNames)
+            <> (newNames \\ ordNub newNames)
   -- Imports must be well-typed (and cannot depend on the editable modules)
   checkedImports <-
-    liftError (ActionError . ImportFailed ())
-      $ checkEverything NoSmartHoles
-      $ CheckEverything{trusted = progImports p, toCheck = ms}
+    liftError (ActionError . ImportFailed ()) $
+      checkEverything NoSmartHoles $
+        CheckEverything{trusted = progImports p, toCheck = ms}
   let p' = p & #progImports %~ (<> checkedImports)
   modify (\a -> a & #currentState % #prog .~ p')
 
@@ -782,8 +782,8 @@ applyProgAction prog = \case
       else do
         let m' = m{moduleDefs = Map.insert newNameBase (DefAST def) $ Map.delete defName defs}
         renamedModules <-
-          maybe (throwError $ ActionError NameCapture) pure
-            $ traverseOf
+          maybe (throwError $ ActionError NameCapture) pure $
+            traverseOf
               (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
               (renameVar (GlobalVarRef d) (GlobalVarRef newName))
               (m' : ms)
@@ -921,10 +921,10 @@ applyProgAction prog = \case
           )
           type_
       updateDefs =
-        over (traversed % #_DefAST % #astDefExpr)
-          $ transform
-          $ over (#_Con % _2) updateName
-          . over (#_Case % _3 % traversed % #_CaseBranch % _1 % #_PatCon) updateName
+        over (traversed % #_DefAST % #astDefExpr) $
+          transform $
+            over (#_Con % _2) updateName
+              . over (#_Case % _3 % traversed % #_CaseBranch % _1 % #_PatCon) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModule (qualifiedModule type_) prog $ \m -> do
@@ -954,8 +954,7 @@ applyProgAction prog = \case
               % #valConArgs
               % traversed
           )
-          $ maybe (throwError $ ActionError NameCapture) pure
-          . renameTyVar old new
+          $ maybe (throwError $ ActionError NameCapture) pure . renameTyVar old new
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
@@ -966,8 +965,7 @@ applyProgAction prog = \case
         traverseOf
           (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
           (updateDefs allCons)
-          $ m'
-          : ms
+          $ m' : ms
       pure
         ( ms'
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
@@ -1042,17 +1040,17 @@ applyProgAction prog = \case
                 (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind (KType ()) =<< generateTypeIDs new)
                 (progCxt prog)
          in alterTypeDef
-              ( traverseOf #astTypeDefConstructors
-                  $ maybe (throwError $ ConNotFound con) pure
-                  <=< findAndAdjustA
-                    ((== con) . valConName)
-                    ( traverseOf
-                        #valConArgs
-                        ( maybe (throwError $ IndexOutOfRange index) pure
-                            <=< liftA2 (insertAt index) new'
-                            . pure
-                        )
-                    )
+              ( traverseOf #astTypeDefConstructors $
+                  maybe (throwError $ ConNotFound con) pure
+                    <=< findAndAdjustA
+                      ((== con) . valConName)
+                      ( traverseOf
+                          #valConArgs
+                          ( maybe (throwError $ IndexOutOfRange index) pure
+                              <=< liftA2 (insertAt index) new'
+                              . pure
+                          )
+                      )
               )
               type_
       -- NB: we must updateDecons first, as transformCaseBranches may do
@@ -1206,13 +1204,13 @@ applyProgAction prog = \case
       Right (mod', zt) ->
         pure
           ( mod'
-          , Just
-              $ SelectionTypeDef
+          , Just $
+              SelectionTypeDef
                 TypeDefSelection
                   { def = tyName
                   , node =
-                      Just
-                        $ TypeDefConsNodeSelection
+                      Just $
+                        TypeDefConsNodeSelection
                           TypeDefConsSelection
                             { con
                             , field =
@@ -1235,12 +1233,12 @@ applyProgAction prog = \case
         mods' <- runFullTCPass smartHoles imports (mod' : mods)
         pure
           ( mods'
-          , Just
-              $ SelectionTypeDef
-              $ TypeDefSelection tyName
-              $ Just
-              $ TypeDefParamNodeSelection
-              $ TypeDefParamSelection{param = paramName, kindMeta = Just $ Right $ Right $ kz ^. _target % _kindMetaLens}
+          , Just $
+              SelectionTypeDef $
+                TypeDefSelection tyName $
+                  Just $
+                    TypeDefParamNodeSelection $
+                      TypeDefParamSelection{param = paramName, kindMeta = Just $ Right $ Right $ kz ^. _target % _kindMetaLens}
           )
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
@@ -1263,21 +1261,17 @@ applyProgAction prog = \case
             Just renamedMods ->
               if imported curMods == imported renamedMods
                 then
-                  pure
-                    $ prog
-                    & #progModules
-                    .~ editable renamedMods
-                    & #progSelection
-                    % _Just
-                    %~ renameModule' oldName n
+                  pure $
+                    prog
+                      & #progModules .~ editable renamedMods
+                      & #progSelection % _Just %~ renameModule' oldName n
                 else
-                  throwError
-                    $
+                  throwError $
                     -- It should never happen that the action edits an
                     -- imported module, since the oldName should be distinct
                     -- from the name of any import
-                    ActionError
-                    $ InternalFailure "RenameModule: imported modules were edited by renaming"
+                    ActionError $
+                      InternalFailure "RenameModule: imported modules were edited by renaming"
   where
     checkTypeNotInUse tdName td ms =
       when
@@ -1323,8 +1317,8 @@ editModule ::
 editModule n p f = do
   m <- lookupEditableModule n p
   (m', s) <- f m
-  pure
-    $ p
+  pure $
+    p
       { progModules = m' : filter ((/= n) . moduleName) (progModules p)
       , progSelection = s
       }
@@ -1340,8 +1334,8 @@ editModuleCross n p f = do
   m <- lookupEditableModule n p
   let otherModules = filter ((/= n) . moduleName) (progModules p)
   (m', s) <- f (m, otherModules)
-  pure
-    $ p
+  pure $
+    p
       { progModules = m'
       , progSelection = s
       }
@@ -1737,9 +1731,9 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     let sharedScope =
           if fromDefName == toDefName
             then -- We rely here on the fact that there are no binders in kinds
-              getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c)
-                $ Right
-                $ either identity unfocusKindT tgt
+              getSharedScopeTy (either identity (bimap unfocusKind unfocusKindT) c) $
+                Right $
+                  either identity unfocusKindT tgt
             else mempty
     -- Delete unbound vars (nb: no vars in kinds)
     let cTgt = bimap (either target target) (either target target) c
@@ -1759,8 +1753,8 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     let newSel =
           NodeSelection
             SigNode
-            ( Right
-                $ bimap
+            ( Right $
+                bimap
                   (view $ _target % _typeMetaLens)
                   (view $ _target % _kindMetaLens)
                   pasted
@@ -1848,13 +1842,12 @@ tcWholeProg p = do
             (SigNode, Right (Right (Left x))) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
             (SigNode, Right (Right (Right zk))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ zk ^. _target % _kindMetaLens
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
-      pure
-        $ Just
-        . SelectionDef
-        $ DefSelection
-          { def = defName_
-          , node = updatedNode
-          }
+      pure $
+        Just . SelectionDef $
+          DefSelection
+            { def = defName_
+            , node = updatedNode
+            }
     Just (SelectionTypeDef s) -> do
       let defName_ = s.def
       -- If something goes wrong in finding the metadata, we just don't set a field selection.
@@ -1863,40 +1856,39 @@ tcWholeProg p = do
             Nothing -> Nothing
             Just (sn, tda) -> case sn of
               TypeDefParamNodeSelection paramSel ->
-                Just
-                  $ TypeDefParamNodeSelection
-                  $ paramSel
-                  & #kindMeta
-                  %~ \case
-                    Just (Right (Right m)) -> do
-                      k <-
-                        tda
-                          ^? #astTypeDefParameters
-                          % afolding
-                            (find ((== paramSel.param) . fst))
-                          % _2
-                      Right . Right . view _kindMetaLens . target <$> focusOnKind (getID m) k
-                    _ -> Nothing
+                Just $
+                  TypeDefParamNodeSelection $
+                    paramSel
+                      & #kindMeta %~ \case
+                        Just (Right (Right m)) -> do
+                          k <-
+                            tda
+                              ^? #astTypeDefParameters
+                              % afolding
+                                (find ((== paramSel.param) . fst))
+                              % _2
+                          Right . Right . view _kindMetaLens . target <$> focusOnKind (getID m) k
+                        _ -> Nothing
               TypeDefConsNodeSelection conSel ->
-                Just
-                  $ TypeDefConsNodeSelection
-                  $ conSel
-                  & over #field \case
-                    Nothing -> Nothing
-                    Just fieldSel ->
-                      flip (set #meta) fieldSel . Right <$> do
-                        ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
-                        id <- case fieldSel.meta of
-                          Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
-                          Right m -> pure $ getID m
-                        bimap (view $ _target % _typeMetaLens) (view $ _target % _kindMetaLens) <$> focusOnTy id ty
-      pure
-        $ Just
-        $ SelectionTypeDef
-        $ TypeDefSelection
-          { def = defName_
-          , node = updatedNode
-          }
+                Just $
+                  TypeDefConsNodeSelection $
+                    conSel
+                      & over #field \case
+                        Nothing -> Nothing
+                        Just fieldSel ->
+                          flip (set #meta) fieldSel . Right <$> do
+                            ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
+                            id <- case fieldSel.meta of
+                              Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
+                              Right m -> pure $ getID m
+                            bimap (view $ _target % _typeMetaLens) (view $ _target % _kindMetaLens) <$> focusOnTy id ty
+      pure $
+        Just $
+          SelectionTypeDef $
+            TypeDefSelection
+              { def = defName_
+              , node = updatedNode
+              }
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
@@ -2135,8 +2127,8 @@ transformNamedCaseBranch ::
   Expr ->
   m Expr
 transformNamedCaseBranch type_ con f = transformNamedCaseBranches type_ $ \m ->
-  traverse
-    $ \cb -> if caseBranchName cb == PatCon con then f m cb else pure cb
+  traverse $
+    \cb -> if caseBranchName cb == PatCon con then f m cb else pure cb
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
