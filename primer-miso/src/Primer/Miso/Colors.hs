@@ -20,6 +20,7 @@ module Primer.Miso.Colors (
   greenPrimary,
   yellowPrimary,
   yellowSecondary,
+  yellowTertiary,
 )
 where
 
@@ -87,3 +88,7 @@ yellowPrimary = "#ffb961"
 
 yellowSecondary :: MisoString
 yellowSecondary = "#e5a34f"
+
+-- TODO from color picker (had a comment about this somewhere...)
+yellowTertiary :: MisoString
+yellowTertiary = "#fff1df"
