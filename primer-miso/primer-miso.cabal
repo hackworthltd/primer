@@ -12,8 +12,9 @@ synopsis:
 
 category:      UI
 
-library
-  exposed-modules:
+executable primer-miso
+  main-is:            Main.hs
+  other-modules:
     Primer.Miso
     Primer.Miso.Colors
     Primer.Miso.Layout
@@ -54,50 +55,15 @@ library
 
   if arch(wasm32)
     build-depends: jsaddle-wasm ^>=0.0.1.0
+      , ghc-experimental  ^>=0.1.0.0
+    ghc-options:
+      -no-hs-main -optl-mexec-model=reactor "-optl-Wl,--export=hs_start"
 
   else
     build-depends:
       , jsaddle-warp  ^>=0.9.9.2
       , warp          >=3.3       && <3.5
       , websockets    ^>=0.13.0.0
-
-executable primer-miso
-  main-is:            Main.hs
-  hs-source-dirs:     exe
-  default-language:   GHC2021
-  default-extensions:
-    DataKinds
-    DeriveAnyClass
-    DerivingStrategies
-    DerivingVia
-    LambdaCase
-    NoImplicitPrelude
-    OverloadedStrings
-
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
-
-  build-depends:
-    , base
-    , jsaddle
-    , primer
-    , primer-miso
-
-  if arch(wasm32)
-    build-depends:
-      , ghc-experimental  ^>=0.1.0.0
-      , jsaddle-wasm
-
-    ghc-options:
-      -no-hs-main -optl-mexec-model=reactor "-optl-Wl,--export=hs_start"
-
-  else
-    build-depends:
-      , jsaddle-warp
-      , warp
-      , websockets
 
     ghc-options:   -threaded -rtsopts -with-rtsopts=-N
 
