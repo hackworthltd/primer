@@ -18,8 +18,8 @@ import Data.Map qualified as Map
 import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import GHC.Base (error)
-import Linear (R1 (_x), V2 (V2))
-import Linear.Affine ((.+^), (.-^))
+import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
+import Linear.Affine ((.+^), (.-.), (.-^))
 import Miso hiding (P, node)
 import Optics hiding (view)
 import Optics.State.Operators ((?=))
@@ -187,7 +187,7 @@ viewNode opts extraOuterStyles extraInnerStyles =
               PatternBoxNode{} -> yellowPrimary
             backgroundColor = case opts of
               SyntaxNode{color} -> color
-              PatternBoxNode{} -> yellowPrimary <> "33" -- 1/5 opacity
+              PatternBoxNode{} -> yellowTertiary
               _ -> whitePrimary
     }
   where
@@ -308,6 +308,37 @@ viewTreeKind k =
       KFun{} -> SyntaxNode False bluePrimary "→"
     childViews = map viewTreeKind (children k)
 
+-- | Draw an edge from one point to another.
+viewEdge :: P2 Double -> P2 Double -> View action
+viewEdge p p' =
+  div_
+    [ style_
+        [ ("position", "absolute")
+        , ("transform-origin", "left")
+        , ("z-index", "-1")
+        ,
+          ( "transform"
+          , "translate("
+              <> show p.x
+              <> "px,"
+              <> show p.y
+              <> "px) rotate("
+              <> show theta
+              <> "rad)"
+          )
+        , ("border-style", "solid")
+        , ("border-color", greySecondary)
+        , ("border-width", ".125rem")
+        , ("height", "0px")
+        , ("width", show size <> "px")
+        ]
+    ]
+    []
+  where
+    v = p' .-. p
+    theta = unangle v
+    size = norm v
+
 viewTree :: Tree (MeasuredView action) -> View action
 viewTree = (.view) . viewTreeWithDimensions True
 
@@ -322,25 +353,33 @@ viewTreeWithDimensions outerPadding t =
     { dimensions = bottomRight - topLeft
     , view =
         div_ (mwhen outerPadding [style_ [("padding", show (padding / 2) <> "px")]])
-          $ map
-            ( \(node, p) ->
-                let offset = p .-^ node.dimensions / 2
-                 in div_
-                      [ style_
-                          [ ("position", "absolute")
-                          ,
-                            ( "transform"
-                            , "translate("
-                                <> show offset.x
-                                <> "px,"
-                                <> show offset.y
-                                <> "px)"
-                            )
-                          ]
-                      ]
-                      [node.view]
+          . map fst
+          . toList
+          $ Tree.foldTree
+            ( \(node, p) subs ->
+                Tree.Node
+                  ( div_ [] $
+                      let offset = p .-^ node.dimensions / 2
+                       in div_
+                            [ style_
+                                [ ("position", "absolute")
+                                ,
+                                  ( "transform"
+                                  , "translate("
+                                      <> show offset.x
+                                      <> "px,"
+                                      <> show offset.y
+                                      <> "px)"
+                                  )
+                                ]
+                            ]
+                            [node.view]
+                            : map (viewEdge p . head . map snd) subs
+                  , p
+                  )
+                  subs
             )
-          $ toList nodes
+            nodes
     }
   where
     mins = map (\(v, p) -> p .-^ v.dimensions / 2) nodes
@@ -348,15 +387,14 @@ viewTreeWithDimensions outerPadding t =
     maxs = map (\(v, p) -> p .+^ v.dimensions / 2) nodes
     bottomRight = V2 (maximum $ map (.x) maxs) (maximum $ map (.y) maxs)
     nodes =
-      toNonEmpty $
-        symmLayout' @Double
-          ( Default.def
-              & (slHSep .~ padding)
-              & (slVSep .~ padding)
-              & (slWidth .~ \node -> (-(node.dimensions.x / 2), node.dimensions.x / 2))
-              & (slHeight .~ \node -> (-(node.dimensions.y / 2), node.dimensions.y / 2))
-          )
-          t
+      symmLayout' @Double
+        ( Default.def
+            & (slHSep .~ padding)
+            & (slVSep .~ padding)
+            & (slWidth .~ \node -> (-(node.dimensions.x / 2), node.dimensions.x / 2))
+            & (slHeight .~ \node -> (-(node.dimensions.y / 2), node.dimensions.y / 2))
+        )
+        t
     padding = 20
 
 data MeasuredView action = MeasuredView
