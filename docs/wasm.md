@@ -36,3 +36,17 @@ with the following caveats:
    ```sh
    make -f Makefile.wasm32 test
    ```
+
+3. We now have a very preliminary Wasm frontend for Primer. The goal
+   of this frontend is to eventually replace the existing TypeScript
+   frontend, but it's currently missing quite a bit of that
+   implementation's functionality.
+
+   To run the Wasm frontend, use the following command from the
+   special Wasm shell:
+
+   ```sh
+   make -f Makefile.wasm32 serve-frontend
+   ```
+
+   Then visit http://localhost:8000 in your browser.
