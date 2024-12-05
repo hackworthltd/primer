@@ -1,16 +1,21 @@
-cabal-version: 3.0
-name:          primer-miso
-version:       0.8.0.0
-license:       AGPL-3.0-or-later
-license-file:  COPYING
-copyright:     (c) 2024 Hackworth Ltd
-maintainer:    src@hackworthltd.com
-author:        Hackworth Ltd <src@hackworthltd.com>
-stability:     experimental
+cabal-version:      3.0
+name:               primer-miso
+version:            0.8.0.0
+license:            AGPL-3.0-or-later
+license-file:       COPYING
+copyright:          (c) 2024 Hackworth Ltd
+maintainer:         src@hackworthltd.com
+author:             Hackworth Ltd <src@hackworthltd.com>
+stability:          experimental
 synopsis:
   A web frontend for building Primer programs, using the Miso framework
 
-category:      UI
+extra-source-files:
+  build-frontend.sh
+  frontend/**/*.html
+  frontend/**/*.js
+
+category:           UI
 
 library
   exposed-modules:
@@ -100,8 +105,3 @@ executable primer-miso
       , websockets
 
     ghc-options:   -threaded -rtsopts -with-rtsopts=-N
-
-  extra-source-files:
-    build-frontend.sh
-    frontend/**/*.html
-    frontend/**/*.js
