@@ -4,7 +4,7 @@
 
 CABAL = wasm32-wasi-cabal
 
-build:	configure
+build:
 	$(CABAL) build
 
 frontend: build
@@ -16,11 +16,8 @@ frontend-prod: build
 serve-frontend: frontend
 	simple-http-server -i -p 8000 -- dist
 
-configure:
-	$(CABAL) configure
-
 clean:
 	$(CABAL) clean
 	rm -rf dist/
 
-.PHONY: build configure clean
+.PHONY: build clean

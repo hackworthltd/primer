@@ -72,7 +72,7 @@ For interactive development workflows, both with and without Nix, we
 provide some convenient `Makefile` targets from the repository's top
 level directory. For example:
 
-* `make` runs `cabal configure all` followed by `cabal build all`.
+* `make` runs `cabal build all`.
 
 * `make test` runs `cabal test all`.
 
