@@ -6,7 +6,6 @@ module MyMain (main) where
 
 import Foreword
 
---import GHC.Wasm.Prim
 import Language.Javascript.JSaddle.Wasm qualified as JSaddle.Wasm
 import Primer.Miso (start)
 
