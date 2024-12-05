@@ -2,10 +2,10 @@
 #
 # This Makefile assumes you're using the `nix develop` shell.
 
-build:	configure
+build:
 	cabal build all
 
-project-targets = configure test bench haddock
+project-targets = test bench haddock
 
 $(project-targets):
 	cabal $@ all

@@ -7,11 +7,8 @@ MAKE := $(MAKE) -f Makefile.wasm32
 
 CABAL = wasm32-wasi-cabal
 
-build:	configure discover-tests
+build:	discover-tests
 	$(CABAL) build all
-
-configure:
-	$(CABAL) configure all
 
 test-targets = discover-tests test
 
@@ -35,4 +32,4 @@ clean:
 	$(CABAL) clean
 	$(MAKE) -C primer-miso clean
 
-.PHONY: build configure $(test-targets) update clean
+.PHONY: build $(test-targets) update clean

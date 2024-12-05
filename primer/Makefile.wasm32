@@ -6,11 +6,8 @@ CABAL = wasm32-wasi-cabal
 
 primer-test-path	= $(shell $(CABAL) list-bin -v0 test:primer-test)
 
-build:	configure discover-tests
+build:	discover-tests
 	$(CABAL) build
-
-configure:
-	$(CABAL) configure
 
 # test target is special because it requires wasmtime.
 test: 	build
@@ -23,4 +20,4 @@ clean:
 	$(CABAL) clean
 	rm -f test/TestsWasm32.hs
 
-.PHONY: build configure test discover-tests clean
+.PHONY: build test discover-tests clean
