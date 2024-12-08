@@ -74,13 +74,13 @@ import Foreword hiding (second)
 
 import Control.Arrow (second, (&&&), (***))
 
-import Data.Default
-import Data.Tree
+import Data.Default (Default (..))
+import Data.Tree (Tree (Node, rootLabel))
 
-import Linear
-import Linear.Affine
+import Linear (V2 (V2), (*^))
+import Linear.Affine (Affine ((.+^)), Point (P), origin)
 
-import Optics hiding (Empty)
+import Optics (makeLenses, (^.))
 import Primer.Miso.Util (P2, unitX, unit_Y)
 
 ------------------------------------------------------------

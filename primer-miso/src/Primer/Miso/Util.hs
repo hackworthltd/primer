@@ -36,11 +36,38 @@ import Control.Monad.Fresh (MonadFresh (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
-import Miso
-import Optics
+import Miso (
+  App (initialAction, model, subs, update, view),
+  JSM,
+  getLocalStorage,
+  mapSub,
+  setLocalStorage,
+  startApp,
+  (<#),
+ )
+import Optics (
+  AffineTraversal',
+  Field1 (_1),
+  Field2 (_2),
+  atraversalVL,
+  lensVL,
+  (.~),
+  (^.),
+ )
 import Optics.State.Operators ((<<%=))
-import Primer.App
-import Primer.Core
+import Primer.App (NodeSelection (meta), Prog, progCxt)
+import Primer.Core (
+  Expr' (LAM, Lam, Let, LetType, Letrec),
+  ID,
+  Kind' (KType),
+  LVarName,
+  Meta,
+  TyVarName,
+  Type' (TEmptyHole, TForall, THole, TLet),
+  TypeCache (..),
+  TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
+  _type,
+ )
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Def (ASTDef (..), astDefExpr)
 import Primer.JSON (CustomJSON (..), PrimerJSON)

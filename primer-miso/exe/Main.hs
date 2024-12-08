@@ -20,7 +20,7 @@ module Main (main) where
 
 import Foreword
 
-import Language.Javascript.JSaddle.Warp
+import Language.Javascript.JSaddle.Warp ( debug )
 import Primer.Miso (start)
 
 -- Note that `debug` works with `cabal repl` but not `cabal run`.
