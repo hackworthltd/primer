@@ -20,17 +20,108 @@ import Data.Tree qualified as Tree
 import GHC.Base (error)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
-import Miso hiding (P, node)
-import Optics hiding (view)
+import Miso (
+  App (
+    App,
+    events,
+    initialAction,
+    logLevel,
+    model,
+    mountPoint,
+    subs,
+    update,
+    view
+  ),
+  Effect,
+  JSM,
+  LogLevel (Off),
+  View,
+  defaultEvents,
+  div_,
+  fromTransition,
+  img_,
+  onClick,
+  src_,
+  style_,
+  text,
+ )
+import Optics (lensVL, over, to, (%), (.~), (^.), (^..))
 import Optics.State.Operators ((?=))
-import Primer.App
-import Primer.Core hiding (App)
+import Primer.App (
+  NodeSelection (NodeSelection),
+  NodeType (BodyNode, SigNode),
+  Prog (progImports),
+  newProg,
+ )
+import Primer.Core (
+  Bind' (Bind),
+  CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive, CaseFallback),
+  Expr' (
+    APP,
+    Ann,
+    Case,
+    Con,
+    EmptyHole,
+    Hole,
+    LAM,
+    Lam,
+    Let,
+    LetType,
+    Letrec,
+    PrimCon,
+    Var
+  ),
+  GlobalName (baseName, qualifiedModule),
+  Kind' (..),
+  LocalName (unLocalName),
+  ModuleName,
+  Pattern (PatCon, PatPrim),
+  PrimCon (..),
+  TmVarRef (GlobalVarRef, LocalVarRef),
+  Type' (..),
+  mkSimpleModuleName,
+  typesInExpr,
+  _exprMetaLens,
+  _kindMetaLens,
+  _typeMetaLens,
+ )
 import Primer.Core qualified as Primer
 import Primer.Def (Def (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Miso.Colors
-import Primer.Miso.Layout
-import Primer.Miso.Util
+import Primer.Miso.Colors (
+  blackPrimary,
+  bluePrimary,
+  blueQuaternary,
+  blueSecondary,
+  blueTertiary,
+  greenPrimary,
+  greySecondary,
+  redTertiary,
+  whitePrimary,
+  yellowPrimary,
+  yellowTertiary,
+ )
+import Primer.Miso.Layout (
+  P2,
+  slHSep,
+  slHeight,
+  slVSep,
+  slWidth,
+  symmLayout',
+ )
+import Primer.Miso.Util (
+  ASTDefT (expr, sig),
+  NodeSelectionT,
+  TermMeta',
+  bindingsInExpr,
+  bindingsInType,
+  kindsInType,
+  nodeSelectionType,
+  startAppWithSavedState,
+  tcBasicProg,
+  typeBindingsInExpr,
+ )
 import Primer.Module (Module (moduleDefs, moduleName))
 import Primer.Name (Name, unName)
 
