@@ -2,10 +2,10 @@
 #
 # This Makefile assumes you're using the `nix develop` shell.
 
-build:	configure
+build:
 	cabal build all
 
-project-targets = configure test bench haddock
+project-targets = test bench haddock
 
 $(project-targets):
 	cabal $@ all
@@ -15,6 +15,7 @@ package-targets = update-tests
 $(package-targets):
 	$(MAKE) -C primer $@
 	$(MAKE) -C primer-api $@
+	$(MAKE) -C primer-miso $@
 	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-service $@
 	$(MAKE) -C primer-benchmark $@
