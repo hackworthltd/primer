@@ -288,7 +288,7 @@ test-suite primer-test
     , logging-effect
     , mtl
     , optics
-    , pretty-simple                ^>=4.1
+    , pretty-simple                ^>=4.1.3.0
     , prettyprinter
     , prettyprinter-ansi-terminal
     , primer

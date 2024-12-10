@@ -145,7 +145,7 @@ test-suite primer-api-test
     , logging-effect
     , mtl
     , optics
-    , pretty-simple           ^>=4.1
+    , pretty-simple           ^>=4.1.3.0
     , primer
     , primer-api
     , primer-api-testlib
