@@ -1,0 +1,23 @@
+# NOTE:
+#
+# This Makefile assumes you're using the `nix develop .#wasm` shell.
+
+CABAL = wasm32-wasi-cabal
+
+primer-selda-test-path	= $(shell $(CABAL) list-bin -v0 test:primer-selda-test)
+
+build:	discover-tests
+	$(CABAL) build
+
+# test target is special because it requires wasmtime.
+test: 	build
+	wasmtime --dir test::test --dir /tmp::/tmp "$(primer-selda-test-path)"
+
+discover-tests:
+	tasty-discover test/Test.hs _ test/TestsWasm32.hs --tree-display
+
+clean:
+	$(CABAL) clean
+	rm -f test/TestsWasm32.hs
+
+.PHONY: build test discover-tests clean

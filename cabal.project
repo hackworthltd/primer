@@ -6,6 +6,7 @@ if arch(wasm32)
   packages:
     primer
     primer-api
+    primer-selda
     primer-miso
 else
   packages:

@@ -78,8 +78,6 @@ library primer-selda-testlib
     , uuid-types
 
 test-suite primer-selda-test
-  type:               exitcode-stdio-1.0
-  main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
     Tests.DeleteSession
@@ -99,11 +97,22 @@ test-suite primer-selda-test
     NoImplicitPrelude
     OverloadedStrings
 
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths -threaded
-    -rtsopts -with-rtsopts=-N
+  if arch(wasm32)
+    type:        exitcode-stdio-1.0
+    main-is:     TestsWasm32.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths
+
+  else
+    type:        exitcode-stdio-1.0
+    main-is:     Test.hs
+    ghc-options:
+      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wcompat -Widentities -Wredundant-constraints
+      -Wmissing-deriving-strategies -fhide-source-paths -threaded
+      -rtsopts -with-rtsopts=-N
 
   build-depends:
     , aeson
