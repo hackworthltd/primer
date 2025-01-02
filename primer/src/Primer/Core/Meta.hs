@@ -108,7 +108,7 @@ data GlobalName (k :: GlobalNameKind) = GlobalName
   }
   deriving stock (Eq, Ord, Generic, Data, Show, Read)
   deriving (FromJSON, ToJSON) via PrimerJSON (GlobalName k)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, FromJSONKey, ToJSONKey)
 
 -- | Construct a name from a Text. This is called unsafe because there are no
 -- guarantees about whether the name refers to anything that is in scope.
