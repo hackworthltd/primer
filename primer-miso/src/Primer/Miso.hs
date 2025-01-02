@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Primer.Miso (start) where
@@ -14,6 +15,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
+import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Tree (Tree)
 import Data.Tree qualified as Tree
@@ -36,6 +38,7 @@ import Miso (
   JSM,
   LogLevel (Off),
   View,
+  button_,
   defaultEvents,
   div_,
   fromTransition,
@@ -45,7 +48,7 @@ import Miso (
   style_,
   text,
  )
-import Optics (lensVL, over, to, (%), (.~), (^.), (^..))
+import Optics (lensVL, over, to, (%), (.~), (^.), (^..), _Just)
 import Optics.State.Operators ((?=))
 import Primer.App (
   NodeSelection (NodeSelection),
@@ -53,6 +56,7 @@ import Primer.App (
   Prog (progImports),
   newProg,
  )
+import Primer.App.Base (DefSelection (..))
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
@@ -72,6 +76,7 @@ import Primer.Core (
     PrimCon,
     Var
   ),
+  GVarName,
   GlobalName (baseName, qualifiedModule),
   Kind' (..),
   LocalName (unLocalName),
@@ -80,14 +85,16 @@ import Primer.Core (
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   Type' (..),
+  globalNamePretty,
   mkSimpleModuleName,
+  qualifyName,
   typesInExpr,
   _exprMetaLens,
   _kindMetaLens,
   _typeMetaLens,
  )
 import Primer.Core qualified as Primer
-import Primer.Def (Def (..))
+import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Miso.Colors (
   blackPrimary,
@@ -112,6 +119,8 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
+  DefSelectionT,
+  ModuleT (..),
   NodeSelectionT,
   TermMeta',
   bindingsInExpr,
@@ -122,14 +131,14 @@ import Primer.Miso.Util (
   tcBasicProg,
   typeBindingsInExpr,
  )
-import Primer.Module (Module (moduleDefs, moduleName))
+import Primer.Module (Module (moduleName))
 import Primer.Name (Name, unName)
 
 start :: JSM ()
 start =
   startAppWithSavedState
     App
-      { model = Model{def = mapDef, selection = Nothing}
+      { model = Model{module_, selection = Nothing}
       , update = updateModel
       , view = viewModel
       , subs = []
@@ -139,26 +148,26 @@ start =
       , logLevel = Off
       }
   where
-    -- TODO we display a single hardcoded expression, for the sake of demonstration
-    mapDef =
-      either (error . ("Prelude.map failed to typecheck: " <>) . show) identity
+    -- TODO we hardcode Prelude as the active module, for the sake of demonstration
+    module_ =
+      either (error . ("Prelude failed to typecheck: " <>) . show) identity
         . tcBasicProg p
-        $ fromMaybe (error "prog doesn't contain Prelude.map") do
-          m <- find ((== mkSimpleModuleName "Prelude") . moduleName) $ progImports p
-          DefAST d <- Map.lookup "map" $ moduleDefs m
-          pure d
+        . fromMaybe (error "prog doesn't contain Prelude")
+        . find ((== mkSimpleModuleName "Prelude") . moduleName)
+        $ progImports p
       where
         (p, _, _) = newProg
 
 data Model = Model
-  { def :: ASTDefT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
-  , selection :: Maybe NodeSelectionT -- TODO once we move beyond one-tree prototype, we'll need to generalise this
+  { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
+  , selection :: Maybe DefSelectionT
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
 
 data Action
   = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
+  | SelectDef GVarName
   | SelectNode NodeSelectionT
   deriving stock (Eq, Show)
 
@@ -166,30 +175,45 @@ updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
-    SelectNode sel -> #selection ?= sel
+    SelectDef d -> #selection ?= DefSelection d Nothing
+    SelectNode sel -> #selection % _Just % #node ?= sel
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
     []
     [ div_
-        [ style_
-            [ ("display", "grid")
-            , ("grid-template-columns", "1fr 1fr 1fr")
-            , ("justify-items", "center")
+        []
+        $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
+          button_
+            [onClick $ SelectDef def]
+            [text $ globalNamePretty def]
+    , case selection of
+        Nothing -> "no selection"
+        Just defSel ->
+          div_
+            []
+            [ div_
+                [ style_
+                    [ ("display", "grid")
+                    , ("grid-template-columns", "1fr 1fr 1fr")
+                    , ("justify-items", "center")
+                    ]
+                ]
+                [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType def.sig)
+                , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr def.expr)
+                , NoOp "clicked non-interactive node" <$ case defSel.node of
+                    Nothing -> viewTree $ viewTreeType $ forgetTypeMetadata def.sig
+                    Just s -> case nodeSelectionType s of
+                      Left t -> viewTree $ viewTreeType t
+                      Right (Left t) -> viewTree $ viewTreeKind t
+                      -- TODO this isn't really correct - kinds in Primer don't have kinds
+                      Right (Right ()) -> viewTree $ viewTreeKind $ KType ()
+                ]
             ]
-        ]
-        [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType def.sig)
-        , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr def.expr)
-        , case selection of
-            Nothing -> "no selection"
-            Just s ->
-              NoOp "clicked non-interactive node" <$ case nodeSelectionType s of
-                Left t -> viewTree $ viewTreeType t
-                Right (Left t) -> viewTree $ viewTreeKind t
-                -- TODO this isn't really correct - kinds in Primer don't have kinds
-                Right (Right ()) -> viewTree $ viewTreeKind $ KType ()
-        ]
+          where
+            -- TODO better error handling
+            def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
     ]
 
 data NodeViewData

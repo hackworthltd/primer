@@ -22,11 +22,13 @@ module Primer.Miso.Util (
   TypeMetaT,
   KindMetaT,
   ASTDefT (..),
+  ModuleT (..),
   kindsInType,
   bindingsInExpr,
   typeBindingsInExpr,
   bindingsInType,
   nodeSelectionType,
+  DefSelectionT,
 ) where
 
 import Foreword hiding (zero)
@@ -34,6 +36,7 @@ import Foreword hiding (zero)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Map qualified as Map
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
@@ -55,13 +58,14 @@ import Optics (
   (^.),
  )
 import Optics.State.Operators ((<<%=))
-import Primer.App (NodeSelection (meta), Prog, progCxt)
+import Primer.App (DefSelection, NodeSelection (meta), Prog, progCxt)
 import Primer.Core (
   Expr' (LAM, Lam, Let, LetType, Letrec),
   ID,
   Kind' (KType),
   LVarName,
   Meta,
+  ModuleName,
   TyVarName,
   Type' (TEmptyHole, TForall, THole, TLet),
   TypeCache (..),
@@ -69,9 +73,10 @@ import Primer.Core (
   _type,
  )
 import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Def (ASTDef (..), astDefExpr)
+import Primer.Def (ASTDef (..), astDefExpr, defAST)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Name (NameCounter)
+import Primer.Module (Module (moduleName), moduleDefs)
+import Primer.Name (Name, NameCounter)
 import Primer.Typecheck (ExprT, TypeError, check, checkKind)
 
 {- Miso -}
@@ -131,13 +136,14 @@ instance (HasField "y" (f a) a) => HasField "y" (Point f a) a where
 
 -- `tcWholeProg` throws away information by not returning a prog containing `ExprT`s
 -- we use `check` since, for whatever reason, `synth` deletes the case branches in `map`
-tcBasicProg :: Prog -> ASTDef -> Either TypeError ASTDefT
-tcBasicProg p ASTDef{..} =
+tcBasicProg :: Prog -> Module -> Either TypeError ModuleT
+tcBasicProg p m =
   runTC
     . flip (runReaderT @_ @(M TypeError)) (progCxt p)
-    $ ASTDefT
-      <$> check (forgetTypeMetadata astDefType) astDefExpr
-      <*> checkKind (KType ()) astDefType
+    $ ModuleT (moduleName m) <$> for (Map.mapMaybe defAST $ moduleDefs m) \ASTDef{..} ->
+      ASTDefT
+        <$> check (forgetTypeMetadata astDefType) astDefExpr
+        <*> checkKind (KType ()) astDefType
 
 -- TODO this is all basically copied from unexposed parts of Primer library - find a way to expose
 newtype M e a = M {unM :: StateT (ID, NameCounter) (Except e) a}
@@ -154,6 +160,7 @@ runTC = runExcept . flip evalStateT (0, toEnum 0) . (.unM)
 -- type SelectionT = Selection' (Either ExprMetaT (Either TypeMetaT KindMetaT))
 type TypeT = Type' TypeMetaT KindMetaT -- TODO actually exists in Primer lib but is hidden
 type TermMeta' a b c = Either a (Either b c) -- TODO make this a proper sum type
+type DefSelectionT = DefSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type NodeSelectionT = NodeSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type ExprMetaT = Meta TypeCache
 type TypeMetaT = Meta (Kind' ())
@@ -161,6 +168,12 @@ type KindMetaT = Meta ()
 data ASTDefT = ASTDefT {expr :: ExprT, sig :: TypeT} -- TODO parameterise `ASTDef` etc.?
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ASTDefT
+data ModuleT = ModuleT -- TODO include type defs and primitives
+  { name :: ModuleName
+  , defs :: Map Name ASTDefT
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON ModuleT
 
 -- analogous to `typesInExpr`
 kindsInType :: AffineTraversal' (Type' a b) (Kind' b)
