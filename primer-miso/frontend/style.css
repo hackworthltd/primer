@@ -1,0 +1,120 @@
+:root {
+  --white-primary: #ffffff;
+  --black-primary: #000000;
+  --blue-primary: #34375d;
+  --blue-secondary: #4b5097;
+  --blue-primary-hover: #46486f;
+  --blue-secondary-hover: #2b3679;
+  --blue-tertiary: #2c6a85;
+  --blue-quaternary: #64b0c8;
+  --grey-primary: #f7f7f7;
+  --grey-secondary: #6b7280;
+  --grey-tertiary: #4b5563;
+  --grey-quaternary: #d4d4d4;
+  --grey-primary-hover: #e2e2e2;
+  --red-primary: #a52326;
+  --red-secondary: #f1685e;
+  --red-primary-hover: #c7433f;
+  --red-secondary-hover: #bf3c38;
+  --red-tertiary: #cd3764;
+  --green-primary: #62e2b4;
+  --yellow-primary: #ffb961;
+  --yellow-secondary: #e5a34f;
+  --yellow-tertiary: #fff1df;
+}
+
+.canvas {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  justify-items: center;
+}
+
+.node {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  > *:not(:has(*)) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.node.expr {
+  border-radius: 1.5rem;
+}
+.node.kind {
+  transform: rotate(45deg)
+    /* Scale by (1 + 1/√2)/2 so that bounding square (used for tree layout) is a good approximation. */
+    scale(0.854);
+  > * {
+    /* Rotate the content back to its correct orientation. */
+    transform: rotate(-45deg);
+  }
+}
+
+.node.syntax {
+  border-width: 0;
+  color: var(--white-primary);
+}
+.node.ann {
+  background-color: var(--black-primary);
+}
+.node.app,
+.node.type-expr-app,
+.node.type-app {
+  background-color: var(--blue-tertiary);
+}
+.node.lam,
+.node.type-fun,
+.node.kind-fun {
+  background-color: var(--blue-primary);
+}
+.node.type-lam,
+.node.forall {
+  background-color: var(--blue-secondary);
+}
+.node.let,
+.node.let-type,
+.node.letrec,
+.node.type-let {
+  background-color: var(--blue-quaternary);
+}
+.node.match,
+.node.fallback {
+  background-color: var(--yellow-primary);
+}
+.node.kind-type {
+  background-color: var(--green-primary);
+}
+
+.node.non-syntax {
+  border-style: solid;
+  box-sizing: border-box;
+  border-width: 0.25rem;
+  color: var(--blue-primary);
+  background-color: var(--white-primary);
+}
+.node.var {
+  border-color: var(--blue-quaternary);
+}
+.node.con,
+.node.prim {
+  border-color: var(--green-primary);
+}
+.node.hole {
+  border-color: var(--red-tertiary);
+}
+.node.pattern-box {
+  background-color: var(--yellow-tertiary);
+  border-color: var(--yellow-primary);
+}
+
+.edge {
+  border-color: var(--grey-secondary);
+  position: absolute;
+  transform-origin: left;
+  z-index: -1;
+  border-style: solid;
+  border-width: 0.125rem;
+}

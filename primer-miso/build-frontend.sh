@@ -13,6 +13,7 @@ fi
 rm -rf dist
 mkdir dist
 cp frontend/*.html dist/
+cp frontend/*.css dist/
 
 hs_wasm_path=$(wasm32-wasi-cabal list-bin -v0 exe:primer-miso)
 

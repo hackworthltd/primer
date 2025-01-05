@@ -20,7 +20,6 @@ category:           UI
 library
   exposed-modules:
     Primer.Miso
-    Primer.Miso.Colors
     Primer.Miso.Layout
     Primer.Miso.Util
 
@@ -49,6 +48,7 @@ library
     , deriving-aeson  >=0.2      && <0.3.0
     , extra           >=1.7.10   && <1.8.0
     , jsaddle         ^>=0.9.9.2
+    , jsaddle-dom     ^>=0.9.9.2
     , linear          ^>=1.23
     , miso            ^>=1.8.5.0
     , mtl             >=2.2.2    && <2.4.0
@@ -100,7 +100,9 @@ executable primer-miso
 
   else
     build-depends:
+      , jsaddle-dom
       , jsaddle-warp
+      , wai-app-static
       , warp
       , websockets
 
