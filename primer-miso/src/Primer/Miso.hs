@@ -186,15 +186,15 @@ viewModel Model{..} =
             [ div_
                 [ class_ "canvas"
                 ]
-                [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType isSelected def.sig)
-                , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr isSelected def.expr)
-                , NoOp "clicked non-interactive node" <$ case defSel.node of
-                    Nothing -> viewTree $ viewTreeType (const False) $ forgetTypeMetadata def.sig
+                [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType (Just . Right) isSelected def.sig)
+                , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr Just isSelected def.expr)
+                , case defSel.node of
+                    Nothing -> viewTree $ viewTreeType (const Nothing) (const False) $ forgetTypeMetadata def.sig
                     Just s -> case nodeSelectionType s of
-                      Left t -> viewTree $ viewTreeType (const False) t
-                      Right (Left t) -> viewTree $ viewTreeKind (const False) t
+                      Left t -> viewTree $ viewTreeType (const Nothing) (const False) t
+                      Right (Left t) -> viewTree $ viewTreeKind (const Nothing) (const False) t
                       -- TODO this isn't really correct - kinds in Primer don't have kinds
-                      Right (Right ()) -> viewTree $ viewTreeKind (const False) $ KType ()
+                      Right (Right ()) -> viewTree $ viewTreeKind (const Nothing) (const False) $ KType ()
                 ]
             ]
           where
@@ -293,12 +293,13 @@ viewNode clickAction selected level opts =
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
+  (TermMeta' a b c -> Maybe action) ->
   (TermMeta' a b c -> Bool) ->
   Expr' a b c ->
-  Tree.Tree (MeasuredView (TermMeta' a b c))
-viewTreeExpr isSelected e =
+  Tree.Tree (MeasuredView action)
+viewTreeExpr mkAction isSelected e =
   Tree.Node
-    (viewNode (Just meta) (isSelected meta) Expr nodeView)
+    (viewNode (mkAction meta) (isSelected meta) Expr nodeView)
     childViews
   where
     meta = Left $ e ^. _exprMetaLens
@@ -321,7 +322,7 @@ viewTreeExpr isSelected e =
     childViews = case e of
       Case _ scrut branches fb ->
         mconcat
-          [ [viewTreeExpr isSelected scrut]
+          [ [viewTreeExpr mkAction isSelected scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
                 ( viewNode Nothing False Expr
@@ -333,32 +334,33 @@ viewTreeExpr isSelected e =
                       )
                     $ bindings <&> \(Bind m v) ->
                       Tree.Node
-                        (viewNode (Just $ Left m) (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
+                        (viewNode (mkAction $ Left m) (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
                         []
                 )
-                [viewTreeExpr isSelected r]
+                [viewTreeExpr mkAction isSelected r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (viewNode Nothing False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr isSelected r]]
+              CaseFallback r -> [Tree.Node (viewNode Nothing False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr mkAction isSelected r]]
           ]
       _ ->
         mconcat
           [ map (viewTreeBinding Type) (e ^.. typeBindingsInExpr)
           , map (viewTreeBinding Expr) (e ^.. bindingsInExpr)
-          , map (viewTreeType $ isSelected . Right) (e ^.. typesInExpr)
-          , map (viewTreeExpr isSelected) (children e)
+          , map (viewTreeType (mkAction . Right) (isSelected . Right)) (e ^.. typesInExpr)
+          , map (viewTreeExpr mkAction isSelected) (children e)
           ]
         where
           viewTreeBinding l name = Tree.Node (viewNode Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
+  (Either b c -> Maybe action) ->
   (Either b c -> Bool) ->
   Type' b c ->
-  Tree.Tree (MeasuredView (TermMeta' a b c))
-viewTreeType isSelected t =
+  Tree.Tree (MeasuredView action)
+viewTreeType mkAction isSelected t =
   Tree.Node
-    (viewNode (Just $ Right meta) (isSelected meta) Type nodeView)
+    (viewNode (mkAction meta) (isSelected meta) Type nodeView)
     childViews
   where
     meta = Left $ t ^. _typeMetaLens
@@ -375,17 +377,18 @@ viewTreeType isSelected t =
       map
         (\name -> Tree.Node (viewNode Nothing False Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
-        <> map (viewTreeKind $ isSelected . Right) (t ^.. kindsInType)
-        <> map (viewTreeType isSelected) (children t)
+        <> map (viewTreeKind (mkAction . Right) (isSelected . Right)) (t ^.. kindsInType)
+        <> map (viewTreeType mkAction isSelected) (children t)
 
 viewTreeKind ::
   (Data c) =>
+  (c -> Maybe action) ->
   (c -> Bool) ->
   Kind' c ->
-  Tree.Tree (MeasuredView (TermMeta' a b c))
-viewTreeKind isSelected k =
+  Tree.Tree (MeasuredView action)
+viewTreeKind mkAction isSelected k =
   Tree.Node
-    (viewNode (Just $ Right $ Right meta) (isSelected meta) Kind nodeView)
+    (viewNode (mkAction meta) (isSelected meta) Kind nodeView)
     childViews
   where
     meta = k ^. _kindMetaLens
@@ -393,7 +396,7 @@ viewTreeKind isSelected k =
       KHole{} -> HoleNode{empty = True}
       KType{} -> SyntaxNode False "kind-type" "*"
       KFun{} -> SyntaxNode False "kind-fun" "→"
-    childViews = map (viewTreeKind isSelected) (children k)
+    childViews = map (viewTreeKind mkAction isSelected) (children k)
 
 -- | Draw an edge from one point to another.
 viewEdge :: P2 Double -> P2 Double -> View action
