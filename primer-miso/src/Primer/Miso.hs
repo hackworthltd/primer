@@ -205,102 +205,101 @@ viewModel Model{..} =
             def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
     ]
 
-data NodeViewData action
+-- TODO `isNothing clickAction` implies `not selected` - we could model this better
+-- but in the long run, we intend to have no unselectable nodes anyway
+data NodeViewData action = NodeViewData
+  { clickAction :: Maybe action
+  , selected :: Bool
+  , level :: Level
+  , opts :: NodeViewOpts action
+  }
+
+data NodeViewOpts action
   = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (MeasuredView action)
+  | PatternBoxNode (Measured (View action))
 
 data Level
   = Expr
   | Type
   | Kind
 
--- TODO `isNothing clickAction` implies `not selected` - we could model this better
--- but in the long run, we intend to have no unselectable nodes anyway
-viewNode :: Maybe action -> Bool -> Level -> NodeViewData action -> MeasuredView action
-viewNode clickAction selected level opts =
-  MeasuredView
-    { dimensions
-    , view = case opts of
-        PrimNode (PrimAnimation animation) ->
-          img_
-            [ src_ ("data:img/gif;base64," <> animation)
-            , style_ $
-                [ ("width", show dimensions.x <> "px")
-                , ("height", show dimensions.y <> "px")
-                ]
+viewNodeData :: V2 Double -> NodeViewData action -> View action
+viewNodeData dimensions node = case node.opts of
+  PrimNode (PrimAnimation animation) ->
+    img_
+      [ src_ ("data:img/gif;base64," <> animation)
+      , style_ $
+          [ ("width", show dimensions.x <> "px")
+          , ("height", show dimensions.y <> "px")
+          ]
+      ]
+  _ ->
+    div_
+      ( [ class_ "node"
+        , class_ case node.level of
+            Expr -> "expr"
+            Type -> "type"
+            Kind -> "kind"
+        , class_ case node.opts of
+            SyntaxNode{} -> "syntax"
+            _ -> "non-syntax"
+        , class_ case node.opts of
+            SyntaxNode{flavor} -> flavor
+            HoleNode{} -> "hole"
+            PrimNode{} -> "prim"
+            ConNode{} -> "con"
+            VarNode{} -> "var"
+            PatternBoxNode{} -> "pattern-box"
+        , style_ $
+            [ ("width", show dimensions.x <> "px")
+            , ("height", show dimensions.y <> "px")
             ]
-        _ ->
-          div_
-            ( [ class_ "node"
-              , class_ case level of
-                  Expr -> "expr"
-                  Type -> "type"
-                  Kind -> "kind"
-              , class_ case opts of
-                  SyntaxNode{} -> "syntax"
-                  _ -> "non-syntax"
-              , class_ case opts of
-                  SyntaxNode{flavor} -> flavor
-                  HoleNode{} -> "hole"
-                  PrimNode{} -> "prim"
-                  ConNode{} -> "con"
-                  VarNode{} -> "var"
-                  PatternBoxNode{} -> "pattern-box"
-              , style_ $
-                  [ ("width", show dimensions.x <> "px")
-                  , ("height", show dimensions.y <> "px")
+              <> case node.opts of
+                HoleNode{} -> [("font-style", "italic")]
+                _ -> []
+        ]
+          <> foldMap (\a -> [onClick a, class_ "selectable"]) node.clickAction
+          <> mwhen node.selected [class_ "selected"]
+      )
+      case node.opts of
+        PatternBoxNode p ->
+          [ div_
+              [ style_
+                  [ ("position", "absolute")
+                  , ("top", show (boxPadding / 2) <> "px")
                   ]
-                    <> case opts of
-                      HoleNode{} -> [("font-style", "italic")]
-                      _ -> []
               ]
-                <> foldMap (\a -> [onClick a, class_ "selectable"]) clickAction
-                <> mwhen selected [class_ "selected"]
-            )
-            case opts of
-              PatternBoxNode p ->
-                [ div_
-                    [ style_
-                        [ ("position", "absolute")
-                        , ("top", show (boxPadding / 2) <> "px")
-                        ]
-                    ]
-                    [p.view]
-                ]
-              _ ->
-                [ div_
-                    []
-                    [ text case opts of
-                        SyntaxNode{text = t} -> t
-                        HoleNode{empty = e} -> if e then "?" else "⚠️"
-                        PrimNode pc -> case pc of
-                          PrimChar c' -> show c'
-                          PrimInt n -> show n
-                        ConNode{name} -> unName name
-                        VarNode{name} -> unName name
-                    ]
-                ]
-    }
-  where
-    boxPadding = 55
-    basicDims = V2 80 35
-    dimensions = case opts of
-      PatternBoxNode p -> p.dimensions + pure boxPadding
-      SyntaxNode{wide = False} -> basicDims & lensVL _x .~ basicDims.y
-      _ -> basicDims
+              [p.item]
+          ]
+        _ ->
+          [ div_
+              []
+              [ text case node.opts of
+                  SyntaxNode{text = t} -> t
+                  HoleNode{empty = e} -> if e then "?" else "⚠️"
+                  PrimNode pc -> case pc of
+                    PrimChar c' -> show c'
+                    PrimInt n -> show n
+                  ConNode{name} -> unName name
+                  VarNode{name} -> unName name
+              ]
+          ]
+
+boxPadding :: Double
+boxPadding = 55
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
   (TermMeta' a b c -> (Maybe action, Bool)) ->
   Expr' a b c ->
-  Tree.Tree (MeasuredView action)
+  Tree.Tree (NodeViewData action)
 viewTreeExpr mkMeta e =
   Tree.Node
-    (uncurry viewNode (mkMeta $ Left $ e ^. _exprMetaLens) Expr nodeView)
+    (uncurry NodeViewData (mkMeta $ Left $ e ^. _exprMetaLens) Expr nodeView)
     childViews
   where
     nodeView = case e of
@@ -325,22 +324,22 @@ viewTreeExpr mkMeta e =
           [ [viewTreeExpr mkMeta scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
-                ( viewNode Nothing False Expr
+                ( NodeViewData Nothing False Expr
                     $ PatternBoxNode
                     $ viewTreeWithDimensions False
-                    $ ( Tree.Node $ viewNode Nothing False Expr case p of
+                    $ ( Tree.Node $ NodeViewData Nothing False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
                       )
                     $ bindings <&> \(Bind m v) ->
                       Tree.Node
-                        (uncurry viewNode (mkMeta $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
+                        (uncurry NodeViewData (mkMeta $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
                         []
                 )
                 [viewTreeExpr mkMeta r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (viewNode Nothing False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr mkMeta r]]
+              CaseFallback r -> [Tree.Node (NodeViewData Nothing False Expr $ SyntaxNode False "fallback" "_") [viewTreeExpr mkMeta r]]
           ]
       _ ->
         mconcat
@@ -350,16 +349,16 @@ viewTreeExpr mkMeta e =
           , map (viewTreeExpr mkMeta) (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (viewNode Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (NodeViewData Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
   (Either b c -> (Maybe action, Bool)) ->
   Type' b c ->
-  Tree.Tree (MeasuredView action)
+  Tree.Tree (NodeViewData action)
 viewTreeType mkMeta t =
   Tree.Node
-    (uncurry viewNode (mkMeta $ Left $ t ^. _typeMetaLens) Type nodeView)
+    (uncurry NodeViewData (mkMeta $ Left $ t ^. _typeMetaLens) Type nodeView)
     childViews
   where
     nodeView = case t of
@@ -373,7 +372,7 @@ viewTreeType mkMeta t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (viewNode Nothing False Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (NodeViewData Nothing False Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
         <> map (viewTreeType mkMeta) (children t)
@@ -382,10 +381,10 @@ viewTreeKind ::
   (Data c) =>
   (c -> (Maybe action, Bool)) ->
   Kind' c ->
-  Tree.Tree (MeasuredView action)
+  Tree.Tree (NodeViewData action)
 viewTreeKind mkMeta k =
   Tree.Node
-    (uncurry viewNode (mkMeta $ k ^. _kindMetaLens) Kind nodeView)
+    (uncurry NodeViewData (mkMeta $ k ^. _kindMetaLens) Kind nodeView)
     childViews
   where
     nodeView = case k of
@@ -419,19 +418,19 @@ viewEdge p p' =
     theta = unangle v
     size = norm v
 
-viewTree :: Tree (MeasuredView action) -> View action
-viewTree = (.view) . viewTreeWithDimensions True
+viewTree :: Tree (NodeViewData action) -> View action
+viewTree = (.item) . viewTreeWithDimensions True
 
 viewTreeWithDimensions ::
   -- | Apply the same padding we use between nodes to the entire tree.
   -- Should be `False` for nested trees.
   Bool ->
-  Tree (MeasuredView action) ->
-  MeasuredView action
+  Tree (NodeViewData action) ->
+  Measured (View action)
 viewTreeWithDimensions outerPadding t =
-  MeasuredView
+  Measured
     { dimensions = bottomRight - topLeft
-    , view =
+    , item =
         div_ (mwhen outerPadding [style_ [("padding", show (padding / 2) <> "px")]])
           . map fst
           . toList
@@ -453,7 +452,7 @@ viewTreeWithDimensions outerPadding t =
                                   )
                                 ]
                             ]
-                            [node.view]
+                            [viewNodeData node.dimensions node.item]
                             : map (viewEdge p . head . map snd) subs
                   , p
                   )
@@ -474,11 +473,17 @@ viewTreeWithDimensions outerPadding t =
             & (slWidth .~ \node -> (-(node.dimensions.x / 2), node.dimensions.x / 2))
             & (slHeight .~ \node -> (-(node.dimensions.y / 2), node.dimensions.y / 2))
         )
-        t
+        $ map (\opts -> Measured opts $ getDimensions opts.opts) t
+    getDimensions = \case
+      PatternBoxNode p -> p.dimensions + pure boxPadding
+      SyntaxNode{wide = False} -> basicDims & lensVL _x .~ basicDims.y
+      _ -> basicDims
+      where
+        basicDims = V2 80 35
     padding = 20
 
-data MeasuredView action = MeasuredView
-  { view :: View action
+data Measured a = Measured
+  { item :: a
   , dimensions :: V2 Double
   }
   deriving stock (Generic)
