@@ -39,9 +39,16 @@
     white-space: nowrap;
   }
 }
+
 .node.selected,
 .node.selectable:hover {
-  box-shadow: 0 0 0 4px var(--white-primary), 0 0 0 8px var(--grey-secondary);
+  --opacity: 50%;
+  box-shadow: 0 0 0 4px var(--white-primary),
+    0 0 0 8px
+      color-mix(in srgb, transparent, var(--grey-secondary) var(--opacity));
+}
+.node.selected {
+  --opacity: 100% !important;
 }
 
 .node.expr {
