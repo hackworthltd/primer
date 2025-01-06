@@ -29,6 +29,8 @@ module Primer.Miso.Util (
   bindingsInType,
   nodeSelectionType,
   DefSelectionT,
+  reflectX,
+  reflectY,
 ) where
 
 import Foreword hiding (zero)
@@ -54,6 +56,7 @@ import Optics (
   Field2 (_2),
   atraversalVL,
   lensVL,
+  (%~),
   (.~),
   (^.),
  )
@@ -117,6 +120,10 @@ unitY :: (R2 v, Additive v, Num n) => v n
 unitY = zero & lensVL _y .~ 1
 unit_Y :: (R2 v, Additive v, Num n) => v n
 unit_Y = zero & lensVL _y .~ (-1)
+reflectX :: (R1 v, Num n) => v n -> v n
+reflectX = lensVL _x %~ negate
+reflectY :: (R2 v, Num n) => v n -> v n
+reflectY = lensVL _y %~ negate
 
 -- https://github.com/ekmett/linear/issues/181
 -- this style would be simplest but isn't possible due to the implementation of `OverloadedRecordDot`:
