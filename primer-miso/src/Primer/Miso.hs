@@ -202,13 +202,13 @@ viewModel Model{..} =
             def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
     ]
 
-data NodeViewData
+data NodeViewData action
   = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (forall action. MeasuredView action)
+  | PatternBoxNode (MeasuredView action)
 
 data Level
   = Expr
@@ -217,7 +217,7 @@ data Level
 
 -- TODO `selected` implies `selectable` - we could model this as a three-way enum instead
 -- but in the long run, we intend to have no unselectable nodes anyway
-viewNode :: Bool -> Bool -> Level -> NodeViewData -> MeasuredView action
+viewNode :: Bool -> Bool -> Level -> NodeViewData action -> MeasuredView action
 viewNode selectable selected level opts =
   MeasuredView
     { dimensions
@@ -333,7 +333,9 @@ viewTreeExpr isSelected e =
                       )
                     $ bindings <&> \(Bind m v) ->
                       Tree.Node
-                        (viewNode True (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
+                        ( over #view (div_ [onClick $ Left m] . pure) $
+                            viewNode True (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing}
+                        )
                         []
                 )
                 [viewTreeExpr isSelected r]
