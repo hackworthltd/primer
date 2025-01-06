@@ -40,7 +40,7 @@
   }
 }
 .node.selected,
-.node:hover {
+.node.selectable:hover {
   box-shadow: 0 0 0 4px var(--white-primary), 0 0 0 8px var(--grey-secondary);
 }
 

@@ -215,8 +215,10 @@ data Level
   | Type
   | Kind
 
-viewNode :: Bool -> Level -> NodeViewData -> MeasuredView action
-viewNode selected level opts =
+-- TODO `selected` implies `selectable` - we could model this as a three-way enum instead
+-- but in the long run, we intend to have no unselectable nodes anyway
+viewNode :: Bool -> Bool -> Level -> NodeViewData -> MeasuredView action
+viewNode selectable selected level opts =
   MeasuredView
     { dimensions
     , view = case opts of
@@ -232,6 +234,7 @@ viewNode selected level opts =
           div_
             [ class_ "node"
             , class_ $ mwhen selected "selected"
+            , class_ $ mwhen selectable "selectable"
             , class_ case level of
                 Expr -> "expr"
                 Type -> "type"
@@ -294,7 +297,7 @@ viewTreeExpr ::
 viewTreeExpr isSelected e =
   Tree.Node
     ( over #view (div_ [onClick meta] . pure) $
-        viewNode (isSelected meta) Expr nodeView
+        viewNode True (isSelected meta) Expr nodeView
     )
     childViews
   where
@@ -321,22 +324,22 @@ viewTreeExpr isSelected e =
           [ [viewTreeExpr isSelected scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
-                ( viewNode False Expr
+                ( viewNode False False Expr
                     $ PatternBoxNode
                     $ viewTreeWithDimensions False
-                    $ ( Tree.Node $ viewNode False Expr case p of
+                    $ ( Tree.Node $ viewNode False False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
                       )
                     $ bindings <&> \(Bind m v) ->
                       Tree.Node
-                        (viewNode (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
+                        (viewNode True (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
                         []
                 )
                 [viewTreeExpr isSelected r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (viewNode False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr isSelected r]]
+              CaseFallback r -> [Tree.Node (viewNode False False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr isSelected r]]
           ]
       _ ->
         mconcat
@@ -346,7 +349,7 @@ viewTreeExpr isSelected e =
           , map (viewTreeExpr isSelected) (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (viewNode False l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (viewNode False False l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
@@ -356,7 +359,7 @@ viewTreeType ::
 viewTreeType isSelected t =
   Tree.Node
     ( over #view (div_ [onClick meta] . pure) $
-        viewNode (isSelected meta) Type nodeView
+        viewNode True (isSelected meta) Type nodeView
     )
     childViews
   where
@@ -372,7 +375,7 @@ viewTreeType isSelected t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (viewNode False Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (viewNode False False Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind isSelected) (t ^.. kindsInType)
         <> map (viewTreeType isSelected) (children t)
@@ -385,7 +388,7 @@ viewTreeKind ::
 viewTreeKind isSelected k =
   Tree.Node
     ( over #view (div_ [onClick $ Right $ Right $ k ^. _kindMetaLens] . pure) $
-        viewNode (isSelected $ Right $ Right $ k ^. _kindMetaLens) Kind nodeView
+        viewNode True (isSelected $ Right $ Right $ k ^. _kindMetaLens) Kind nodeView
     )
     childViews
   where
