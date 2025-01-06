@@ -14,6 +14,7 @@ import Foreword
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
+import Data.Foldable (foldMap)
 import Data.Generics.Uniplate.Data (children)
 import Data.Map ((!?))
 import Data.Map qualified as Map
@@ -49,7 +50,7 @@ import Miso (
   style_,
   text,
  )
-import Optics (lensVL, over, to, (%), (.~), (^.), (^..), _Just)
+import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
 import Optics.State.Operators ((?=))
 import Primer.App (
   NodeSelection (..),
@@ -215,10 +216,10 @@ data Level
   | Type
   | Kind
 
--- TODO `selected` implies `selectable` - we could model this as a three-way enum instead
+-- TODO `isNothing clickAction` implies `not selected` - we could model this better
 -- but in the long run, we intend to have no unselectable nodes anyway
-viewNode :: Bool -> Bool -> Level -> NodeViewData action -> MeasuredView action
-viewNode selectable selected level opts =
+viewNode :: Maybe action -> Bool -> Level -> NodeViewData action -> MeasuredView action
+viewNode clickAction selected level opts =
   MeasuredView
     { dimensions
     , view = case opts of
@@ -232,31 +233,32 @@ viewNode selectable selected level opts =
             ]
         _ ->
           div_
-            [ class_ "node"
-            , class_ $ mwhen selected "selected"
-            , class_ $ mwhen selectable "selectable"
-            , class_ case level of
-                Expr -> "expr"
-                Type -> "type"
-                Kind -> "kind"
-            , class_ case opts of
-                SyntaxNode{} -> "syntax"
-                _ -> "non-syntax"
-            , class_ case opts of
-                SyntaxNode{flavor} -> flavor
-                HoleNode{} -> "hole"
-                PrimNode{} -> "prim"
-                ConNode{} -> "con"
-                VarNode{} -> "var"
-                PatternBoxNode{} -> "pattern-box"
-            , style_ $
-                [ ("width", show dimensions.x <> "px")
-                , ("height", show dimensions.y <> "px")
-                ]
-                  <> case opts of
-                    HoleNode{} -> [("font-style", "italic")]
-                    _ -> []
-            ]
+            ( [ class_ "node"
+              , class_ case level of
+                  Expr -> "expr"
+                  Type -> "type"
+                  Kind -> "kind"
+              , class_ case opts of
+                  SyntaxNode{} -> "syntax"
+                  _ -> "non-syntax"
+              , class_ case opts of
+                  SyntaxNode{flavor} -> flavor
+                  HoleNode{} -> "hole"
+                  PrimNode{} -> "prim"
+                  ConNode{} -> "con"
+                  VarNode{} -> "var"
+                  PatternBoxNode{} -> "pattern-box"
+              , style_ $
+                  [ ("width", show dimensions.x <> "px")
+                  , ("height", show dimensions.y <> "px")
+                  ]
+                    <> case opts of
+                      HoleNode{} -> [("font-style", "italic")]
+                      _ -> []
+              ]
+                <> foldMap (\a -> [onClick a, class_ "selectable"]) clickAction
+                <> mwhen selected [class_ "selected"]
+            )
             case opts of
               PatternBoxNode p ->
                 [ div_
@@ -296,9 +298,7 @@ viewTreeExpr ::
   Tree.Tree (MeasuredView (TermMeta' a b c))
 viewTreeExpr isSelected e =
   Tree.Node
-    ( over #view (div_ [onClick meta] . pure) $
-        viewNode True (isSelected meta) Expr nodeView
-    )
+    (viewNode (Just meta) (isSelected meta) Expr nodeView)
     childViews
   where
     meta = Left $ e ^. _exprMetaLens
@@ -324,24 +324,22 @@ viewTreeExpr isSelected e =
           [ [viewTreeExpr isSelected scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
-                ( viewNode False False Expr
+                ( viewNode Nothing False Expr
                     $ PatternBoxNode
                     $ viewTreeWithDimensions False
-                    $ ( Tree.Node $ viewNode False False Expr case p of
+                    $ ( Tree.Node $ viewNode Nothing False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
                       )
                     $ bindings <&> \(Bind m v) ->
                       Tree.Node
-                        ( over #view (div_ [onClick $ Left m] . pure) $
-                            viewNode True (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing}
-                        )
+                        (viewNode (Just $ Left m) (isSelected $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
                         []
                 )
                 [viewTreeExpr isSelected r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (viewNode False False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr isSelected r]]
+              CaseFallback r -> [Tree.Node (viewNode Nothing False Expr (SyntaxNode False "fallback" "_")) [viewTreeExpr isSelected r]]
           ]
       _ ->
         mconcat
@@ -351,7 +349,7 @@ viewTreeExpr isSelected e =
           , map (viewTreeExpr isSelected) (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (viewNode False False l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (viewNode Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
@@ -360,11 +358,10 @@ viewTreeType ::
   Tree.Tree (MeasuredView (TermMeta' a b c))
 viewTreeType isSelected t =
   Tree.Node
-    ( over #view (div_ [onClick $ Right $ Left $ t ^. _typeMetaLens] . pure) $
-        viewNode True (isSelected $ Left $ t ^. _typeMetaLens) Type nodeView
-    )
+    (viewNode (Just $ Right meta) (isSelected meta) Type nodeView)
     childViews
   where
+    meta = Left $ t ^. _typeMetaLens
     nodeView = case t of
       TEmptyHole{} -> HoleNode{empty = True}
       THole{} -> HoleNode{empty = True}
@@ -376,7 +373,7 @@ viewTreeType isSelected t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (viewNode False False Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (viewNode Nothing False Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind $ isSelected . Right) (t ^.. kindsInType)
         <> map (viewTreeType isSelected) (children t)
@@ -388,11 +385,10 @@ viewTreeKind ::
   Tree.Tree (MeasuredView (TermMeta' a b c))
 viewTreeKind isSelected k =
   Tree.Node
-    ( over #view (div_ [onClick $ Right $ Right $ k ^. _kindMetaLens] . pure) $
-        viewNode True (isSelected $ k ^. _kindMetaLens) Kind nodeView
-    )
+    (viewNode (Just $ Right $ Right meta) (isSelected meta) Kind nodeView)
     childViews
   where
+    meta = k ^. _kindMetaLens
     nodeView = case k of
       KHole{} -> HoleNode{empty = True}
       KType{} -> SyntaxNode False "kind-type" "*"
