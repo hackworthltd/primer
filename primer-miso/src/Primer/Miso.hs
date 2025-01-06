@@ -345,7 +345,7 @@ viewTreeExpr isSelected e =
         mconcat
           [ map (viewTreeBinding Type) (e ^.. typeBindingsInExpr)
           , map (viewTreeBinding Expr) (e ^.. bindingsInExpr)
-          , map (viewTreeType isSelected) (e ^.. typesInExpr)
+          , map (viewTreeType $ isSelected . Right) (e ^.. typesInExpr)
           , map (viewTreeExpr isSelected) (children e)
           ]
         where
@@ -353,17 +353,16 @@ viewTreeExpr isSelected e =
 
 viewTreeType ::
   (Data b, Data c) =>
-  (TermMeta' a b c -> Bool) ->
+  (Either b c -> Bool) ->
   Type' b c ->
   Tree.Tree (MeasuredView (TermMeta' a b c))
 viewTreeType isSelected t =
   Tree.Node
-    ( over #view (div_ [onClick meta] . pure) $
-        viewNode True (isSelected meta) Type nodeView
+    ( over #view (div_ [onClick $ Right $ Left $ t ^. _typeMetaLens] . pure) $
+        viewNode True (isSelected $ Left $ t ^. _typeMetaLens) Type nodeView
     )
     childViews
   where
-    meta = Right $ Left $ t ^. _typeMetaLens
     nodeView = case t of
       TEmptyHole{} -> HoleNode{empty = True}
       THole{} -> HoleNode{empty = True}
@@ -377,18 +376,18 @@ viewTreeType isSelected t =
       map
         (\name -> Tree.Node (viewNode False False Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
-        <> map (viewTreeKind isSelected) (t ^.. kindsInType)
+        <> map (viewTreeKind $ isSelected . Right) (t ^.. kindsInType)
         <> map (viewTreeType isSelected) (children t)
 
 viewTreeKind ::
   (Data c) =>
-  (TermMeta' a b c -> Bool) ->
+  (c -> Bool) ->
   Kind' c ->
   Tree.Tree (MeasuredView (TermMeta' a b c))
 viewTreeKind isSelected k =
   Tree.Node
     ( over #view (div_ [onClick $ Right $ Right $ k ^. _kindMetaLens] . pure) $
-        viewNode True (isSelected $ Right $ Right $ k ^. _kindMetaLens) Kind nodeView
+        viewNode True (isSelected $ k ^. _kindMetaLens) Kind nodeView
     )
     childViews
   where
