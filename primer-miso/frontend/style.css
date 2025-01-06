@@ -29,7 +29,7 @@
   justify-items: center;
 }
 
-.node {
+.node > .node-contents {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -40,20 +40,23 @@
   }
 }
 
-.node.selected,
-.node.selectable:hover {
+.node.selected > .node-contents,
+.node.selectable > .node-contents:hover {
   --opacity: 50%;
   box-shadow: 0 0 0 4px var(--white-primary),
     0 0 0 8px color-mix(in srgb, transparent, var(--node-color) var(--opacity));
 }
-.node.selected {
+.node.selected > .node-contents {
   --opacity: 100% !important;
 }
 
 .node.expr {
   border-radius: 1.5rem;
+  > .node-contents {
+    border-radius: inherit;
+  }
 }
-.node.kind {
+.node.kind > .node-contents {
   transform: rotate(45deg)
     /* Scale by (1 + 1/√2)/2 so that bounding square (used for tree layout) is a good approximation. */
     scale(0.854);
@@ -64,17 +67,20 @@
 }
 
 .node.syntax {
-  border-width: 0;
   color: var(--white-primary);
-  background-color: var(--node-color);
+  > .node-contents {
+    background-color: var(--node-color);
+  }
 }
 .node.non-syntax {
-  border-style: solid;
-  box-sizing: border-box;
-  border-width: 0.25rem;
   color: var(--blue-primary);
   background-color: var(--white-primary);
-  border-color: var(--node-color);
+  > .node-contents {
+    border-style: solid;
+    box-sizing: border-box;
+    border-width: 0.25rem;
+    border-color: var(--node-color);
+  }
 }
 
 .node.ann {
@@ -123,7 +129,7 @@
 }
 
 .edge {
-  border-color: var(--grey-secondary);
+  border-color: var(--node-color);
   position: absolute;
   transform-origin: left;
   z-index: -1;

@@ -118,6 +118,7 @@ import Primer.Miso.Util (
   bindingsInType,
   kindsInType,
   nodeSelectionType,
+  reflectY,
   startAppWithSavedState,
   tcBasicProg,
   typeBindingsInExpr,
@@ -227,8 +228,8 @@ data Level
   | Type
   | Kind
 
-viewNodeData :: V2 Double -> NodeViewData action -> View action
-viewNodeData dimensions node = case node.opts of
+viewNodeData :: V2 Double -> [View action] -> NodeViewData action -> View action
+viewNodeData dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
       [ src_ ("data:img/gif;base64," <> animation)
@@ -254,40 +255,45 @@ viewNodeData dimensions node = case node.opts of
             ConNode{} -> "con"
             VarNode{} -> "var"
             PatternBoxNode{} -> "pattern-box"
-        , style_ $
-            [ ("width", show dimensions.x <> "px")
-            , ("height", show dimensions.y <> "px")
-            ]
-              <> case node.opts of
-                HoleNode{} -> [("font-style", "italic")]
-                _ -> []
         ]
           <> foldMap (\a -> [onClick a, class_ "selectable"]) node.clickAction
           <> mwhen node.selected [class_ "selected"]
       )
-      case node.opts of
-        PatternBoxNode p ->
-          [ div_
-              [ style_
-                  [ ("position", "absolute")
-                  , ("top", show (boxPadding / 2) <> "px")
-                  ]
-              ]
-              [p.item]
-          ]
-        _ ->
-          [ div_
-              []
-              [ text case node.opts of
-                  SyntaxNode{text = t} -> t
-                  HoleNode{empty = e} -> if e then "?" else "⚠️"
-                  PrimNode pc -> case pc of
-                    PrimChar c' -> show c'
-                    PrimInt n -> show n
-                  ConNode{name} -> unName name
-                  VarNode{name} -> unName name
-              ]
-          ]
+      $ ( div_
+            [ class_ "node-contents"
+            , style_ $
+                [ ("width", show dimensions.x <> "px")
+                , ("height", show dimensions.y <> "px")
+                ]
+                  <> case node.opts of
+                    HoleNode{} -> [("font-style", "italic")]
+                    _ -> []
+            ]
+            case node.opts of
+              PatternBoxNode p ->
+                [ div_
+                    [ style_
+                        [ ("position", "absolute")
+                        , ("top", show (boxPadding / 2) <> "px")
+                        ]
+                    ]
+                    [p.item]
+                ]
+              _ ->
+                [ div_
+                    []
+                    [ text case node.opts of
+                        SyntaxNode{text = t} -> t
+                        HoleNode{empty = e} -> if e then "?" else "⚠️"
+                        PrimNode pc -> case pc of
+                          PrimChar c' -> show c'
+                          PrimInt n -> show n
+                        ConNode{name} -> unName name
+                        VarNode{name} -> unName name
+                    ]
+                ]
+        )
+        : edges
 
 boxPadding :: Double
 boxPadding = 55
@@ -437,23 +443,29 @@ viewTreeWithDimensions outerPadding t =
           $ Tree.foldTree
             ( \(node, p) subs ->
                 Tree.Node
-                  ( div_ [] $
-                      let offset = p .-^ node.dimensions / 2
-                       in div_
-                            [ style_
-                                [ ("position", "absolute")
-                                ,
-                                  ( "transform"
-                                  , "translate("
-                                      <> show offset.x
-                                      <> "px,"
-                                      <> show offset.y
-                                      <> "px)"
-                                  )
-                                ]
-                            ]
-                            [viewNodeData node.dimensions node.item]
-                            : map (viewEdge p . head . map snd) subs
+                  ( let offset = p .-^ node.dimensions / 2
+                        edges =
+                          map
+                            ( \t' ->
+                                viewEdge
+                                  (0 .+^ reflectY (node.dimensions / 2))
+                                  (snd (head t') - p .+^ reflectY (node.dimensions / 2))
+                            )
+                            subs
+                     in div_
+                          [ style_
+                              [ ("position", "absolute")
+                              ,
+                                ( "transform"
+                                , "translate("
+                                    <> show offset.x
+                                    <> "px,"
+                                    <> show offset.y
+                                    <> "px)"
+                                )
+                              ]
+                          ]
+                          [viewNodeData node.dimensions edges node.item]
                   , p
                   )
                   subs
