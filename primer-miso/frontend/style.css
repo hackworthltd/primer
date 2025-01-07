@@ -44,8 +44,7 @@
 .node.selectable:hover {
   --opacity: 50%;
   box-shadow: 0 0 0 4px var(--white-primary),
-    0 0 0 8px
-      color-mix(in srgb, transparent, var(--grey-secondary) var(--opacity));
+    0 0 0 8px color-mix(in srgb, transparent, var(--node-color) var(--opacity));
 }
 .node.selected {
   --opacity: 100% !important;
@@ -67,36 +66,37 @@
 .node.syntax {
   border-width: 0;
   color: var(--white-primary);
+  background-color: var(--node-color);
 }
 .node.ann {
-  background-color: var(--black-primary);
+  --node-color: var(--black-primary);
 }
 .node.app,
 .node.type-expr-app,
 .node.type-app {
-  background-color: var(--blue-tertiary);
+  --node-color: var(--blue-tertiary);
 }
 .node.lam,
 .node.type-fun,
 .node.kind-fun {
-  background-color: var(--blue-primary);
+  --node-color: var(--blue-primary);
 }
 .node.type-lam,
 .node.forall {
-  background-color: var(--blue-secondary);
+  --node-color: var(--blue-secondary);
 }
 .node.let,
 .node.let-type,
 .node.letrec,
 .node.type-let {
-  background-color: var(--blue-quaternary);
+  --node-color: var(--blue-quaternary);
 }
 .node.match,
 .node.fallback {
-  background-color: var(--yellow-primary);
+  --node-color: var(--yellow-primary);
 }
 .node.kind-type {
-  background-color: var(--green-primary);
+  --node-color: var(--green-primary);
 }
 
 .node.non-syntax {
@@ -105,20 +105,21 @@
   border-width: 0.25rem;
   color: var(--blue-primary);
   background-color: var(--white-primary);
+  border-color: var(--node-color);
 }
 .node.var {
-  border-color: var(--blue-quaternary);
+  --node-color: var(--blue-quaternary);
 }
 .node.con,
 .node.prim {
-  border-color: var(--green-primary);
+  --node-color: var(--green-primary);
 }
 .node.hole {
-  border-color: var(--red-tertiary);
+  --node-color: var(--red-tertiary);
 }
 .node.pattern-box {
   background-color: var(--yellow-tertiary);
-  border-color: var(--yellow-primary);
+  --node-color: var(--yellow-primary);
 }
 
 .edge {
