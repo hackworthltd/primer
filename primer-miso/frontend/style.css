@@ -23,8 +23,47 @@
   --yellow-tertiary: #fff1df;
 }
 
+@font-face {
+  font-family: "Source Serif Variable";
+  font-style: normal;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/SourceSerif4Variable-Roman.otf.woff2")
+    format("woff2-variations");
+}
+@font-face {
+  font-family: "code";
+  font-style: italic;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/SourceSerif4Variable-Italic.otf.woff2")
+    format("woff2-variations");
+}
+@font-face {
+  font-family: "branding";
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: normal;
+  src: url("/fonts/SourceSerif4-Semibold.otf.woff2") format("woff2");
+}
+@font-face {
+  font-family: "sans";
+  font-style: normal;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/Inter-roman.var.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "sans";
+  font-style: italic;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/Inter-italic.var.woff2") format("woff2-variations");
+}
+
 body {
   margin: 0;
+  font-family: sans;
 }
 
 .canvas {
@@ -34,6 +73,7 @@ body {
 }
 
 .node > .node-contents {
+  font-family: code;
   position: relative;
   display: flex;
   justify-content: center;
