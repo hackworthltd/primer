@@ -257,7 +257,8 @@ viewNodeData dimensions edges node = case node.opts of
           <> foldMap (\a -> [onClick a, class_ "selectable"]) node.clickAction
           <> mwhen node.selected [class_ "selected"]
       )
-      $ ( div_
+      $ (edges <>) -- Edges come first so that they appear behind contents.
+        [ div_
             [ class_ "node-contents"
             , style_ $
                 [ ("width", show dimensions.x <> "px")
@@ -290,8 +291,7 @@ viewNodeData dimensions edges node = case node.opts of
                         VarNode{name} -> unName name
                     ]
                 ]
-        )
-        : edges
+        ]
 
 boxPadding :: Double
 boxPadding = 55

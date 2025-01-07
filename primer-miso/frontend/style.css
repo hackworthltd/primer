@@ -30,6 +30,7 @@
 }
 
 .node > .node-contents {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -74,12 +75,12 @@
 }
 .node.non-syntax {
   color: var(--blue-primary);
-  background-color: var(--white-primary);
   > .node-contents {
     border-style: solid;
     box-sizing: border-box;
     border-width: 0.25rem;
     border-color: var(--node-color);
+    background-color: var(--white-primary);
   }
 }
 
@@ -124,7 +125,9 @@
   --node-color: var(--red-tertiary);
 }
 .node.pattern-box {
-  background-color: var(--yellow-tertiary);
+  > .node-contents {
+    background-color: var(--yellow-tertiary);
+  }
   --node-color: var(--yellow-primary);
 }
 
@@ -134,7 +137,6 @@
   top: 50%;
   left: 50%;
   transform-origin: left;
-  z-index: -1;
   border-style: solid;
   border-width: 0.125rem;
 }
