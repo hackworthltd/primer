@@ -112,6 +112,7 @@ import Primer.Miso.Util (
   DefSelectionT,
   ModuleT (..),
   NodeSelectionT,
+  P2,
   TermMeta',
   bindingsInExpr,
   bindingsInType,
@@ -226,8 +227,8 @@ data Level
   | Type
   | Kind
 
-viewNodeData :: V2 Double -> [View action] -> NodeViewData action -> View action
-viewNodeData dimensions edges node = case node.opts of
+viewNodeData :: P2 Double -> V2 Double -> [View action] -> NodeViewData action -> View action
+viewNodeData position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
       [ src_ ("data:img/gif;base64," <> animation)
@@ -253,6 +254,17 @@ viewNodeData dimensions edges node = case node.opts of
             ConNode{} -> "con"
             VarNode{} -> "var"
             PatternBoxNode{} -> "pattern-box"
+        , style_
+            [ ("position", "absolute")
+            ,
+              ( "transform"
+              , "translate("
+                  <> show position.x
+                  <> "px,"
+                  <> show position.y
+                  <> "px)"
+              )
+            ]
         ]
           <> foldMap (\a -> [onClick a, class_ "selectable"]) node.clickAction
           <> mwhen node.selected [class_ "selected"]
@@ -269,15 +281,7 @@ viewNodeData dimensions edges node = case node.opts of
                     _ -> []
             ]
             case node.opts of
-              PatternBoxNode p ->
-                [ div_
-                    [ style_
-                        [ ("position", "absolute")
-                        , ("top", show (boxPadding / 2) <> "px")
-                        ]
-                    ]
-                    [p.item]
-                ]
+              PatternBoxNode p -> [p.item]
               _ ->
                 [ div_
                     []
@@ -292,9 +296,6 @@ viewNodeData dimensions edges node = case node.opts of
                     ]
                 ]
         ]
-
-boxPadding :: Double
-boxPadding = 55
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
@@ -425,30 +426,26 @@ viewTreeWithDimensions ::
   Measured (View action)
 viewTreeWithDimensions outerPadding t =
   Measured
-    { dimensions = bottomRight - topLeft
+    { dimensions
     , item =
-        div_ (mwhen outerPadding [style_ [("padding", show (padding / 2) <> "px")]])
+        div_
+          ( [ style_ $
+                [ ("width", show dimensions.x <> "px")
+                , ("height", show dimensions.y <> "px")
+                ]
+                  <> mwhen outerPadding [("padding", show (padding / 2) <> "px")]
+            ]
+          )
           . map fst
           . toList
           $ Tree.foldTree
             ( \(node, p) subs ->
                 Tree.Node
-                  ( let offset = p .-^ node.dimensions / 2
-                        edges = map (viewEdge . (.-. p) . snd . head) subs
-                     in div_
-                          [ style_
-                              [ ("position", "absolute")
-                              ,
-                                ( "transform"
-                                , "translate("
-                                    <> show offset.x
-                                    <> "px,"
-                                    <> show offset.y
-                                    <> "px)"
-                                )
-                              ]
-                          ]
-                          [viewNodeData node.dimensions edges node.item]
+                  ( viewNodeData
+                      (p .-^ topLeft .-^ node.dimensions / 2)
+                      node.dimensions
+                      (map (viewEdge . (.-. p) . snd . head) subs)
+                      node.item
                   , p
                   )
                   subs
@@ -456,6 +453,7 @@ viewTreeWithDimensions outerPadding t =
             nodes
     }
   where
+    dimensions = bottomRight - topLeft
     mins = map (\(v, p) -> p .-^ v.dimensions / 2) nodes
     topLeft = V2 (minimum $ map (.x) mins) (minimum $ map (.y) mins)
     maxs = map (\(v, p) -> p .+^ v.dimensions / 2) nodes
@@ -474,6 +472,7 @@ viewTreeWithDimensions outerPadding t =
       SyntaxNode{wide = False} -> basicDims & lensVL _x .~ basicDims.y
       _ -> basicDims
       where
+        boxPadding = 55
         basicDims = V2 80 35
     padding = 20
 
