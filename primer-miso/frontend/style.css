@@ -131,6 +131,8 @@
 .edge {
   border-color: var(--node-color);
   position: absolute;
+  top: 50%;
+  left: 50%;
   transform-origin: left;
   z-index: -1;
   border-style: solid;

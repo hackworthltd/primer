@@ -101,7 +101,6 @@ import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Miso.Layout (
-  P2,
   slHSep,
   slHeight,
   slVSep,
@@ -118,7 +117,6 @@ import Primer.Miso.Util (
   bindingsInType,
   kindsInType,
   nodeSelectionType,
-  reflectY,
   startAppWithSavedState,
   tcBasicProg,
   typeBindingsInExpr,
@@ -399,28 +397,20 @@ viewTreeKind mkMeta k =
       KFun{} -> SyntaxNode False "kind-fun" "→"
     childViews = map (viewTreeKind mkMeta) (children k)
 
--- | Draw an edge from one point to another.
-viewEdge :: P2 Double -> P2 Double -> View action
-viewEdge p p' =
+viewEdge :: V2 Double -> View action
+viewEdge v =
   div_
     [ class_ "edge"
     , style_
         [
           ( "transform"
-          , "translate("
-              <> show p.x
-              <> "px,"
-              <> show p.y
-              <> "px) rotate("
-              <> show theta
-              <> "rad)"
+          , "rotate(" <> show theta <> "rad)"
           )
         , ("width", show size <> "px")
         ]
     ]
     []
   where
-    v = p' .-. p
     theta = unangle v
     size = norm v
 
@@ -444,14 +434,7 @@ viewTreeWithDimensions outerPadding t =
             ( \(node, p) subs ->
                 Tree.Node
                   ( let offset = p .-^ node.dimensions / 2
-                        edges =
-                          map
-                            ( \t' ->
-                                viewEdge
-                                  (0 .+^ reflectY (node.dimensions / 2))
-                                  (snd (head t') - p .+^ reflectY (node.dimensions / 2))
-                            )
-                            subs
+                        edges = map (viewEdge . (.-. p) . snd . head) subs
                      in div_
                           [ style_
                               [ ("position", "absolute")
