@@ -68,6 +68,15 @@
   color: var(--white-primary);
   background-color: var(--node-color);
 }
+.node.non-syntax {
+  border-style: solid;
+  box-sizing: border-box;
+  border-width: 0.25rem;
+  color: var(--blue-primary);
+  background-color: var(--white-primary);
+  border-color: var(--node-color);
+}
+
 .node.ann {
   --node-color: var(--black-primary);
 }
@@ -97,15 +106,6 @@
 }
 .node.kind-type {
   --node-color: var(--green-primary);
-}
-
-.node.non-syntax {
-  border-style: solid;
-  box-sizing: border-box;
-  border-width: 0.25rem;
-  color: var(--blue-primary);
-  background-color: var(--white-primary);
-  border-color: var(--node-color);
 }
 .node.var {
   --node-color: var(--blue-quaternary);
