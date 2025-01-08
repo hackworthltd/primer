@@ -185,9 +185,9 @@ viewModel Model{..} =
           div_
             [ class_ "canvas"
             ]
-            [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType (Just . Right &&& isSelected) def.sig)
-            , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr (Just &&& isSelected) def.expr)
-            , viewTree case defSel.node of
+            [ SelectNode . NodeSelection SigNode <$> fst (viewTree (viewTreeType (Just . Right &&& isSelected) def.sig))
+            , SelectNode . NodeSelection BodyNode <$> fst (viewTree (viewTreeExpr (Just &&& isSelected) def.expr))
+            , fst $ viewTree case defSel.node of
                 Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
                 Just s -> case nodeSelectionType s of
                   Left t -> viewTreeType mkMeta t
@@ -217,7 +217,7 @@ data NodeViewOpts action
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (Maybe (Measured (View action))) -- `Nothing` indicates that this is a fallback pattern.
+  | PatternBoxNode (Maybe (View action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
 
 data Level
   = Expr
@@ -274,7 +274,7 @@ viewNodeData position dimensions edges node = case node.opts of
                 ]
             ]
             case node.opts of
-              PatternBoxNode (Just p) -> [p.item]
+              PatternBoxNode (Just p) -> [fst p]
               PatternBoxNode Nothing ->
                 [ div_
                     [class_ "fallback-pattern"]
@@ -332,7 +332,7 @@ viewTreeExpr mkMeta e =
                 ( NodeViewData Nothing False Expr
                     $ PatternBoxNode
                     $ Just
-                    $ viewTreeWithDimensions
+                    $ viewTree
                     $ ( Tree.Node $ NodeViewData Nothing False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
@@ -416,56 +416,51 @@ viewEdge v =
     theta = unangle v
     size = norm v
 
-viewTree :: Tree (NodeViewData action) -> View action
-viewTree = (.item) . viewTreeWithDimensions
-
-viewTreeWithDimensions :: Tree (NodeViewData action) -> Measured (View action)
-viewTreeWithDimensions t =
-  Measured
-    { dimensions
-    , item =
-        div_
-          ( [ style_ $
-                [ ("width", show dimensions.x <> "px")
-                , ("height", show dimensions.y <> "px")
-                ]
+viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
+viewTree t =
+  ( div_
+      ( [ style_ $
+            [ ("width", show dimensions.x <> "px")
+            , ("height", show dimensions.y <> "px")
             ]
-          )
-          . map fst
-          . toList
-          $ Tree.foldTree
-            ( \(node, p) subs ->
-                Tree.Node
-                  ( viewNodeData
-                      (p .-^ topLeft .-^ node.dimensions / 2)
-                      node.dimensions
-                      (map (viewEdge . (.-. p) . snd . head) subs)
-                      node.item
-                  , p
-                  )
-                  subs
-            )
-            nodes
-    }
+        ]
+      )
+      . map fst
+      . toList
+      $ Tree.foldTree
+        ( \((node, v), p) subs ->
+            Tree.Node
+              ( viewNodeData
+                  (p .-^ topLeft .-^ v / 2)
+                  v
+                  (map (viewEdge . (.-. p) . snd . head) subs)
+                  node
+              , p
+              )
+              subs
+        )
+        nodes
+  , dimensions
+  )
   where
     dimensions = bottomRight - topLeft
-    mins = map (\(v, p) -> p .-^ v.dimensions / 2) nodes
+    mins = map (\(v, p) -> p .-^ snd v / 2) nodes
     topLeft = V2 (minimum $ map (.x) mins) (minimum $ map (.y) mins)
-    maxs = map (\(v, p) -> p .+^ v.dimensions / 2) nodes
+    maxs = map (\(v, p) -> p .+^ snd v / 2) nodes
     bottomRight = V2 (maximum $ map (.x) maxs) (maximum $ map (.y) maxs)
     nodes =
       symmLayout' @Double
         ( Default.def
             & (slHSep .~ padding)
             & (slVSep .~ padding)
-            & (slWidth .~ \node -> (-(node.dimensions.x / 2), node.dimensions.x / 2))
-            & (slHeight .~ \node -> (-(node.dimensions.y / 2), node.dimensions.y / 2))
+            & (slWidth .~ \(_, v) -> (-(v.x / 2), v.x / 2))
+            & (slHeight .~ \(_, v) -> (-(v.y / 2), v.y / 2))
         )
-        $ map (\opts -> Measured opts $ getDimensions opts.opts) t
+        $ map (\opts -> (opts, getDimensions opts.opts)) t
       where
         padding = 20
     getDimensions = \case
-      PatternBoxNode (Just p) -> p.dimensions + pure boxPadding
+      PatternBoxNode (Just (_, v)) -> v + pure boxPadding
       PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
       SyntaxNode{wide = False} -> basicDimsSquare
       HoleNode{} -> basicDimsSquare
@@ -474,9 +469,3 @@ viewTreeWithDimensions t =
         boxPadding = 55
         basicDims = V2 80 35
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y
-
-data Measured a = Measured
-  { item :: a
-  , dimensions :: V2 Double
-  }
-  deriving stock (Generic)
