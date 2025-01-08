@@ -30,6 +30,7 @@ module Primer.Miso.Util (
   bindingsInType,
   nodeSelectionType,
   DefSelectionT,
+  realToClay,
 ) where
 
 import Foreword hiding (zero)
@@ -124,6 +125,9 @@ clayToMiso =
             Clay.Plain t -> pure t
       _ -> []
     . Clay.runS
+
+realToClay :: Real a => a -> Clay.Number
+realToClay = Clay.Number . realToFixed
 
 {- Linear -}
 
