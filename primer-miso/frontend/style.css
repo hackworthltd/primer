@@ -24,7 +24,7 @@
 }
 
 @font-face {
-  font-family: "Source Serif Variable";
+  font-family: "code";
   font-style: normal;
   font-weight: 200 900;
   font-stretch: normal;
@@ -173,6 +173,10 @@ body {
     background-color: var(--yellow-tertiary);
   }
   --node-color: var(--yellow-primary);
+}
+
+.fallback-pattern {
+  transform: scale(1.5);
 }
 
 .edge {
