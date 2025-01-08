@@ -420,8 +420,8 @@ viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
 viewTree t =
   ( div_
       [ style_
-          [ ("width", show dimensions.x <> "px")
-          , ("height", show dimensions.y <> "px")
+          [ ("min-width", show dimensions.x <> "px")
+          , ("min-height", show dimensions.y <> "px")
           ]
       ]
       . map fst
