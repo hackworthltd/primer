@@ -450,14 +450,12 @@ viewTree t =
     nodes =
       symmLayout' @Double
         ( Default.def
-            & (slHSep .~ padding)
-            & (slVSep .~ padding)
+            & (slHSep .~ nodePadding)
+            & (slVSep .~ nodePadding)
             & (slWidth .~ \(_, v) -> (-(v.x / 2), v.x / 2))
             & (slHeight .~ \(_, v) -> (-(v.y / 2), v.y / 2))
         )
         $ map (\opts -> (opts, getDimensions opts.opts)) t
-      where
-        padding = 20
     getDimensions = \case
       PatternBoxNode (Just (_, v)) -> v + pure boxPadding
       PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
@@ -465,6 +463,8 @@ viewTree t =
       HoleNode{} -> basicDimsSquare
       _ -> basicDims
       where
-        boxPadding = 55
-        basicDims = V2 80 35
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y
+    -- TODO make these configurable
+    nodePadding = 20
+    boxPadding = 55
+    basicDims = V2 80 35
