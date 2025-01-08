@@ -187,13 +187,13 @@ viewModel Model{..} =
             ]
             [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType (Just . Right &&& isSelected) def.sig)
             , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr (Just &&& isSelected) def.expr)
-            , case defSel.node of
-                Nothing -> viewTree $ viewTreeType mkMeta $ forgetTypeMetadata def.sig
+            , viewTree case defSel.node of
+                Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
                 Just s -> case nodeSelectionType s of
-                  Left t -> viewTree $ viewTreeType mkMeta t
-                  Right (Left t) -> viewTree $ viewTreeKind mkMeta t
+                  Left t -> viewTreeType mkMeta t
+                  Right (Left t) -> viewTreeKind mkMeta t
                   -- TODO this isn't really correct - kinds in Primer don't have kinds
-                  Right (Right ()) -> viewTree $ viewTreeKind mkMeta $ KType ()
+                  Right (Right ()) -> viewTreeKind mkMeta $ KType ()
             ]
           where
             mkMeta = const (Nothing, False)
