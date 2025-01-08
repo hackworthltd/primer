@@ -74,13 +74,9 @@ body {
 }
 
 .node {
-  position: absolute;
   > .node-contents {
     font-family: code;
     position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     > .node-text {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -125,7 +121,6 @@ body {
   color: var(--blue-primary);
   > .node-contents {
     border-style: solid;
-    box-sizing: border-box;
     border-width: 0.25rem;
     border-color: var(--node-color);
     background-color: var(--white-primary);
@@ -187,10 +182,5 @@ body {
 
 .edge {
   border-color: var(--node-color);
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform-origin: left;
-  border-style: solid;
   border-width: 0.125rem;
 }
