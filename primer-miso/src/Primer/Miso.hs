@@ -183,20 +183,17 @@ viewModel Model{..} =
         Nothing -> "no selection"
         Just defSel ->
           div_
-            []
-            [ div_
-                [ class_ "canvas"
-                ]
-                [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType (Just . Right &&& isSelected) def.sig)
-                , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr (Just &&& isSelected) def.expr)
-                , case defSel.node of
-                    Nothing -> viewTree $ viewTreeType mkMeta $ forgetTypeMetadata def.sig
-                    Just s -> case nodeSelectionType s of
-                      Left t -> viewTree $ viewTreeType mkMeta t
-                      Right (Left t) -> viewTree $ viewTreeKind mkMeta t
-                      -- TODO this isn't really correct - kinds in Primer don't have kinds
-                      Right (Right ()) -> viewTree $ viewTreeKind mkMeta $ KType ()
-                ]
+            [ class_ "canvas"
+            ]
+            [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType (Just . Right &&& isSelected) def.sig)
+            , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr (Just &&& isSelected) def.expr)
+            , case defSel.node of
+                Nothing -> viewTree $ viewTreeType mkMeta $ forgetTypeMetadata def.sig
+                Just s -> case nodeSelectionType s of
+                  Left t -> viewTree $ viewTreeType mkMeta t
+                  Right (Left t) -> viewTree $ viewTreeKind mkMeta t
+                  -- TODO this isn't really correct - kinds in Primer don't have kinds
+                  Right (Right ()) -> viewTree $ viewTreeKind mkMeta $ KType ()
             ]
           where
             mkMeta = const (Nothing, False)
