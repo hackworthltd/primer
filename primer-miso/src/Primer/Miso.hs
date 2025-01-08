@@ -255,8 +255,7 @@ viewNodeData position dimensions edges node = case node.opts of
             VarNode{} -> "var"
             PatternBoxNode{} -> "pattern-box"
         , style_
-            [ ("position", "absolute")
-            ,
+            [
               ( "transform"
               , "translate("
                   <> show position.x
@@ -272,13 +271,10 @@ viewNodeData position dimensions edges node = case node.opts of
       $ (edges <>) -- Edges come first so that they appear behind contents.
         [ div_
             [ class_ "node-contents"
-            , style_ $
+            , style_
                 [ ("width", show dimensions.x <> "px")
                 , ("height", show dimensions.y <> "px")
                 ]
-                  <> case node.opts of
-                    HoleNode{} -> [("font-style", "italic")]
-                    _ -> []
             ]
             case node.opts of
               PatternBoxNode (Just p) -> [p.item]
