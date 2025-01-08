@@ -167,6 +167,7 @@ body {
 }
 .node.hole {
   --node-color: var(--red-tertiary);
+  color: var(--red-tertiary);
 }
 .node.pattern-box {
   > .node-contents {

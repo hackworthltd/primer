@@ -315,7 +315,7 @@ viewTreeExpr mkMeta e =
   where
     nodeView = case e of
       Hole{} -> HoleNode{empty = False}
-      EmptyHole{} -> HoleNode{empty = False}
+      EmptyHole{} -> HoleNode{empty = True}
       Ann{} -> SyntaxNode False "ann" ":"
       Primer.App{} -> SyntaxNode False "app" "←"
       APP{} -> SyntaxNode False "type-expr-app" "←"
@@ -478,6 +478,7 @@ viewTreeWithDimensions outerPadding t =
       PatternBoxNode (Just p) -> p.dimensions + pure boxPadding
       PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
       SyntaxNode{wide = False} -> basicDimsSquare
+      HoleNode{} -> basicDimsSquare
       _ -> basicDims
       where
         boxPadding = 55
