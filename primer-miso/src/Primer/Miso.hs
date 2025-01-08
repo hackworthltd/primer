@@ -332,7 +332,7 @@ viewTreeExpr mkMeta e =
                 ( NodeViewData Nothing False Expr
                     $ PatternBoxNode
                     $ Just
-                    $ viewTreeWithDimensions False
+                    $ viewTreeWithDimensions
                     $ ( Tree.Node $ NodeViewData Nothing False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
@@ -417,15 +417,10 @@ viewEdge v =
     size = norm v
 
 viewTree :: Tree (NodeViewData action) -> View action
-viewTree = (.item) . viewTreeWithDimensions True
+viewTree = (.item) . viewTreeWithDimensions
 
-viewTreeWithDimensions ::
-  -- | Apply the same padding we use between nodes to the entire tree.
-  -- Should be `False` for nested trees.
-  Bool ->
-  Tree (NodeViewData action) ->
-  Measured (View action)
-viewTreeWithDimensions outerPadding t =
+viewTreeWithDimensions :: Tree (NodeViewData action) -> Measured (View action)
+viewTreeWithDimensions t =
   Measured
     { dimensions
     , item =
@@ -434,7 +429,6 @@ viewTreeWithDimensions outerPadding t =
                 [ ("width", show dimensions.x <> "px")
                 , ("height", show dimensions.y <> "px")
                 ]
-                  <> mwhen outerPadding [("padding", show (padding / 2) <> "px")]
             ]
           )
           . map fst
@@ -468,6 +462,8 @@ viewTreeWithDimensions outerPadding t =
             & (slHeight .~ \node -> (-(node.dimensions.y / 2), node.dimensions.y / 2))
         )
         $ map (\opts -> Measured opts $ getDimensions opts.opts) t
+      where
+        padding = 20
     getDimensions = \case
       PatternBoxNode (Just p) -> p.dimensions + pure boxPadding
       PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
@@ -478,7 +474,6 @@ viewTreeWithDimensions outerPadding t =
         boxPadding = 55
         basicDims = V2 80 35
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y
-    padding = 20
 
 data Measured a = Measured
   { item :: a
