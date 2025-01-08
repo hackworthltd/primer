@@ -14,7 +14,6 @@ import Foreword
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
-import Data.Foldable (foldMap)
 import Data.Generics.Uniplate.Data (children)
 import Data.Map ((!?))
 import Data.Map qualified as Map
@@ -229,7 +228,7 @@ viewNodeData position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
       [ src_ ("data:img/gif;base64," <> animation)
-      , style_ $
+      , style_
           [ ("width", show dimensions.x <> "px")
           , ("height", show dimensions.y <> "px")
           ]
@@ -262,40 +261,40 @@ viewNodeData position dimensions edges node = case node.opts of
               )
             ]
         ]
-          <> foldMap (\a -> [onClick a, class_ "selectable"]) node.clickAction
+          <> foldMap' (\a -> [onClick a, class_ "selectable"]) node.clickAction
           <> mwhen node.selected [class_ "selected"]
       )
-      $ (edges <>) -- Edges come first so that they appear behind contents.
-        [ div_
-            [ class_ "node-contents"
-            , style_
-                [ ("width", show dimensions.x <> "px")
-                , ("height", show dimensions.y <> "px")
-                ]
-            ]
-            case node.opts of
-              PatternBoxNode (Just p) -> [fst p]
-              PatternBoxNode Nothing ->
-                [ div_
-                    [class_ "fallback-pattern"]
-                    -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
-                    [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
-                ]
-              _ ->
-                [ div_
-                    [ class_ "node-text"
-                    ]
-                    [ text case node.opts of
-                        SyntaxNode{text = t} -> t
-                        HoleNode{empty = e} -> if e then "?" else "⚠️"
-                        PrimNode pc -> case pc of
-                          PrimChar c' -> show c'
-                          PrimInt n -> show n
-                        ConNode{name} -> unName name
-                        VarNode{name} -> unName name
-                    ]
-                ]
-        ]
+      $ edges -- Edges come first so that they appear behind contents.
+        <> [ div_
+              [ class_ "node-contents"
+              , style_
+                  [ ("width", show dimensions.x <> "px")
+                  , ("height", show dimensions.y <> "px")
+                  ]
+              ]
+              case node.opts of
+                PatternBoxNode (Just p) -> [fst p]
+                PatternBoxNode Nothing ->
+                  [ div_
+                      [class_ "fallback-pattern"]
+                      -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
+                      [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
+                  ]
+                _ ->
+                  [ div_
+                      [ class_ "node-text"
+                      ]
+                      [ text case node.opts of
+                          SyntaxNode{text = t} -> t
+                          HoleNode{empty = e} -> if e then "?" else "⚠️"
+                          PrimNode pc -> case pc of
+                            PrimChar c' -> show c'
+                            PrimInt n -> show n
+                          ConNode{name} -> unName name
+                          VarNode{name} -> unName name
+                      ]
+                  ]
+           ]
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
@@ -333,7 +332,8 @@ viewTreeExpr mkMeta e =
                     $ PatternBoxNode
                     $ Just
                     $ viewTree
-                    $ ( Tree.Node $ NodeViewData Nothing False Expr case p of
+                    $ Tree.Node
+                      ( NodeViewData Nothing False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
                       )
@@ -419,12 +419,11 @@ viewEdge v =
 viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
 viewTree t =
   ( div_
-      ( [ style_ $
-            [ ("width", show dimensions.x <> "px")
-            , ("height", show dimensions.y <> "px")
-            ]
-        ]
-      )
+      [ style_
+          [ ("width", show dimensions.x <> "px")
+          , ("height", show dimensions.y <> "px")
+          ]
+      ]
       . map fst
       . toList
       $ Tree.foldTree
