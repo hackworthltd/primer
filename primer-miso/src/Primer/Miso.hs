@@ -251,7 +251,8 @@ viewNodeData position dimensions edges node = case node.opts of
             VarNode{} -> "var"
             PatternBoxNode{} -> "pattern-box"
         , style_
-            [
+            [ ("position", "absolute")
+            ,
               ( "transform"
               , "translate("
                   <> show position.x
@@ -270,6 +271,10 @@ viewNodeData position dimensions edges node = case node.opts of
               , style_
                   [ ("width", show dimensions.x <> "px")
                   , ("height", show dimensions.y <> "px")
+                  , ("box-sizing", "border-box")
+                  , ("display", "flex")
+                  , ("justify-content", "center")
+                  , ("align-items", "center")
                   ]
               ]
               case node.opts of
@@ -404,10 +409,12 @@ viewEdge v =
   div_
     [ class_ "edge"
     , style_
-        [
-          ( "transform"
-          , "rotate(" <> show theta <> "rad)"
-          )
+        [ ("position", "absolute")
+        , ("top", "50%")
+        , ("left", "50%")
+        , ("transform-origin", "left")
+        , ("border-style", "solid")
+        , ("transform", "rotate(" <> show theta <> "rad)")
         , ("width", show size <> "px")
         ]
     ]
