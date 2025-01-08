@@ -66,6 +66,33 @@ body {
   font-family: sans;
 }
 
+.miso-root {
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: 12rem auto;
+}
+
+.def-panel {
+  overflow-y: scroll;
+  background-color: var(--grey-primary);
+  > button {
+    font-size: large;
+    width: 100%;
+    padding: 0.5rem;
+    color: var(--blue-primary);
+    background-color: transparent;
+    border-style: none;
+  }
+  > button:hover {
+    color: var(--white-primary);
+    background-color: var(--blue-secondary);
+  }
+  > button.selected {
+    color: var(--white-primary);
+    background-color: var(--blue-primary);
+  }
+}
+
 .canvas {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

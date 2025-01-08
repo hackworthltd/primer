@@ -173,12 +173,14 @@ updateModel =
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
-    []
+    [class_ "miso-root"]
     [ div_
-        []
+        [class_ "def-panel"]
         $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
           button_
-            [onClick $ SelectDef def]
+            [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
+            , onClick $ SelectDef def
+            ]
             [text $ globalNamePretty def]
     , case selection of
         Nothing -> "no selection"
