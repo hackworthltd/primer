@@ -220,7 +220,7 @@ data NodeViewOpts action
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (Measured (View action))
+  | PatternBoxNode (Maybe (Measured (View action))) -- `Nothing` indicates that this is a fallback pattern.
 
 data Level
   = Expr
@@ -281,7 +281,13 @@ viewNodeData position dimensions edges node = case node.opts of
                     _ -> []
             ]
             case node.opts of
-              PatternBoxNode p -> [p.item]
+              PatternBoxNode (Just p) -> [p.item]
+              PatternBoxNode Nothing ->
+                [ div_
+                    [class_ "fallback-pattern"]
+                    -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
+                    [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
+                ]
               _ ->
                 [ div_
                     []
@@ -331,6 +337,7 @@ viewTreeExpr mkMeta e =
               Tree.Node
                 ( NodeViewData Nothing False Expr
                     $ PatternBoxNode
+                    $ Just
                     $ viewTreeWithDimensions False
                     $ ( Tree.Node $ NodeViewData Nothing False Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
@@ -344,7 +351,7 @@ viewTreeExpr mkMeta e =
                 [viewTreeExpr mkMeta r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (NodeViewData Nothing False Expr $ SyntaxNode False "fallback" "_") [viewTreeExpr mkMeta r]]
+              CaseFallback r -> [Tree.Node (NodeViewData Nothing False Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
           ]
       _ ->
         mconcat
@@ -468,12 +475,14 @@ viewTreeWithDimensions outerPadding t =
         )
         $ map (\opts -> Measured opts $ getDimensions opts.opts) t
     getDimensions = \case
-      PatternBoxNode p -> p.dimensions + pure boxPadding
-      SyntaxNode{wide = False} -> basicDims & lensVL _x .~ basicDims.y
+      PatternBoxNode (Just p) -> p.dimensions + pure boxPadding
+      PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
+      SyntaxNode{wide = False} -> basicDimsSquare
       _ -> basicDims
       where
         boxPadding = 55
         basicDims = V2 80 35
+        basicDimsSquare = basicDims & lensVL _x .~ basicDims.y
     padding = 20
 
 data Measured a = Measured
