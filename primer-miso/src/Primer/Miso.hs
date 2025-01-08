@@ -119,6 +119,7 @@ import Primer.Miso.Util (
   clayToMiso,
   kindsInType,
   nodeSelectionType,
+  realToClay,
   startAppWithSavedState,
   tcBasicProg,
   typeBindingsInExpr,
@@ -233,8 +234,8 @@ viewNodeData position dimensions edges node = case node.opts of
     img_
       [ src_ ("data:img/gif;base64," <> animation)
       , style_ $ clayToMiso do
-          Clay.width $ Clay.px $ realToFrac dimensions.x
-          Clay.height $ Clay.px $ realToFrac dimensions.y
+          Clay.width $ Clay.px $ realToClay dimensions.x
+          Clay.height $ Clay.px $ realToClay dimensions.y
       ]
   _ ->
     div_
@@ -257,8 +258,8 @@ viewNodeData position dimensions edges node = case node.opts of
             Clay.position Clay.absolute
             Clay.transform $
               Clay.translate
-                (Clay.px $ realToFrac position.x)
-                (Clay.px $ realToFrac position.y)
+                (Clay.px $ realToClay position.x)
+                (Clay.px $ realToClay position.y)
         ]
           <> foldMap' (\a -> [onClick a, class_ "selectable"]) node.clickAction
           <> mwhen node.selected [class_ "selected"]
@@ -267,8 +268,8 @@ viewNodeData position dimensions edges node = case node.opts of
         <> [ div_
               [ class_ "node-contents"
               , style_ $ clayToMiso do
-                  Clay.width $ Clay.px $ realToFrac dimensions.x
-                  Clay.height $ Clay.px $ realToFrac dimensions.y
+                  Clay.width $ Clay.px $ realToClay dimensions.x
+                  Clay.height $ Clay.px $ realToClay dimensions.y
                   Clay.boxSizing Clay.borderBox
                   Clay.display Clay.flex
                   Clay.justifyContent Clay.center
@@ -411,8 +412,8 @@ viewEdge v =
         Clay.left $ Clay.pct 50
         Clay.transformOrigin [Clay.pct 0]
         Clay.borderStyle Clay.solid
-        Clay.transform $ Clay.rotate $ Clay.rad $ realToFrac theta
-        Clay.width $ Clay.px $ realToFrac size
+        Clay.transform $ Clay.rotate $ Clay.rad $ realToClay theta
+        Clay.width $ Clay.px $ realToClay size
     ]
     []
   where
@@ -423,8 +424,8 @@ viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
 viewTree t =
   ( div_
       [ style_ $ clayToMiso do
-          Clay.minWidth $ Clay.px $ realToFrac dimensions.x
-          Clay.minHeight $ Clay.px $ realToFrac dimensions.y
+          Clay.minWidth $ Clay.px $ realToClay dimensions.x
+          Clay.minHeight $ Clay.px $ realToClay dimensions.y
       ]
       . map fst
       . toList
