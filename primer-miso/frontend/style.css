@@ -80,7 +80,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    > *:not(:has(*)) {
+    > .node-text {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;

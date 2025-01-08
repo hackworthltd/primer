@@ -283,7 +283,8 @@ viewNodeData position dimensions edges node = case node.opts of
                 ]
               _ ->
                 [ div_
-                    []
+                    [ class_ "node-text"
+                    ]
                     [ text case node.opts of
                         SyntaxNode{text = t} -> t
                         HoleNode{empty = e} -> if e then "?" else "⚠️"
