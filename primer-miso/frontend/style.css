@@ -74,17 +74,17 @@ body {
 
 .node {
   position: absolute;
-}
-.node > .node-contents {
-  font-family: code;
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  > *:not(:has(*)) {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  > .node-contents {
+    font-family: code;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    > *:not(:has(*)) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }
 
