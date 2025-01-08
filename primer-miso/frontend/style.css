@@ -96,9 +96,8 @@ body {
 }
 
 .node.expr {
-  border-radius: 1.5rem;
   > .node-contents {
-    border-radius: inherit;
+    border-radius: 1.5rem;
   }
 }
 .node.kind > .node-contents {
