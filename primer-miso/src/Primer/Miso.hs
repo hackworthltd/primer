@@ -11,6 +11,7 @@ module Primer.Miso (start) where
 
 import Foreword
 
+import Clay qualified
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
@@ -115,6 +116,7 @@ import Primer.Miso.Util (
   TermMeta',
   bindingsInExpr,
   bindingsInType,
+  clayToMiso,
   kindsInType,
   nodeSelectionType,
   startAppWithSavedState,
@@ -228,10 +230,9 @@ viewNodeData position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
       [ src_ ("data:img/gif;base64," <> animation)
-      , style_
-          [ ("width", show dimensions.x <> "px")
-          , ("height", show dimensions.y <> "px")
-          ]
+      , style_ $ clayToMiso do
+          Clay.width $ Clay.px $ realToFrac dimensions.x
+          Clay.height $ Clay.px $ realToFrac dimensions.y
       ]
   _ ->
     div_
@@ -250,17 +251,12 @@ viewNodeData position dimensions edges node = case node.opts of
             ConNode{} -> "con"
             VarNode{} -> "var"
             PatternBoxNode{} -> "pattern-box"
-        , style_
-            [ ("position", "absolute")
-            ,
-              ( "transform"
-              , "translate("
-                  <> show position.x
-                  <> "px,"
-                  <> show position.y
-                  <> "px)"
-              )
-            ]
+        , style_ $ clayToMiso do
+            Clay.position Clay.absolute
+            Clay.transform $
+              Clay.translate
+                (Clay.px $ realToFrac position.x)
+                (Clay.px $ realToFrac position.y)
         ]
           <> foldMap' (\a -> [onClick a, class_ "selectable"]) node.clickAction
           <> mwhen node.selected [class_ "selected"]
@@ -268,14 +264,13 @@ viewNodeData position dimensions edges node = case node.opts of
       $ edges -- Edges come first so that they appear behind contents.
         <> [ div_
               [ class_ "node-contents"
-              , style_
-                  [ ("width", show dimensions.x <> "px")
-                  , ("height", show dimensions.y <> "px")
-                  , ("box-sizing", "border-box")
-                  , ("display", "flex")
-                  , ("justify-content", "center")
-                  , ("align-items", "center")
-                  ]
+              , style_ $ clayToMiso do
+                  Clay.width $ Clay.px $ realToFrac dimensions.x
+                  Clay.height $ Clay.px $ realToFrac dimensions.y
+                  Clay.boxSizing Clay.borderBox
+                  Clay.display Clay.flex
+                  Clay.justifyContent Clay.center
+                  Clay.alignItems Clay.center
               ]
               case node.opts of
                 PatternBoxNode (Just p) -> [fst p]
@@ -408,15 +403,14 @@ viewEdge :: V2 Double -> View action
 viewEdge v =
   div_
     [ class_ "edge"
-    , style_
-        [ ("position", "absolute")
-        , ("top", "50%")
-        , ("left", "50%")
-        , ("transform-origin", "left")
-        , ("border-style", "solid")
-        , ("transform", "rotate(" <> show theta <> "rad)")
-        , ("width", show size <> "px")
-        ]
+    , style_ $ clayToMiso do
+        Clay.position Clay.absolute
+        Clay.top $ Clay.pct 50
+        Clay.left $ Clay.pct 50
+        Clay.transformOrigin [Clay.pct 0]
+        Clay.borderStyle Clay.solid
+        Clay.transform $ Clay.rotate $ Clay.rad $ realToFrac theta
+        Clay.width $ Clay.px $ realToFrac size
     ]
     []
   where
@@ -426,10 +420,9 @@ viewEdge v =
 viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
 viewTree t =
   ( div_
-      [ style_
-          [ ("min-width", show dimensions.x <> "px")
-          , ("min-height", show dimensions.y <> "px")
-          ]
+      [ style_ $ clayToMiso do
+          Clay.minWidth $ Clay.px $ realToFrac dimensions.x
+          Clay.minHeight $ Clay.px $ realToFrac dimensions.y
       ]
       . map fst
       . toList
