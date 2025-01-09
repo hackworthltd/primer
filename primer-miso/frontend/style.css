@@ -64,16 +64,26 @@
 body {
   margin: 0;
   font-family: sans;
+  height: 100vh;
 }
 
 .miso-root {
-  height: 100dvh;
+  height: 100%;
   display: grid;
-  grid-template-columns: 12rem auto;
+  grid-template-columns: 12rem 1fr 2fr;
+  grid-template-rows: 2fr 1fr;
+  > * {
+    position: relative;
+    overflow: scroll;
+    border-style: solid;
+    border-width: 1px;
+    border-color: var(--blue-primary);
+  }
 }
 
 .def-panel {
-  overflow-y: scroll;
+  grid-row-start: 1;
+  grid-row-end: 3;
   background-color: var(--grey-primary);
   > button {
     font-size: large;
@@ -93,10 +103,12 @@ body {
   }
 }
 
-.canvas {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  justify-items: center;
+.selection-type {
+  grid-column-start: 2;
+  grid-column-end: 4;
+}
+
+.tree {
   padding: 0.625rem;
 }
 
