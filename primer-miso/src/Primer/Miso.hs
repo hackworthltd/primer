@@ -175,36 +175,47 @@ viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
     [class_ "miso-root"]
-    [ div_
-        [class_ "def-panel"]
-        $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
-          button_
-            [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
-            , onClick $ SelectDef def
-            ]
-            [text $ globalNamePretty def]
-    , case selection of
-        Nothing -> "no selection"
+    $ [ div_
+          [class_ "def-panel"]
+          $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
+            button_
+              [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
+              , onClick $ SelectDef def
+              ]
+              [text $ globalNamePretty def]
+      ]
+      <> case selection of
+        Nothing -> [text "no selection"]
         Just defSel ->
-          div_
-            [ class_ "canvas"
-            ]
-            [ SelectNode . NodeSelection SigNode <$> fst (viewTree (viewTreeType (Just . Right &&& isSelected) def.sig))
-            , SelectNode . NodeSelection BodyNode <$> fst (viewTree (viewTreeExpr (Just &&& isSelected) def.expr))
-            , fst $ viewTree case defSel.node of
-                Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
-                Just s -> case nodeSelectionType s of
-                  Left t -> viewTreeType mkMeta t
-                  Right (Left t) -> viewTreeKind mkMeta t
-                  -- TODO this isn't really correct - kinds in Primer don't have kinds
-                  Right (Right ()) -> viewTreeKind mkMeta $ KType ()
-            ]
+          [ div_
+              [ class_ "sig"
+              ]
+              [ SelectNode . NodeSelection SigNode
+                  <$> fst (viewTree (viewTreeType (Just . Right &&& isSelected) def.sig))
+              ]
+          , div_
+              [ class_ "body"
+              ]
+              [ SelectNode . NodeSelection BodyNode
+                  <$> fst (viewTree (viewTreeExpr (Just &&& isSelected) def.expr))
+              ]
+          , div_
+              [ class_ "selection-type"
+              ]
+              [ fst $ viewTree case defSel.node of
+                  Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
+                  Just s -> case nodeSelectionType s of
+                    Left t -> viewTreeType mkMeta t
+                    Right (Left t) -> viewTreeKind mkMeta t
+                    -- TODO this isn't really correct - kinds in Primer don't have kinds
+                    Right (Right ()) -> viewTreeKind mkMeta $ KType ()
+              ]
+          ]
           where
             mkMeta = const (Nothing, False)
             isSelected x = (getID <$> defSel.node) == Just (getID x)
             -- TODO better error handling
             def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
-    ]
 
 -- TODO `isNothing clickAction` implies `not selected` - we could model this better
 -- but in the long run, we intend to have no unselectable nodes anyway
@@ -423,7 +434,8 @@ viewEdge v =
 viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
 viewTree t =
   ( div_
-      [ style_ $ clayToMiso do
+      [ class_ "tree"
+      , style_ $ clayToMiso do
           Clay.minWidth $ Clay.px $ realToClay dimensions.x
           Clay.minHeight $ Clay.px $ realToClay dimensions.y
       ]
