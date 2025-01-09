@@ -67,7 +67,7 @@ body {
   height: 100vh;
 }
 
-.miso-root {
+#miso-root {
   height: 100%;
   display: grid;
   grid-template-columns: 12rem 1fr 2fr;
@@ -81,7 +81,7 @@ body {
   }
 }
 
-.def-panel {
+#def-panel {
   grid-row-start: 1;
   grid-row-end: 3;
   background-color: var(--grey-primary);
@@ -103,7 +103,7 @@ body {
   }
 }
 
-.selection-type {
+#selection-type {
   grid-column-start: 2;
   grid-column-end: 4;
 }

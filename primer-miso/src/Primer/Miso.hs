@@ -45,6 +45,7 @@ import Miso (
   defaultEvents,
   div_,
   fromTransition,
+  id_,
   img_,
   onClick,
   src_,
@@ -174,9 +175,9 @@ updateModel =
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
-    [class_ "miso-root"]
+    [id_ "miso-root"]
     $ [ div_
-          [class_ "def-panel"]
+          [id_ "def-panel"]
           $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
             button_
               [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
@@ -188,19 +189,19 @@ viewModel Model{..} =
         Nothing -> [text "no selection"]
         Just defSel ->
           [ div_
-              [ class_ "sig"
+              [ id_ "sig"
               ]
               [ SelectNode . NodeSelection SigNode
                   <$> fst (viewTree (viewTreeType (Just . Right &&& isSelected) def.sig))
               ]
           , div_
-              [ class_ "body"
+              [ id_ "body"
               ]
               [ SelectNode . NodeSelection BodyNode
                   <$> fst (viewTree (viewTreeExpr (Just &&& isSelected) def.expr))
               ]
           , div_
-              [ class_ "selection-type"
+              [ id_ "selection-type"
               ]
               [ fst $ viewTree case defSel.node of
                   Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
