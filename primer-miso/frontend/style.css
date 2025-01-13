@@ -1,0 +1,224 @@
+:root {
+  --white-primary: #ffffff;
+  --black-primary: #000000;
+  --blue-primary: #34375d;
+  --blue-secondary: #4b5097;
+  --blue-primary-hover: #46486f;
+  --blue-secondary-hover: #2b3679;
+  --blue-tertiary: #2c6a85;
+  --blue-quaternary: #64b0c8;
+  --grey-primary: #f7f7f7;
+  --grey-secondary: #6b7280;
+  --grey-tertiary: #4b5563;
+  --grey-quaternary: #d4d4d4;
+  --grey-primary-hover: #e2e2e2;
+  --red-primary: #a52326;
+  --red-secondary: #f1685e;
+  --red-primary-hover: #c7433f;
+  --red-secondary-hover: #bf3c38;
+  --red-tertiary: #cd3764;
+  --green-primary: #62e2b4;
+  --yellow-primary: #ffb961;
+  --yellow-secondary: #e5a34f;
+  --yellow-tertiary: #fff1df;
+}
+
+@font-face {
+  font-family: "code";
+  font-style: normal;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/SourceSerif4Variable-Roman.otf.woff2")
+    format("woff2-variations");
+}
+@font-face {
+  font-family: "code";
+  font-style: italic;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/SourceSerif4Variable-Italic.otf.woff2")
+    format("woff2-variations");
+}
+@font-face {
+  font-family: "branding";
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: normal;
+  src: url("/fonts/SourceSerif4-Semibold.otf.woff2") format("woff2");
+}
+@font-face {
+  font-family: "sans";
+  font-style: normal;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/Inter-roman.var.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "sans";
+  font-style: italic;
+  font-weight: 200 900;
+  font-stretch: normal;
+  src: url("/fonts/Inter-italic.var.woff2") format("woff2-variations");
+}
+
+body {
+  margin: 0;
+  font-family: sans;
+  height: 100vh;
+}
+
+#miso-root {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 12rem 1fr 2fr;
+  grid-template-rows: 2fr 1fr;
+  > * {
+    position: relative;
+    overflow: scroll;
+    border-style: solid;
+    border-width: 1px;
+    border-color: var(--blue-primary);
+  }
+}
+
+#def-panel {
+  grid-row-start: 1;
+  grid-row-end: 3;
+  background-color: var(--grey-primary);
+  > button {
+    font-size: large;
+    width: 100%;
+    padding: 0.5rem;
+    color: var(--blue-primary);
+    background-color: transparent;
+    border-style: none;
+  }
+  > button:hover {
+    color: var(--white-primary);
+    background-color: var(--blue-secondary);
+  }
+  > button.selected {
+    color: var(--white-primary);
+    background-color: var(--blue-primary);
+  }
+}
+
+#selection-type {
+  grid-column-start: 2;
+  grid-column-end: 4;
+}
+
+.tree {
+  padding: 0.625rem;
+}
+
+.node {
+  > .node-contents {
+    font-family: code;
+    position: relative;
+    > .node-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.node.selected > .node-contents,
+.node.selectable > .node-contents:hover {
+  --opacity: 50%;
+  box-shadow: 0 0 0 4px var(--white-primary),
+    0 0 0 8px color-mix(in srgb, transparent, var(--node-color) var(--opacity));
+}
+.node.selected > .node-contents {
+  --opacity: 100% !important;
+}
+
+.node.expr {
+  > .node-contents {
+    border-radius: 1.5rem;
+  }
+}
+.node.kind > .node-contents {
+  transform: rotate(45deg)
+    /* Scale by (1 + 1/√2)/2 so that bounding square (used for tree layout) is a good approximation. */
+    scale(0.854);
+  > * {
+    /* Rotate the content back to its correct orientation. */
+    transform: rotate(-45deg);
+  }
+}
+
+.node.syntax {
+  color: var(--white-primary);
+  > .node-contents {
+    background-color: var(--node-color);
+  }
+}
+.node.non-syntax {
+  color: var(--blue-primary);
+  > .node-contents {
+    border-style: solid;
+    border-width: 0.25rem;
+    border-color: var(--node-color);
+    background-color: var(--white-primary);
+  }
+}
+
+.node.ann {
+  --node-color: var(--black-primary);
+}
+.node.app,
+.node.type-expr-app,
+.node.type-app {
+  --node-color: var(--blue-tertiary);
+}
+.node.lam,
+.node.type-fun,
+.node.kind-fun {
+  --node-color: var(--blue-primary);
+}
+.node.type-lam,
+.node.forall {
+  --node-color: var(--blue-secondary);
+}
+.node.let,
+.node.let-type,
+.node.letrec,
+.node.type-let {
+  --node-color: var(--blue-quaternary);
+}
+.node.match,
+.node.fallback {
+  --node-color: var(--yellow-primary);
+}
+.node.kind-type {
+  --node-color: var(--green-primary);
+}
+.node.var {
+  --node-color: var(--blue-quaternary);
+}
+.node.con,
+.node.prim {
+  --node-color: var(--green-primary);
+}
+.node.hole {
+  --node-color: var(--red-tertiary);
+  color: var(--red-tertiary);
+  font-style: italic;
+}
+.node.pattern-box {
+  > .node-contents {
+    background-color: var(--yellow-tertiary);
+  }
+  --node-color: var(--yellow-primary);
+}
+
+.fallback-pattern {
+  transform: scale(1.5);
+}
+
+.edge {
+  border-color: var(--node-color);
+  border-width: 0.125rem;
+}

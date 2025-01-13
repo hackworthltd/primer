@@ -11,6 +11,7 @@ module Primer.Miso (start) where
 
 import Foreword
 
+import Clay qualified
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
@@ -19,6 +20,7 @@ import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Tree (Tree)
 import Data.Tree qualified as Tree
+import Data.Tuple.Extra ((&&&))
 import GHC.Base (error)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
@@ -39,19 +41,21 @@ import Miso (
   LogLevel (Off),
   View,
   button_,
+  class_,
   defaultEvents,
   div_,
   fromTransition,
+  id_,
   img_,
   onClick,
   src_,
   style_,
   text,
  )
-import Optics (lensVL, over, to, (%), (.~), (^.), (^..), _Just)
+import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
 import Optics.State.Operators ((?=))
 import Primer.App (
-  NodeSelection (NodeSelection),
+  NodeSelection (..),
   NodeType (BodyNode, SigNode),
   Prog (progImports),
   newProg,
@@ -85,6 +89,7 @@ import Primer.Core (
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   Type' (..),
+  getID,
   globalNamePretty,
   mkSimpleModuleName,
   qualifyName,
@@ -96,21 +101,7 @@ import Primer.Core (
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Miso.Colors (
-  blackPrimary,
-  bluePrimary,
-  blueQuaternary,
-  blueSecondary,
-  blueTertiary,
-  greenPrimary,
-  greySecondary,
-  redTertiary,
-  whitePrimary,
-  yellowPrimary,
-  yellowTertiary,
- )
 import Primer.Miso.Layout (
-  P2,
   slHSep,
   slHeight,
   slVSep,
@@ -122,11 +113,14 @@ import Primer.Miso.Util (
   DefSelectionT,
   ModuleT (..),
   NodeSelectionT,
+  P2,
   TermMeta',
   bindingsInExpr,
   bindingsInType,
+  clayToMiso,
   kindsInType,
   nodeSelectionType,
+  realToClay,
   startAppWithSavedState,
   tcBasicProg,
   typeBindingsInExpr,
@@ -181,339 +175,312 @@ updateModel =
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
-    []
-    [ div_
-        []
-        $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
-          button_
-            [onClick $ SelectDef def]
-            [text $ globalNamePretty def]
-    , case selection of
-        Nothing -> "no selection"
+    [id_ "miso-root"]
+    $ [ div_
+          [id_ "def-panel"]
+          $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
+            button_
+              [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
+              , onClick $ SelectDef def
+              ]
+              [text $ globalNamePretty def]
+      ]
+      <> case selection of
+        Nothing -> [text "no selection"]
         Just defSel ->
-          div_
-            []
-            [ div_
-                [ style_
-                    [ ("display", "grid")
-                    , ("grid-template-columns", "1fr 1fr 1fr")
-                    , ("justify-items", "center")
-                    ]
-                ]
-                [ SelectNode . NodeSelection SigNode <$> viewTree (viewTreeType def.sig)
-                , SelectNode . NodeSelection BodyNode <$> viewTree (viewTreeExpr def.expr)
-                , NoOp "clicked non-interactive node" <$ case defSel.node of
-                    Nothing -> viewTree $ viewTreeType $ forgetTypeMetadata def.sig
-                    Just s -> case nodeSelectionType s of
-                      Left t -> viewTree $ viewTreeType t
-                      Right (Left t) -> viewTree $ viewTreeKind t
-                      -- TODO this isn't really correct - kinds in Primer don't have kinds
-                      Right (Right ()) -> viewTree $ viewTreeKind $ KType ()
-                ]
-            ]
+          [ div_
+              [ id_ "sig"
+              ]
+              [ SelectNode . NodeSelection SigNode
+                  <$> fst (viewTree (viewTreeType (Just . Right &&& isSelected) def.sig))
+              ]
+          , div_
+              [ id_ "body"
+              ]
+              [ SelectNode . NodeSelection BodyNode
+                  <$> fst (viewTree (viewTreeExpr (Just &&& isSelected) def.expr))
+              ]
+          , div_
+              [ id_ "selection-type"
+              ]
+              [ fst $ viewTree case defSel.node of
+                  Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
+                  Just s -> case nodeSelectionType s of
+                    Left t -> viewTreeType mkMeta t
+                    Right (Left t) -> viewTreeKind mkMeta t
+                    -- TODO this isn't really correct - kinds in Primer don't have kinds
+                    Right (Right ()) -> viewTreeKind mkMeta $ KType ()
+              ]
+          ]
           where
+            mkMeta = const (Nothing, False)
+            isSelected x = (getID <$> defSel.node) == Just (getID x)
             -- TODO better error handling
             def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
-    ]
 
-data NodeViewData
-  = SyntaxNode {wide :: Bool, color :: Text, text :: Text}
+-- TODO `isNothing clickAction` implies `not selected` - we could model this better
+-- but in the long run, we intend to have no unselectable nodes anyway
+data NodeViewData action = NodeViewData
+  { clickAction :: Maybe action
+  , selected :: Bool
+  , level :: Level
+  , opts :: NodeViewOpts action
+  }
+
+data NodeViewOpts action
+  = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (forall action. MeasuredView action)
+  | PatternBoxNode (Maybe (View action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
 
-viewNode :: NodeViewData -> Map Text Text -> Map Text Text -> MeasuredView action
-viewNode opts extraOuterStyles extraInnerStyles =
-  MeasuredView
-    { dimensions
-    , view = case opts of
-        PrimNode (PrimAnimation animation) ->
-          img_
-            [ src_ ("data:img/gif;base64," <> animation)
-            , style_ $
-                [ ("width", show dimensions.x <> "px")
-                , ("height", show dimensions.y <> "px")
-                ]
-                  <> extraOuterStyles
-                  <> extraInnerStyles
-            ]
-        _ ->
-          div_
-            [ style_ $
-                [ ("display", "flex")
-                , ("justify-content", "center")
-                , ("align-items", "center")
-                , ("border-style", "solid")
-                , ("box-sizing", "border-box")
-                , ("border-color", borderColor)
-                , ("background-color", backgroundColor)
-                , ("width", show dimensions.x <> "px")
-                , ("height", show dimensions.y <> "px")
-                , ("border-width", ".25rem")
-                ]
-                  <> case opts of
-                    HoleNode{} -> [("font-style", "italic")]
-                    _ -> []
-                  <> extraOuterStyles
-            ]
-            case opts of
-              PatternBoxNode p ->
-                [ div_
-                    [ style_
-                        [ ("position", "absolute")
-                        , ("top", show (boxPadding / 2) <> "px")
-                        ]
-                    ]
-                    [p.view]
-                ]
-              _ ->
-                [ div_
-                    [ style_ $
-                        [ ("overflow", "hidden")
-                        , ("text-overflow", "ellipsis")
-                        , ("white-space", "nowrap")
-                        , ("color", fontColor)
-                        ]
-                          <> extraInnerStyles
-                    ]
-                    [ text case opts of
-                        SyntaxNode{text = t} -> t
-                        HoleNode{empty = e} -> if e then "?" else "⚠️"
-                        PrimNode pc -> case pc of
-                          PrimChar c' -> show c'
-                          PrimInt n -> show n
-                        ConNode{name} -> unName name
-                        VarNode{name} -> unName name
-                    ]
-                ]
-                where
-                  fontColor = case opts of
-                    SyntaxNode{} -> whitePrimary
-                    _ -> bluePrimary
-          where
-            borderColor = case opts of
-              SyntaxNode{color} -> color
-              HoleNode{} -> redTertiary
-              PrimNode{} -> greenPrimary
-              ConNode{} -> greenPrimary
-              VarNode{} -> blueQuaternary
-              PatternBoxNode{} -> yellowPrimary
-            backgroundColor = case opts of
-              SyntaxNode{color} -> color
-              PatternBoxNode{} -> yellowTertiary
-              _ -> whitePrimary
-    }
-  where
-    boxPadding = 55
-    basicDims = V2 80 35
-    dimensions = case opts of
-      PatternBoxNode p -> p.dimensions + pure boxPadding
-      SyntaxNode{wide = False} -> basicDims & lensVL _x .~ basicDims.y
-      _ -> basicDims
+data Level
+  = Expr
+  | Type
+  | Kind
+
+viewNodeData :: P2 Double -> V2 Double -> [View action] -> NodeViewData action -> View action
+viewNodeData position dimensions edges node = case node.opts of
+  PrimNode (PrimAnimation animation) ->
+    img_
+      [ src_ ("data:img/gif;base64," <> animation)
+      , style_ $ clayToMiso do
+          Clay.width $ Clay.px $ realToClay dimensions.x
+          Clay.height $ Clay.px $ realToClay dimensions.y
+      ]
+  _ ->
+    div_
+      ( [ class_ "node"
+        , class_ case node.level of
+            Expr -> "expr"
+            Type -> "type"
+            Kind -> "kind"
+        , class_ case node.opts of
+            SyntaxNode{} -> "syntax"
+            _ -> "non-syntax"
+        , class_ case node.opts of
+            SyntaxNode{flavor} -> flavor
+            HoleNode{} -> "hole"
+            PrimNode{} -> "prim"
+            ConNode{} -> "con"
+            VarNode{} -> "var"
+            PatternBoxNode{} -> "pattern-box"
+        , style_ $ clayToMiso do
+            Clay.position Clay.absolute
+            Clay.transform $
+              Clay.translate
+                (Clay.px $ realToClay position.x)
+                (Clay.px $ realToClay position.y)
+        ]
+          <> foldMap' (\a -> [onClick a, class_ "selectable"]) node.clickAction
+          <> mwhen node.selected [class_ "selected"]
+      )
+      $ edges -- Edges come first so that they appear behind contents.
+        <> [ div_
+              [ class_ "node-contents"
+              , style_ $ clayToMiso do
+                  Clay.width $ Clay.px $ realToClay dimensions.x
+                  Clay.height $ Clay.px $ realToClay dimensions.y
+                  Clay.boxSizing Clay.borderBox
+                  Clay.display Clay.flex
+                  Clay.justifyContent Clay.center
+                  Clay.alignItems Clay.center
+              ]
+              case node.opts of
+                PatternBoxNode (Just p) -> [fst p]
+                PatternBoxNode Nothing ->
+                  [ div_
+                      [class_ "fallback-pattern"]
+                      -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
+                      [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
+                  ]
+                _ ->
+                  [ div_
+                      [ class_ "node-text"
+                      ]
+                      [ text case node.opts of
+                          SyntaxNode{text = t} -> t
+                          HoleNode{empty = e} -> if e then "?" else "⚠️"
+                          PrimNode pc -> case pc of
+                            PrimChar c' -> show c'
+                            PrimInt n -> show n
+                          ConNode{name} -> unName name
+                          VarNode{name} -> unName name
+                      ]
+                  ]
+           ]
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
+  (TermMeta' a b c -> (Maybe action, Bool)) ->
   Expr' a b c ->
-  Tree.Tree (MeasuredView (TermMeta' a b c))
-viewTreeExpr e =
+  Tree.Tree (NodeViewData action)
+viewTreeExpr mkMeta e =
   Tree.Node
-    ( over #view (div_ [onClick $ Left $ e ^. _exprMetaLens] . pure) $
-        viewNode nodeView rounded []
-    )
+    (uncurry NodeViewData (mkMeta $ Left $ e ^. _exprMetaLens) Expr nodeView)
     childViews
   where
-    rounded = [("border-radius", "1.5rem")] -- Curved nodes to indicate value-level expressions.
     nodeView = case e of
       Hole{} -> HoleNode{empty = False}
-      EmptyHole{} -> HoleNode{empty = False}
-      Ann{} -> SyntaxNode False blackPrimary ":"
-      Primer.App{} -> SyntaxNode False blueTertiary "←"
-      APP{} -> SyntaxNode False blueTertiary "←"
+      EmptyHole{} -> HoleNode{empty = True}
+      Ann{} -> SyntaxNode False "ann" ":"
+      Primer.App{} -> SyntaxNode False "app" "←"
+      APP{} -> SyntaxNode False "type-expr-app" "←"
       Con _ c _ -> ConNode{name = baseName c, scope = qualifiedModule c}
-      Lam{} -> SyntaxNode False bluePrimary "λ"
-      LAM{} -> SyntaxNode False blueSecondary "Λ"
+      Lam{} -> SyntaxNode False "lam" "λ"
+      LAM{} -> SyntaxNode False "type-lam" "Λ"
       Var _ (GlobalVarRef v) -> VarNode{name = baseName v, mscope = Just $ qualifiedModule v}
       Var _ (LocalVarRef v) -> VarNode{name = unLocalName v, mscope = Nothing}
-      Let{} -> SyntaxNode False blueQuaternary "let"
-      LetType{} -> SyntaxNode False blueQuaternary "let type"
-      Letrec{} -> SyntaxNode False blueQuaternary "let rec"
+      Let{} -> SyntaxNode False "let" "let"
+      LetType{} -> SyntaxNode False "let-type" "let type"
+      Letrec{} -> SyntaxNode False "letrec" "let rec"
       PrimCon _ c -> PrimNode c
-      Case{} -> SyntaxNode True yellowPrimary "match"
+      Case{} -> SyntaxNode True "match" "match"
     childViews = case e of
       Case _ scrut branches fb ->
         mconcat
-          [ [viewTreeExpr scrut]
+          [ [viewTreeExpr mkMeta scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
-                ( viewNode
-                    ( PatternBoxNode
-                        ( viewTreeWithDimensions False
-                            $ Tree.Node case p of
-                              PatCon c -> viewNode ConNode{name = baseName c, scope = qualifiedModule c} rounded []
-                              PatPrim c -> viewNode (PrimNode c) rounded []
-                            $ bindings
-                              <&> \(Bind _ v) ->
-                                Tree.Node (viewNode VarNode{name = unLocalName v, mscope = Nothing} rounded []) []
-                        )
-                    )
-                    rounded
-                    []
+                ( NodeViewData Nothing False Expr
+                    $ PatternBoxNode
+                    $ Just
+                    $ viewTree
+                    $ Tree.Node
+                      ( NodeViewData Nothing False Expr case p of
+                          PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
+                          PatPrim c -> PrimNode c
+                      )
+                    $ bindings <&> \(Bind m v) ->
+                      Tree.Node
+                        (uncurry NodeViewData (mkMeta $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
+                        []
                 )
-                [viewTreeExpr r]
+                [viewTreeExpr mkMeta r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (viewNode (SyntaxNode False yellowPrimary "_") [] []) [viewTreeExpr r]]
+              CaseFallback r -> [Tree.Node (NodeViewData Nothing False Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
           ]
       _ ->
         mconcat
-          [ map (viewTreeBinding []) (e ^.. typeBindingsInExpr)
-          , map (viewTreeBinding rounded) (e ^.. bindingsInExpr)
-          , map viewTreeType (e ^.. typesInExpr)
-          , map viewTreeExpr (children e)
+          [ map (viewTreeBinding Type) (e ^.. typeBindingsInExpr)
+          , map (viewTreeBinding Expr) (e ^.. bindingsInExpr)
+          , map (viewTreeType (mkMeta . Right)) (e ^.. typesInExpr)
+          , map (viewTreeExpr mkMeta) (children e)
           ]
         where
-          viewTreeBinding as name = Tree.Node (viewNode VarNode{name = unLocalName name, mscope = Nothing} as []) []
+          viewTreeBinding l name = Tree.Node (NodeViewData Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
+  (Either b c -> (Maybe action, Bool)) ->
   Type' b c ->
-  Tree.Tree (MeasuredView (TermMeta' a b c))
-viewTreeType t =
+  Tree.Tree (NodeViewData action)
+viewTreeType mkMeta t =
   Tree.Node
-    ( over #view (div_ [onClick $ Right $ Left $ t ^. _typeMetaLens] . pure) $
-        viewNode nodeView [] []
-    )
+    (uncurry NodeViewData (mkMeta $ Left $ t ^. _typeMetaLens) Type nodeView)
     childViews
   where
     nodeView = case t of
       TEmptyHole{} -> HoleNode{empty = True}
       THole{} -> HoleNode{empty = True}
       TCon _ c -> ConNode{name = baseName c, scope = qualifiedModule c}
-      TFun{} -> SyntaxNode False bluePrimary "→"
+      TFun{} -> SyntaxNode False "type-fun" "→"
       TVar _ v -> VarNode{name = unLocalName v, mscope = Nothing}
-      TApp{} -> SyntaxNode False blueTertiary "←"
-      TForall{} -> SyntaxNode False blueSecondary "∀"
-      TLet{} -> SyntaxNode False blueQuaternary "let"
+      TApp{} -> SyntaxNode False "type-app" "←"
+      TForall{} -> SyntaxNode False "forall" "∀"
+      TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (viewNode VarNode{name, mscope = Nothing} [] []) [])
+        (\name -> Tree.Node (NodeViewData Nothing False Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
-        <> map viewTreeKind (t ^.. kindsInType)
-        <> map viewTreeType (children t)
+        <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
+        <> map (viewTreeType mkMeta) (children t)
 
-viewTreeKind :: (Data c) => Kind' c -> Tree.Tree (MeasuredView (TermMeta' a b c))
-viewTreeKind k =
+viewTreeKind ::
+  (Data c) =>
+  (c -> (Maybe action, Bool)) ->
+  Kind' c ->
+  Tree.Tree (NodeViewData action)
+viewTreeKind mkMeta k =
   Tree.Node
-    ( over #view (div_ [onClick $ Right $ Right $ k ^. _kindMetaLens] . pure) $
-        viewNode
-          nodeView
-          -- Rotate to indicate kind.
-          -- We then scale by (1 + 1/√2)/2 so that dimensions used for layout are a good approximation.
-          [("transform", "rotate(45deg) scale(0.854)")]
-          -- Rotate the content back to it's correct orientation.
-          [("transform", "rotate(-45deg)")]
-    )
+    (uncurry NodeViewData (mkMeta $ k ^. _kindMetaLens) Kind nodeView)
     childViews
   where
     nodeView = case k of
       KHole{} -> HoleNode{empty = True}
-      KType{} -> SyntaxNode False greenPrimary "*"
-      KFun{} -> SyntaxNode False bluePrimary "→"
-    childViews = map viewTreeKind (children k)
+      KType{} -> SyntaxNode False "kind-type" "*"
+      KFun{} -> SyntaxNode False "kind-fun" "→"
+    childViews = map (viewTreeKind mkMeta) (children k)
 
--- | Draw an edge from one point to another.
-viewEdge :: P2 Double -> P2 Double -> View action
-viewEdge p p' =
+viewEdge :: V2 Double -> View action
+viewEdge v =
   div_
-    [ style_
-        [ ("position", "absolute")
-        , ("transform-origin", "left")
-        , ("z-index", "-1")
-        ,
-          ( "transform"
-          , "translate("
-              <> show p.x
-              <> "px,"
-              <> show p.y
-              <> "px) rotate("
-              <> show theta
-              <> "rad)"
-          )
-        , ("border-style", "solid")
-        , ("border-color", greySecondary)
-        , ("border-width", ".125rem")
-        , ("height", "0px")
-        , ("width", show size <> "px")
-        ]
+    [ class_ "edge"
+    , style_ $ clayToMiso do
+        Clay.position Clay.absolute
+        Clay.top $ Clay.pct 50
+        Clay.left $ Clay.pct 50
+        Clay.transformOrigin [Clay.pct 0]
+        Clay.borderStyle Clay.solid
+        Clay.transform $ Clay.rotate $ Clay.rad $ realToClay theta
+        Clay.width $ Clay.px $ realToClay size
     ]
     []
   where
-    v = p' .-. p
     theta = unangle v
     size = norm v
 
-viewTree :: Tree (MeasuredView action) -> View action
-viewTree = (.view) . viewTreeWithDimensions True
-
-viewTreeWithDimensions ::
-  -- | Apply the same padding we use between nodes to the entire tree.
-  -- Should be `False` for nested trees.
-  Bool ->
-  Tree (MeasuredView action) ->
-  MeasuredView action
-viewTreeWithDimensions outerPadding t =
-  MeasuredView
-    { dimensions = bottomRight - topLeft
-    , view =
-        div_ (mwhen outerPadding [style_ [("padding", show (padding / 2) <> "px")]])
-          . map fst
-          . toList
-          $ Tree.foldTree
-            ( \(node, p) subs ->
-                Tree.Node
-                  ( div_ [] $
-                      let offset = p .-^ node.dimensions / 2
-                       in div_
-                            [ style_
-                                [ ("position", "absolute")
-                                ,
-                                  ( "transform"
-                                  , "translate("
-                                      <> show offset.x
-                                      <> "px,"
-                                      <> show offset.y
-                                      <> "px)"
-                                  )
-                                ]
-                            ]
-                            [node.view]
-                            : map (viewEdge p . head . map snd) subs
-                  , p
-                  )
-                  subs
-            )
-            nodes
-    }
+viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
+viewTree t =
+  ( div_
+      [ class_ "tree"
+      , style_ $ clayToMiso do
+          Clay.minWidth $ Clay.px $ realToClay dimensions.x
+          Clay.minHeight $ Clay.px $ realToClay dimensions.y
+      ]
+      . map fst
+      . toList
+      $ Tree.foldTree
+        ( \((node, v), p) subs ->
+            Tree.Node
+              ( viewNodeData
+                  (p .-^ topLeft .-^ v / 2)
+                  v
+                  (map (viewEdge . (.-. p) . snd . head) subs)
+                  node
+              , p
+              )
+              subs
+        )
+        nodes
+  , dimensions
+  )
   where
-    mins = map (\(v, p) -> p .-^ v.dimensions / 2) nodes
+    dimensions = bottomRight - topLeft
+    mins = map (\(v, p) -> p .-^ snd v / 2) nodes
     topLeft = V2 (minimum $ map (.x) mins) (minimum $ map (.y) mins)
-    maxs = map (\(v, p) -> p .+^ v.dimensions / 2) nodes
+    maxs = map (\(v, p) -> p .+^ snd v / 2) nodes
     bottomRight = V2 (maximum $ map (.x) maxs) (maximum $ map (.y) maxs)
     nodes =
       symmLayout' @Double
         ( Default.def
-            & (slHSep .~ padding)
-            & (slVSep .~ padding)
-            & (slWidth .~ \node -> (-(node.dimensions.x / 2), node.dimensions.x / 2))
-            & (slHeight .~ \node -> (-(node.dimensions.y / 2), node.dimensions.y / 2))
+            & (slHSep .~ nodePadding)
+            & (slVSep .~ nodePadding)
+            & (slWidth .~ \(_, v) -> (-(v.x / 2), v.x / 2))
+            & (slHeight .~ \(_, v) -> (-(v.y / 2), v.y / 2))
         )
-        t
-    padding = 20
-
-data MeasuredView action = MeasuredView
-  { view :: View action
-  , dimensions :: V2 Double
-  }
-  deriving stock (Generic)
+        $ map (\opts -> (opts, getDimensions opts.opts)) t
+    getDimensions = \case
+      PatternBoxNode (Just (_, v)) -> v + pure boxPadding
+      PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
+      SyntaxNode{wide = False} -> basicDimsSquare
+      HoleNode{} -> basicDimsSquare
+      _ -> basicDims
+      where
+        basicDimsSquare = basicDims & lensVL _x .~ basicDims.y
+    -- TODO make these configurable
+    nodePadding = 20
+    boxPadding = 55
+    basicDims = V2 80 35
