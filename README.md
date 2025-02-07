@@ -105,3 +105,17 @@ We welcome contributions from the community! Please read our
 We also provide a comprehensive [development
 guide](docs/development-guide-toc.md) for anyone who'd like to build
 and run the project locally.
+
+# Third-party licenses
+
+Some third-party assets that we distribute together with this
+project's source code (e.g., open source fonts) are licensed
+separately from the source code. For each such asset, there's a
+corresponding license file in the `licenses` subdirectory of the
+project.
+
+We have also "vendored" some source code from third-party libraries;
+i.e., we have included a few third-party source code files directly in
+this project, rather than linking to them as a pre-built dependency.
+When this is the case, the source files will include their license and
+copyright notice directly in the source file.

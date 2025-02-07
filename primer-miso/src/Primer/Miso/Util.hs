@@ -8,6 +8,7 @@
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
   startAppWithSavedState,
+  clayToMiso,
   P2,
   unitX,
   unit_X,
@@ -29,10 +30,13 @@ module Primer.Miso.Util (
   bindingsInType,
   nodeSelectionType,
   DefSelectionT,
+  realToClay,
 ) where
 
 import Foreword hiding (zero)
 
+import Clay qualified
+import Clay.Stylesheet qualified as Clay
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
 import Data.Aeson (FromJSON, ToJSON)
@@ -103,6 +107,27 @@ startAppWithSavedState app = do
       }
   where
     storageKey = "miso-app-state"
+
+{- Clay -}
+
+-- https://github.com/sebastiaanvisser/clay/issues/208
+-- note that we silently ignore non-properties, and modifiers on properties
+-- what we really want is for Clay property functions to return something much more precise than `Css`
+-- but this would be a big breaking change, and Clay is really designed primarily for generating stylesheets
+clayToMiso :: Clay.Css -> Map Text Text
+clayToMiso =
+  Map.fromList
+    . concatMap \case
+      Clay.Property _modifiers (Clay.Key k) (Clay.Value v) -> (,) <$> allPrefixes k <*> allPrefixes v
+        where
+          allPrefixes = \case
+            Clay.Prefixed ts -> map (uncurry (<>)) ts
+            Clay.Plain t -> pure t
+      _ -> []
+    . Clay.runS
+
+realToClay :: Real a => a -> Clay.Number
+realToClay = Clay.Number . realToFixed
 
 {- Linear -}
 

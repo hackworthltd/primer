@@ -34,6 +34,7 @@ module Foreword (
   curry4,
   unsafeMaximum,
   spanMaybe,
+  realToFixed,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -115,6 +116,7 @@ import Control.Monad.Catch as Catch
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 
 import Control.Monad.Trans.Accum (AccumT (AccumT))
+import Data.Fixed (Fixed, HasResolution)
 
 -- | Insert an element at some index, returning 'Nothing' if it is out
 -- of bounds.
@@ -211,3 +213,12 @@ spanMaybe f = go
     go xxs@(x : xs) = case f x of
       Just b -> first (b :) $ go xs
       Nothing -> ([], xxs)
+
+{- HLINT ignore realToFixed "Avoid restricted function" -}
+
+-- | A restricted `realToFrac`.
+-- Sources such as the Haskell Wiki recommend avoiding `realToFrac` for converting between _floating-point_ types.
+-- Converting to `Fixed` is harmless, aside from the obvious potential loss of precision.
+-- Indeed, `Fixed`'s own docs recommend it as the standard way to convert.
+realToFixed :: (Real a, HasResolution b) => a -> Fixed b
+realToFixed = realToFrac
