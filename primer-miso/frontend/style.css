@@ -82,7 +82,8 @@ body {
 }
 
 #def-panel,
-#action-panel {
+#action-panel,
+#undo-redo-panel {
   background-color: var(--grey-primary);
   font-size: large;
   > button {
@@ -146,6 +147,11 @@ body {
 }
 #action-panel {
   grid-row-start: 1;
+  grid-row-end: 2;
+  grid-column-start: 4;
+}
+#undo-redo-panel {
+  grid-row-start: 2;
   grid-row-end: 3;
   grid-column-start: 4;
 }

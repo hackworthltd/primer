@@ -82,6 +82,7 @@ module Primer.API (
   OkOrMismatch (..),
   TypeOrKind (..),
   getSelectionTypeOrKind,
+  findASTDef,
 ) where
 
 import Foreword
@@ -462,6 +463,11 @@ data APILog
   | Redo (ReqResp SessionId Prog)
   | GetTypeOrKind (ReqResp (SessionId, Selection) TypeOrKind)
   deriving stock (Show, Read)
+
+instance ConvertLogMessage APILog Text where
+  convert = show
+instance ConvertLogMessage APILog [APILog] where
+  convert = pure
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
 
