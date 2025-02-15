@@ -32,13 +32,14 @@ import Network.Wai.Application.Static (defaultWebAppSettings, staticApp)
 import Primer.Miso (start)
 
 -- Note that `debug` works with `cabal repl` but not `cabal run`.
--- The best workflow is to run `ghcid -c "cabal repl primer-miso" -W -T ':main'`.
+-- The best workflow is to run `ghcid -c "cabal repl primer-miso" -W -T ':main'`...
 main :: IO ()
 main =
   debugOr
     8000
     (insertStylesheet "style.css" >> start)
-    (staticApp $ defaultWebAppSettings "frontend")
+    -- better to qualify and run ghcid from top level, now that we want to do multi-repl with main lib
+    (staticApp $ defaultWebAppSettings "primer-miso/frontend")
 
 -- https://github.com/ghcjs/jsaddle/pull/149#issuecomment-2525187769
 insertStylesheet :: (MonadDOM m, MonadFail m, ToJSString val) => val -> m ()

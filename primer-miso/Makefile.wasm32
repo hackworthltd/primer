@@ -14,7 +14,7 @@ frontend-prod: build
 	./build-frontend.sh -Oz
 
 serve-frontend: frontend
-	simple-http-server -i -p 8000 -- dist
+	simple-http-server -i -p 8001 -- dist
 
 clean:
 	$(CABAL) clean
