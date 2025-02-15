@@ -31,6 +31,11 @@ module Primer.Miso.Util (
   nodeSelectionType,
   DefSelectionT,
   realToClay,
+  availableForSelection,
+  astDefTtoAstDef,
+  defSelectionTtoDefSelection,
+  optToName,
+  stringToOpt,
 ) where
 
 import Foreword hiding (zero)
@@ -62,26 +67,34 @@ import Optics (
   (^.),
  )
 import Optics.State.Operators ((<<%=))
-import Primer.App (DefSelection, NodeSelection (meta), Prog, progCxt)
+import Primer.Action.Available (Action)
+import Primer.Action.Available qualified as Available
+import Primer.App (DefSelection (..), Editable, Level, NodeSelection (..), NodeType (..), Prog, progCxt)
 import Primer.Core (
   Expr' (LAM, Lam, Let, LetType, Letrec),
+  GlobalName,
   ID,
   Kind' (KType),
   LVarName,
+  LocalName,
   Meta,
   ModuleName,
   TyVarName,
   Type' (TEmptyHole, TForall, THole, TLet),
   TypeCache (..),
   TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
+  getID,
+  unsafeMkGlobalName,
+  unsafeMkLocalName,
   _type,
  )
 import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Def (ASTDef (..), astDefExpr, defAST)
+import Primer.Def (ASTDef (..), DefMap, astDefExpr, defAST)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Module (Module (moduleName), moduleDefs)
 import Primer.Name (Name, NameCounter)
-import Primer.Typecheck (ExprT, TypeError, check, checkKind)
+import Primer.TypeDef (TypeDefMap)
+import Primer.Typecheck (ExprT, TypeError, check, checkKind, exprTtoExpr, typeTtoType)
 
 {- Miso -}
 
@@ -250,3 +263,50 @@ nodeSelectionType =
           THole{} -> True
           TEmptyHole{} -> True
           _ -> False
+
+-- TODO this isn't quite analogous to `forgetMetadata`...
+-- are there other places where we do this sort of thing?
+astDefTtoAstDef :: ASTDefT -> ASTDef
+astDefTtoAstDef def =
+  ASTDef
+    { astDefExpr = exprTtoExpr def.expr
+    , astDefType = typeTtoType def.sig
+    }
+defSelectionTtoDefSelection :: DefSelectionT -> DefSelection ID
+defSelectionTtoDefSelection = fmap getID
+
+availableForSelection ::
+  TypeDefMap ->
+  DefMap ->
+  Level ->
+  Editable ->
+  ASTDef ->
+  DefSelectionT ->
+  [Action]
+availableForSelection tydefs defs level editable def defSel = case defSel.node of
+  Nothing -> Available.forDef defs level editable defSel.def
+  Just nodeSel -> case nodeSel.nodeType of
+    BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
+    SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+
+-- TODO improve core API so this becomes unnecessary?
+-- the whole `context` thing is a bit weird - it really does just mean module
+-- this would mean our first instance of breaking the REST API, unless we definte an API-level option type instead
+-- note that context can mean a primitive rather than a local name
+optToName :: Available.Option -> Either (LocalName l) (GlobalName g)
+optToName opt =
+  -- TODO how to avoid unsafety? I guess just never throw away the fact these come from variables in the first place
+  maybe
+    (Left . unsafeMkLocalName) -- this function is used for presented choices - we know these are vars not chars or ints
+    (curry $ Right . unsafeMkGlobalName)
+    opt.context
+    opt.option
+stringToOpt :: Text -> Available.Option
+stringToOpt t =
+  Available.Option
+    t
+    Nothing
+    -- TODO another reason why this is a stupid API is that this field is meaningless here
+    -- there should really be different types for presented options and submissions
+    -- I did notice this while working on the old frontend but never got around to fixing it
+    True
