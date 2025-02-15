@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Primer.Miso (start) where
 
@@ -42,25 +43,37 @@ import Miso (
   View,
   button_,
   class_,
+  consoleLog,
   defaultEvents,
   div_,
+  form_,
   fromTransition,
   id_,
   img_,
+  input_,
+  onChange,
   onClick,
+  required_,
+  scheduleIO_,
   src_,
   style_,
   text,
+  type_,
  )
+import Miso.String (MisoString)
 import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
-import Optics.State.Operators ((?=))
+import Optics.State.Operators ((.=), (?=))
+import Primer.Action.Available qualified as Available
 import Primer.App (
+  DefSelection (..),
+  Editable (..),
   NodeSelection (..),
   NodeType (BodyNode, SigNode),
   Prog (progImports),
+  Selection' (SelectionDef),
   newProg,
  )
-import Primer.App.Base (DefSelection (..))
+import Primer.App qualified
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
@@ -83,6 +96,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   Kind' (..),
+  LVarName,
   LocalName (unLocalName),
   ModuleName,
   Pattern (PatCon, PatPrim),
@@ -94,12 +108,15 @@ import Primer.Core (
   mkSimpleModuleName,
   qualifyName,
   typesInExpr,
+  unsafeMkGlobalName,
+  unsafeMkLocalName,
   _exprMetaLens,
   _kindMetaLens,
   _typeMetaLens,
  )
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Def (DefMap)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Miso.Layout (
   slHSep,
@@ -115,24 +132,31 @@ import Primer.Miso.Util (
   NodeSelectionT,
   P2,
   TermMeta',
+  astDefTtoAstDef,
+  availableForSelection,
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  defSelectionTtoDefSelection,
   kindsInType,
   nodeSelectionType,
+  optToName,
   realToClay,
   startAppWithSavedState,
+  stringToOpt,
   tcBasicProg,
   typeBindingsInExpr,
  )
 import Primer.Module (Module (moduleName))
 import Primer.Name (Name, unName)
+import Primer.TypeDef (TypeDefMap)
+import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext)
 
 start :: JSM ()
 start =
   startAppWithSavedState
     App
-      { model = Model{module_, selection = Nothing}
+      { model = Model{module_, selection = Nothing, actionPanelOptionsMode = Nothing}
       , update = updateModel
       , view = viewModel
       , subs = []
@@ -155,6 +179,8 @@ start =
 data Model = Model
   { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
   , selection :: Maybe DefSelectionT
+  , -- TODO look in to component-ising the action panel?
+    actionPanelOptionsMode :: Maybe (Available.InputAction, Available.Options)
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
@@ -163,14 +189,34 @@ data Action
   = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
   | SelectDef GVarName
   | SelectNode NodeSelectionT
+  | ShowActionOptions (Available.InputAction, Available.Options)
+  | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
+  | CancelActionInput
+  -- \| ConsoleLog MisoString -- TODO temporary, for debugging
   deriving stock (Eq, Show)
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
-    SelectDef d -> #selection ?= DefSelection d Nothing
-    SelectNode sel -> #selection % _Just % #node ?= sel
+    SelectDef d -> do
+      #selection ?= DefSelection d Nothing
+      #actionPanelOptionsMode .= Nothing
+    SelectNode sel -> do
+      #selection % _Just % #node ?= sel
+      #actionPanelOptionsMode .= Nothing
+    ShowActionOptions a -> #actionPanelOptionsMode ?= a
+    ApplyAction a -> do
+      #actionPanelOptionsMode .= Nothing
+    -- TODO remove
+    -- scheduleIO_ $ consoleLog $ show a
+    CancelActionInput ->
+      -- TODO hang on - do we just want to do this on every single action?
+      -- probably not forever? there could be trivial harmless things I guess
+      -- so is there any principled way to decide exactly when to reset?
+      #actionPanelOptionsMode .= Nothing
+
+-- ConsoleLog s -> scheduleIO_ $ consoleLog s
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
@@ -211,6 +257,80 @@ viewModel Model{..} =
                     -- TODO this isn't really correct - kinds in Primer don't have kinds
                     Right (Right ()) -> viewTreeKind mkMeta $ KType ()
               ]
+          , div_ [id_ "action-panel"] case actionPanelOptionsMode of
+              Nothing ->
+                availableForSelection tydefs defs level editable def' defSel <&> \action ->
+                  button_
+                    [ onClick case action of
+                        Available.NoInput a -> ApplyAction $ Left a
+                        Available.Input a ->
+                          ShowActionOptions
+                            ( a
+                            , -- TODO this error shouldn't happen
+                              -- because we calculate the options here in order to prevent async issues
+                              -- and mitigate any bugs which could cause state changes while in the option-choosing view
+                              -- if we had proper error handling here for those unlikely cases,
+                              -- we could instead just pass the action here
+                              -- and reconstruct the option list on the other side
+                              -- which would have the advantage of keeping the model smaller
+                              -- which does seem like generally a good principle
+                              -- then again performance is generally better this way I guess
+                              -- no recomputation of similar things
+                              -- another alternative would be doing the computation in the update function
+                              -- haven't really thought about pros and cons too much, but it's not a silver bullet
+                              fromMaybe (error "couldn't get action options") $
+                                Available.options
+                                  tydefs
+                                  defs
+                                  (buildTypingContext tydefs defs SmartHoles)
+                                  level
+                                  (Right def')
+                                  (SelectionDef $ defSelectionTtoDefSelection defSel)
+                                  a
+                            )
+                    ]
+                    [ text case action of
+                        -- TODO use proper descriptive text and/or symbols
+                        -- take from old frontend? those weren't consistently great
+                        -- maybe now is the time to propose some new ones, rather than letting bad ones reach the new app
+                        Available.NoInput a -> show a
+                        Available.Input a -> show a
+                    ]
+                where
+                  def' = astDefTtoAstDef def
+                  -- TODO pass all program defs
+                  defs = mempty @DefMap
+                  tydefs = mempty @TypeDefMap
+                  -- TODO don't hardcode
+                  level = Primer.App.Expert
+                  editable = Editable
+              Just (action, opts) ->
+                ( case opts.free of
+                    Available.FreeNone -> []
+                    _ ->
+                      [ form_
+                          []
+                          [ input_
+                              [ type_ "text"
+                              , required_ True
+                              , onChange $ ApplyAction . Right . (action,) . stringToOpt
+                              ]
+                          , button_ [] [text "↩"]
+                          ]
+                      ]
+                )
+                  <> ( opts.opts <&> \opt@(optToName -> name) ->
+                        button_
+                          ( [onClick $ ApplyAction $ Right (action, opt)]
+                              <> mwhen
+                                (opt.matchesType)
+                                [class_ "matches-type"]
+                          )
+                          [ text $ either (unName . unLocalName) globalNamePretty name
+                          ]
+                     )
+                  <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
+                     ]
           ]
           where
             mkMeta = const (Nothing, False)
