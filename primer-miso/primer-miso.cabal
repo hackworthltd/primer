@@ -57,6 +57,13 @@ library
     , primer          ^>=0.7.2
     , text            >=2.0      && <2.2
     , uniplate        >=1.6      && <1.7.0
+    , primer-api
+    , stm
+    , stm-containers
+    , uuid-types
+    , exceptions
+    , async
+    , logging-effect
 
   if arch(wasm32)
     build-depends: jsaddle-wasm

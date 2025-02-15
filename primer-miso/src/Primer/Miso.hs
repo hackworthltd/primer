@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Primer.Miso (start) where
@@ -13,15 +14,22 @@ module Primer.Miso (start) where
 import Foreword
 
 import Clay qualified
+import Control.Concurrent.STM (atomically, newTBQueueIO)
+import Control.Monad.Catch.Pure (CatchT (runCatchT))
+import Control.Monad.Log (PureLoggingT, Severity (..), WithSeverity (..), runPureLoggingT)
+import Control.Monad.Writer (Writer, WriterT, runWriterT)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
 import Data.Map ((!?))
 import Data.Map qualified as Map
+import Data.Text.IO qualified as T
 import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import Data.Tuple.Extra ((&&&))
+import Data.UUID.Types (UUID)
+import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
@@ -54,24 +62,42 @@ import Miso (
   onChange,
   onClick,
   required_,
+  scheduleIO,
   scheduleIO_,
   src_,
+  startApp,
   style_,
   text,
   type_,
  )
+import Miso qualified
 import Miso.String (MisoString)
-import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
+import Optics (Lens', forOf, lens, lensVL, sequenceOf, to, traverseOf, use, (%), (%~), (.~), (^.), (^..), _Just)
 import Optics.State.Operators ((.=), (?=))
+import Primer.API (APILog, Env (Env), edit, findASTDef, runPrimerM)
+import Primer.Action (toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
   DefSelection (..),
   Editable (..),
+  MutationRequest (..),
   NodeSelection (..),
   NodeType (BodyNode, SigNode),
   Prog (progImports),
-  Selection' (SelectionDef),
+  ProgError (ActionError),
+  Selection' (SelectionDef, SelectionTypeDef),
+  appCurrentState,
+  appProg,
+  appStateProg,
+  handleEditRequest,
+  newApp,
+  newEmptyApp,
   newProg,
+  progAllDefs,
+  progAllModules,
+  progAllTypeDefs,
+  progModules,
+  progSelection,
  )
 import Primer.App qualified
 import Primer.Core (
@@ -95,6 +121,7 @@ import Primer.Core (
   ),
   GVarName,
   GlobalName (baseName, qualifiedModule),
+  ID,
   Kind' (..),
   LVarName,
   LocalName (unLocalName),
@@ -112,11 +139,13 @@ import Primer.Core (
   unsafeMkLocalName,
   _exprMetaLens,
   _kindMetaLens,
+  _type,
   _typeMetaLens,
  )
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Def (DefMap)
+import Primer.Database qualified as DB
+import Primer.Def (ASTDef, DefMap, defAST)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Miso.Layout (
   slHSep,
@@ -132,12 +161,14 @@ import Primer.Miso.Util (
   NodeSelectionT,
   P2,
   TermMeta',
+  assumeDefHasTypeCheckInfo,
   astDefTtoAstDef,
   availableForSelection,
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
   defSelectionTtoDefSelection,
+  defSelectionTtoDefSelection',
   kindsInType,
   nodeSelectionType,
   optToName,
@@ -147,16 +178,21 @@ import Primer.Miso.Util (
   tcBasicProg,
   typeBindingsInExpr,
  )
-import Primer.Module (Module (moduleName))
+import Primer.Module (Module (moduleDefs, moduleName), moduleDefsQualified)
 import Primer.Name (Name, unName)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext)
+import StmContainers.Map qualified as StmMap
 
 start :: JSM ()
 start =
   startAppWithSavedState
     App
-      { model = Model{module_, selection = Nothing, actionPanelOptionsMode = Nothing}
+      { model =
+          Model
+            { app
+            , actionPanelOptionsMode = Nothing
+            }
       , update = updateModel
       , view = viewModel
       , subs = []
@@ -166,19 +202,47 @@ start =
       , logLevel = Off
       }
   where
-    -- TODO we hardcode Prelude as the active module, for the sake of demonstration
-    module_ =
-      either (error . ("Prelude failed to typecheck: " <>) . show) identity
-        . tcBasicProg p
-        . fromMaybe (error "prog doesn't contain Prelude")
-        . find ((== mkSimpleModuleName "Prelude") . moduleName)
-        $ progImports p
-      where
-        (p, _, _) = newProg
+    app =
+      newApp
+        & #currentState
+          % #prog
+          .~ either
+            (error . ("initial program failed to typecheck: " <>) . show)
+            identity
+            (tcBasicProg $ newApp.currentState.prog)
+
+-- instance {-# OVERLAPPING #-} IsLabel "selection" (Lens' Model (Maybe DefSelectionT))
+modelSelection :: Lens' Model (Maybe DefSelectionT)
+modelSelection =
+  modelProg
+    % lens
+      ( \model ->
+          progSelection
+            (model)
+            >>= \case
+              SelectionDef s -> do
+                -- TODO maybe we should error when not typechecked, rather than silently acting like there's no selection
+                forOf (#node % _Just % #meta) s \case
+                  -- TODO this could surely be simplified
+                  Left m -> map Left $ m & sequenceOf _type
+                  Right (Left m) -> map (Right . Left) $ m & sequenceOf _type
+                  Right (Right m) -> pure $ Right $ Right m
+              SelectionTypeDef _ -> Nothing
+      )
+      ( flip \sel ->
+          -- TODO is there a library function for setting the selection?
+          -- maybe look at what REST API does
+          #progSelection .~ map (SelectionDef . defSelectionTtoDefSelection') sel
+      )
+
+-- TODO reuse this in `modelSelection`
+modelProg :: Lens' Model Prog
+modelProg = #app % #currentState % #prog
 
 data Model = Model
-  { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
-  , selection :: Maybe DefSelectionT
+  -- TODO do we need to go all the way to `AppT`, parameterising `Prog` etc. ?
+  -- TODO is storing `App` in model a bit too much
+  { app :: Primer.App.App
   , -- TODO look in to component-ising the action panel?
     actionPanelOptionsMode :: Maybe (Available.InputAction, Available.Options)
   }
@@ -192,7 +256,10 @@ data Action
   | ShowActionOptions (Available.InputAction, Available.Options)
   | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
   | CancelActionInput
-  -- \| ConsoleLog MisoString -- TODO temporary, for debugging
+  | SetProg Prog
+  | SetApp Primer.App.App
+  | RunUndo
+  | RunRedo
   deriving stock (Eq, Show)
 
 updateModel :: Action -> Model -> Effect Action Model
@@ -200,31 +267,56 @@ updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
     SelectDef d -> do
-      #selection ?= DefSelection d Nothing
+      modelSelection ?= DefSelection d Nothing
       #actionPanelOptionsMode .= Nothing
     SelectNode sel -> do
-      #selection % _Just % #node ?= sel
+      modelSelection % _Just % #node ?= sel
       #actionPanelOptionsMode .= Nothing
     ShowActionOptions a -> #actionPanelOptionsMode ?= a
     ApplyAction a -> do
+      sel <- use modelSelection
+      -- TODO what if app is out of date by the time the IO gets scheduled?
+      app <- use #app
+      case sel of
+        Just s -> scheduleIO do
+          r <- liftIO $ runAction app (defSelectionTtoDefSelection s) a
+          case r of
+            Left _ -> pure $ NoOp "running action failed" -- TODO log more? when can this happen? internal only?
+            -- TODO if we can avoid IO, just set the new prog here
+            -- Right p -> pure $ SetProg p
+            Right p -> pure $ SetApp p
+        Nothing -> pure () -- TODO log? this shouldn't really happen without weird async delays
       #actionPanelOptionsMode .= Nothing
-    -- TODO remove
-    -- scheduleIO_ $ consoleLog $ show a
+    -- TODO DRY with above (also has some of the same issues)
+    RunUndo -> do
+      app <- use #app
+      scheduleIO . liftIO $
+        runMutationWithNullDb app Undo <&> \case
+          Left _ -> NoOp "running undo failed"
+          Right p -> SetApp p
+      #actionPanelOptionsMode .= Nothing
+    RunRedo -> do
+      app <- use #app
+      scheduleIO . liftIO $
+        runMutationWithNullDb app Redo <&> \case
+          Left _ -> NoOp "running redo failed"
+          Right p -> SetApp p
+      #actionPanelOptionsMode .= Nothing
     CancelActionInput ->
       -- TODO hang on - do we just want to do this on every single action?
       -- probably not forever? there could be trivial harmless things I guess
       -- so is there any principled way to decide exactly when to reset?
       #actionPanelOptionsMode .= Nothing
-
--- ConsoleLog s -> scheduleIO_ $ consoleLog s
+    SetProg p -> modelProg .= p
+    SetApp a -> #app .= a
 
 viewModel :: Model -> View Action
-viewModel Model{..} =
+viewModel model@Model{..} =
   div_
     [id_ "miso-root"]
     $ [ div_
           [id_ "def-panel"]
-          $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
+          $ (Map.keys $ Map.mapMaybe (traverse defAST) $ progAllDefs $ appStateProg $ appCurrentState app) <&> \def ->
             button_
               [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
               , onClick $ SelectDef def
@@ -259,7 +351,7 @@ viewModel Model{..} =
               ]
           , div_ [id_ "action-panel"] case actionPanelOptionsMode of
               Nothing ->
-                availableForSelection tydefs defs level editable def' defSel <&> \action ->
+                availableForSelection tydefs' defs' level editable def' defSel <&> \action ->
                   button_
                     [ onClick case action of
                         Available.NoInput a -> ApplyAction $ Left a
@@ -280,9 +372,9 @@ viewModel Model{..} =
                               -- haven't really thought about pros and cons too much, but it's not a silver bullet
                               fromMaybe (error "couldn't get action options") $
                                 Available.options
-                                  tydefs
-                                  defs
-                                  (buildTypingContext tydefs defs SmartHoles)
+                                  tydefs'
+                                  defs'
+                                  (buildTypingContext tydefs' defs' SmartHoles)
                                   level
                                   (Right def')
                                   (SelectionDef $ defSelectionTtoDefSelection defSel)
@@ -298,17 +390,17 @@ viewModel Model{..} =
                     ]
                 where
                   def' = astDefTtoAstDef def
-                  -- TODO pass all program defs
-                  defs = mempty @DefMap
-                  tydefs = mempty @TypeDefMap
                   -- TODO don't hardcode
                   level = Primer.App.Expert
-                  editable = Editable
               Just (action, opts) ->
                 ( case opts.free of
                     Available.FreeNone -> []
                     _ ->
                       [ form_
+                          -- TODO hitting enter key, rather than clicking button, causes form submission
+                          -- i.e. page reload and addition of `/?` to URL
+                          -- this makes no difference:
+                          -- [Miso.onWithOptions Miso.defaultOptions{Miso.preventDefault = True} "submit" Miso.valueDecoder $ const $ NoOp ""]
                           []
                           [ input_
                               [ type_ "text"
@@ -331,12 +423,24 @@ viewModel Model{..} =
                      )
                   <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
                      ]
+          , div_
+              [id_ "undo-redo-panel"]
+              [ button_ [onClick RunUndo] [text "Undo"]
+              , button_ [onClick RunRedo] [text "Redo"]
+              ]
           ]
           where
             mkMeta = const (Nothing, False)
             isSelected x = (getID <$> defSel.node) == Just (getID x)
+            defs = progAllDefs (appProg app)
+            tydefs = progAllTypeDefs (appProg app)
+            defs' = snd <$> defs
+            tydefs' = snd <$> tydefs
             -- TODO better error handling
-            def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
+            def = fromMaybe (error "selected def is not fully typechecked") $ assumeDefHasTypeCheckInfo defNoTC
+            (editable, defNoTC) = fromMaybe (error "selected def not found") $ traverse defAST =<< defs !? defSel.def
+  where
+    selection = model ^. modelSelection
 
 -- TODO `isNothing clickAction` implies `not selected` - we could model this better
 -- but in the long run, we intend to have no unselectable nodes anyway
@@ -604,3 +708,79 @@ viewTree t =
     nodePadding = 20
     boxPadding = 55
     basicDims = V2 80 35
+
+-- TODO obviously one-shotting this doesn't seem great
+-- is there any actual point saving what state we can, given that we're using `NullDb`?
+-- well, sessions for example is presumably mutated...
+-- we could serialise it to a normal map and keep that in the model
+-- remember we don't actually care about concurrency for this project
+-- runMutationWithNullDb :: Primer.App.App -> MutationRequest -> IO (Either ProgError Prog)
+-- runMutationWithNullDb :: Primer.App.App -> MutationRequest -> IO (Either (Either Text ProgError) Prog)
+runMutationWithNullDb :: Primer.App.App -> MutationRequest -> IO (Either (Either Text ProgError) Primer.App.App)
+runMutationWithNullDb app req = do
+  -- TODO are these dummies real enough to work?
+  let version = "dummy-version"
+      sid = UUID.nil
+      queueBound = 10
+  lastModified <- DB.getCurrentTime
+  sessions <- atomically do
+    m <- StmMap.new
+    StmMap.insert (DB.SessionData app DB.defaultSessionName lastModified) sid m
+    pure m
+
+  dbOpQueue <- newTBQueueIO queueBound
+  let runReq =
+        map (map discardSeverity)
+          . runPureLoggingT
+          . runPrimerM @(PureLoggingT (WithSeverity [APILog]) IO) (edit sid req)
+          $ Env sessions dbOpQueue version
+  let runDB = DB.runNullDb sessions $ DB.serve $ DB.ServiceCfg dbOpQueue version
+  -- TODO do something with these return values?
+  (_res, _logs) <- either absurd (first $ first Right) <$> race runDB runReq
+
+  -- TODO why am I bothering to use pure logger when we need IO for DB anyway?
+  -- ah well actually we could use `runNullDbT` in another monad...
+  -- unfortunately `DB.serve` and the `MonadDb (NullDbT m)` instance currently require IO
+  -- but I don't think there's any fundamental reason why they have to
+  -- we'd have to generalise some STM stuff to use other data structures
+  -- it may of course very well not be worth it
+  -- of course eventually we won't want null DB anyway, but some sort of local storage DB
+  -- which will need to have side effects
+  -- although maybe it would be nice if we could separate out the save-to-DB part
+  -- and we don't actually need that for a while anyway since we're currently saving all Miso state there anyway
+
+  -- pure res
+  -- just inserting the returned prog means we discard the ID counter state, so we do this instead
+  res' <- atomically $ StmMap.lookup sid sessions
+  pure $ maybeToEither (Left "session not found") $ (.sessionApp) <$> res'
+
+runAction ::
+  Primer.App.App ->
+  DefSelection ID ->
+  Either Available.NoInputAction (Available.InputAction, Available.Option) ->
+  -- IO (Either (Either Text ProgError) Prog)
+  IO (Either (Either Text ProgError) Primer.App.App)
+runAction app sel =
+  let
+    (_editable, def) =
+      either
+        -- TODO how impossible is this, and can we fix upstream to throw proper typed errors?
+        (const $ error "findASTDef failure in runAction")
+        identity
+        $ runIdentity
+        $ runCatchT
+        $ findASTDef defs sel.def
+    defs = progAllDefs prog
+    prog = appProg app
+   in
+    either (pure . Left . Right . ActionError) (\as -> runMutationWithNullDb app $ Edit as)
+      . \case
+        Left action -> toProgActionNoInput (snd <$> defs) (Right def) (SelectionDef sel) action
+        Right (action, opt) -> toProgActionInput (Right def) (SelectionDef sel) opt action
+
+-- TODO yeah okay this is a bit weird
+-- look at `Primer.PureLogT` instead?
+instance Semigroup a => Semigroup (WithSeverity a) where
+  WithSeverity s x <> WithSeverity _ x' = WithSeverity s (x <> x')
+instance Monoid a => Monoid (WithSeverity a) where
+  mempty = WithSeverity Informational mempty
