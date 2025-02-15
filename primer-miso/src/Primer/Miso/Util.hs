@@ -1,5 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -36,6 +37,8 @@ module Primer.Miso.Util (
   defSelectionTtoDefSelection,
   optToName,
   stringToOpt,
+  defSelectionTtoDefSelection',
+  assumeDefHasTypeCheckInfo,
 ) where
 
 import Foreword hiding (zero)
@@ -63,18 +66,23 @@ import Optics (
   Field2 (_2),
   atraversalVL,
   lensVL,
+  sequenceOf,
+  (%),
+  (%~),
   (.~),
   (^.),
  )
 import Optics.State.Operators ((<<%=))
 import Primer.Action.Available (Action)
 import Primer.Action.Available qualified as Available
-import Primer.App (DefSelection (..), Editable, Level, NodeSelection (..), NodeType (..), Prog, progCxt)
+import Primer.App (DefSelection (..), Editable, Level, NodeSelection (..), NodeType (..), Prog, tcWholeProgWithImports)
 import Primer.Core (
   Expr' (LAM, Lam, Let, LetType, Letrec),
+  ExprMeta,
   GlobalName,
   ID,
-  Kind' (KType),
+  Kind',
+  KindMeta,
   LVarName,
   LocalName,
   Meta,
@@ -83,18 +91,20 @@ import Primer.Core (
   Type' (TEmptyHole, TForall, THole, TLet),
   TypeCache (..),
   TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
+  TypeMeta,
   getID,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _exprMeta,
+  _exprTypeMeta,
   _type,
+  _typeMeta,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Def (ASTDef (..), DefMap, astDefExpr, defAST)
+import Primer.Def (ASTDef (..), DefMap, astDefExpr)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Module (Module (moduleName), moduleDefs)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (TypeDefMap)
-import Primer.Typecheck (ExprT, TypeError, check, checkKind, exprTtoExpr, typeTtoType)
+import Primer.Typecheck (ExprT, TypeError, exprTtoExpr, typeTtoType)
 
 {- Miso -}
 
@@ -172,16 +182,8 @@ instance (HasField "y" (f a) a) => HasField "y" (Point f a) a where
 
 {- Primer -}
 
--- `tcWholeProg` throws away information by not returning a prog containing `ExprT`s
--- we use `check` since, for whatever reason, `synth` deletes the case branches in `map`
-tcBasicProg :: Prog -> Module -> Either TypeError ModuleT
-tcBasicProg p m =
-  runTC
-    . flip (runReaderT @_ @(M TypeError)) (progCxt p)
-    $ ModuleT (moduleName m) <$> for (Map.mapMaybe defAST $ moduleDefs m) \ASTDef{..} ->
-      ASTDefT
-        <$> check (forgetTypeMetadata astDefType) astDefExpr
-        <*> checkKind (KType ()) astDefType
+tcBasicProg :: Prog -> Either TypeError Prog
+tcBasicProg p = runTC $ tcWholeProgWithImports p
 
 -- TODO this is all basically copied from unexposed parts of Primer library - find a way to expose
 newtype M e a = M {unM :: StateT (ID, NameCounter) (Except e) a}
@@ -274,6 +276,23 @@ astDefTtoAstDef def =
     }
 defSelectionTtoDefSelection :: DefSelectionT -> DefSelection ID
 defSelectionTtoDefSelection = fmap getID
+defSelectionTtoDefSelection' :: DefSelectionT -> DefSelection (Either ExprMeta (Either TypeMeta KindMeta))
+defSelectionTtoDefSelection' = fmap (bimap exprMetaTtoExprMeta (bimap typeMetaTtoTypeMeta kindMetaTtoKindMeta))
+exprMetaTtoExprMeta :: ExprMetaT -> ExprMeta
+exprMetaTtoExprMeta = _type %~ Just
+typeMetaTtoTypeMeta :: TypeMetaT -> TypeMeta
+typeMetaTtoTypeMeta = _type %~ Just
+kindMetaTtoKindMeta :: KindMetaT -> KindMeta
+kindMetaTtoKindMeta = identity
+
+-- TODO this is where it gets interesting
+-- if we find in practice that this is never `Nothing` (because typechecking happens on creation and actions?)
+-- then that means it should be possible to refactor all the internal types so we can ensure everythins is always TCed
+assumeDefHasTypeCheckInfo :: ASTDef -> Maybe ASTDefT
+assumeDefHasTypeCheckInfo def = do
+  expr <- sequenceOf (_exprMeta % _type) (astDefExpr def) >>= sequenceOf (_exprTypeMeta % _type)
+  sig <- sequenceOf (_typeMeta % _type) (astDefType def)
+  pure ASTDefT{expr, sig}
 
 availableForSelection ::
   TypeDefMap ->

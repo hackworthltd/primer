@@ -12,7 +12,8 @@ module Primer.App (
   module Primer.App.Base,
   Log (..),
   defaultLog,
-  App,
+  App (..),
+  AppState (..),
   mkApp,
   mkAppSafe,
   appProg,
@@ -70,6 +71,10 @@ module Primer.App (
   EvalBoundedInterpResp (..),
   lookupASTDef,
   liftError,
+  currentStateLens,
+  appProgLens,
+  appCurrentState,
+  appStateProg,
 ) where
 
 import Foreword hiding (mod)
@@ -93,6 +98,7 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   Fold,
+  Lens',
   afolding,
   elemOf,
   folded,
@@ -1509,6 +1515,15 @@ data App = App
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON App
   deriving anyclass (NFData)
+
+currentStateLens :: Lens' App AppState
+currentStateLens = #currentState
+appProgLens :: Lens' AppState Prog
+appProgLens = #prog
+appCurrentState :: App -> AppState
+appCurrentState app = app.currentState
+appStateProg :: AppState -> Prog
+appStateProg app = app.prog
 
 -- Internal app state. Note that this type is not exported, as we want
 -- to guarantee that the counters are kept in sync with the 'Prog',
