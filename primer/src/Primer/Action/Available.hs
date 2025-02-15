@@ -485,7 +485,7 @@ data FreeInput
     FreeInt
   | -- | A free-form string input is allowed, and represents a primitive character
     FreeChar
-  deriving stock (Show, Read, Generic, Bounded, Enum)
+  deriving stock (Eq, Show, Read, Generic, Bounded, Enum)
   deriving (ToJSON, FromJSON) via PrimerJSON FreeInput
 
 -- | The available inputs for an 'InputAction'.
@@ -493,7 +493,7 @@ data Options = Options
   { opts :: [Option]
   , free :: FreeInput
   }
-  deriving stock (Show, Read, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Options
 
 options ::
