@@ -158,7 +158,11 @@ body {
 
 #selection-type {
   grid-column-start: 2;
-  grid-column-end: 4;
+}
+
+#eval {
+  grid-row-start: 2;
+  grid-column-start: 3;
 }
 
 .tree {

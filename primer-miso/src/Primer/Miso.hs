@@ -16,8 +16,8 @@ import Foreword
 import Clay qualified
 import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Catch.Pure (CatchT (runCatchT))
-import Control.Monad.Log (PureLoggingT, Severity (..), WithSeverity (..), runPureLoggingT)
-import Control.Monad.Writer (Writer, WriterT, runWriterT)
+import Control.Monad.Log (PureLoggingT, Severity (..), WithSeverity (..), runLoggingT, runPureLoggingT)
+import Control.Monad.Writer (MonadWriter (tell), Writer, WriterT, runWriterT)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
@@ -104,6 +104,7 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   CaseFallback' (CaseExhaustive, CaseFallback),
+  Expr,
   Expr' (
     APP,
     Ann,
@@ -125,6 +126,7 @@ import Primer.Core (
   Kind' (..),
   LVarName,
   LocalName (unLocalName),
+  Meta (Meta),
   ModuleName,
   Pattern (PatCon, PatPrim),
   PrimCon (..),
@@ -146,6 +148,9 @@ import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Database qualified as DB
 import Primer.Def (ASTDef, DefMap, defAST)
+import Primer.Eval.NormalOrder (NormalOrderOptions (..))
+import Primer.Eval.Redex (Dir (Chk, Syn), MonadEval, RunRedexOptions (..), ViewRedexOptions (..))
+import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull, evalFullStepCount)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Miso.Layout (
   slHSep,
@@ -173,6 +178,7 @@ import Primer.Miso.Util (
   nodeSelectionType,
   optToName,
   realToClay,
+  runTC,
   startAppWithSavedState,
   stringToOpt,
   tcBasicProg,
@@ -181,7 +187,7 @@ import Primer.Miso.Util (
 import Primer.Module (Module (moduleDefs, moduleName), moduleDefsQualified)
 import Primer.Name (Name, unName)
 import Primer.TypeDef (TypeDefMap)
-import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext)
+import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
 
 start :: JSM ()
@@ -428,6 +434,27 @@ viewModel model@Model{..} =
               [ button_ [onClick RunUndo] [text "Undo"]
               , button_ [onClick RunRedo] [text "Redo"]
               ]
+          , div_
+              [id_ "eval"]
+              -- TODO this whole thing is very messy and needs reviewing word-by-word
+              -- TODO (separate commit) we need a few hundred steps to do anything interest like `map even [1..3]`
+              -- but this blocks the whole program
+              -- put it in to a background process
+              -- look in to what dmjio said about lack of threaded runtime not being a major issue
+              -- TODO try for eval mode?
+              let evalResult =
+                    either absurd (fst @_ @(WithSeverity ()))
+                      . runTC
+                      . runPureLoggingT
+                      . evalFull UnderBinders (ViewRedexOptions False False False) (RunRedexOptions False) tydefs' defs' 500 Chk
+                      $ Ann (Meta maxBound Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
+               in case evalResult of
+                    Left err -> case err of
+                      TimedOut expr ->
+                        [ text "eval timed out at:"
+                        , fst . viewTree $ viewTreeExpr mkMeta expr
+                        ]
+                    Right expr -> [fst . viewTree $ viewTreeExpr mkMeta expr]
           ]
           where
             mkMeta = const (Nothing, False)
