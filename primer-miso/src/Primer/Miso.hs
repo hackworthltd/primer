@@ -148,6 +148,7 @@ import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Database qualified as DB
 import Primer.Def (ASTDef, DefMap, defAST)
+import Primer.Eval (AvoidShadowing (NoAvoidShadowing), redexes, step)
 import Primer.Eval.NormalOrder (NormalOrderOptions (..))
 import Primer.Eval.Redex (Dir (Chk, Syn), MonadEval, RunRedexOptions (..), ViewRedexOptions (..))
 import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull, evalFullStepCount)
@@ -198,6 +199,7 @@ start =
           Model
             { app
             , actionPanelOptionsMode = Nothing
+            , evalExpr = defAnnExpr $ modelDef app
             }
       , update = updateModel
       , view = viewModel
@@ -251,6 +253,7 @@ data Model = Model
   { app :: Primer.App.App
   , -- TODO look in to component-ising the action panel?
     actionPanelOptionsMode :: Maybe (Available.InputAction, Available.Options)
+  , evalExpr :: Expr
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
@@ -266,6 +269,7 @@ data Action
   | SetApp Primer.App.App
   | RunUndo
   | RunRedo
+  | SetEvalExpr Expr
   deriving stock (Eq, Show)
 
 updateModel :: Action -> Model -> Effect Action Model
@@ -275,6 +279,8 @@ updateModel =
     SelectDef d -> do
       modelSelection ?= DefSelection d Nothing
       #actionPanelOptionsMode .= Nothing
+      app <- use #app
+      #evalExpr .= defAnnExpr (modelDef app)
     SelectNode sel -> do
       modelSelection % _Just % #node ?= sel
       #actionPanelOptionsMode .= Nothing
@@ -315,6 +321,7 @@ updateModel =
       #actionPanelOptionsMode .= Nothing
     SetProg p -> modelProg .= p
     SetApp a -> #app .= a
+    SetEvalExpr expr -> #evalExpr .= expr
 
 viewModel :: Model -> View Action
 viewModel model@Model{..} =
@@ -442,19 +449,36 @@ viewModel model@Model{..} =
               -- put it in to a background process
               -- look in to what dmjio said about lack of threaded runtime not being a major issue
               -- TODO try for eval mode?
-              let evalResult =
-                    either absurd (fst @_ @(WithSeverity ()))
-                      . runTC
-                      . runPureLoggingT
-                      . evalFull UnderBinders (ViewRedexOptions False False False) (RunRedexOptions False) tydefs' defs' 500 Chk
-                      $ Ann (Meta maxBound Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
-               in case evalResult of
-                    Left err -> case err of
-                      TimedOut expr ->
-                        [ text "eval timed out at:"
-                        , fst . viewTree $ viewTreeExpr mkMeta expr
-                        ]
-                    Right expr -> [fst . viewTree $ viewTreeExpr mkMeta expr]
+              -- eval mode panel should really be a component...
+              let
+                runEval = either absurd (fst @_ @(WithSeverity ())) . runTC . runPureLoggingT
+                dir = Chk
+                evalResult =
+                  runEval
+                    . evalFull UnderBinders (ViewRedexOptions False False False) (RunRedexOptions False) tydefs' defs' 2 dir
+                    $ defAnnExpr def
+                -- currentEvalExpr = defAnnExpr def
+                currentEvalExpr = model.evalExpr
+                rxs =
+                  runEval
+                    . redexes NoAvoidShadowing tydefs' defs' dir
+                    $ currentEvalExpr
+               in
+                [ fst
+                    . viewTree
+                    $ viewTreeExpr
+                      ( \(getID -> id) ->
+                          if not $ id `elem` rxs
+                            then (Nothing, False)
+                            else
+                              ( case runEval $ step NoAvoidShadowing tydefs' defs' currentEvalExpr dir id of
+                                  Left err -> Nothing
+                                  Right (expr, detail) -> Just $ SetEvalExpr expr
+                              , True
+                              )
+                      )
+                      currentEvalExpr
+                ]
           ]
           where
             mkMeta = const (Nothing, False)
@@ -796,7 +820,7 @@ runAction app sel =
         identity
         $ runIdentity
         $ runCatchT
-        $ findASTDef defs sel.def
+        $ findASTDef (progAllDefs prog) sel.def
     defs = progAllDefs prog
     prog = appProg app
    in
@@ -811,3 +835,25 @@ instance Semigroup a => Semigroup (WithSeverity a) where
   WithSeverity s x <> WithSeverity _ x' = WithSeverity s (x <> x')
 instance Monoid a => Monoid (WithSeverity a) where
   mempty = WithSeverity Informational mempty
+
+defAnnExpr :: ASTDefT -> Expr
+defAnnExpr def = Ann (Meta maxBound Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
+
+-- TODO DRY with `viewModel`
+modelDef :: Primer.App.App -> ASTDefT
+modelDef = fromMaybe (error "selected def is not fully typechecked") . assumeDefHasTypeCheckInfo . snd . findProgDef . appProg
+
+-- TODO DRY with `runAction`
+findProgDef :: Prog -> (Editable, ASTDef)
+findProgDef prog =
+  either
+    -- TODO how impossible is this, and can we fix upstream to throw proper typed errors?
+    (const $ error "findASTDef failure in runAction")
+    identity
+    . runIdentity
+    . runCatchT
+    . findASTDef (progAllDefs prog)
+    . (.def)
+    . (\case SelectionTypeDef _ -> error "type def selected"; SelectionDef s -> s)
+    . fromMaybe (error "no selected def in prog")
+    $ progSelection prog
