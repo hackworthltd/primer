@@ -52,6 +52,7 @@ import Miso (
   style_,
   text,
  )
+import Miso.String (MisoString, ms)
 import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
 import Optics.State.Operators ((?=))
 import Primer.App (
@@ -160,7 +161,7 @@ data Model = Model
   deriving (ToJSON, FromJSON) via PrimerJSON Model
 
 data Action
-  = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
+  = NoOp MisoString -- For situations where Miso requires an action, but we don't actually want to do anything.
   | SelectDef GVarName
   | SelectNode NodeSelectionT
   deriving stock (Eq, Show)
@@ -183,7 +184,7 @@ viewModel Model{..} =
               [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
               , onClick $ SelectDef def
               ]
-              [text $ globalNamePretty def]
+              [text $ ms $ globalNamePretty def]
       ]
       <> case selection of
         Nothing -> [text "no selection"]
@@ -228,7 +229,7 @@ data NodeViewData action = NodeViewData
   }
 
 data NodeViewOpts action
-  = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
+  = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
@@ -244,7 +245,7 @@ viewNodeData :: P2 Double -> V2 Double -> [View action] -> NodeViewData action -
 viewNodeData position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
-      [ src_ ("data:img/gif;base64," <> animation)
+      [ src_ ("data:img/gif;base64," <> ms animation)
       , style_ $ clayToMiso do
           Clay.width $ Clay.px $ realToClay dimensions.x
           Clay.height $ Clay.px $ realToClay dimensions.y
@@ -302,11 +303,11 @@ viewNodeData position dimensions edges node = case node.opts of
                       [ text case node.opts of
                           SyntaxNode{text = t} -> t
                           HoleNode{empty = e} -> if e then "?" else "⚠️"
-                          PrimNode pc -> case pc of
+                          PrimNode pc -> ms @Text case pc of
                             PrimChar c' -> show c'
                             PrimInt n -> show n
-                          ConNode{name} -> unName name
-                          VarNode{name} -> unName name
+                          ConNode{name} -> ms $ unName name
+                          VarNode{name} -> ms $ unName name
                       ]
                   ]
            ]
