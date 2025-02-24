@@ -36,7 +36,7 @@ import Primer.Miso (start)
 main :: IO ()
 main =
   debugOr
-    8000
+    8001
     (insertStylesheet "style.css" >> start)
     (staticApp $ defaultWebAppSettings "frontend")
 
