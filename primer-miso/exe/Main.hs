@@ -32,7 +32,7 @@ import Network.Wai.Application.Static (defaultWebAppSettings, staticApp)
 import Primer.Miso (start)
 
 -- Note that `debug` works with `cabal repl` but not `cabal run`.
--- The best workflow is to run `ghcid -c "cabal repl exe:primer-miso" -W -T ':main'`.
+-- This is really designed to be used with GHCID or similar.
 main :: IO ()
 main =
   debugOr

@@ -24,6 +24,9 @@ openapi.json: build
 	cabal run -v0 primer-service:exe:primer-openapi > $@
 	openapi-generator-cli validate --recommend -i $@
 
+develop-frontend:
+	$(MAKE) -C primer-miso develop-frontend
+
 clean:
 	cabal clean
 	rm -f openapi.json
