@@ -88,6 +88,10 @@ import Primer.Typecheck (ExprT, TypeError, check, checkKind)
 {- Miso -}
 
 -- https://github.com/dmjio/miso/issues/749
+-- TODO how to also save state for subcomponents?
+-- maybe save them all as separate localStorage entries, keyed by ID?
+-- would it be possible to set this once at root and have it propogate down?
+-- actually, some configurability would be good
 startAppWithSavedState :: forall model action. (Eq model, FromJSON model, ToJSON model) => Miso.App model action -> JSM ()
 startAppWithSavedState app = do
   savedModel <-

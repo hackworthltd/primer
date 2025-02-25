@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Primer.Miso (start) where
 
@@ -42,15 +43,19 @@ import Miso (
   View,
   button_,
   class_,
+  component,
+  consoleLog,
   defaultEvents,
   div_,
   fromTransition,
   id_,
   img_,
+  notify,
   onClick,
   src_,
   style_,
   text,
+  (<#),
  )
 import Miso.String (MisoString, ms)
 import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
@@ -130,8 +135,11 @@ import Primer.Module (Module (moduleName))
 import Primer.Name (Name, unName)
 
 start :: JSM ()
-start =
-  startAppWithSavedState
+start = startAppWithSavedState topApp
+
+topApp :: App Model Action
+topApp =
+  identity
     App
       { model = Model{module_, selection = Nothing}
       , update = updateModel
@@ -152,6 +160,35 @@ start =
         $ progImports p
       where
         (p, _, _) = newProg
+
+subApp :: App Int ()
+subApp =
+  App
+    { model = 0 :: Int
+    , update = \() n -> do
+        -- TODO huh, interestingly any effect somehow creates a self-perpuating chain of subcomponent updates
+        -- () <# pure ()
+        -- TODO taking a whole `App` as target seems a weird API - only `mountPoint` is actually used
+        -- it does ensure the correct type of model and action though...
+        -- TODO we
+        -- n' <- notify n topApp $ NoOp "sent from sub"
+        -- () <# consoleLog (ms n')
+        -- TODO what does this return value do/mean?
+        pure $ n + 1
+    , view = \n ->
+        div_
+          [ id_ "sub-app-inner"
+          ]
+          [ text "This is a working Miso component!"
+          , button_ [onClick ()] [text "click"]
+          , text $ ms n
+          ]
+    , subs = []
+    , events = defaultEvents
+    , initialAction = ()
+    , mountPoint = "sub-app"
+    , logLevel = Off
+    }
 
 data Model = Model
   { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
@@ -185,6 +222,7 @@ viewModel Model{..} =
               , onClick $ SelectDef def
               ]
               [text $ ms $ globalNamePretty def]
+      , component subApp
       ]
       <> case selection of
         Nothing -> [text "no selection"]
