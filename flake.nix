@@ -366,6 +366,7 @@
               ghc982Tools = final.haskell-nix.tools "ghc982" {
                 hlint = "latest";
                 cabal-fmt = "latest";
+                ghcid = "latest";
               };
 
               sqitch = final.callPackage ./nix/pkgs/sqitch {
@@ -487,8 +488,6 @@
                   withHoogle = true;
 
                   tools = {
-                    ghcid = "latest";
-
                     haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.9";
 
                     implicit-hie = "latest";
@@ -517,6 +516,7 @@
 
                     hlint
                     cabal-fmt
+                    ghcid
 
                     # For Language Server support.
                     nodejs-18_x
@@ -671,7 +671,7 @@
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
 
-              inherit (ghc982Tools) cabal-fmt hlint;
+              inherit (ghc982Tools) cabal-fmt hlint ghcid;
             }
           );
 
