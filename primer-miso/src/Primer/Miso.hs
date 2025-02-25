@@ -139,7 +139,7 @@ start =
       , subs = []
       , events = defaultEvents
       , initialAction = NoOp "start"
-      , mountPoint = Nothing
+      , mountPoint = "body"
       , logLevel = Off
       }
   where
