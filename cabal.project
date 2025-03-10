@@ -71,13 +71,12 @@ source-repository-package
   subdir: selda selda-sqlite
   --sha256: 0fw336sb03sc54pzmkz6jn989zvbnwnzypb9n0ackprymnvh8mym
 
--- Until a new Hackage release is made which includes
--- https://github.com/dmjio/miso/pull/752
+-- Until a new Hackage release is made which includes components
 source-repository-package
   type: git
   location: https://github.com/dmjio/miso
-  tag: 2b548d48bffb0e8ae28a6cfb886e4afb0d8be37a
-  --sha256: sha256-fzDEa8vKXgxPPB+8NDLmhn2Jw1UDZso7e/klwidCfhM=
+  tag: 998a8bbe67e37e2bfbd227acdc6e9fcfc0eb58ce
+  --sha256: YLkCDe/EriS/kix6kiHYfn0HK42iAt/pvhnYe8Y54JQ=
 
 -- Wasm workarounds.
 --

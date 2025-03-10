@@ -42,16 +42,23 @@ import Miso (
   View,
   button_,
   class_,
+  consoleLog,
+  defaultApp,
   defaultEvents,
   div_,
+  embed,
   fromTransition,
   id_,
   img_,
   onClick,
+  scheduleIO_,
   src_,
+  startApp,
   style_,
   text,
+  (<#),
  )
+import Miso.String (MisoString, ms)
 import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
 import Optics.State.Operators ((?=))
 import Primer.App (
@@ -110,6 +117,7 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
+  ComponentWithSavedState,
   DefSelectionT,
   ModuleT (..),
   NodeSelectionT,
@@ -118,10 +126,12 @@ import Primer.Miso.Util (
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  componentWithSavedState,
+  embedWithId,
   kindsInType,
+  mailComponentWithSavedState,
   nodeSelectionType,
   realToClay,
-  startAppWithSavedState,
   tcBasicProg,
   typeBindingsInExpr,
  )
@@ -129,8 +139,11 @@ import Primer.Module (Module (moduleName))
 import Primer.Name (Name, unName)
 
 start :: JSM ()
-start =
-  startAppWithSavedState
+start = startApp $ defaultApp () (const $ const $ pure ()) (const $ embed topComponent) ()
+
+topComponent :: ComponentWithSavedState "top" Model Action
+topComponent =
+  componentWithSavedState @"top"
     App
       { model = Model{module_, selection = Nothing}
       , update = updateModel
@@ -152,6 +165,30 @@ start =
       where
         (p, _, _) = newProg
 
+subComponent :: ComponentWithSavedState "sub" Int Bool
+subComponent =
+  componentWithSavedState $
+    defaultApp
+      0
+      ( \e n -> do
+          if e
+            then do
+              (n + 1) <# do
+                consoleLog "sending from component"
+                mailComponentWithSavedState topComponent $ NoOp "sent from component to top"
+                pure False
+            else pure n
+      )
+      ( \n ->
+          div_
+            []
+            [ text "This is a working Miso component!"
+            , button_ [onClick True] [text "click"]
+            , text $ ms n
+            ]
+      )
+      False
+
 data Model = Model
   { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
   , selection :: Maybe DefSelectionT
@@ -160,7 +197,7 @@ data Model = Model
   deriving (ToJSON, FromJSON) via PrimerJSON Model
 
 data Action
-  = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
+  = NoOp MisoString -- For situations where Miso requires an action, but we don't actually want to do anything.
   | SelectDef GVarName
   | SelectNode NodeSelectionT
   deriving stock (Eq, Show)
@@ -168,14 +205,14 @@ data Action
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
-    NoOp _ -> pure ()
+    NoOp s -> scheduleIO_ $ consoleLog s
     SelectDef d -> #selection ?= DefSelection d Nothing
     SelectNode sel -> #selection % _Just % #node ?= sel
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
-    [id_ "miso-root"]
+    []
     $ [ div_
           [id_ "def-panel"]
           $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
@@ -183,7 +220,8 @@ viewModel Model{..} =
               [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
               , onClick $ SelectDef def
               ]
-              [text $ globalNamePretty def]
+              [text $ ms $ globalNamePretty def]
+      , embedWithId subComponent
       ]
       <> case selection of
         Nothing -> [text "no selection"]
@@ -228,7 +266,7 @@ data NodeViewData action = NodeViewData
   }
 
 data NodeViewOpts action
-  = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
+  = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
@@ -244,7 +282,7 @@ viewNodeData :: P2 Double -> V2 Double -> [View action] -> NodeViewData action -
 viewNodeData position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
-      [ src_ ("data:img/gif;base64," <> animation)
+      [ src_ ("data:img/gif;base64," <> ms animation)
       , style_ $ clayToMiso do
           Clay.width $ Clay.px $ realToClay dimensions.x
           Clay.height $ Clay.px $ realToClay dimensions.y
@@ -302,11 +340,11 @@ viewNodeData position dimensions edges node = case node.opts of
                       [ text case node.opts of
                           SyntaxNode{text = t} -> t
                           HoleNode{empty = e} -> if e then "?" else "⚠️"
-                          PrimNode pc -> case pc of
+                          PrimNode pc -> ms @Text case pc of
                             PrimChar c' -> show c'
                             PrimInt n -> show n
-                          ConNode{name} -> unName name
-                          VarNode{name} -> unName name
+                          ConNode{name} -> ms $ unName name
+                          VarNode{name} -> ms $ unName name
                       ]
                   ]
            ]
