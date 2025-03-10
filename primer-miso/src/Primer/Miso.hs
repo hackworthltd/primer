@@ -42,15 +42,21 @@ import Miso (
   View,
   button_,
   class_,
+  consoleLog,
+  defaultApp,
   defaultEvents,
   div_,
+  embed,
   fromTransition,
   id_,
   img_,
   onClick,
+  scheduleIO_,
   src_,
+  startApp,
   style_,
   text,
+  (<#),
  )
 import Miso.String (MisoString, ms)
 import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
@@ -111,6 +117,7 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
+  ComponentWithSavedState,
   DefSelectionT,
   ModuleT (..),
   NodeSelectionT,
@@ -119,10 +126,12 @@ import Primer.Miso.Util (
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  componentWithSavedState,
+  embedWithId,
   kindsInType,
+  mailComponentWithSavedState,
   nodeSelectionType,
   realToClay,
-  startAppWithSavedState,
   tcBasicProg,
   typeBindingsInExpr,
  )
@@ -130,8 +139,11 @@ import Primer.Module (Module (moduleName))
 import Primer.Name (Name, unName)
 
 start :: JSM ()
-start =
-  startAppWithSavedState
+start = startApp $ defaultApp () (const $ const $ pure ()) (const $ embed topComponent) ()
+
+topComponent :: ComponentWithSavedState "top" Model Action
+topComponent =
+  componentWithSavedState @"top"
     App
       { model = Model{module_, selection = Nothing}
       , update = updateModel
@@ -153,6 +165,30 @@ start =
       where
         (p, _, _) = newProg
 
+subComponent :: ComponentWithSavedState "sub" Int Bool
+subComponent =
+  componentWithSavedState $
+    defaultApp
+      0
+      ( \e n -> do
+          if e
+            then do
+              (n + 1) <# do
+                consoleLog "sending from component"
+                mailComponentWithSavedState topComponent $ NoOp "sent from component to top"
+                pure False
+            else pure n
+      )
+      ( \n ->
+          div_
+            []
+            [ text "This is a working Miso component!"
+            , button_ [onClick True] [text "click"]
+            , text $ ms n
+            ]
+      )
+      False
+
 data Model = Model
   { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
   , selection :: Maybe DefSelectionT
@@ -169,14 +205,14 @@ data Action
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
-    NoOp _ -> pure ()
+    NoOp s -> scheduleIO_ $ consoleLog s
     SelectDef d -> #selection ?= DefSelection d Nothing
     SelectNode sel -> #selection % _Just % #node ?= sel
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
-    [id_ "miso-root"]
+    []
     $ [ div_
           [id_ "def-panel"]
           $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
@@ -185,6 +221,7 @@ viewModel Model{..} =
               , onClick $ SelectDef def
               ]
               [text $ ms $ globalNamePretty def]
+      , embedWithId subComponent
       ]
       <> case selection of
         Nothing -> [text "no selection"]

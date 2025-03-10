@@ -7,7 +7,10 @@
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
-  startAppWithSavedState,
+  componentWithSavedState,
+  ComponentWithSavedState,
+  mailComponentWithSavedState,
+  embedWithId,
   clayToMiso,
   P2,
   unitX,
@@ -46,11 +49,20 @@ import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
   App (initialAction, model, subs, update, view),
+  Component,
+  ComponentOptions (..),
   JSM,
+  View,
+  component,
+  componentOptions,
+  consoleLog,
+  embedWith,
   getLocalStorage,
+  id_,
+  mail,
   mapSub,
   setLocalStorage,
-  startApp,
+  text,
   (<#),
  )
 import Miso.String (MisoString, ms)
@@ -87,28 +99,68 @@ import Primer.Typecheck (ExprT, TypeError, check, checkKind)
 
 {- Miso -}
 
+data ComponentWithSavedStateAction m a
+  = Start
+  | SetLoadedState m
+  | InnerAction a
+  | NoOp
+data ComponentWithSavedStateModel m
+  = NotStarted
+  | Running m
+  deriving stock (Eq)
+type ComponentWithSavedState i m a =
+  Component
+    i
+    (ComponentWithSavedStateModel m)
+    (ComponentWithSavedStateAction m a)
+
+mailComponentWithSavedState :: ComponentWithSavedState name m a -> a -> JSM ()
+mailComponentWithSavedState c = mail c . InnerAction
+
 -- https://github.com/dmjio/miso/issues/749
-startAppWithSavedState :: forall model action. (Eq model, FromJSON model, ToJSON model) => Miso.App model action -> JSM ()
-startAppWithSavedState app = do
-  savedModel <-
-    eitherM (\e -> liftIO $ putStrLn ("saved state not loaded: " <> e) >> pure Nothing) (pure . Just) $
-      getLocalStorage storageKey
-  startApp
+componentWithSavedState ::
+  forall id model action.
+  (KnownSymbol id, FromJSON model, ToJSON model) =>
+  Miso.App model action ->
+  ComponentWithSavedState id model action
+componentWithSavedState app =
+  component
     app
-      { model = fromMaybe app.model savedModel
+      { model = NotStarted
       , update = \case
-          Nothing -> pure
-          Just a -> \m -> do
-            m' <- first Just $ app.update a m
-            m' <# do
-              setLocalStorage storageKey m'
-              pure Nothing
-      , subs = mapSub Just <$> app.subs
-      , view = fmap Just . app.view
-      , initialAction = Just app.initialAction
+          Start ->
+            const $
+              NotStarted
+                <# ( fmap (SetLoadedState . fromMaybe app.model)
+                      . eitherM
+                        (\e -> consoleLog ("saved state not loaded: " <> ms e) >> pure Nothing)
+                        (pure . Just)
+                      $ getLocalStorage @model storageKey
+                   )
+          SetLoadedState m -> const $ pure $ Running m
+          InnerAction a -> \case
+            NotStarted ->
+              NotStarted <# do
+                consoleLog $ "warning: componentWithSavedState received action before fully loading: " <> componentId
+                pure NoOp
+            Running m -> do
+              m' <- first InnerAction $ app.update a m
+              Running m' <# do
+                setLocalStorage storageKey m
+                pure NoOp
+          NoOp -> pure
+      , subs = mapSub InnerAction <$> app.subs
+      , view = \case
+          Running m -> fmap InnerAction . app.view $ m
+          NotStarted -> text "loading saved state"
+      , initialAction = Start
       }
   where
-    storageKey = "miso-app-state"
+    componentId = ms $ symbolVal $ Proxy @id
+    storageKey = "miso-app-state-" <> componentId
+
+embedWithId :: forall name m a action. (Eq m, KnownSymbol name) => Component name m a -> View action
+embedWithId = flip embedWith componentOptions{attributes = [id_ $ ms $ symbolVal $ Proxy @name]}
 
 {- Clay -}
 
