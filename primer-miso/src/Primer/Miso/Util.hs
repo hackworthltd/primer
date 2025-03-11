@@ -7,7 +7,11 @@
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
-  startAppWithSavedState,
+  componentWithSavedState,
+  ComponentWithSavedState,
+  mailComponentWithSavedState,
+  notifyComponentWithSavedState,
+  embedWithId,
   clayToMiso,
   P2,
   unitX,
@@ -31,6 +35,11 @@ module Primer.Miso.Util (
   nodeSelectionType,
   DefSelectionT,
   realToClay,
+  availableForSelection,
+  astDefTtoAstDef,
+  defSelectionTtoDefSelection,
+  optToName,
+  stringToOpt,
 ) where
 
 import Foreword hiding (zero)
@@ -46,14 +55,25 @@ import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
   App (initialAction, model, subs, update, view),
+  Component,
+  ComponentOptions (..),
   JSM,
+  Transition,
+  View,
+  component,
+  componentOptions,
+  consoleLog,
+  embedWith,
   getLocalStorage,
+  id_,
+  mail,
   mapSub,
+  notify,
   setLocalStorage,
-  startApp,
+  text,
   (<#),
  )
-import Miso.String (MisoString, ms)
+import Miso.String (MisoString, fromMisoString, ms)
 import Optics (
   AffineTraversal',
   Field1 (_1),
@@ -64,51 +84,102 @@ import Optics (
   (^.),
  )
 import Optics.State.Operators ((<<%=))
-import Primer.App (DefSelection, NodeSelection (meta), Prog, progCxt)
+import Primer.Action.Available (Action)
+import Primer.Action.Available qualified as Available
+import Primer.App (DefSelection (..), Editable, Level, NodeSelection (..), NodeType (..), Prog, progCxt)
 import Primer.Core (
   Expr' (LAM, Lam, Let, LetType, Letrec),
+  GlobalName,
   ID,
   Kind' (KType),
   LVarName,
+  LocalName,
   Meta,
   ModuleName,
   TyVarName,
   Type' (TEmptyHole, TForall, THole, TLet),
   TypeCache (..),
   TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
+  getID,
+  unsafeMkGlobalName,
+  unsafeMkLocalName,
   _type,
  )
 import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Def (ASTDef (..), astDefExpr, defAST)
+import Primer.Def (ASTDef (..), DefMap, astDefExpr, defAST)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Module (Module (moduleName), moduleDefs)
 import Primer.Name (Name, NameCounter)
-import Primer.Typecheck (ExprT, TypeError, check, checkKind)
+import Primer.TypeDef (TypeDefMap)
+import Primer.Typecheck (ExprT, TypeError, check, checkKind, exprTtoExpr, typeTtoType)
 
 {- Miso -}
 
+data ComponentWithSavedStateAction m a
+  = Start
+  | SetLoadedState m
+  | InnerAction a
+  | NoOp
+data ComponentWithSavedStateModel m
+  = NotStarted
+  | Running m
+  deriving stock (Eq)
+type ComponentWithSavedState i m a =
+  Component
+    i
+    (ComponentWithSavedStateModel m)
+    (ComponentWithSavedStateAction m a)
+
+mailComponentWithSavedState :: ComponentWithSavedState name m a -> a -> JSM ()
+mailComponentWithSavedState c = mail c . InnerAction
+
+notifyComponentWithSavedState :: ComponentWithSavedState name m a -> a -> Transition action model ()
+notifyComponentWithSavedState c = notify c . InnerAction
+
 -- https://github.com/dmjio/miso/issues/749
-startAppWithSavedState :: forall model action. (Eq model, FromJSON model, ToJSON model) => Miso.App model action -> JSM ()
-startAppWithSavedState app = do
-  savedModel <-
-    eitherM (\e -> liftIO $ putStrLn ("saved state not loaded: " <> e) >> pure Nothing) (pure . Just) $
-      getLocalStorage storageKey
-  startApp
+componentWithSavedState ::
+  forall id model action.
+  (KnownSymbol id, FromJSON model, ToJSON model) =>
+  Miso.App model action ->
+  ComponentWithSavedState id model action
+componentWithSavedState app =
+  component
     app
-      { model = fromMaybe app.model savedModel
+      { model = NotStarted
       , update = \case
-          Nothing -> pure
-          Just a -> \m -> do
-            m' <- first Just $ app.update a m
-            m' <# do
-              setLocalStorage storageKey m'
-              pure Nothing
-      , subs = mapSub Just <$> app.subs
-      , view = fmap Just . app.view
-      , initialAction = Just app.initialAction
+          Start ->
+            const $
+              NotStarted
+                <# ( fmap (SetLoadedState . fromMaybe app.model)
+                      . eitherM
+                        (\e -> consoleLog ("saved state not loaded: " <> ms e) >> pure Nothing)
+                        (pure . Just)
+                      $ getLocalStorage @model storageKey
+                   )
+          SetLoadedState m -> const $ pure $ Running m
+          InnerAction a -> \case
+            NotStarted ->
+              NotStarted <# do
+                consoleLog $ "warning: componentWithSavedState received action before fully loading: " <> componentId
+                pure NoOp
+            Running m -> do
+              m' <- first InnerAction $ app.update a m
+              Running m' <# do
+                setLocalStorage storageKey m
+                pure NoOp
+          NoOp -> pure
+      , subs = mapSub InnerAction <$> app.subs
+      , view = \case
+          Running m -> fmap InnerAction . app.view $ m
+          NotStarted -> text "loading saved state"
+      , initialAction = Start
       }
   where
-    storageKey = "miso-app-state"
+    componentId = ms $ symbolVal $ Proxy @id
+    storageKey = "miso-app-state-" <> componentId
+
+embedWithId :: forall name m a action. (Eq m, KnownSymbol name) => Component name m a -> View action
+embedWithId = flip embedWith componentOptions{attributes = [id_ $ ms $ symbolVal $ Proxy @name]}
 
 {- Clay -}
 
@@ -252,3 +323,50 @@ nodeSelectionType =
           THole{} -> True
           TEmptyHole{} -> True
           _ -> False
+
+-- TODO this isn't quite analogous to `forgetMetadata`...
+-- are there other places where we do this sort of thing?
+astDefTtoAstDef :: ASTDefT -> ASTDef
+astDefTtoAstDef def =
+  ASTDef
+    { astDefExpr = exprTtoExpr def.expr
+    , astDefType = typeTtoType def.sig
+    }
+defSelectionTtoDefSelection :: DefSelectionT -> DefSelection ID
+defSelectionTtoDefSelection = fmap getID
+
+availableForSelection ::
+  TypeDefMap ->
+  DefMap ->
+  Level ->
+  Editable ->
+  ASTDef ->
+  DefSelectionT ->
+  [Action]
+availableForSelection tydefs defs level editable def defSel = case defSel.node of
+  Nothing -> Available.forDef defs level editable defSel.def
+  Just nodeSel -> case nodeSel.nodeType of
+    BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
+    SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+
+-- TODO improve core API so this becomes unnecessary?
+-- the whole `context` thing is a bit weird - it really does just mean module
+-- this would mean our first instance of breaking the REST API, unless we definte an API-level option type instead
+-- note that context can mean a primitive rather than a local name
+optToName :: Available.Option -> Either (LocalName l) (GlobalName g)
+optToName opt =
+  -- TODO how to avoid unsafety? I guess just never throw away the fact these come from variables in the first place
+  maybe
+    (Left . unsafeMkLocalName) -- this function is used for presented choices - we know these are vars not chars or ints
+    (curry $ Right . unsafeMkGlobalName)
+    opt.context
+    opt.option
+stringToOpt :: MisoString -> Available.Option
+stringToOpt t =
+  Available.Option
+    (fromMisoString t) -- TODO `fromMisoString` is unsafe in general - I don't know about to `Text`
+    Nothing
+    -- TODO another reason why this is a stupid API is that this field is meaningless here
+    -- there should really be different types for presented options and submissions
+    -- I did notice this while working on the old frontend but never got around to fixing it
+    True

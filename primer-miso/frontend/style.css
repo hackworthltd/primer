@@ -65,28 +65,30 @@ body {
   margin: 0;
   font-family: sans;
   height: 100vh;
-}
-
-#miso-root {
-  height: 100%;
-  display: grid;
-  grid-template-columns: 12rem 1fr 2fr;
-  grid-template-rows: 2fr 1fr;
   > * {
-    position: relative;
-    overflow: scroll;
-    border-style: solid;
-    border-width: 1px;
-    border-color: var(--blue-primary);
+    height: 100%;
+    > * {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 12rem 1fr 2fr 12rem;
+      grid-template-rows: 2fr 1fr;
+      > * {
+        position: relative;
+        overflow: scroll;
+        border-style: solid;
+        border-width: 1px;
+        border-color: var(--blue-primary);
+      }
+    }
   }
 }
 
-#def-panel {
-  grid-row-start: 1;
-  grid-row-end: 3;
+#def-panel,
+#action-panel {
   background-color: var(--grey-primary);
+  font-size: large;
   > button {
-    font-size: large;
+    font-size: inherit;
     width: 100%;
     padding: 0.5rem;
     color: var(--blue-primary);
@@ -101,11 +103,63 @@ body {
     color: var(--white-primary);
     background-color: var(--blue-primary);
   }
+  > button.matches-type {
+    color: var(--white-primary);
+    background-color: var(--blue-secondary);
+  }
+  > button.cancel {
+    color: var(--white-primary);
+    background-color: var(--red-secondary);
+  }
+  > button.cancel:hover {
+    background-color: var(--red-primary);
+  }
+  > form {
+    display: flex;
+    align-items: center;
+    > input {
+      font-size: inherit;
+      width: 100%;
+      padding: 0.5rem;
+      border-width: 0.1rem;
+      border-color: var(--grey-primary);
+      /* TODO use this (the nesting selector) elsewhere */
+      /* either as previous commit, or do this one the old way, then have a later commit simplifying them all */
+      /* latter might be better for review, in case it isn't liked */
+      &:invalid {
+        border-color: var(--red-primary);
+      }
+      &:valid {
+        border-color: var(--green-primary);
+      }
+    }
+    > button {
+      position: absolute;
+      right: 0.5rem;
+      background-color: transparent;
+      border-width: 0;
+      font-size: large;
+    }
+  }
+}
+#def-panel {
+  grid-row-start: 1;
+  grid-row-end: 3;
+}
+#action-panel {
+  grid-row-start: 1;
+  grid-row-end: 3;
+  grid-column-start: 4;
 }
 
 #selection-type {
   grid-column-start: 2;
-  grid-column-end: 4;
+  grid-column-end: 3;
+}
+
+#sub {
+  grid-column-start: 3;
+  grid-row-start: 2;
 }
 
 .tree {
