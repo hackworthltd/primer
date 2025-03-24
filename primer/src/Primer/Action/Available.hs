@@ -717,60 +717,63 @@ sortByPriority ::
   [Action]
 sortByPriority l =
   sortOn $
-    ($ l) . \case
-      NoInput a -> case a of
-        MakeCase -> P.makeCase
-        MakeApp -> P.applyFunction
-        MakeAPP -> P.applyType
-        MakeAnn -> P.annotateExpr
-        RemoveAnn -> P.removeAnnotation
-        LetToRec -> P.makeLetRecursive
-        Raise -> P.raise
-        EnterHole -> P.enterHole
-        RemoveHole -> P.finishHole
-        DeleteExpr -> P.delete
-        MakeFun -> P.constructFunction
-        AddInput -> P.addInput
-        MakeTApp -> P.constructTypeApp
-        RaiseType -> P.raise
-        DeleteType -> P.delete
-        DuplicateDef -> P.duplicate
-        DeleteDef -> P.delete
-        DeleteTypeDef -> P.delete
-        DeleteCon -> P.delete
-        AddConField -> P.addConField
-        DeleteConField -> P.delete
-        DeleteTypeParam -> P.delete
-        MakeKType -> P.ktype
-        MakeKFun -> P.kfun
-        DeleteKind -> P.delete
-      Input a -> case a of
-        MakeCon -> P.useSaturatedValueCon
-        MakeInt -> P.makeInt
-        MakeChar -> P.makeChar
-        MakeVar -> P.useVar
-        MakeVarSat -> P.useFunction
-        MakeLet -> P.makeLet
-        MakeLetRec -> P.makeLetrec
-        MakeLam -> P.makeLambda
-        MakeLAM -> P.makeTypeAbstraction
-        AddBranch -> P.addBranch
-        AddBranchInt -> P.addBranch
-        AddBranchChar -> P.addBranch
-        DeleteBranch -> P.deleteBranch
-        DeleteBranchInt -> P.deleteBranch
-        DeleteBranchChar -> P.deleteBranch
-        RenamePattern -> P.rename
-        RenameLet -> P.rename
-        RenameLam -> P.rename
-        RenameLAM -> P.rename
-        MakeTCon -> P.useTypeCon
-        MakeTVar -> P.useTypeVar
-        MakeForall -> P.constructForall
-        RenameForall -> P.rename
-        RenameDef -> P.rename
-        RenameType -> P.rename
-        AddCon -> P.addCon
-        RenameCon -> P.rename
-        RenameTypeParam -> P.rename
-        AddTypeParam -> P.addTypeParam
+    flip
+      ( \case
+          NoInput a -> case a of
+            MakeCase -> P.makeCase
+            MakeApp -> P.applyFunction
+            MakeAPP -> P.applyType
+            MakeAnn -> P.annotateExpr
+            RemoveAnn -> P.removeAnnotation
+            LetToRec -> P.makeLetRecursive
+            Raise -> P.raise
+            EnterHole -> P.enterHole
+            RemoveHole -> P.finishHole
+            DeleteExpr -> P.delete
+            MakeFun -> P.constructFunction
+            AddInput -> P.addInput
+            MakeTApp -> P.constructTypeApp
+            RaiseType -> P.raise
+            DeleteType -> P.delete
+            DuplicateDef -> P.duplicate
+            DeleteDef -> P.delete
+            DeleteTypeDef -> P.delete
+            DeleteCon -> P.delete
+            AddConField -> P.addConField
+            DeleteConField -> P.delete
+            DeleteTypeParam -> P.delete
+            MakeKType -> P.ktype
+            MakeKFun -> P.kfun
+            DeleteKind -> P.delete
+          Input a -> case a of
+            MakeCon -> P.useSaturatedValueCon
+            MakeInt -> P.makeInt
+            MakeChar -> P.makeChar
+            MakeVar -> P.useVar
+            MakeVarSat -> P.useFunction
+            MakeLet -> P.makeLet
+            MakeLetRec -> P.makeLetrec
+            MakeLam -> P.makeLambda
+            MakeLAM -> P.makeTypeAbstraction
+            AddBranch -> P.addBranch
+            AddBranchInt -> P.addBranch
+            AddBranchChar -> P.addBranch
+            DeleteBranch -> P.deleteBranch
+            DeleteBranchInt -> P.deleteBranch
+            DeleteBranchChar -> P.deleteBranch
+            RenamePattern -> P.rename
+            RenameLet -> P.rename
+            RenameLam -> P.rename
+            RenameLAM -> P.rename
+            MakeTCon -> P.useTypeCon
+            MakeTVar -> P.useTypeVar
+            MakeForall -> P.constructForall
+            RenameForall -> P.rename
+            RenameDef -> P.rename
+            RenameType -> P.rename
+            AddCon -> P.addCon
+            RenameCon -> P.rename
+            RenameTypeParam -> P.rename
+            AddTypeParam -> P.addTypeParam
+      )
+      l
