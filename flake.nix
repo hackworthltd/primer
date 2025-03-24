@@ -23,7 +23,7 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
+    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta?ref=refs/heads/master&rev=a9102d59d00bc87550dda902c8084a74f9742c00";
   };
 
   outputs = inputs@ { flake-parts, ... }:
