@@ -10,9 +10,7 @@
     flake-compat.url = "github:edolstra/flake-compat";
     flake-compat.flake = false;
 
-    # Pin pre-commit-hooks because newer versions need `cljfmt`, which
-    # isn't included in the current haskell.nix nixpkgs pin.
-    pre-commit-hooks-nix.url = "github:cachix/pre-commit-hooks.nix/9d3d7e18c6bc4473d7520200d4ddab12f8402d38";
+    pre-commit-hooks-nix.url = "github:cachix/git-hooks.nix";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
@@ -320,6 +318,7 @@
               programs.nixpkgs-fmt.enable = true;
               programs.shellcheck.enable = true;
 
+              settings.on-unmatched = "info";
               settings.formatter.hlint.excludes = haskellExcludes;
               settings.formatter.fourmolu.excludes = haskellExcludes;
             };
