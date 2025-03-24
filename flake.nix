@@ -318,6 +318,7 @@
               programs.nixpkgs-fmt.enable = true;
               programs.shellcheck.enable = true;
 
+              settings.on-unmatched = "info";
               settings.formatter.hlint.excludes = haskellExcludes;
               settings.formatter.fourmolu.excludes = haskellExcludes;
             };
