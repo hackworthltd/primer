@@ -118,16 +118,6 @@
               '';
 
 
-          # This should go in `primer-sqitch.passthru.tests`, but
-          # those don't work well with flakes.
-          primer-sqitch-test-sqlite = pkgs.runCommand "primer-sqitch-sqlite-test" { } ''
-            ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
-            ${pkgs.primer-sqitch}/bin/primer-sqitch revert db:sqlite:primer.db
-            ${pkgs.primer-sqitch}/bin/primer-sqitch verify db:sqlite:primer.db | grep "No changes deployed"
-            ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
-            touch $out
-          '';
-
           # Filter out any file in this repo that doesn't affect a Cabal
           # build or Haskell-related check. (Note: this doesn't need to be
           # 100% accurate, it's just an optimization to cut down on
@@ -158,8 +148,7 @@
                   baseName == "flake.nix" ||
                   baseName == "nix" ||
                   baseName == "nixos-tests" ||
-                  baseName == "shell.nix" ||
-                  baseName == "sqitch"
+                  baseName == "shell.nix"
                 );
             in
             cleanSourceWith {
@@ -204,9 +193,6 @@
 
           packages = {
             inherit (pkgs) primer-benchmark;
-            inherit (pkgs)
-              sqitch
-              primer-sqitch;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
             inherit (pkgs) primer-benchmark-results-json;
@@ -218,7 +204,6 @@
           checks = {
             # Disabled, as it doesn't currently build with Nix.
             #inherit weeder;
-            inherit primer-sqitch-test-sqlite;
           }
 
           # Temporarily disabled due to a failure in nixpkgs.
@@ -266,7 +251,6 @@
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
               inherit (pkgs) primer-benchmark;
-              inherit (pkgs) primer-sqitch;
             })
             // primerFlake.apps;
 
@@ -349,15 +333,6 @@
                 ghcid = "latest";
               };
 
-              sqitch = final.callPackage ./nix/pkgs/sqitch {
-                sqliteSupport = true;
-              };
-
-              scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/scripts {
-                sqitchDir = ./sqitch;
-                inherit version;
-              });
-
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
@@ -429,10 +404,6 @@
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     packages.primer.components.tests.primer-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
                     packages.primer-api.components.tests.primer-api-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
-                    packages.primer-selda.components.tests.primer-selda-test.build-tools = [
-                      (final.haskell-nix.tool ghcVersion "tasty-discover" { })
-                      final.primer-sqitch
-                    ];
                   }
                   (
                     let
@@ -445,7 +416,6 @@
                     {
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-selda.components.tests.primer-selda-test.testFlags = hide-successes;
                       packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
                   )
@@ -482,7 +452,6 @@
 
                   buildInputs = (with final; [
                     nixpkgs-fmt
-                    sqlite
 
                     hlint
                     cabal-fmt
@@ -490,11 +459,6 @@
 
                     # For Language Server support.
                     nodejs-18_x
-
-                    # sqitch & related
-                    nix-generate-from-cpan
-                    sqitch
-                    primer-sqitch
                   ]);
 
                   shellHook = ''
@@ -538,11 +502,6 @@
                   inherit version;
                 };
               };
-
-              inherit sqitch;
-
-              inherit (scripts)
-                primer-sqitch;
 
               inherit primer;
 

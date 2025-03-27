@@ -24,6 +24,5 @@ the various packages' Haddocks.
 ## Advanced or specialized topics
 
 * [Primitives](primitives.md)
-* [Database ops](database.md)
 * [Benchmarking](benchmarking.md)
 * [WebAssembly support](wasm.md)

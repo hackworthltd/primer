@@ -61,8 +61,11 @@ together implement a Primer language service:
   the two evaluators, and an API that exposes these features to other
   Haskell programs.
 
-* `primer-selda` implements [SQLite](https://www.sqlite.org/) database
-  bindings for the Primer language server's program store.
+* `primer-api` implements a Haskell API for building client
+  applications around `primer`, such as editors.
+
+* `primer-miso` is a web frontend for editing and running Primer
+  programs.
 
 (Additionally, the `primer-benchmark` package is used by the project
 maintainers to track performance regressions and improvements, but
