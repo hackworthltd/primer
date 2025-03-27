@@ -64,12 +64,6 @@ together implement a Primer language service:
 * `primer-selda` implements [SQLite](https://www.sqlite.org/) database
   bindings for the Primer language server's program store.
 
-* `primer-service` adapts the `primer` Haskell API to an HTTP API
-  (actually, [two different HTTP API's](http-apis.md)), so that it can
-  be used over a network, and more specifically, in the case of the
-  OpenAPI variant, easily consumed by popular web application
-  frameworks.
-
 (Additionally, the `primer-benchmark` package is used by the project
 maintainers to track performance regressions and improvements, but
 plays no part in the implementation of the Primer language service.)
@@ -78,28 +72,3 @@ The project also includes various tools for testing, linting, and
 formatting code; and for managing the project's database schema. These
 tools, and their related development workflows, are covered in detail
 in other sections of this guide.
-
-### Client applications
-
-This project focuses on the Primer language service implementation.
-Client applications that consume the service, whether by importing
-Haskell modules from the `primer` package, or via one of the project's
-two HTTP API's, are mostly out of scope for this project.
-
-The `primer-service` package does include a trivial command-line
-application, `primer-client`, which is written in Haskell and uses the
-more powerful of the two HTTP API's. However, `primer-client` only
-uses an extremely small subset of this API, and currently we only use
-this client application to seed a new Primer server database with a
-few simple programs. Over time, this client will likely evolve into
-something more robust, but it's not intended to be a serious
-demonstration or reference implementation of a Primer API client.
-
-This project has an accompanying related project,
-[`primer-app`](https://github.com/hackworthltd/primer-app), which
-implements a full-featured web-based programming environment for the
-Primer language. It uses the OpenAPI variant of this project's API, is
-written in [TypeScript](https://www.typescriptlang.org), and uses
-[React](https://react.dev) for its UI. Please see that project if
-you're interested to learn how a full-featured Primer client
-application is implemented.

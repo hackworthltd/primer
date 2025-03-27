@@ -11,15 +11,9 @@ repository contains Haskell implementations of:
 * database adapters for storing Primer programs in a relational
   database; and
 
-* a web service, or *backend*, which exposes a comprehensive
-  programming language API to a client application, or *frontend*.
+* a web-based frontend for editing and running Primer programs.
 
-A companion repository,
-[`primer-app`](https://github.com/hackworthltd/primer-app), contains a
-web-based frontend application for reading, writing, running, and
-debugging Primer programs.
-
-Both projects are licensed under the terms of [version 3 (or later) of
+All projects are licensed under the terms of [version 3 (or later) of
 the GNU Affero General Public License](COPYING), and can be freely
 copied, modified, and distributed, so long as the license is
 preserved.
@@ -40,16 +34,6 @@ subject to change.
 
 **Please also read the following important caveats about the current state of the project**:
 
-* There is no authentication (authn) system yet, nor an authorization
-  (authz) system, so we strongly recommend that you not host a public
-  Primer service until one or both of those systems are in place. It's
-  safe to experiment with on a local system, or behind a robust
-  identity-aware authentication proxy with a trusted audience, but if
-  you host it publicly, be aware that anyone can read, modify, and
-  delete any existing program; create new programs; and potentially
-  [DoS](https://en.wikipedia.org/wiki/Denial-of-service_attack) the
-  server on which it runs.
-
 * The current implementation of the step evaluator is very slow.
   Running very large programs, or even small programs that generate
   many reduction steps, is not practical at this time. Primer now also
@@ -59,19 +43,9 @@ subject to change.
   We plan to do future research to attempt to combine the two
   approaches somehow.
 
-* Even the most minor frontend requests result in the entire program
-  AST being sent over the network, rather than only what's changed.
-  This is an obvious area for improvement, and we're certain that we
-  can drastically reduce the amount of data being sent to the client
-  application &mdash; we just haven't had a chance to prioritize this
-  work yet. For now, however, please keep a very close eye on your
-  network traffic if you're communicating with the Primer language
-  server over a metered network connection, as the traffic can quickly
-  add up.
-
-* The Haskell API, HTTP APIs, and database schema are all very
-  unstable, and guaranteed to change in compatibility-breaking ways
-  before we reach a 1.0 project milestone.
+* The Haskell API and database schema are all very unstable, and
+  guaranteed to change in compatibility-breaking ways before we reach
+  a 1.0 project milestone.
 
 * The language's semantics are still not fully baked, and there may be
   defects in its design and/or implementation, so existing Primer
@@ -90,7 +64,7 @@ subject to change.
   system to version 2.0 of the language, or to eschew language-level
   effects entirely in favor of a different approach more suited to
   novices.
-  
+
 * We've yet to do any rigorous testing of Primer with students, and
   none at all in classrooms. Primer may turn out not be an effective
   way to teach functional programming to novices! That said, if you're

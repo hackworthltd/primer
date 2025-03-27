@@ -8,18 +8,6 @@ We welcome any and all forms of contribution, so long as contributors adhere to 
 
 First and foremost, please review & agree to abide by our [code of conduct](CODE_OF_CONDUCT.md). We reserve the right to reject contributions from anyone whose behavior contravenes this code of conduct.
 
-## <a name="two-projects"/> The two different Primer projects
-
-Our implementation of Primer is unusual for a programming language, because it's not *just* a programming language: it's implemented as multiple artifacts, all designed to work together to form a holistic programming environment.
-
-This particular project implements what we call the Primer *backend*, which is comprised of the core programming language, several database engine adapters for storing and retrieving Primer programs, and 2 different HTTP APIs for serving Primer client applications, which we informally call *frontends*. 
-
-In addition to this backend project, we've also released a Primer client project, [`primer-app`](https://github.com/hackworthltd/primer-app), which implements a browser-based frontend for reading, writing, running, and debugging Primer programs. For various reasons, these 2 projects are maintained in separate GitHub repositories, so make sure you submit your contribution to the appropriate one.
-
-As a general rule, if you want to contribute to the Haskell implementation of Primer, or make a contribution related to the Primer programming language specification, submit it to this project. If you want to contribute to the web-based programming environment, submit it to the [`primer-app`](https://github.com/hackworthltd/primer-app) project.
-
-Note that in many cases, changes to one project will require changes to the other, but usually we lead with changes to the backend project before moving on to the frontend work.
-
 ## <a name="questions"/> General questions or comments
 
 If you have a question or comment about this project, the Primer programming language, or if you just need help getting started, please start a discussion in the project's [GitHub Discussions](https://github.com/hackworthltd/primer/discussions), rather than opening a GitHub issue. Please reserve GitHub issues for reporting specific bugs, or for making detailed feature requests.
@@ -135,7 +123,7 @@ We're appreciative of anyone who takes the time to submit a contribution to our 
 
 Having said that, while we don't want to impose a particular working style or development process on anyone who makes an occasional contribution, it would be very helpful to the project maintainers if you would consider the following recommendations when deciding how to structure the work in your PR branch:
 
-* Each `git commit` should make a single, focused change, while ensuring that all tests pass. For example, if you want to implement a new API feature, first implement the core functionality (and write a few tests for it) in the `primer` package, and commit those changes as one (or more) `git commit`s; then add a final `git commit` which exposes the new functionality to client applications via the HTTP API in the `primer-service` package.
+* Each `git commit` should make a single, focused change, while ensuring that all tests pass.
 
 * Don't cross purposes within a single `git commit`. For example, if you're implementing a new feature and, in the process, you discover a bug in some existing feature, don't make a single `git commit` that both fixes the bug and simultaneously adds the new feature: fix the bug in one commit, and then add the new feature in a subsequent commit. (In fact, in a case like this example, you should probably instead [open a new GitHub Issue](#open-an-issue) describing the bug you've found, and then [submit an entirely different PR](#submit-a-pr) that fixes the bug, separate from the feature work you're doing.) Note that if you're following our [commit message rules](#commit-messages), this practice should happen more or less automatically.
 

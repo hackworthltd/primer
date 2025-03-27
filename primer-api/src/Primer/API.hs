@@ -1388,8 +1388,8 @@ data EvalBoundedInterpResp
     -- This error should never occur in a well typed program.
     --
     -- Note: this should be a 'Recordpair TyConName ValConName', but
-    -- that doesn't serialize properly in our OpenAPI serialization
-    -- scheme, so instead we only include the unknwon 'ValConName' in
+    -- that doesn't serialize properly to OpenAPI serialization
+    -- schemes, so instead we only include the unknwon 'ValConName' in
     -- this error. See:
     -- https://github.com/hackworthltd/primer/issues/1246
     EvalBoundedInterpRespUnknownValCon ValConName

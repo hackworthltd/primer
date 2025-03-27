@@ -4,7 +4,7 @@ USAGE=$(cat <<EOF
 Gathers information about your development environment. Please submit
 the output of this program in your bug reports.
 EOF
-)
+     )
 
 PROGRAM=$(basename "$0")
 
@@ -41,7 +41,7 @@ if [ "$#" -ne 0 ]; then
     exit 1
 fi
 
-if ! [ -e .git ] || ! [ -d primer-service ] || ! [ -d sqitch ]; then
+if ! [ -e .git ] || ! [ -d primer ] || ! [ -d sqitch ]; then
     echo "Please run this script from the root of the Primer repository." >&2
     exit 2
 fi
@@ -140,7 +140,7 @@ else
 
     # Note: NIX_FLAKE_ENABLED was set earlier.
     if [ -z "${NIX_FLAKE_ENABLED+x}" ]; then
-p        echo "flakes are not enabled"
+        p        echo "flakes are not enabled"
     else
         echo "flakes are enabled"
     fi

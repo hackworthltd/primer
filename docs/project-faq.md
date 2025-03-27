@@ -7,26 +7,11 @@ accompanying client application project,
 an FAQ for questions about this project, and this particular
 implementation of the Primer programming language.*
 
-## Why choose Haskell to implement the Primer backend service?
+## Why choose Haskell to implement Primer?
 
 We chose Haskell for this project because we believe that Haskell is
 the best programming language for writing programming languages, and
-the bulk of the code in this project is effectively just that. The
-database and HTTP API adapters are trivial compared to the type
-checker, evaluator, and action implementations.
-
-## Why not choose Haskell for the frontend implementation?
-
-Our frontend application,
-[`primer-app`](https://github.com/hackworthltd/primer-app), is
-intended to run in the browser, and at the time of writing, Haskell is
-still not a good enough browser application language for our needs. We
-hope that [GHC
-`9.6.1`](https://www.haskell.org/ghc/download_ghc_9_6_1.html) and
-later versions will make it possible to run the code in the `primer`
-package in the browser (i.e., the type checker, evaluator, and actions
-engine), but it seems very unlikely that we would ever implement the
-frontend UI in Haskell.
+the bulk of the code in this project is effectively just that.
 
 ## Why this design? Why not just a standard compiler or interpreter?
 
@@ -40,11 +25,8 @@ subjects, rather than only as a standalone discipline, in an effort to
 increase the appeal and relevance of learning to program[^1][^2].
 
 We believe the most egalitarian, accessible, and widely-available
-platform is the Web, so we've designed our implementation around an
-HTTP-based client-server model. Our backend can serve any client that
-can speak HTTP, and our frontend is a collection of [React
-components](https://react.dev) that can be used with popular web
-application frameworks.
+platform is the Web, so we've primarily designed our implementation
+to run in web browsers.
 
 ## How does this approach compare to so-called "scripting languages"?
 

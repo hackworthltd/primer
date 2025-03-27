@@ -79,9 +79,6 @@ import StmContainers.Map qualified as StmMap
 type Version = Text
 
 -- | A Primer session ID.
---
--- This type is defined in this module to avoid a circular dependency
--- between it and "Primer.Server".
 type SessionId = UUID
 
 -- | A human-friendly Primer session name.
