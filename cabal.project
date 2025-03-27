@@ -13,7 +13,6 @@ else
     primer-api
     primer-miso
     primer-selda
-    primer-service
     primer-benchmark
 
 if arch(wasm32)
@@ -39,15 +38,12 @@ benchmarks: True
 
 tests: True
 
-allow-newer: servant-openapi3:base, openapi3:*, selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, protolude:ghc-prim
+allow-newer: selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, protolude:ghc-prim
 
 package primer
   test-options: "--size-cutoff=32768"
 
 package primer-api
-  test-options: "--size-cutoff=32768"
-
-package primer-service
   test-options: "--size-cutoff=32768"
 
 if arch(wasm32)

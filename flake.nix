@@ -111,18 +111,12 @@
                   (pkgs.lib.concatMap getHIEs (builtins.attrValues primer-packages));
               }
               ''
-                export XDG_CACHE_HOME=$(mktemp -d)
+                  export XDG_CACHE_HOME=$(mktemp -d)
                 ${weederTool}/bin/weeder --config $weederConfig --hie-directory $allHieFiles
                 echo "No issues found."
                 touch $out
               '';
 
-          openapi-validate = pkgs.runCommand "openapi-validate" { }
-            ''
-              ${pkgs.openapi-generator-cli}/bin/openapi-generator-cli validate --recommend -i ${pkgs.primer-openapi-spec}
-              echo "No issues found."
-              touch $out
-            '';
 
           # This should go in `primer-sqitch.passthru.tests`, but
           # those don't work well with flakes.
@@ -209,16 +203,12 @@
           };
 
           packages = {
-            inherit (pkgs) primer-service primer-client primer-openapi-spec;
             inherit (pkgs) primer-benchmark;
             inherit (pkgs)
-              run-primer-sqlite
-              primer-service-entrypoint
               sqitch
               primer-sqitch;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-            inherit (pkgs) primer-service-docker-image;
             inherit (pkgs) primer-benchmark-results-json;
             inherit (pkgs) primer-criterion-results-github-action-benchmark;
             inherit (pkgs) primer-benchmark-results-github-action-benchmark;
@@ -228,7 +218,6 @@
           checks = {
             # Disabled, as it doesn't currently build with Nix.
             #inherit weeder;
-            inherit openapi-validate;
             inherit primer-sqitch-test-sqlite;
           }
 
@@ -276,15 +265,8 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) primer-client;
-              inherit (pkgs) primer-openapi-spec;
               inherit (pkgs) primer-benchmark;
-
-              inherit (pkgs)
-                run-primer-sqlite
-                primer-service-entrypoint
-
-                primer-sqitch;
+              inherit (pkgs) primer-sqitch;
             })
             // primerFlake.apps;
 
@@ -293,7 +275,6 @@
               haskellExcludes = [
                 "primer/test/outputs"
                 "primer-api/test/outputs"
-                "primer-service/test/outputs"
               ];
 
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
@@ -404,10 +385,6 @@
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
                         };
-                        primer-service = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
                         primer-benchmark = {
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
@@ -456,10 +433,6 @@
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.primer-sqitch
                     ];
-                    packages.primer-service.components.tests.primer-service-test.build-tools = [
-                      (final.haskell-nix.tool ghcVersion "tasty-discover" { })
-                      final.primer-sqitch
-                    ];
                   }
                   (
                     let
@@ -472,7 +445,6 @@
                     {
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-service.components.tests.primer-service-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-selda.components.tests.primer-selda-test.testFlags = hide-successes;
                       packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
@@ -511,7 +483,6 @@
                   buildInputs = (with final; [
                     nixpkgs-fmt
                     sqlite
-                    openapi-generator-cli
 
                     hlint
                     cabal-fmt
@@ -533,85 +504,6 @@
               };
 
               primerFlake = primer.flake { };
-
-              # Generate the Primer service OpenAPI 3 spec file.
-              primer-openapi-spec = (final.runCommand "primer-openapi" { }
-                "${final.primer-openapi}/bin/primer-openapi > $out").overrideAttrs
-                (drv: {
-                  meta.platforms = final.lib.platforms.all;
-                });
-
-              primer-service-docker-image = final.dockerTools.buildLayeredImage {
-                name = "primer-service";
-                tag = version;
-                contents = [
-                  final.primer-service-entrypoint
-                ]
-                ++ (with final; [
-                  # These are helpful for debugging broken images.
-                  bashInteractive
-                  coreutils
-                  lsof
-                  procps
-
-                  # Required for `kubectl cp`, which is potentially
-                  # useful for getting databases into and out of the
-                  # pod.
-                  gnutar
-                ]);
-
-                config =
-                  let port = final.lib.primer.defaultServicePort;
-                  in
-                  {
-                    Entrypoint = [ "/bin/primer-service-entrypoint" ];
-
-                    # Note that we can't set
-                    # "org.opencontainers.image.created" here because
-                    # it would introduce an impurity. If we want to
-                    # set it, we'll need to set it when we push to a
-                    # registry.
-                    Labels = {
-                      "org.opencontainers.image.source" =
-                        "https://github.com/hackworthltd/primer";
-                      "org.opencontainers.image.documentation" =
-                        "https://github.com/hackworthltd/primer";
-                      "org.opencontainers.image.title" = "primer-service";
-                      "org.opencontainers.image.description" =
-                        "The Primer API service.";
-                      "org.opencontainers.image.version" = version;
-                      "org.opencontainers.image.authors" =
-                        "src@hackworthltd.com";
-                      "org.opencontainers.image.licenses" = "AGPL-3.0";
-                      "org.opencontainers.image.vendor" = "Hackworth Ltd";
-                      "org.opencontainers.image.url" =
-                        "https://github.com/hackworthltd/primer";
-                      "org.opencontainers.image.revision" = inputs.self.rev or "dirty";
-                    };
-
-                    ExposedPorts = { "${toString port}/tcp" = { }; };
-
-                    Env = [
-                      # Environment variables required by the
-                      # entrypoint with reasonable default values.
-                      #
-                      # Note that we do not provide default values or
-                      # otherwise set SQLITE_DB, which is required by
-                      # the entrypoint script, so you must set this
-                      # yourself in the container environment.
-                      "SERVICE_PORT=${toString port}"
-                      "PRIMER_VERSION=${version}"
-
-                      # Needed for the `primer-service` banner.
-                      "LANG=C.UTF-8"
-
-                      # Sqitch will fail in a container if these are not
-                      # set. Their specific values are not important.
-                      "SQITCH_EMAIL=root@localhost"
-                      "SQITCH_FULLNAME=Primer User"
-                    ];
-                  };
-              };
 
               # Note: these benchmarks should only be run (in CI) on a
               # "benchmark" machine. This is enforced for our CI system
@@ -643,7 +535,6 @@
             {
               lib = (prev.lib or { }) // {
                 primer = (prev.lib.primer or { }) // {
-                  defaultServicePort = 8081;
                   inherit version;
                 };
               };
@@ -651,20 +542,11 @@
               inherit sqitch;
 
               inherit (scripts)
-                primer-sqitch
-                run-primer-sqlite
-                primer-service-entrypoint;
+                primer-sqitch;
 
               inherit primer;
 
-              primer-service = primerFlake.packages."primer-service:exe:primer-service";
-              primer-client = primerFlake.packages."primer-service:exe:primer-client";
-              primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
-
-              inherit primer-service-docker-image;
-
-              inherit primer-openapi-spec;
 
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;

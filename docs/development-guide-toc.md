@@ -18,7 +18,6 @@ the various packages' Haddocks.
 
 * [Project overview](project-overview.md)
 * [Developing Primer](developing.md)
-* [The two HTTP APIs](http-apis.md)
 * [Our Haskell style guide](haskell-style-guide.md)
 * [Project FAQ](project-faq.md)
 

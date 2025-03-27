@@ -17,21 +17,15 @@ $(package-targets):
 	$(MAKE) -C primer-api $@
 	$(MAKE) -C primer-miso $@
 	$(MAKE) -C primer-selda $@
-	$(MAKE) -C primer-service $@
 	$(MAKE) -C primer-benchmark $@
-
-openapi.json: build
-	cabal run -v0 primer-service:exe:primer-openapi > $@
-	openapi-generator-cli validate --recommend -i $@
 
 develop-frontend:
 	$(MAKE) -C primer-miso develop-frontend
 
 clean:
 	cabal clean
-	rm -f openapi.json
 
-.PHONY: build $(project-targets) $(package-targets) openapi.json clean
+.PHONY: build $(project-targets) $(package-targets) clean
 
 # Disabled until Weeder is fixed with haskell.nix
 
