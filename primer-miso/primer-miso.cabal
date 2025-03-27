@@ -51,7 +51,7 @@ library
     , jsaddle         ^>=0.9.9.2
     , jsaddle-dom     ^>=0.9.9.2
     , linear          ^>=1.23
-    , miso            ^>=1.8.5.0
+    , miso            ^>=1.8.7.0
     , mtl             >=2.2.2    && <2.4.0
     , optics          >=0.4      && <0.5.0
     , primer          ^>=0.7.2
@@ -59,7 +59,7 @@ library
     , uniplate        >=1.6      && <1.7.0
 
   if arch(wasm32)
-    build-depends: jsaddle-wasm ^>=0.0.1.0
+    build-depends: jsaddle-wasm
 
   else
     build-depends:
@@ -93,7 +93,7 @@ executable primer-miso
 
   if arch(wasm32)
     build-depends:
-      , ghc-experimental  ^>=0.1.0.0
+      , ghc-experimental
       , jsaddle-wasm
 
     ghc-options:

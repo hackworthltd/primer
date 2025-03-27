@@ -39,7 +39,7 @@ benchmarks: True
 
 tests: True
 
-allow-newer: servant-openapi3:base, openapi3:*, selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time
+allow-newer: servant-openapi3:base, openapi3:*, selda:*, hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, protolude:ghc-prim
 
 package primer
   test-options: "--size-cutoff=32768"
@@ -70,14 +70,6 @@ source-repository-package
   tag: 2e3dc54d7de8365b3be84da76f08327dc8b40f61
   subdir: selda selda-sqlite
   --sha256: 0fw336sb03sc54pzmkz6jn989zvbnwnzypb9n0ackprymnvh8mym
-
--- Until a new Hackage release is made which includes
--- https://github.com/dmjio/miso/pull/752
-source-repository-package
-  type: git
-  location: https://github.com/dmjio/miso
-  tag: 2b548d48bffb0e8ae28a6cfb886e4afb0d8be37a
-  --sha256: sha256-fzDEa8vKXgxPPB+8NDLmhn2Jw1UDZso7e/klwidCfhM=
 
 -- Wasm workarounds.
 --
