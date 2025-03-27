@@ -241,17 +241,15 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1736814899,
-        "narHash": "sha256-5ecjTrtyFRjFSSt39aUUfvBAiLmmR0f3IuhhMcI4kXE=",
+        "lastModified": 1743018267,
+        "narHash": "sha256-f+egD12IqvYSI1FNB02ETSodqUwn449gapCwTaQhEz0=",
         "ref": "refs/heads/master",
-        "rev": "a9102d59d00bc87550dda902c8084a74f9742c00",
-        "revCount": 230,
+        "rev": "1e2e05f23be5c2280f2f86af2f4a5b548f0db45f",
+        "revCount": 250,
         "type": "git",
         "url": "https://gitlab.haskell.org/ghc/ghc-wasm-meta"
       },
       "original": {
-        "ref": "refs/heads/master",
-        "rev": "a9102d59d00bc87550dda902c8084a74f9742c00",
         "type": "git",
         "url": "https://gitlab.haskell.org/ghc/ghc-wasm-meta"
       }
@@ -704,11 +702,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1736701207,
-        "narHash": "sha256-jG/+MvjVY7SlTakzZ2fJ5dC3V1PrKKrUEOEE30jrOKA=",
+        "lastModified": 1742889210,
+        "narHash": "sha256-hw63HnwnqU3ZQfsMclLhMvOezpM7RSB0dMAtD5/sOiw=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ed4a395ea001367c1f13d34b1e01aa10290f67d6",
+        "rev": "698214a32beb4f4c8e3942372c694f40848b360d",
         "type": "github"
       },
       "original": {
