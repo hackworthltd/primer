@@ -41,7 +41,7 @@ if [ "$#" -ne 0 ]; then
     exit 1
 fi
 
-if ! [ -e .git ] || ! [ -d primer ] || ! [ -d sqitch ]; then
+if ! [ -e .git ] || ! [ -d primer ] ; then
     echo "Please run this script from the root of the Primer repository." >&2
     exit 2
 fi
@@ -213,34 +213,6 @@ else
     echo "cabal path is: " "$CABAL_COMMAND"
     CABAL_VERSION=$(cabal --numeric-version)
     echo "cabal version is: " "$CABAL_VERSION"
-fi
-echo ""
-
-SQITCH_COMMAND="$(command -v sqitch)"
-PRIMER_SQITCH_COMMAND="$(command -v primer-sqitch)"
-echo "Sqitch:"
-if ! [ -x "$SQITCH_COMMAND" ]; then
-    echo "sqitch is not in the PATH."
-else
-    echo "sqitch path is: " "$SQITCH_COMMAND"
-    SQITCH_VERSION=$(sqitch --version)
-    echo "sqitch version is: " "$SQITCH_VERSION"
-fi
-if ! [ -x "$PRIMER_SQITCH_COMMAND" ]; then
-    echo "primer-sqitch is not in the PATH."
-else
-    echo "primer-sqitch path is: " "$PRIMER_SQITCH_COMMAND"
-fi
-echo ""
-
-SQLITE_COMMAND="$(command -v sqlite3)"
-echo "SQLite:"
-if ! [ -x "$SQLITE_COMMAND" ]; then
-    echo "sqlite3 is not in the PATH."
-else
-    echo "sqlite3 path is: " "$SQLITE_COMMAND"
-    SQLITE_VERSION=$(sqlite3 --version)
-    echo "sqlite3 version is: " "$SQLITE_VERSION"
 fi
 echo ""
 

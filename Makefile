@@ -16,7 +16,6 @@ $(package-targets):
 	$(MAKE) -C primer $@
 	$(MAKE) -C primer-api $@
 	$(MAKE) -C primer-miso $@
-	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-benchmark $@
 
 develop-frontend:

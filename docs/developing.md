@@ -45,13 +45,6 @@ need additional bespoke tools that are provided automatically by the
 `nix develop` shell. These tests will likely fail if they're run
 locally but not from within the Nix shell.
 
-Additionally, the scripts we use for out-of-band [database
-operations](database.md), such as database creation and migration, may
-require specific versions of third-party tools like
-[Sqitch](https://sqitch.org), and must be configured with
-project-specific settings and schemas in any case, all of which is
-handled automatically by Nix.
-
 We'll make a best-effort attempt to ensure that the most common
 development workflows are supported without Nix, or at least
 documented, but please note that we don't have the maintainer
