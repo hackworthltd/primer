@@ -64,6 +64,7 @@ library
     , exceptions
     , async
     , logging-effect
+    , transformers
 
   if arch(wasm32)
     build-depends: jsaddle-wasm
