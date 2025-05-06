@@ -19,6 +19,7 @@ steps:
       build.pull_request.labels includes "Run Wasm tests"
     command: |
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 test
 
   - label: ":haskell: :macos: Primer Wasm tests"
@@ -27,6 +28,7 @@ steps:
       build.pull_request.labels includes "Run Wasm tests"
     command: |
       nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 update
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
       nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 test
     agents:
       os: "darwin"
@@ -37,7 +39,7 @@ steps:
       !(build.pull_request.labels includes "Run Wasm tests")
     command: |
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
-      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
 
   - label: ":haskell: :macos: Primer Wasm build"
     if: |
@@ -45,6 +47,6 @@ steps:
       !(build.pull_request.labels includes "Run Wasm tests")
     command: |
       nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 update
-      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
     agents:
       os: "darwin"
