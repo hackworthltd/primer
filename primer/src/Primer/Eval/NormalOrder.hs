@@ -15,6 +15,7 @@ import Foreword hiding (hoistAccum)
 
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT)
+import Optics (lens, (.~), (^.))
 import Primer.Core (
   Expr,
   Expr' (
@@ -28,6 +29,7 @@ import Primer.Core (
     LetType,
     Letrec
   ),
+  HasID (_id),
   Type' (
     TForall,
     TLet
@@ -74,6 +76,19 @@ import Primer.Zipper.Type (
 data RedexWithContext
   = RExpr ExprZ Redex
   | RType TypeZ RedexType
+
+-- TODO isn't there a simpler way to define this? it's a bit boilerplatey
+instance HasID RedexWithContext where
+  _id =
+    lens
+      ( \case
+          RExpr a _ -> a ^. _id
+          RType a _ -> a ^. _id
+      )
+      ( \case
+          RExpr a b -> \a' -> RExpr (a & _id .~ a') b
+          RType a c -> \a' -> RType (a & _id .~ a') c
+      )
 
 data ViewLet = ViewLet
   { bindingVL :: LetBinding

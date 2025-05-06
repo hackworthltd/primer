@@ -17,11 +17,13 @@ import Clay qualified
 import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Catch.Pure (CatchT (runCatchT))
 import Control.Monad.Log (PureLoggingT, Severity (..), WithSeverity (..), runLoggingT, runPureLoggingT)
+import Control.Monad.Trans.Maybe
 import Control.Monad.Writer (MonadWriter (tell), Writer, WriterT, runWriterT)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
+import Data.List.NonEmpty qualified as NE
 import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Text.IO qualified as T
@@ -48,6 +50,7 @@ import Miso (
   Effect,
   JSM,
   LogLevel (Off),
+  Transition,
   View,
   button_,
   class_,
@@ -73,7 +76,7 @@ import Miso (
 import Miso qualified
 import Miso.String (MisoString)
 import Optics (Lens', forOf, lens, lensVL, sequenceOf, to, traverseOf, use, (%), (%~), (.~), (^.), (^..), _Just)
-import Optics.State.Operators ((.=), (?=))
+import Optics.State.Operators ((%=), (.=), (?=))
 import Primer.API (APILog, Env (Env), edit, findASTDef, runPrimerM)
 import Primer.Action (toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
@@ -148,7 +151,8 @@ import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Database qualified as DB
 import Primer.Def (ASTDef, DefMap, defAST)
-import Primer.Eval.NormalOrder (NormalOrderOptions (..))
+import Primer.Eval (AvoidShadowing (NoAvoidShadowing), redexes, step)
+import Primer.Eval.NormalOrder (NormalOrderOptions (..), RedexWithContext (..), findRedex)
 import Primer.Eval.Redex (Dir (Chk, Syn), MonadEval, RunRedexOptions (..), ViewRedexOptions (..))
 import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull, evalFullStepCount)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
@@ -162,6 +166,7 @@ import Primer.Miso.Layout (
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
   DefSelectionT,
+  M,
   ModuleT (..),
   NodeSelectionT,
   P2,
@@ -179,13 +184,14 @@ import Primer.Miso.Util (
   optToName,
   realToClay,
   runTC,
+  runTC',
   startAppWithSavedState,
   stringToOpt,
   tcBasicProg,
   typeBindingsInExpr,
  )
 import Primer.Module (Module (moduleDefs, moduleName), moduleDefsQualified)
-import Primer.Name (Name, unName)
+import Primer.Name (Name, NameCounter, unName)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
@@ -198,6 +204,9 @@ start =
           Model
             { app
             , actionPanelOptionsMode = Nothing
+            , evalHistory = pure (defAnnExpr $ modelDef app, initialEvalState)
+            , evalRedexes = ([], Nothing)
+            , evalFullscreen = False
             }
       , update = updateModel
       , view = viewModel
@@ -251,6 +260,10 @@ data Model = Model
   { app :: Primer.App.App
   , -- TODO look in to component-ising the action panel?
     actionPanelOptionsMode :: Maybe (Available.InputAction, Available.Options)
+  , evalHistory :: NonEmpty (Expr, (ID, NameCounter))
+  -- ^ current first, original last - includes eval monad state
+  , evalRedexes :: ([ID], Maybe ID)
+  , evalFullscreen :: Bool
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
@@ -266,15 +279,22 @@ data Action
   | SetApp Primer.App.App
   | RunUndo
   | RunRedo
+  | -- | SetEvalExpr Expr
+    SelectRedex ID
+  | StepBackEval
+  | ToggleFullscreenEval
   deriving stock (Eq, Show)
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
-    NoOp _ -> pure ()
+    NoOp s -> scheduleIO_ $ consoleLog s
+    -- NoOp s -> scheduleIO_ $ consoleLog $ "NoOp: " <> s
     SelectDef d -> do
       modelSelection ?= DefSelection d Nothing
       #actionPanelOptionsMode .= Nothing
+      app <- use #app
+      setEvalExpr True initialEvalState $ defAnnExpr $ modelDef app
     SelectNode sel -> do
       modelSelection % _Just % #node ?= sel
       #actionPanelOptionsMode .= Nothing
@@ -315,11 +335,61 @@ updateModel =
       #actionPanelOptionsMode .= Nothing
     SetProg p -> modelProg .= p
     SetApp a -> #app .= a
+    SelectRedex id -> do
+      (currentEvalExpr, s0) <- head <$> use #evalHistory
+      app <- use #app
+      let
+        -- TODO DRY with view
+        defs = progAllDefs (appProg app)
+        tydefs = progAllTypeDefs (appProg app)
+        defs' = snd <$> defs
+        tydefs' = snd <$> tydefs
+      let (r, s') = runEval s0 $ step NoAvoidShadowing tydefs' defs' currentEvalExpr dir id
+      case r of
+        Left err -> scheduleIO_ $ consoleLog $ "eval error: " <> show err
+        -- Right (expr, detail) -> setEvalExpr s0 expr
+        Right (expr, detail) -> setEvalExpr False s' expr
+    StepBackEval -> do
+      #evalHistory %= \case
+        e :| [] -> e :| [] -- TODO this shouldn't really happen - we should actually grey out the button in this state
+        _ :| e : es -> e :| es
+      -- TODO this repetition is pretty ugly... see other `redexes` call
+      use #evalHistory >>= \case
+        e :| _ -> do
+          app <- use #app
+          let
+            -- TODO DRY with view
+            defs = progAllDefs (appProg app)
+            tydefs = progAllTypeDefs (appProg app)
+            defs' = snd <$> defs
+            tydefs' = snd <$> tydefs
+          let (rxs, s') =
+                runEval (snd e) do
+                  normalOrderRedex <-
+                    fmap (fmap getID) $
+                      runMaybeT $
+                        findRedex
+                          StopAtBinders -- TODO ?
+                          (ViewRedexOptions True True False) -- TODO ?
+                          tydefs'
+                          defs'
+                          dir
+                          (fst e)
+                  allRedexes <-
+                    redexes
+                      NoAvoidShadowing
+                      tydefs'
+                      defs'
+                      dir
+                      (fst e)
+                  pure (allRedexes, normalOrderRedex)
+          #evalRedexes .= rxs
+    ToggleFullscreenEval -> #evalFullscreen %= not
 
 viewModel :: Model -> View Action
 viewModel model@Model{..} =
   div_
-    [id_ "miso-root"]
+    ([id_ "miso-root"] <> mwhen evalFullscreen [class_ "fullscreen-eval"])
     $ [ div_
           [id_ "def-panel"]
           $ (Map.keys $ Map.mapMaybe (traverse defAST) $ progAllDefs $ appStateProg $ appCurrentState app) <&> \def ->
@@ -441,24 +511,27 @@ viewModel model@Model{..} =
               -- but this blocks the whole program
               -- put it in to a background process
               -- look in to what dmjio said about lack of threaded runtime not being a major issue
-              -- TODO try for eval mode?
-              let evalResult =
-                    either absurd (fst @_ @(WithSeverity ()))
-                      . runTC
-                      . runPureLoggingT
-                      . evalFull UnderBinders (ViewRedexOptions False False False) (RunRedexOptions False) tydefs' defs' 500 Chk
-                      $ Ann (Meta maxBound Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
-               in case evalResult of
-                    Left err -> case err of
-                      TimedOut expr ->
-                        [ text "eval timed out at:"
-                        , fst . viewTree $ viewTreeExpr mkMeta expr
-                        ]
-                    Right expr -> [fst . viewTree $ viewTreeExpr mkMeta expr]
+              [ button_ [onClick StepBackEval] ["↩"]
+              , button_ [onClick ToggleFullscreenEval] ["⛶"]
+              , button_ [onClick ToggleFullscreenEval] ["⛶"]
+              , fst
+                  . viewTree
+                  $ viewTreeExpr
+                    ( \(getID -> id) ->
+                        if not $ id `elem` fst model.evalRedexes
+                          then (Nothing, NoHighlight)
+                          else
+                            ( Just $ SelectRedex id
+                            , if snd model.evalRedexes == Just id then AnimatedHighlight else SimpleHighlight
+                            )
+                    )
+                  $ fst
+                  $ head model.evalHistory
+              ]
           ]
           where
-            mkMeta = const (Nothing, False)
-            isSelected x = (getID <$> defSel.node) == Just (getID x)
+            mkMeta = const (Nothing, NoHighlight)
+            isSelected x = if (getID <$> defSel.node) == Just (getID x) then SimpleHighlight else NoHighlight
             defs = progAllDefs (appProg app)
             tydefs = progAllTypeDefs (appProg app)
             defs' = snd <$> defs
@@ -473,10 +546,15 @@ viewModel model@Model{..} =
 -- but in the long run, we intend to have no unselectable nodes anyway
 data NodeViewData action = NodeViewData
   { clickAction :: Maybe action
-  , selected :: Bool
+  , highlight :: NodeHighlight
   , level :: Level
   , opts :: NodeViewOpts action
   }
+
+data NodeHighlight
+  = NoHighlight
+  | SimpleHighlight
+  | AnimatedHighlight
 
 data NodeViewOpts action
   = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
@@ -525,7 +603,12 @@ viewNodeData position dimensions edges node = case node.opts of
                 (Clay.px $ realToClay position.y)
         ]
           <> foldMap' (\a -> [onClick a, class_ "selectable"]) node.clickAction
-          <> mwhen node.selected [class_ "selected"]
+          <> map class_ case node.highlight of
+            NoHighlight -> []
+            _ ->
+              "highlighted" : case node.highlight of
+                SimpleHighlight -> []
+                AnimatedHighlight -> ["animated"]
       )
       $ edges -- Edges come first so that they appear behind contents.
         <> [ div_
@@ -564,7 +647,7 @@ viewNodeData position dimensions edges node = case node.opts of
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
-  (TermMeta' a b c -> (Maybe action, Bool)) ->
+  (TermMeta' a b c -> (Maybe action, NodeHighlight)) ->
   Expr' a b c ->
   Tree.Tree (NodeViewData action)
 viewTreeExpr mkMeta e =
@@ -594,12 +677,12 @@ viewTreeExpr mkMeta e =
           [ [viewTreeExpr mkMeta scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
-                ( NodeViewData Nothing False Expr
+                ( NodeViewData Nothing NoHighlight Expr
                     $ PatternBoxNode
                     $ Just
                     $ viewTree
                     $ Tree.Node
-                      ( NodeViewData Nothing False Expr case p of
+                      ( NodeViewData Nothing NoHighlight Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
                       )
@@ -611,7 +694,7 @@ viewTreeExpr mkMeta e =
                 [viewTreeExpr mkMeta r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (NodeViewData Nothing False Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
+              CaseFallback r -> [Tree.Node (NodeViewData Nothing NoHighlight Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
           ]
       _ ->
         mconcat
@@ -621,11 +704,11 @@ viewTreeExpr mkMeta e =
           , map (viewTreeExpr mkMeta) (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (NodeViewData Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (NodeViewData Nothing NoHighlight l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
-  (Either b c -> (Maybe action, Bool)) ->
+  (Either b c -> (Maybe action, NodeHighlight)) ->
   Type' b c ->
   Tree.Tree (NodeViewData action)
 viewTreeType mkMeta t =
@@ -644,14 +727,14 @@ viewTreeType mkMeta t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (NodeViewData Nothing False Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (NodeViewData Nothing NoHighlight Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
         <> map (viewTreeType mkMeta) (children t)
 
 viewTreeKind ::
   (Data c) =>
-  (c -> (Maybe action, Bool)) ->
+  (c -> (Maybe action, NodeHighlight)) ->
   Kind' c ->
   Tree.Tree (NodeViewData action)
 viewTreeKind mkMeta k =
@@ -811,3 +894,111 @@ instance Semigroup a => Semigroup (WithSeverity a) where
   WithSeverity s x <> WithSeverity _ x' = WithSeverity s (x <> x')
 instance Monoid a => Monoid (WithSeverity a) where
   mempty = WithSeverity Informational mempty
+
+defAnnExpr :: ASTDefT -> Expr
+defAnnExpr def = Ann (Meta maxBound Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
+
+-- TODO DRY with `viewModel`
+modelDef :: Primer.App.App -> ASTDefT
+modelDef = fromMaybe (error "selected def is not fully typechecked") . assumeDefHasTypeCheckInfo . snd . findProgDef . appProg
+
+-- TODO DRY with `runAction`
+findProgDef :: Prog -> (Editable, ASTDef)
+findProgDef prog =
+  either
+    -- TODO how impossible is this, and can we fix upstream to throw proper typed errors?
+    (const $ error "findASTDef failure in runAction")
+    identity
+    . runIdentity
+    . runCatchT
+    . findASTDef (progAllDefs prog)
+    . (.def)
+    . (\case SelectionTypeDef _ -> error "type def selected"; SelectionDef s -> s)
+    . fromMaybe (error "no selected def in prog")
+    $ progSelection prog
+
+-- runEval :: PureLoggingT (WithSeverity ()) (M Void) c -> c
+-- runEval = either absurd (fst @_ @(WithSeverity ())) . runTC . runPureLoggingT
+-- runEval :: MonadState Model m => PureLoggingT (WithSeverity ()) (M Void) w -> m w
+-- runEval x = do
+--   -- s <- use #evalState'
+--   let (r, s') = either absurd (first $ fst @_ @(WithSeverity ())) . runTC' s $ runPureLoggingT x
+--   -- #evalState' .= s'
+--   pure r
+runEval :: (ID, NameCounter) -> PureLoggingT (WithSeverity ()) (M Void) w -> (w, (ID, NameCounter))
+runEval s x = either absurd (first $ fst @_ @(WithSeverity ())) . runTC' s $ runPureLoggingT x
+
+-- setEvalExpr :: (MonadState Model m) => Bool -> (ID, NameCounter) -> Expr -> m ()
+setEvalExpr :: Bool -> (ID, NameCounter) -> Expr -> Transition w Model ()
+setEvalExpr reset s0 expr = do
+  app <- use #app
+  -- currentEvalExpr <- head <$> use #evalHistory
+  let
+    -- TODO DRY with view
+    defs = progAllDefs (appProg app)
+    tydefs = progAllTypeDefs (appProg app)
+    defs' = snd <$> defs
+    tydefs' = snd <$> tydefs
+  -- def = fromMaybe (error "selected def is not fully typechecked") $ assumeDefHasTypeCheckInfo defNoTC
+  -- (editable, defNoTC) = fromMaybe (error "selected def not found") $ traverse defAST =<< defs !? defSel.def
+
+  -- TODO eval panel should really be a component, especially now we have interactivity...
+  -- currentEvalExpr = defAnnExpr def
+  -- (evalResult,
+  let (rxs, s') =
+        runEval s0 do
+          -- TODO add button for "fast-forwarding" to this
+          -- (and one for redo)
+          -- (,)
+          --   <$> evalFull
+          --     UnderBinders
+          --     (ViewRedexOptions False False False)
+          --     (RunRedexOptions False)
+          --     tydefs'
+          --     defs'
+          --     2
+          --     dir
+          --     (defAnnExpr def)
+          --   <*>
+          normalOrderRedex <-
+            fmap (fmap getID) $
+              runMaybeT $
+                findRedex
+                  StopAtBinders -- TODO ?
+                  (ViewRedexOptions True True False) -- TODO ?
+                  tydefs'
+                  defs'
+                  dir
+                  expr
+          allRedexes <-
+            redexes
+              NoAvoidShadowing
+              tydefs'
+              defs'
+              dir
+              expr
+          pure (allRedexes, normalOrderRedex)
+  -- TODO does querying redexes even change the state? I'd assume it's read-only
+  -- let's check it is in examples, and then add warning for when it isn't?
+  -- actually if we're pretty confident then ignoring output and leaving comment is fine
+  -- assuming it significantly simplifies things
+  -- scheduleIO_ $ consoleLog $ show (s0 == s', s0, s')
+  if reset
+    then
+      #evalHistory .= pure (expr, s0)
+    -- #evalHistory .= pure (expr, initialEvalState)
+    else
+      #evalHistory %= NE.cons (expr, s0)
+  -- #evalHistory %= NE.cons (expr, s0)
+  #evalRedexes .= rxs
+
+-- eh <- use #evalHistory
+-- traceShow (length eh, s') $ pure ()
+-- pure ()
+
+-- TODO don't hardcode?
+dir :: Dir
+dir = Chk
+
+initialEvalState :: (ID, NameCounter)
+initialEvalState = (0, toEnum 0)

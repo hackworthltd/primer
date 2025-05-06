@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Things which should really be upstreamed rather than living in this project.
@@ -39,6 +40,8 @@ module Primer.Miso.Util (
   stringToOpt,
   defSelectionTtoDefSelection',
   assumeDefHasTypeCheckInfo,
+  runTC',
+  M (..),
 ) where
 
 import Foreword hiding (zero)
@@ -194,6 +197,11 @@ instance MonadFresh NameCounter (M e) where
   fresh = M $ _2 <<%= succ
 runTC :: M e a -> Either e a
 runTC = runExcept . flip evalStateT (0, toEnum 0) . (.unM)
+
+-- TODO we should try to keep things within the monadic context, rather than explicitly handling state like this
+-- isn't this some sort of unlift instance?
+runTC' :: (ID, NameCounter) -> M e a -> (Either e (a, (ID, NameCounter)))
+runTC' s0 = runExcept . flip runStateT s0 . (.unM)
 
 -- analogous with `ExprT`/`TypeT`
 -- type KindT = Kind' KindMetaT
