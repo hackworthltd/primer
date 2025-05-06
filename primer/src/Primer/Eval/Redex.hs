@@ -520,9 +520,9 @@ _freeVarsLetBinding =
   (_LetBind % _2 % _freeVars')
     `summing` ( _LetrecBind
                   <% ( to (\(a, b, c) -> (a, (b, c)))
-                        % isnd
-                        % (_1 % _freeVars' `summing` _2 % _freeVarsTy')
-                        & ifiltered ((/=) . unLocalName)
+                         % isnd
+                         % (_1 % _freeVars' `summing` _2 % _freeVarsTy')
+                         & ifiltered ((/=) . unLocalName)
                      )
               )
     `summing` (_LetTyBind % _freeVarsLetTypeBinding % to unLocalName)

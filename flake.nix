@@ -53,7 +53,7 @@
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.16.2.0";
+      fourmoluVersion = "0.18.0.0";
 
       allOverlays = [
         inputs.haskell-nix.overlay
@@ -429,7 +429,7 @@
                   withHoogle = true;
 
                   tools = {
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.9";
+                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.10";
 
                     implicit-hie = "latest";
 

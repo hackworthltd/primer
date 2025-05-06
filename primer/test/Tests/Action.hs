@@ -1219,7 +1219,7 @@ unit_refine_mismatch_var =
               ktype
               ( tvar "a"
                   `tfun` ( (tcon tList `tapp` tvar "a")
-                            `tfun` (tcon tList `tapp` tvar "a")
+                             `tfun` (tcon tList `tapp` tvar "a")
                          )
               )
         )
@@ -1234,7 +1234,7 @@ unit_refine_mismatch_var =
               ktype
               ( tvar "a"
                   `tfun` ( (tcon tList `tapp` tvar "a")
-                            `tfun` (tcon tList `tapp` tvar "a")
+                             `tfun` (tcon tList `tapp` tvar "a")
                          )
               )
         )
