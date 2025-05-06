@@ -43,9 +43,9 @@
         let
           v = inputs.self.rev or inputs.self.lastModifiedDate;
         in
-        builtins.trace "Nix Primer version is ${v}" "git-${v}";
+          builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc9101";
+      ghcVersion = "ghc9122";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -429,7 +429,7 @@
                   withHoogle = true;
 
                   tools = {
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.10";
+                    #haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.10";
 
                     implicit-hie = "latest";
 
