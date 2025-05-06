@@ -429,7 +429,7 @@
                   withHoogle = true;
 
                   tools = {
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.9";
+                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.10";
 
                     implicit-hie = "latest";
 
