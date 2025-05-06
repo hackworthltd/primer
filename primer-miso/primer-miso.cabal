@@ -63,7 +63,7 @@ library
 
   else
     build-depends:
-      , jsaddle-warp  ^>=0.9.9.2
+      , jsaddle-warp  ==0.9.9.2
       , warp          >=3.3       && <3.5
       , websockets    ^>=0.13.0.0
 
