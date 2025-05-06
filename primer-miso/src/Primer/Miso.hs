@@ -278,37 +278,37 @@ viewNodeData position dimensions edges node = case node.opts of
       )
       $ edges -- Edges come first so that they appear behind contents.
         <> [ div_
-              [ class_ "node-contents"
-              , style_ $ clayToMiso do
-                  Clay.width $ Clay.px $ realToClay dimensions.x
-                  Clay.height $ Clay.px $ realToClay dimensions.y
-                  Clay.boxSizing Clay.borderBox
-                  Clay.display Clay.flex
-                  Clay.justifyContent Clay.center
-                  Clay.alignItems Clay.center
-              ]
-              case node.opts of
-                PatternBoxNode (Just p) -> [fst p]
-                PatternBoxNode Nothing ->
-                  [ div_
-                      [class_ "fallback-pattern"]
-                      -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
-                      [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
-                  ]
-                _ ->
-                  [ div_
-                      [ class_ "node-text"
-                      ]
-                      [ text case node.opts of
-                          SyntaxNode{text = t} -> t
-                          HoleNode{empty = e} -> if e then "?" else "⚠️"
-                          PrimNode pc -> case pc of
-                            PrimChar c' -> show c'
-                            PrimInt n -> show n
-                          ConNode{name} -> unName name
-                          VarNode{name} -> unName name
-                      ]
-                  ]
+               [ class_ "node-contents"
+               , style_ $ clayToMiso do
+                   Clay.width $ Clay.px $ realToClay dimensions.x
+                   Clay.height $ Clay.px $ realToClay dimensions.y
+                   Clay.boxSizing Clay.borderBox
+                   Clay.display Clay.flex
+                   Clay.justifyContent Clay.center
+                   Clay.alignItems Clay.center
+               ]
+               case node.opts of
+                 PatternBoxNode (Just p) -> [fst p]
+                 PatternBoxNode Nothing ->
+                   [ div_
+                       [class_ "fallback-pattern"]
+                       -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
+                       [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
+                   ]
+                 _ ->
+                   [ div_
+                       [ class_ "node-text"
+                       ]
+                       [ text case node.opts of
+                           SyntaxNode{text = t} -> t
+                           HoleNode{empty = e} -> if e then "?" else "⚠️"
+                           PrimNode pc -> case pc of
+                             PrimChar c' -> show c'
+                             PrimInt n -> show n
+                           ConNode{name} -> unName name
+                           VarNode{name} -> unName name
+                       ]
+                   ]
            ]
 
 viewTreeExpr ::
