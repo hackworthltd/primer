@@ -26,8 +26,8 @@ steps:
       build.branch =~ /^gh-readonly-queue\// ||
       build.pull_request.labels includes "Run Wasm tests"
     command: |
-      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
-      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 test
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 update
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 test
     agents:
       os: "darwin"
 
@@ -44,7 +44,7 @@ steps:
       build.branch !~ /^gh-readonly-queue\// &&
       !(build.pull_request.labels includes "Run Wasm tests")
     command: |
-      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
-      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 update
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32
     agents:
       os: "darwin"
