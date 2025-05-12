@@ -152,7 +152,7 @@ import Primer.Eval.Detail (
 import Primer.Eval.Detail qualified
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
-import Primer.Log (ConvertLogMessage (convert), logWarning)
+import Primer.Log (ConvertLogMessage, logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primConName)
 import Primer.TypeDef (
@@ -233,9 +233,6 @@ data EvalLog
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
-
-instance ConvertLogMessage EvalLog EvalLog where
-  convert = identity
 
 data Redex
   = -- f  ~>  e : T  where we have  f : T ; f = e  in (global) scope

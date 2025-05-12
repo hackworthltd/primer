@@ -23,6 +23,8 @@ module Primer.Action (
   applyActionsToParam,
   applyActionsToField,
   insertSubseqBy,
+  setCursorBody,
+  setCursorSig,
 ) where
 
 import Foreword hiding (mod)
@@ -1471,3 +1473,11 @@ toProg' actions defName sel =
       SigNode -> SigAction
       BodyNode -> BodyAction
   ]
+
+-- While `Action`s are not directly exposed,
+-- `SetCursor` is special in that it is never triggered directly from the action panel.
+-- It can be useful for clients to set the selection, and it is always safe so long as the `ID` exists.
+setCursorBody :: ID -> ProgAction
+setCursorBody id = BodyAction [SetCursor id]
+setCursorSig :: ID -> ProgAction
+setCursorSig id = SigAction [SetCursor id]
