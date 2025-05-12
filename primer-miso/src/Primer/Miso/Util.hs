@@ -213,8 +213,8 @@ instance MonadFresh ID (M e) where
   fresh = M $ _1 <<%= succ
 instance MonadFresh NameCounter (M e) where
   fresh = M $ _2 <<%= succ
-runTC :: M e a -> Either e a
-runTC = runExcept . flip evalStateT (0, toEnum 0) . (.unM)
+runTC :: (ID, NameCounter) -> M e a -> Either e a
+runTC s0 = runExcept . flip evalStateT s0 . (.unM)
 
 -- analogous with `ExprT`/`TypeT`
 -- type KindT = Kind' KindMetaT
