@@ -1,7 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -14,7 +14,6 @@ module Primer.Miso.Util (
   unit_X,
   unitY,
   unit_Y,
-  tcBasicProg,
   runTC,
   TypeT,
   TermMeta',
@@ -31,16 +30,30 @@ module Primer.Miso.Util (
   nodeSelectionType,
   DefSelectionT,
   realToClay,
+  availableForSelection,
+  astDefTtoAstDef,
+  optToName,
+  stringToOpt,
+  assumeDefHasTypeCheckInfo,
+  findASTDef,
+  assumeDefSelectionHasTypeCheckInfo,
+  selectedDefName,
+  runMutationWithNullDb,
 ) where
 
 import Foreword hiding (zero)
 
 import Clay qualified
 import Clay.Stylesheet qualified as Clay
+import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
+import Control.Monad.Log (WithSeverity)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
+import Data.UUID.Types qualified as UUID
+import GHC.Base (error)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
@@ -58,30 +71,64 @@ import Optics (
   Field2 (_2),
   atraversalVL,
   lensVL,
+  sequenceOf,
+  traverseOf,
+  (%),
   (.~),
   (^.),
  )
 import Optics.State.Operators ((<<%=))
-import Primer.App (DefSelection, NodeSelection (meta), Prog, progCxt)
+import Primer.API (APILog, Env (Env), edit, runPrimerM)
+import Primer.Action.Available (Action)
+import Primer.Action.Available qualified as Available
+import Primer.App (
+  DefSelection (..),
+  Editable,
+  Level,
+  MutationRequest,
+  NodeSelection (..),
+  NodeType (..),
+  Selection,
+  Selection' (..),
+  TypeDefSelection (..),
+ )
+import Primer.App qualified
 import Primer.Core (
   Expr' (LAM, Lam, Let, LetType, Letrec),
+  ExprMeta,
+  GVarName,
+  GlobalName,
+  HasID,
   ID,
-  Kind' (KType),
+  Kind',
+  KindMeta,
   LVarName,
+  LocalName,
   Meta,
   ModuleName,
+  TyConName,
   TyVarName,
   Type' (TEmptyHole, TForall, THole, TLet),
   TypeCache (..),
   TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
+  TypeMeta,
+  getID,
+  globalNamePretty,
+  unsafeMkGlobalName,
+  unsafeMkLocalName,
+  _exprMeta,
+  _exprTypeMeta,
   _type,
+  _typeMeta,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Def (ASTDef (..), astDefExpr, defAST)
+import Primer.Database qualified as DB
+import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Module (Module (moduleName), moduleDefs)
+import Primer.Log (runPureLogT)
 import Primer.Name (Name, NameCounter)
-import Primer.Typecheck (ExprT, TypeError, check, checkKind)
+import Primer.TypeDef (TypeDefMap)
+import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
+import StmContainers.Map qualified as StmMap
 
 {- Miso -}
 
@@ -158,17 +205,6 @@ instance (HasField "y" (f a) a) => HasField "y" (Point f a) a where
   getField = getField @"y" . unP
 
 {- Primer -}
-
--- `tcWholeProg` throws away information by not returning a prog containing `ExprT`s
--- we use `check` since, for whatever reason, `synth` deletes the case branches in `map`
-tcBasicProg :: Prog -> Module -> Either TypeError ModuleT
-tcBasicProg p m =
-  runTC
-    . flip (runReaderT @_ @(M TypeError)) (progCxt p)
-    $ ModuleT (moduleName m) <$> for (Map.mapMaybe defAST $ moduleDefs m) \ASTDef{..} ->
-      ASTDefT
-        <$> check (forgetTypeMetadata astDefType) astDefExpr
-        <*> checkKind (KType ()) astDefType
 
 -- TODO this is all basically copied from unexposed parts of Primer library - find a way to expose
 newtype M e a = M {unM :: StateT (ID, NameCounter) (Except e) a}
@@ -250,3 +286,89 @@ nodeSelectionType =
           THole{} -> True
           TEmptyHole{} -> True
           _ -> False
+
+-- TODO keep an eye out for whether these ever return `Nothing` in practice
+-- the current hypothesis is that, because we already typecheck on initialisation and on performing each action,
+-- the app only ever deals with typechecked expressions
+-- and that it is therefore possible that we could refactor the library to assert this in the Haskell types
+-- note that we try to always work with typechecked expressions in the frontend,
+-- as being able to assume that metadata is always available makes the core application code simpler
+assumeDefHasTypeCheckInfo :: ASTDef -> Maybe ASTDefT
+assumeDefHasTypeCheckInfo def = do
+  expr <- sequenceOf (_exprMeta % _type) (astDefExpr def) >>= sequenceOf (_exprTypeMeta % _type)
+  sig <- sequenceOf (_typeMeta % _type) (astDefType def)
+  pure ASTDefT{expr, sig}
+assumeDefSelectionHasTypeCheckInfo :: DefSelection (Either ExprMeta (Either TypeMeta KindMeta)) -> Maybe DefSelectionT
+assumeDefSelectionHasTypeCheckInfo =
+  traverseOf #node $ traverse $ traverseOf #meta $ bitraverse (sequenceOf _type) $ bitraverse (sequenceOf _type) pure
+
+-- see `assumeDefHasTypeCheckInfo`
+-- sometimes we need to discard that extra type-level information,
+-- in order to get an input for various Primer library functions
+astDefTtoAstDef :: ASTDefT -> ASTDef
+astDefTtoAstDef def = ASTDef{astDefExpr = exprTtoExpr def.expr, astDefType = typeTtoType def.sig}
+
+-- this is potentially a better API then the one which `Primer.Action.Available` currently exports
+availableForSelection ::
+  HasID a =>
+  TypeDefMap ->
+  DefMap ->
+  Level ->
+  Editable ->
+  ASTDef ->
+  DefSelection a ->
+  [Action]
+availableForSelection tydefs defs level editable def defSel = case defSel.node of
+  Nothing -> Available.forDef defs level editable defSel.def
+  Just nodeSel -> case nodeSel.nodeType of
+    BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
+    SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+
+-- this part of the actions API needs a re-think
+-- (it was perhaps too motivated by what was convenient for our old TypeScript frontend):
+-- `context` is a bit weird, and basically just means module (lack of context can mean local name or primitive)
+-- `optToName` is used for presented choices - we know these are variables, not chars or ints
+-- use of `unsafeMk` functions is necessary even though we need never convert from names to text in the first place
+-- `matchesType` is meaningless in `stringToOpt` - we should use different types for presented options and submissions
+optToName :: Available.Option -> Either (LocalName l) (GlobalName g)
+optToName opt =
+  maybe
+    (Left . unsafeMkLocalName)
+    (curry $ Right . unsafeMkGlobalName)
+    opt.context
+    opt.option
+stringToOpt :: Text -> Available.Option
+stringToOpt t = Available.Option t Nothing True
+
+-- should DRY with function of some name in `primer-api`
+-- ultimately probably only want the more general `findASTTypeOrTermDef`
+findASTDef :: Map GVarName (Editable, Def) -> GVarName -> Either Text (Editable, ASTDef)
+findASTDef allDefs def = case allDefs Map.!? def of
+  Nothing -> Left $ "unknown def: " <> globalNamePretty def
+  Just (_, DefPrim _) -> Left $ "unexpected primitive def: " <> globalNamePretty def
+  Just (editable, DefAST d) -> pure (editable, d)
+
+selectedDefName :: Selection -> Either GVarName TyConName
+selectedDefName = \case
+  SelectionDef d -> Left d.def
+  SelectionTypeDef d -> Right d.def
+
+-- this is a bit messy, but it's only temporary since we will soon want a proper database
+runMutationWithNullDb :: MutationRequest -> Primer.App.App -> IO (Seq (WithSeverity APILog), Primer.App.App)
+runMutationWithNullDb req app = do
+  let
+    -- these dummy values are enough given that we use the null DB, in one shot, with no other concurrent users
+    version = "dummy-version"
+    sid = UUID.nil
+    queueBound = 1
+  lastModified <- DB.getCurrentTime
+  sessions <- atomically do
+    m <- StmMap.new
+    StmMap.insert (DB.SessionData app DB.defaultSessionName lastModified) sid m
+    pure m
+  dbOpQueue <- newTBQueueIO queueBound
+  let runReq = runPureLogT . runPrimerM (edit @_ @APILog sid req) $ Env sessions dbOpQueue version
+  let runDB = DB.runNullDb sessions $ DB.serve $ DB.ServiceCfg dbOpQueue version
+  (_res, logs) <- either absurd (first $ first Right) <$> race runDB runReq
+  res <- atomically $ StmMap.lookup sid sessions -- returning `_res` would mean discarding the ID counter state
+  pure (logs, maybe (error "impossible: ") (.sessionApp) res)

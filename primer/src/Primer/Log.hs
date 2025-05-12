@@ -85,6 +85,9 @@ textWithSeverity (WithSeverity s m) = logSeverity s <> m
 instance ConvertLogMessage a () where
   convert = pure ()
 
+instance ConvertLogMessage a a where
+  convert = identity
+
 -- | Purely collect log messages in a 'Seq'
 newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
   deriving newtype

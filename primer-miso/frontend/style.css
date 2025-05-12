@@ -70,7 +70,7 @@ body {
 #miso-root {
   height: 100%;
   display: grid;
-  grid-template-columns: 12rem 1fr 2fr;
+  grid-template-columns: 12rem 1fr 2fr 12rem;
   grid-template-rows: 2fr 1fr;
   > * {
     position: relative;
@@ -84,9 +84,29 @@ body {
 #def-panel {
   grid-row-start: 1;
   grid-row-end: 3;
+}
+#action-panel {
+  grid-row-start: 1;
+  grid-row-end: 2;
+  grid-column-start: 4;
+}
+#undo-redo-panel {
+  grid-row-start: 2;
+  grid-row-end: 3;
+  grid-column-start: 4;
+}
+#selection-type {
+  grid-column-start: 2;
+  grid-column-end: 4;
+}
+
+#def-panel,
+#action-panel,
+#undo-redo-panel {
   background-color: var(--grey-primary);
+  font-size: large;
   > button {
-    font-size: large;
+    font-size: inherit;
     width: 100%;
     padding: 0.5rem;
     color: var(--blue-primary);
@@ -101,11 +121,41 @@ body {
     color: var(--white-primary);
     background-color: var(--blue-primary);
   }
-}
-
-#selection-type {
-  grid-column-start: 2;
-  grid-column-end: 4;
+  > button.matches-type {
+    color: var(--white-primary);
+    background-color: var(--blue-secondary);
+  }
+  > button.cancel {
+    color: var(--white-primary);
+    background-color: var(--red-secondary);
+  }
+  > button.cancel:hover {
+    background-color: var(--red-primary);
+  }
+  > form {
+    display: flex;
+    align-items: center;
+    > input {
+      font-size: inherit;
+      width: 100%;
+      padding: 0.5rem;
+      border-width: 0.1rem;
+      border-color: var(--grey-primary);
+      &:invalid {
+        border-color: var(--red-primary);
+      }
+      &:valid {
+        border-color: var(--green-primary);
+      }
+    }
+    > button {
+      position: absolute;
+      right: 0.5rem;
+      background-color: transparent;
+      border-width: 0;
+      font-size: large;
+    }
+  }
 }
 
 .tree {

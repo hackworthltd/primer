@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Primer.Miso (start) where
@@ -12,6 +11,8 @@ module Primer.Miso (start) where
 import Foreword
 
 import Clay qualified
+import Control.Monad.Except (liftEither)
+import Control.Monad.Log (Severity (Notice), msgSeverity)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
@@ -42,25 +43,44 @@ import Miso (
   View,
   button_,
   class_,
+  consoleLog,
   defaultEvents,
   div_,
+  form_,
   fromTransition,
   id_,
   img_,
+  input_,
+  onChange,
   onClick,
+  required_,
+  scheduleIO,
+  scheduleIO_,
   src_,
   style_,
   text,
+  type_,
  )
-import Optics (lensVL, to, (%), (.~), (^.), (^..), _Just)
-import Optics.State.Operators ((?=))
+import Miso.String (ms)
+import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
+import Optics.State.Operators ((.=), (?=))
+import Primer.Action (setCursorBody, setCursorSig, toProgActionInput, toProgActionNoInput)
+import Primer.Action.Available qualified as Available
 import Primer.App (
+  DefSelection (..),
+  MutationRequest (..),
   NodeSelection (..),
   NodeType (BodyNode, SigNode),
-  Prog (progImports),
-  newProg,
+  ProgAction (..),
+  ProgError (ActionError),
+  Selection' (SelectionDef, SelectionTypeDef),
+  appProg,
+  newApp,
+  progAllDefs,
+  progAllTypeDefs,
+  progSelection,
  )
-import Primer.App.Base (DefSelection (..))
+import Primer.App qualified
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
@@ -91,8 +111,6 @@ import Primer.Core (
   Type' (..),
   getID,
   globalNamePretty,
-  mkSimpleModuleName,
-  qualifyName,
   typesInExpr,
   _exprMetaLens,
   _kindMetaLens,
@@ -100,6 +118,7 @@ import Primer.Core (
  )
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Def (defAST)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Miso.Layout (
   slHSep,
@@ -110,29 +129,45 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
-  DefSelectionT,
-  ModuleT (..),
   NodeSelectionT,
   P2,
   TermMeta',
+  assumeDefHasTypeCheckInfo,
+  assumeDefSelectionHasTypeCheckInfo,
+  astDefTtoAstDef,
+  availableForSelection,
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  findASTDef,
   kindsInType,
   nodeSelectionType,
+  optToName,
   realToClay,
+  runMutationWithNullDb,
+  selectedDefName,
   startAppWithSavedState,
-  tcBasicProg,
+  stringToOpt,
   typeBindingsInExpr,
  )
-import Primer.Module (Module (moduleName))
 import Primer.Name (Name, unName)
+import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext)
 
 start :: JSM ()
 start =
   startAppWithSavedState
     App
-      { model = Model{module_, selection = Nothing}
+      { model =
+          Model
+            { app = newApp
+            , components =
+                ComponentModels
+                  { actionPanel =
+                      ActionPanelModel
+                        { optionsMode = Nothing
+                        }
+                  }
+            }
       , update = updateModel
       , view = viewModel
       , subs = []
@@ -141,36 +176,104 @@ start =
       , mountPoint = Nothing
       , logLevel = Off
       }
-  where
-    -- TODO we hardcode Prelude as the active module, for the sake of demonstration
-    module_ =
-      either (error . ("Prelude failed to typecheck: " <>) . show) identity
-        . tcBasicProg p
-        . fromMaybe (error "prog doesn't contain Prelude")
-        . find ((== mkSimpleModuleName "Prelude") . moduleName)
-        $ progImports p
-      where
-        (p, _, _) = newProg
 
 data Model = Model
-  { module_ :: ModuleT -- We typecheck everything up front so that we can use `ExprT`, guaranteeing existence of metadata.
-  , selection :: Maybe DefSelectionT
+  { app :: Primer.App.App
+  , components :: ComponentModels
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
+
+-- TODO When Miso 1.9/2.0 is released, we should take advantage of its component support
+-- we can then simplify some code, removing unnecessary error handling etc.
+-- this type contains the state which should be component-local
+{- HLINT ignore "Use newtype instead of data" -}
+data ComponentModels = ComponentModels
+  { actionPanel :: ActionPanelModel
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON ComponentModels
+
+{- HLINT ignore "Use newtype instead of data" -}
+data ActionPanelModel = ActionPanelModel
+  { optionsMode :: Maybe (Available.InputAction, Available.Options)
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON ActionPanelModel
 
 data Action
   = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
   | SelectDef GVarName
   | SelectNode NodeSelectionT
+  | ShowActionOptions (Available.InputAction, Available.Options)
+  | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
+  | CancelActionInput
+  | RunUndo
+  | RunRedo
+  | SetApp Primer.App.App
   deriving stock (Eq, Show)
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
-    SelectDef d -> #selection ?= DefSelection d Nothing
-    SelectNode sel -> #selection % _Just % #node ?= sel
+    SelectDef d -> do
+      runMutation $ Edit [MoveToDef d]
+      resetActionPanel
+    SelectNode sel -> do
+      runMutation $ Edit $ pure case sel.nodeType of
+        BodyNode -> setCursorBody $ getID sel
+        SigNode -> setCursorSig $ getID sel
+      resetActionPanel
+    ShowActionOptions a ->
+      #components % #actionPanel % #optionsMode ?= a
+    ApplyAction actionAndOpts -> do
+      prog <- appProg <$> use #app
+      let defs = progAllDefs prog
+      -- TODO handle errors properly, not just `Either Text`
+      actionResult <- runExceptT do
+        sel <- liftEither $ maybeToEither (Left "no selection for action") $ progSelection prog
+        defName <-
+          liftEither
+            . first (const $ Left "unexpected type def selection")
+            . either Right Left
+            $ selectedDefName sel
+        (_editable, def) <-
+          liftEither
+            . first (Left . ("findASTDef failure in runAction: " <>))
+            $ findASTDef defs defName
+        liftEither $ first (Right . ActionError) case actionAndOpts of
+          Left action -> toProgActionNoInput (snd <$> defs) (Right def) (getID <$> sel) action
+          Right (action, opt) -> toProgActionInput (Right def) (getID <$> sel) opt action
+      case actionResult of
+        Right actions -> runMutation $ Edit actions
+        Left e -> scheduleIO_ $ consoleLog $ "running action failed: " <> either ms (ms @Text . show) e
+      resetActionPanel
+    RunUndo -> do
+      runMutation Undo
+      resetActionPanel
+    RunRedo -> do
+      runMutation Redo
+      resetActionPanel
+    CancelActionInput ->
+      resetActionPanel
+    SetApp a -> #app .= a
+  where
+    -- TODO the only part of this that should really require `IO` is writing to a database
+    -- (currently we use `NullDb` anyway but this will change)
+    -- if we could modify the frontend model purely, and fork off the DB writing,
+    -- and we could drop the `SetApp` action and make this a lot simpler
+    runMutation mr = do
+      app <- use #app
+      scheduleIO do
+        (logs, res) <- liftIO $ runMutationWithNullDb mr app
+        -- TODO better logging, including handling different severities appropriately
+        let issues = filter ((<= Notice) . msgSeverity) $ toList logs
+        unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
+        pure $ SetApp res
+    -- TODO find a more principled way to decide when to do this, or just run it all the time
+    -- this may become simpler when we make the panel a Miso component
+    resetActionPanel = #components % #actionPanel % #optionsMode .= Nothing
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
@@ -178,14 +281,14 @@ viewModel Model{..} =
     [id_ "miso-root"]
     $ [ div_
           [id_ "def-panel"]
-          $ Map.keys module_.defs <&> \(qualifyName module_.name -> def) ->
+          $ Map.keys (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \def ->
             button_
-              [ class_ $ mwhen (Just def == ((.def) <$> selection)) "selected"
+              [ class_ $ mwhen (Just (Left def) == (selectedDefName <$> progSelection prog)) "selected"
               , onClick $ SelectDef def
               ]
               [text $ globalNamePretty def]
       ]
-      <> case selection of
+      <> case getSelection <$> progSelection prog of
         Nothing -> [text "no selection"]
         Just defSel ->
           [ div_
@@ -211,12 +314,85 @@ viewModel Model{..} =
                     -- TODO this isn't really correct - kinds in Primer don't have kinds
                     Right (Right ()) -> viewTreeKind mkMeta $ KType ()
               ]
+          , div_ [id_ "action-panel"] case components.actionPanel.optionsMode of
+              Nothing ->
+                availableForSelection tydefs defs level editable def' defSel <&> \action ->
+                  button_
+                    [ onClick case action of
+                        Available.NoInput a -> ApplyAction $ Left a
+                        Available.Input a ->
+                          ShowActionOptions
+                            ( a
+                            , fromMaybe (error "couldn't get action options") $
+                                Available.options
+                                  tydefs
+                                  defs
+                                  (buildTypingContext tydefs defs SmartHoles)
+                                  level
+                                  (Right def')
+                                  (SelectionDef $ getID <$> defSel)
+                                  a
+                            )
+                    ]
+                    [ text case action of
+                        Available.NoInput a -> show a
+                        Available.Input a -> show a
+                    ]
+                where
+                  def' = astDefTtoAstDef def
+                  level = Primer.App.Expert -- TODO don't hardcode
+              Just (action, opts) ->
+                ( case opts.free of
+                    Available.FreeNone -> []
+                    _ ->
+                      [ form_
+                          []
+                          [ input_
+                              [ type_ "text"
+                              , required_ True
+                              , onChange $ ApplyAction . Right . (action,) . stringToOpt
+                              ]
+                          , button_ [] [text "↩"]
+                          ]
+                      ]
+                )
+                  <> ( opts.opts
+                         <&> \opt ->
+                           button_
+                             ( [onClick $ ApplyAction $ Right (action, opt)]
+                                 <> mwhen
+                                   opt.matchesType
+                                   [class_ "matches-type"]
+                             )
+                             [ text $ either (unName . unLocalName) globalNamePretty $ optToName opt
+                             ]
+                     )
+                  <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
+                     ]
+          , div_
+              [id_ "undo-redo-panel"]
+              [ button_ [onClick RunUndo] [text "Undo"]
+              , button_ [onClick RunRedo] [text "Redo"]
+              ]
           ]
           where
             mkMeta = const (Nothing, False)
             isSelected x = (getID <$> defSel.node) == Just (getID x)
-            -- TODO better error handling
-            def = fromMaybe (error "selected def not found") $ module_.defs !? baseName defSel.def
+            defsWithEditable = progAllDefs prog
+            tydefsWithEditable = progAllTypeDefs prog
+            defs = snd <$> defsWithEditable
+            tydefs = snd <$> tydefsWithEditable
+            (editable, def) = second getDef . fromMaybe (error "selected def not found") $ defsWithEditable !? defSel.def
+  where
+    prog = appProg app
+    -- TODO better error handling
+    getDef =
+      fromMaybe (error "selected def is not fully typechecked")
+        . maybe (error "unexpected primitive def") assumeDefHasTypeCheckInfo
+        . defAST
+    getSelection = \case
+      SelectionTypeDef _ -> error "unexpected type def selection"
+      SelectionDef d -> fromMaybe (error "no TC info in selection") $ assumeDefSelectionHasTypeCheckInfo d
 
 -- TODO `isNothing clickAction` implies `not selected` - we could model this better
 -- but in the long run, we intend to have no unselectable nodes anyway
