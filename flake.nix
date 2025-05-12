@@ -83,7 +83,9 @@
           # haskell.nix does a lot of heavy lifiting for us and gives us a
           # flake for our Cabal project with the following attributes:
           # `checks`, `apps`, and `packages`.
-          primerFlake = pkgs.primer.flake { };
+          primerFlake = pkgs.primer.flake {
+            crossPlatforms = p: [ p.ghcjs ];
+          };
 
           weeder =
             let
@@ -422,6 +424,8 @@
                 ];
 
                 shell = {
+                  crossPlatforms = p: [ p.ghcjs ];
+
                   # We're using a `source-repository-package`, so we must disable this.
                   # See:
                   # https://github.com/hackworthltd/primer/issues/876
@@ -466,7 +470,9 @@
                 };
               };
 
-              primerFlake = primer.flake { };
+              primerFlake = primer.flake {
+                crossPlatforms = p: [ p.ghcjs ];
+              };
 
               # Note: these benchmarks should only be run (in CI) on a
               # "benchmark" machine. This is enforced for our CI system
