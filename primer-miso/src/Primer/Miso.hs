@@ -303,6 +303,7 @@ viewModel Model{..} =
                       ]
                     NonEditable ->
                       [ onClick $ ViewReadOnlyDef def
+                      , class_ "read-only"
                       ]
               )
               [text $ globalNamePretty def]
