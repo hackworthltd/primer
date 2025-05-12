@@ -45,7 +45,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc9101";
+      ghcVersion = "ghc9122";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -297,7 +297,7 @@
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [
-                  all_9_10
+                  all_9_12
 
                   pkgs.gnumake
                   pkgs.simple-http-server
@@ -429,7 +429,12 @@
                   withHoogle = true;
 
                   tools = {
-                    haskell-language-server.src = pkgs.haskell-nix.sources."hls-2.10";
+                    haskell-language-server = {
+                      src = pkgs.haskell-nix.sources."hls-2.10";
+                      cabalProjectLocal = ''
+                        allow-newer: haddock-library:base
+                      '';
+                    };
 
                     implicit-hie = "latest";
 
@@ -442,12 +447,6 @@
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
-
-                    # Required until http-client-tls mess is resolved.
-                    #
-                    # Ref:
-                    # https://github.com/input-output-hk/haskell.nix/issues/2277
-                    hoogle.index-state = "2024-10-01T00:00:00Z";
                   };
 
                   buildInputs = (with final; [

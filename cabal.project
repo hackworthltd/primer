@@ -37,7 +37,7 @@ benchmarks: True
 
 tests: True
 
-allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, protolude:ghc-prim
+allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, protolude:ghc-prim,base, logging-effect:base, servant:base, http-api-data:base
 
 package primer
   test-options: "--size-cutoff=32768"
