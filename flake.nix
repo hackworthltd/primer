@@ -2,7 +2,7 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = "github:input-output-hk/haskell.nix";
+    haskell-nix.url = "github:input-output-hk/haskell.nix/hkm/wasm";
 
     # We use this for some convenience functions only.
     hacknix.url = "github:hackworthltd/hacknix";
@@ -78,7 +78,7 @@
         inputs.pre-commit-hooks-nix.flakeModule
         inputs.treefmt-nix.flakeModule
       ];
-      systems = [ "x86_64-linux" "aarch64-darwin" ];
+      systems = [ "x86_64-linux" ];
 
       perSystem = { config, pkgs, system, ... }:
         let
@@ -86,7 +86,7 @@
           # flake for our Cabal project with the following attributes:
           # `checks`, `apps`, and `packages`.
           primerFlake = pkgs.primer.flake {
-            crossPlatforms = p: [ p.ghcjs ];
+            crossPlatforms = p: [ p.wasi32 ];
           };
 
           weeder =
@@ -196,12 +196,14 @@
           };
 
           packages = {
-            inherit (pkgs) primer-benchmark;
+            # XXX dhess - not available for Wasm.
+            #inherit (pkgs) primer-benchmark;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-            inherit (pkgs) primer-benchmark-results-json;
-            inherit (pkgs) primer-criterion-results-github-action-benchmark;
-            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
+            # XXX dhess - not available for Wasm.
+            # inherit (pkgs) primer-benchmark-results-json;
+            # inherit (pkgs) primer-criterion-results-github-action-benchmark;
+            # inherit (pkgs) primer-benchmark-results-github-action-benchmark;
           })
           // primerFlake.packages;
 
@@ -246,17 +248,18 @@
           })
           // primerFlake.checks;
 
-          apps =
-            let
-              mkApp = pkg: script: {
-                type = "app";
-                program = "${pkg}/bin/${script}";
-              };
-            in
-            (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) primer-benchmark;
-            })
-            // primerFlake.apps;
+          # XXX dhess - disable for Wasm.
+          # apps =
+          #   let
+          #     mkApp = pkg: script: {
+          #       type = "app";
+          #       program = "${pkg}/bin/${script}";
+          #     };
+          #   in
+          #   (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
+          #     inherit (pkgs) primer-benchmark;
+          #   })
+          #   // primerFlake.apps;
 
           treefmt.config =
             let
@@ -364,10 +367,12 @@
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
                         };
-                        primer-benchmark = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
+
+                        # XXX not available for Wasm.
+                        # primer-benchmark = {
+                        #   ghcOptions = [ "-Werror" ];
+                        #   preCheck = preCheckTasty;
+                        # };
                       };
                   }
                   {
@@ -402,7 +407,9 @@
                     packages.bytestring-builder.writeHieFiles = false;
                     packages.fail.writeHieFiles = false;
                     packages.diagrams.writeHieFiles = false;
-                    packages.happy-lib.writeHieFiles = false;
+
+                    # Not available for Wasm targets, disable for now.
+                    #packages.happy-lib.writeHieFiles = false;
                   }
                   {
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
@@ -420,13 +427,14 @@
                     {
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
+                      # XXX dhess - not available for Wasm.
+                      #packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
                   )
                 ];
 
                 shell = {
-                  crossPlatforms = p: [ p.ghcjs ];
+                  crossPlatforms = p: [ p.wasi32 ];
 
                   # We're using a `source-repository-package`, so we must disable this.
                   # See:
@@ -473,7 +481,7 @@
               };
 
               primerFlake = primer.flake {
-                crossPlatforms = p: [ p.ghcjs ];
+                crossPlatforms = p: [ p.wasi32 ];
               };
 
               # Note: these benchmarks should only be run (in CI) on a
@@ -512,11 +520,11 @@
 
               inherit primer;
 
-              primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
-
-              inherit (benchmarks) primer-benchmark-results-json;
-              inherit (benchmarks) primer-criterion-results-github-action-benchmark;
-              inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
+              # XXX dhess - not available for Wasm.
+              # primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
+              # inherit (benchmarks) primer-benchmark-results-json;
+              # inherit (benchmarks) primer-criterion-results-github-action-benchmark;
+              # inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
 
               inherit (ghc982Tools) cabal-fmt hlint ghcid;
             }
@@ -535,9 +543,11 @@
               name = "required-ci";
               constituents = builtins.map builtins.attrValues (with inputs.self.hydraJobs; [
                 packages.x86_64-linux
-                packages.aarch64-darwin
+                # XXX dhess - Wasm
+                #packages.aarch64-darwin
                 checks.x86_64-linux
-                checks.aarch64-darwin
+                # XXX dhess - Wasm
+                #checks.aarch64-darwin
               ]);
               meta.description = "Required CI builds";
             };
