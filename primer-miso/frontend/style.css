@@ -121,6 +121,14 @@ body {
     color: var(--white-primary);
     background-color: var(--blue-primary);
   }
+  > button.read-only:hover {
+    color: var(--grey-primary);
+    background-color: var(--grey-secondary);
+  }
+  > button.read-only.selected {
+    color: var(--grey-primary);
+    background-color: var(--grey-tertiary);
+  }
   > button.matches-type {
     color: var(--white-primary);
     background-color: var(--blue-secondary);

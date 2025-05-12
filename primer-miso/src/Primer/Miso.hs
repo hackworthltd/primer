@@ -68,6 +68,7 @@ import Primer.Action (setCursorBody, setCursorSig, toProgActionInput, toProgActi
 import Primer.Action.Available qualified as Available
 import Primer.App (
   DefSelection (..),
+  Editable (..),
   MutationRequest (..),
   NodeSelection (..),
   NodeType (BodyNode, SigNode),
@@ -75,6 +76,7 @@ import Primer.App (
   ProgError (ActionError),
   Selection' (SelectionDef, SelectionTypeDef),
   appProg,
+  checkAppWellFormed,
   newApp,
   progAllDefs,
   progAllTypeDefs,
@@ -129,6 +131,7 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
+  DefSelectionT,
   NodeSelectionT,
   P2,
   TermMeta',
@@ -159,7 +162,7 @@ start =
     App
       { model =
           Model
-            { app = newApp
+            { app = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
             , components =
                 ComponentModels
                   { actionPanel =
@@ -167,6 +170,7 @@ start =
                         { optionsMode = Nothing
                         }
                   }
+            , readOnlySelection = Nothing
             }
       , update = updateModel
       , view = viewModel
@@ -179,6 +183,8 @@ start =
 
 data Model = Model
   { app :: Primer.App.App
+  , readOnlySelection :: Maybe DefSelectionT
+  -- ^ A non-editable def is being viewed (e.g. from an imported module), rather than the selection in `app`.
   , components :: ComponentModels
   }
   deriving stock (Eq, Show, Read, Generic)
@@ -205,6 +211,7 @@ data Action
   = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
   | SelectDef GVarName
   | SelectNode NodeSelectionT
+  | ViewReadOnlyDef GVarName
   | ShowActionOptions (Available.InputAction, Available.Options)
   | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
   | CancelActionInput
@@ -218,12 +225,18 @@ updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
     SelectDef d -> do
+      #readOnlySelection .= Nothing
       runMutation $ Edit [MoveToDef d]
       resetActionPanel
     SelectNode sel -> do
-      runMutation $ Edit $ pure case sel.nodeType of
-        BodyNode -> setCursorBody $ getID sel
-        SigNode -> setCursorSig $ getID sel
+      use #readOnlySelection >>= \case
+        Just (DefSelection d _) -> #readOnlySelection ?= DefSelection d (Just sel)
+        Nothing -> runMutation $ Edit $ pure case sel.nodeType of
+          BodyNode -> setCursorBody $ getID sel
+          SigNode -> setCursorSig $ getID sel
+      resetActionPanel
+    ViewReadOnlyDef d -> do
+      #readOnlySelection ?= DefSelection d Nothing
       resetActionPanel
     ShowActionOptions a ->
       #components % #actionPanel % #optionsMode ?= a
@@ -281,14 +294,21 @@ viewModel Model{..} =
     [id_ "miso-root"]
     $ [ div_
           [id_ "def-panel"]
-          $ Map.keys (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \def ->
+          $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
             button_
-              [ class_ $ mwhen (Just (Left def) == (selectedDefName <$> progSelection prog)) "selected"
-              , onClick $ SelectDef def
-              ]
+              ( [class_ $ mwhen (Just def == ((.def) <$> maybeDefSel)) "selected"]
+                  <> case editable of
+                    Editable ->
+                      [ onClick $ SelectDef def
+                      ]
+                    NonEditable ->
+                      [ onClick $ ViewReadOnlyDef def
+                      , class_ "read-only"
+                      ]
+              )
               [text $ globalNamePretty def]
       ]
-      <> case getSelection <$> progSelection prog of
+      <> case maybeDefSel of
         Nothing -> [text "no selection"]
         Just defSel ->
           [ div_
@@ -385,6 +405,7 @@ viewModel Model{..} =
             (editable, def) = second getDef . fromMaybe (error "selected def not found") $ defsWithEditable !? defSel.def
   where
     prog = appProg app
+    maybeDefSel = readOnlySelection <|> (getSelection <$> progSelection prog)
     -- TODO better error handling
     getDef =
       fromMaybe (error "selected def is not fully typechecked")
