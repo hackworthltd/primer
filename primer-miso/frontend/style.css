@@ -102,6 +102,7 @@ body {
 #eval {
   grid-row-start: 2;
   grid-column-start: 3;
+  display: flex;
 }
 
 #def-panel,

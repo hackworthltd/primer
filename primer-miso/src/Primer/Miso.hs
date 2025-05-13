@@ -37,6 +37,7 @@ import Miso (
     update,
     view
   ),
+  Checked (Checked),
   Effect,
   JSM,
   LogLevel (Off),
@@ -52,6 +53,7 @@ import Miso (
   img_,
   input_,
   onChange,
+  onChecked,
   onClick,
   required_,
   scheduleIO,
@@ -62,8 +64,9 @@ import Miso (
   type_,
  )
 import Miso.String (ms)
+import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
-import Optics.State.Operators ((.=), (?=))
+import Optics.State.Operators ((%=), (.=), (?=))
 import Primer.Action (setCursorBody, setCursorSig, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
@@ -125,8 +128,8 @@ import Primer.Core (
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Def (defAST)
-import Primer.Eval (NormalOrderOptions (..))
-import Primer.Eval.Redex (Dir (Chk), RunRedexOptions (..), ViewRedexOptions (..))
+import Primer.Eval (Dir (..), NormalOrderOptions (..))
+import Primer.Eval.Redex (RunRedexOptions (..), ViewRedexOptions (..))
 import Primer.EvalFullStep (EvalFullError (TimedOut), EvalLog, evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
@@ -182,6 +185,22 @@ start =
                       EvalModel
                         { expr = Nothing
                         , error = Nothing
+                        , opts =
+                            EvalOpts
+                              { normalOrder = UnderBinders
+                              , viewRedex =
+                                  ViewRedexOptions
+                                    { groupedLets = False
+                                    , avoidShadowing = False
+                                    , aggressiveElision = False
+                                    }
+                              , runRedex =
+                                  RunRedexOptions
+                                    { pushAndElide = False
+                                    }
+                              , stepLimit = 10
+                              , dir = Chk
+                              }
                         }
                   }
             , readOnlySelection = Nothing
@@ -226,9 +245,20 @@ data ActionPanelModel = ActionPanelModel
 data EvalModel = EvalModel
   { expr :: Maybe Expr
   , error :: Maybe Text
+  , opts :: EvalOpts
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EvalModel
+
+data EvalOpts = EvalOpts
+  { normalOrder :: NormalOrderOptions
+  , viewRedex :: ViewRedexOptions
+  , runRedex :: RunRedexOptions
+  , stepLimit :: Natural
+  , dir :: Dir
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON EvalOpts
 
 data Action
   = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
@@ -241,7 +271,7 @@ data Action
   | RunUndo
   | RunRedo
   | SetApp Primer.App.App
-  deriving stock (Eq, Show)
+  | SetEvalOpts (EvalOpts -> EvalOpts)
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
@@ -296,6 +326,9 @@ updateModel =
     SetApp a -> do
       #app .= a
       setEval
+    SetEvalOpts f -> do
+      #components % #eval % #opts %= f
+      setEval
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
@@ -312,9 +345,10 @@ updateModel =
     resetActionPanel = #components % #actionPanel % #optionsMode .= Nothing
     setEval = do
       app <- use #app
+      opts <- use $ #components % #eval % #opts
       let (tydefs, defs, maybeDef) = getDefs app
       evalModel <- case maybeDef of
-        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval"}
+        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval", opts}
         Just def -> do
           let nextId = succ $ appIdCounter app
               nextName = succ $ appNameCounter app
@@ -323,28 +357,13 @@ updateModel =
                 either absurd identity
                   . runTC (succ nextId, nextName)
                   . runPureLogT
-                  . evalFull normalOrderOpts viewRedexOpts runRedexOpts tydefs defs stepLimit dir
+                  . evalFull opts.normalOrder opts.viewRedex opts.runRedex tydefs defs opts.stepLimit opts.dir
                   $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
           scheduleIO_ $ logAllToConsole @EvalLog logs
           pure case evalResult of
-            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:"}
-            Right expr -> EvalModel{expr = Just expr, error = Nothing}
+            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts}
+            Right expr -> EvalModel{expr = Just expr, error = Nothing, opts}
       #components % #eval .= evalModel
-      where
-        -- TODO don't hardcode these options
-        normalOrderOpts = UnderBinders
-        viewRedexOpts =
-          ViewRedexOptions
-            { groupedLets = False
-            , avoidShadowing = False
-            , aggressiveElision = False
-            }
-        runRedexOpts =
-          RunRedexOptions
-            { pushAndElide = False
-            }
-        stepLimit = 100
-        dir = Chk
     -- TODO better logging, including handling different severities appropriately
     logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
     logAllToConsole logs =
@@ -475,14 +494,46 @@ viewModel Model{..} =
               [ button_ [onClick RunUndo] [text "Undo"]
               , button_ [onClick RunRedo] [text "Redo"]
               ]
-          , div_ [id_ "eval"] case components.eval.expr of
-              Nothing -> [text "No definition selected for evaluation"]
-              Just expr ->
-                ( case components.eval.error of
-                    Nothing -> []
-                    Just s -> [text s]
-                )
-                  <> [fst . viewTree $ viewTreeExpr mkMeta expr]
+          , div_ [id_ "eval"] $
+              [ let checkBox t f =
+                      div_
+                        []
+                        [ input_
+                            [ type_ "checkbox"
+                            , onChecked \(Checked b) -> SetEvalOpts $ f b
+                            ]
+                        , text t
+                        ]
+                 in div_
+                      [id_ "options"]
+                      [ checkBox "Stop at binders" \b -> #normalOrder .~ if b then StopAtBinders else UnderBinders
+                      , checkBox "Grouped lets" \b -> #viewRedex % #groupedLets .~ b
+                      , checkBox "Aggressive elision" \b -> #viewRedex % #aggressiveElision .~ b
+                      , checkBox "Avoid shadowing" \b -> #viewRedex % #avoidShadowing .~ b
+                      , checkBox "Push and elide" \b -> #runRedex % #pushAndElide .~ b
+                      , checkBox "Synthesise" \b -> #dir .~ if b then Syn else Chk
+                      , div_
+                          []
+                          [ input_
+                              [ type_ "number"
+                              , onChange $
+                                  maybe
+                                    (NoOp "failed to read number input")
+                                    (\n -> SetEvalOpts $ #stepLimit .~ n)
+                                    . readMaybe
+                              ]
+                          , text "Steps"
+                          ]
+                      ]
+              ]
+                <> case components.eval.expr of
+                  Nothing -> [text "No definition selected for evaluation"]
+                  Just expr ->
+                    ( case components.eval.error of
+                        Nothing -> []
+                        Just s -> [text s]
+                    )
+                      <> [fst . viewTree $ viewTreeExpr mkMeta expr]
           ]
           where
             mkMeta = const (Nothing, False)
