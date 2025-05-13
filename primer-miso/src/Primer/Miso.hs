@@ -226,7 +226,6 @@ data Model = Model
 -- TODO When Miso 1.9/2.0 is released, we should take advantage of its component support
 -- we can then simplify some code, removing unnecessary error handling etc.
 -- this type contains the state which should be component-local
-{- HLINT ignore "Use newtype instead of data" -}
 data ComponentModels = ComponentModels
   { actionPanel :: ActionPanelModel
   , eval :: EvalModel
@@ -241,7 +240,6 @@ data ActionPanelModel = ActionPanelModel
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ActionPanelModel
 
-{- HLINT ignore "Use newtype instead of data" -}
 data EvalModel = EvalModel
   { expr :: Maybe Expr
   , error :: Maybe Text
