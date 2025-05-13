@@ -195,6 +195,8 @@ data ViewRedexOptions = ViewRedexOptions
   -- ^ Whether to introduce extra renamings to avoid shadowing
   -- (note that we will always rename to avoid capture where necessary).
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON ViewRedexOptions
 
 newtype RunRedexOptions = RunRedexOptions
   { pushAndElide :: Bool
@@ -203,6 +205,8 @@ newtype RunRedexOptions = RunRedexOptions
   -- (@True@) to reduce to @C (let x=e in x) t@ or to also push the @x@
   -- into the @t@ branch (@False@).
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON RunRedexOptions
 
 data EvalLog
   = -- | Found something that may have been a case redex,

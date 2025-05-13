@@ -12,7 +12,7 @@ import Foreword
 
 import Clay qualified
 import Control.Monad.Except (liftEither)
-import Control.Monad.Log (Severity (Notice), msgSeverity)
+import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
@@ -37,6 +37,7 @@ import Miso (
     update,
     view
   ),
+  Checked (Checked),
   Effect,
   JSM,
   LogLevel (Off),
@@ -52,6 +53,7 @@ import Miso (
   img_,
   input_,
   onChange,
+  onChecked,
   onClick,
   required_,
   scheduleIO,
@@ -62,8 +64,9 @@ import Miso (
   type_,
  )
 import Miso.String (ms)
+import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
-import Optics.State.Operators ((.=), (?=))
+import Optics.State.Operators ((%=), (.=), (?=))
 import Primer.Action (setCursorBody, setCursorSig, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
@@ -75,6 +78,8 @@ import Primer.App (
   ProgAction (..),
   ProgError (ActionError),
   Selection' (SelectionDef, SelectionTypeDef),
+  appIdCounter,
+  appNameCounter,
   appProg,
   checkAppWellFormed,
   newApp,
@@ -87,6 +92,7 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   CaseFallback' (CaseExhaustive, CaseFallback),
+  Expr,
   Expr' (
     APP,
     Ann,
@@ -106,6 +112,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   Kind' (..),
   LocalName (unLocalName),
+  Meta (Meta),
   ModuleName,
   Pattern (PatCon, PatPrim),
   PrimCon (..),
@@ -121,7 +128,11 @@ import Primer.Core (
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Def (defAST)
+import Primer.Eval (Dir (..), NormalOrderOptions (..))
+import Primer.Eval.Redex (RunRedexOptions (..), ViewRedexOptions (..))
+import Primer.EvalFullStep (EvalFullError (TimedOut), EvalLog, evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
+import Primer.Log (runPureLogT)
 import Primer.Miso.Layout (
   slHSep,
   slHeight,
@@ -148,13 +159,14 @@ import Primer.Miso.Util (
   optToName,
   realToClay,
   runMutationWithNullDb,
+  runTC,
   selectedDefName,
   startAppWithSavedState,
   stringToOpt,
   typeBindingsInExpr,
  )
 import Primer.Name (Name, unName)
-import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext)
+import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
 start :: JSM ()
 start =
@@ -168,6 +180,27 @@ start =
                   { actionPanel =
                       ActionPanelModel
                         { optionsMode = Nothing
+                        }
+                  , eval =
+                      EvalModel
+                        { expr = Nothing
+                        , error = Nothing
+                        , opts =
+                            EvalOpts
+                              { normalOrder = UnderBinders
+                              , viewRedex =
+                                  ViewRedexOptions
+                                    { groupedLets = False
+                                    , avoidShadowing = False
+                                    , aggressiveElision = False
+                                    }
+                              , runRedex =
+                                  RunRedexOptions
+                                    { pushAndElide = False
+                                    }
+                              , stepLimit = 10
+                              , dir = Chk
+                              }
                         }
                   }
             , readOnlySelection = Nothing
@@ -187,25 +220,43 @@ data Model = Model
   -- ^ A non-editable def is being viewed (e.g. from an imported module), rather than the selection in `app`.
   , components :: ComponentModels
   }
-  deriving stock (Eq, Show, Read, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
 
 -- TODO When Miso 1.9/2.0 is released, we should take advantage of its component support
 -- we can then simplify some code, removing unnecessary error handling etc.
 -- this type contains the state which should be component-local
-{- HLINT ignore "Use newtype instead of data" -}
 data ComponentModels = ComponentModels
   { actionPanel :: ActionPanelModel
+  , eval :: EvalModel
   }
-  deriving stock (Eq, Show, Read, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ComponentModels
 
 {- HLINT ignore "Use newtype instead of data" -}
 data ActionPanelModel = ActionPanelModel
   { optionsMode :: Maybe (Available.InputAction, Available.Options)
   }
-  deriving stock (Eq, Show, Read, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ActionPanelModel
+
+data EvalModel = EvalModel
+  { expr :: Maybe Expr
+  , error :: Maybe Text
+  , opts :: EvalOpts
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON EvalModel
+
+data EvalOpts = EvalOpts
+  { normalOrder :: NormalOrderOptions
+  , viewRedex :: ViewRedexOptions
+  , runRedex :: RunRedexOptions
+  , stepLimit :: Natural
+  , dir :: Dir
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON EvalOpts
 
 data Action
   = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
@@ -218,7 +269,7 @@ data Action
   | RunUndo
   | RunRedo
   | SetApp Primer.App.App
-  deriving stock (Eq, Show)
+  | SetEvalOpts (EvalOpts -> EvalOpts)
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
@@ -270,7 +321,12 @@ updateModel =
       resetActionPanel
     CancelActionInput ->
       resetActionPanel
-    SetApp a -> #app .= a
+    SetApp a -> do
+      #app .= a
+      setEval
+    SetEvalOpts f -> do
+      #components % #eval % #opts %= f
+      setEval
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
@@ -280,13 +336,55 @@ updateModel =
       app <- use #app
       scheduleIO do
         (logs, res) <- liftIO $ runMutationWithNullDb mr app
-        -- TODO better logging, including handling different severities appropriately
-        let issues = filter ((<= Notice) . msgSeverity) $ toList logs
-        unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
+        logAllToConsole logs
         pure $ SetApp res
     -- TODO find a more principled way to decide when to do this, or just run it all the time
     -- this may become simpler when we make the panel a Miso component
     resetActionPanel = #components % #actionPanel % #optionsMode .= Nothing
+    setEval = do
+      app <- use #app
+      opts <- use $ #components % #eval % #opts
+      let (tydefs, defs, maybeDef) = getDefs app
+      evalModel <- case maybeDef of
+        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval", opts}
+        Just def -> do
+          let nextId = succ $ appIdCounter app
+              nextName = succ $ appNameCounter app
+              -- TODO put this in to a background thread rather than blocking whole program for expensive evaluations
+              (evalResult, logs) =
+                either absurd identity
+                  . runTC (succ nextId, nextName)
+                  . runPureLogT
+                  . evalFull opts.normalOrder opts.viewRedex opts.runRedex tydefs defs opts.stepLimit opts.dir
+                  $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
+          scheduleIO_ $ logAllToConsole @EvalLog logs
+          pure case evalResult of
+            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts}
+            Right expr -> EvalModel{expr = Just expr, error = Nothing, opts}
+      #components % #eval .= evalModel
+    -- TODO better logging, including handling different severities appropriately
+    logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
+    logAllToConsole logs =
+      let issues = filter ((<= Notice) . msgSeverity) $ toList logs
+       in unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
+    -- TODO DRY this with `viewModel`
+    -- when we use Miso components it might be easier to compute this in one place then send messages around
+    getDefs app =
+      let
+        prog = appProg app
+        defs = snd <$> progAllDefs prog
+        tydefs = snd <$> progAllTypeDefs prog
+        def =
+          fromMaybe (error "selected def is not fully typechecked")
+            . maybe (error "unexpected primitive def") assumeDefHasTypeCheckInfo
+            . defAST
+            . fromMaybe (error "selected def not found")
+            . (defs !?)
+            <$> case progSelection prog of
+              Just (SelectionDef s) -> Just s.def
+              _ -> Nothing
+       in
+        (tydefs, defs, def)
 
 viewModel :: Model -> View Action
 viewModel Model{..} =
@@ -394,6 +492,46 @@ viewModel Model{..} =
               [ button_ [onClick RunUndo] [text "Undo"]
               , button_ [onClick RunRedo] [text "Redo"]
               ]
+          , div_ [id_ "eval"] $
+              [ let checkBox t f =
+                      div_
+                        []
+                        [ input_
+                            [ type_ "checkbox"
+                            , onChecked \(Checked b) -> SetEvalOpts $ f b
+                            ]
+                        , text t
+                        ]
+                 in div_
+                      [id_ "options"]
+                      [ checkBox "Stop at binders" \b -> #normalOrder .~ if b then StopAtBinders else UnderBinders
+                      , checkBox "Grouped lets" \b -> #viewRedex % #groupedLets .~ b
+                      , checkBox "Aggressive elision" \b -> #viewRedex % #aggressiveElision .~ b
+                      , checkBox "Avoid shadowing" \b -> #viewRedex % #avoidShadowing .~ b
+                      , checkBox "Push and elide" \b -> #runRedex % #pushAndElide .~ b
+                      , checkBox "Synthesise" \b -> #dir .~ if b then Syn else Chk
+                      , div_
+                          []
+                          [ input_
+                              [ type_ "number"
+                              , onChange $
+                                  maybe
+                                    (NoOp "failed to read number input")
+                                    (\n -> SetEvalOpts $ #stepLimit .~ n)
+                                    . readMaybe
+                              ]
+                          , text "Steps"
+                          ]
+                      ]
+              ]
+                <> case components.eval.expr of
+                  Nothing -> [text "No definition selected for evaluation"]
+                  Just expr ->
+                    ( case components.eval.error of
+                        Nothing -> []
+                        Just s -> [text s]
+                    )
+                      <> [fst . viewTree $ viewTreeExpr mkMeta expr]
           ]
           where
             mkMeta = const (Nothing, False)

@@ -97,7 +97,12 @@ body {
 }
 #selection-type {
   grid-column-start: 2;
-  grid-column-end: 4;
+  grid-column-end: 3;
+}
+#eval {
+  grid-row-start: 2;
+  grid-column-start: 3;
+  display: flex;
 }
 
 #def-panel,
