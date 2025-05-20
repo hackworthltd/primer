@@ -543,8 +543,8 @@ viewModel Model{..} =
                       <> [fst . viewTree $ viewTreeExpr mkMeta expr]
           ]
           where
-            mkMeta = const (Nothing, Nothing, False)
-            isSelected x = (getID <$> defSel.node) == Just (getID x)
+            mkMeta = const (Nothing, Nothing, NoHighlight)
+            isSelected x = if (getID <$> defSel.node) == Just (getID x) then SimpleHighlight else NoHighlight
             defsWithEditable = progAllDefs prog
             tydefsWithEditable = progAllTypeDefs prog
             defs = snd <$> defsWithEditable
@@ -562,15 +562,19 @@ viewModel Model{..} =
       SelectionTypeDef _ -> error "unexpected type def selection"
       SelectionDef d -> fromMaybe (error "no TC info in selection") $ assumeDefSelectionHasTypeCheckInfo d
 
--- TODO `isNothing clickAction` implies `not selected`, and `isNothing id` iff `isNothing clickAction`
+-- TODO `isNothing clickAction` implies `highlight == NoHighlight`, and `isNothing id` iff `isNothing clickAction`
 -- we could model this better, but in the long run, we intend to have no unselectable nodes anyway
 data NodeViewData action = NodeViewData
   { id :: Maybe ID
   , clickAction :: Maybe action
-  , selected :: Bool
+  , highlight :: NodeHighlight
   , level :: Level
   , opts :: NodeViewOpts action
   }
+
+data NodeHighlight
+  = NoHighlight
+  | SimpleHighlight
 
 data NodeViewOpts action
   = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
@@ -615,7 +619,9 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
                   VarNode{} -> "var"
                   PatternBoxNode{} -> "pattern-box"
               ]
-              <> mwhen node.selected ["selected"]
+              <> case node.highlight of
+                NoHighlight -> []
+                SimpleHighlight -> ["highlighted"]
               <> mwhen (isJust node.clickAction) ["selectable"]
         , style_ $ clayToMiso do
             Clay.position Clay.absolute
@@ -666,7 +672,7 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
 
 viewTreeExpr ::
   (Data a, Data b, Data c) =>
-  (TermMeta' a b c -> (Maybe ID, Maybe action, Bool)) ->
+  (TermMeta' a b c -> (Maybe ID, Maybe action, NodeHighlight)) ->
   Expr' a b c ->
   Tree.Tree (NodeViewData action)
 viewTreeExpr mkMeta e =
@@ -696,12 +702,12 @@ viewTreeExpr mkMeta e =
           [ [viewTreeExpr mkMeta scrut]
           , branches <&> \(CaseBranch p bindings r) ->
               Tree.Node
-                ( NodeViewData Nothing Nothing False Expr
+                ( NodeViewData Nothing Nothing NoHighlight Expr
                     $ PatternBoxNode
                     $ Just
                     $ viewTree
                     $ Tree.Node
-                      ( NodeViewData Nothing Nothing False Expr case p of
+                      ( NodeViewData Nothing Nothing NoHighlight Expr case p of
                           PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                           PatPrim c -> PrimNode c
                       )
@@ -713,7 +719,7 @@ viewTreeExpr mkMeta e =
                 [viewTreeExpr mkMeta r]
           , case fb of
               CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (NodeViewData Nothing Nothing False Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
+              CaseFallback r -> [Tree.Node (NodeViewData Nothing Nothing NoHighlight Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
           ]
       _ ->
         mconcat
@@ -723,11 +729,11 @@ viewTreeExpr mkMeta e =
           , map (viewTreeExpr mkMeta) (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing False l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
-  (Either b c -> (Maybe ID, Maybe action, Bool)) ->
+  (Either b c -> (Maybe ID, Maybe action, NodeHighlight)) ->
   Type' b c ->
   Tree.Tree (NodeViewData action)
 viewTreeType mkMeta t =
@@ -746,14 +752,14 @@ viewTreeType mkMeta t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (NodeViewData Nothing Nothing False Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (NodeViewData Nothing Nothing NoHighlight Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
         <> map (viewTreeType mkMeta) (children t)
 
 viewTreeKind ::
   (Data c) =>
-  (c -> (Maybe ID, Maybe action, Bool)) ->
+  (c -> (Maybe ID, Maybe action, NodeHighlight)) ->
   Kind' c ->
   Tree.Tree (NodeViewData action)
 viewTreeKind mkMeta k =
