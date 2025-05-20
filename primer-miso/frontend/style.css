@@ -205,6 +205,9 @@ body {
 .node.highlighted > .node-contents {
   --opacity: 100% !important;
 }
+.node.animated > .node-contents {
+  animation: flash-shadow 0.25s infinite alternate;
+}
 
 .node.expr {
   > .node-contents {
@@ -293,4 +296,10 @@ body {
 .edge {
   border-color: var(--node-color);
   border-width: 0.125rem;
+}
+
+@keyframes flash-shadow {
+  100% {
+    box-shadow: 0 0 0 4px var(--node-color), 0 0 0 8px var(--node-color);
+  }
 }
