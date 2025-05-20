@@ -79,6 +79,10 @@ body {
     border-width: 1px;
     border-color: var(--blue-primary);
   }
+  &.fullscreen-eval {
+    grid-template-columns: 0 0 1fr 0;
+    grid-template-rows: 0 1fr;
+  }
 }
 
 #def-panel {
