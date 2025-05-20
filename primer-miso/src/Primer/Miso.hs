@@ -575,6 +575,7 @@ data NodeViewData action = NodeViewData
 data NodeHighlight
   = NoHighlight
   | SimpleHighlight
+  | AnimatedHighlight
 
 data NodeViewOpts action
   = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
@@ -621,7 +622,10 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
               ]
               <> case node.highlight of
                 NoHighlight -> []
-                SimpleHighlight -> ["highlighted"]
+                _ ->
+                  "highlighted" : case node.highlight of
+                    SimpleHighlight -> []
+                    AnimatedHighlight -> ["animated"]
               <> mwhen (isJust node.clickAction) ["selectable"]
         , style_ $ clayToMiso do
             Clay.position Clay.absolute
