@@ -178,6 +178,7 @@ start =
       { model =
           Model
             { app = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
+            , readOnlySelection = Nothing
             , components =
                 ComponentModels
                   { actionPanel =
@@ -206,7 +207,6 @@ start =
                               }
                         }
                   }
-            , readOnlySelection = Nothing
             }
       , update = updateModel
       , view = viewModel
