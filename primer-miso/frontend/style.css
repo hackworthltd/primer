@@ -196,13 +196,13 @@ body {
   }
 }
 
-.node.selected > .node-contents,
+.node.highlighted > .node-contents,
 .node.selectable > .node-contents:hover {
   --opacity: 50%;
   box-shadow: 0 0 0 4px var(--white-primary),
     0 0 0 8px color-mix(in srgb, transparent, var(--node-color) var(--opacity));
 }
-.node.selected > .node-contents {
+.node.highlighted > .node-contents {
   --opacity: 100% !important;
 }
 
