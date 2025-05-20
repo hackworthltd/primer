@@ -103,6 +103,11 @@ body {
   grid-row-start: 2;
   grid-column-start: 3;
   display: flex;
+  > #options {
+    input[type="number"] {
+      width: 5rem;
+    }
+  }
 }
 
 #def-panel,
