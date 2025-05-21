@@ -8,6 +8,8 @@
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
   startAppWithSavedState,
+  showMs,
+  readMs,
   clayToMiso,
   P2,
   unitX,
@@ -52,6 +54,7 @@ import Control.Monad.Log (WithSeverity)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
+import Data.String (String)
 import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
@@ -65,6 +68,7 @@ import Miso (
   startApp,
   (<#),
  )
+import Miso.String (MisoString, fromMisoString, ms)
 import Optics (
   AffineTraversal',
   Field1 (_1),
@@ -155,21 +159,27 @@ startAppWithSavedState app = do
   where
     storageKey = "miso-app-state"
 
+showMs :: Show a => a -> MisoString
+showMs = ms . show @_ @String
+
+readMs :: Read a => MisoString -> Maybe a
+readMs = readMaybe @_ @String . fromMisoString
+
 {- Clay -}
 
 -- https://github.com/sebastiaanvisser/clay/issues/208
 -- note that we silently ignore non-properties, and modifiers on properties
 -- what we really want is for Clay property functions to return something much more precise than `Css`
 -- but this would be a big breaking change, and Clay is really designed primarily for generating stylesheets
-clayToMiso :: Clay.Css -> Map Text Text
+clayToMiso :: Clay.Css -> Map MisoString MisoString
 clayToMiso =
   Map.fromList
     . concatMap \case
       Clay.Property _modifiers (Clay.Key k) (Clay.Value v) -> (,) <$> allPrefixes k <*> allPrefixes v
         where
           allPrefixes = \case
-            Clay.Prefixed ts -> map (uncurry (<>)) ts
-            Clay.Plain t -> pure t
+            Clay.Prefixed ts -> map (ms . uncurry (<>)) ts
+            Clay.Plain t -> pure $ ms t
       _ -> []
     . Clay.runS
 

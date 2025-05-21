@@ -63,7 +63,7 @@ import Miso (
   text,
   type_,
  )
-import Miso.String (ms)
+import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
@@ -157,10 +157,12 @@ import Primer.Miso.Util (
   kindsInType,
   nodeSelectionType,
   optToName,
+  readMs,
   realToClay,
   runMutationWithNullDb,
   runTC,
   selectedDefName,
+  showMs,
   startAppWithSavedState,
   stringToOpt,
   typeBindingsInExpr,
@@ -242,7 +244,7 @@ data ActionPanelModel = ActionPanelModel
 
 data EvalModel = EvalModel
   { expr :: Maybe Expr
-  , error :: Maybe Text
+  , error :: Maybe MisoString
   , opts :: EvalOpts
   }
   deriving stock (Eq, Show, Generic)
@@ -259,7 +261,7 @@ data EvalOpts = EvalOpts
   deriving (ToJSON, FromJSON) via PrimerJSON EvalOpts
 
 data Action
-  = NoOp Text -- For situations where Miso requires an action, but we don't actually want to do anything.
+  = NoOp MisoString -- For situations where Miso requires an action, but we don't actually want to do anything.
   | SelectDef GVarName
   | SelectNode NodeSelectionT
   | ViewReadOnlyDef GVarName
@@ -294,7 +296,7 @@ updateModel =
     ApplyAction actionAndOpts -> do
       prog <- appProg <$> use #app
       let defs = progAllDefs prog
-      -- TODO handle errors properly, not just `Either Text`
+      -- TODO handle errors properly, not just `Either MisoString`
       actionResult <- runExceptT do
         sel <- liftEither $ maybeToEither (Left "no selection for action") $ progSelection prog
         defName <-
@@ -304,14 +306,14 @@ updateModel =
             $ selectedDefName sel
         (_editable, def) <-
           liftEither
-            . first (Left . ("findASTDef failure in runAction: " <>))
+            . first (Left . ("findASTDef failure in runAction: " <>) . ms)
             $ findASTDef defs defName
         liftEither $ first (Right . ActionError) case actionAndOpts of
           Left action -> toProgActionNoInput (snd <$> defs) (Right def) (getID <$> sel) action
           Right (action, opt) -> toProgActionInput (Right def) (getID <$> sel) opt action
       case actionResult of
         Right actions -> runMutation $ Edit actions
-        Left e -> scheduleIO_ $ consoleLog $ "running action failed: " <> either ms (ms @Text . show) e
+        Left e -> scheduleIO_ $ consoleLog $ "running action failed: " <> either identity showMs e
       resetActionPanel
     RunUndo -> do
       runMutation Undo
@@ -404,7 +406,7 @@ viewModel Model{..} =
                       , class_ "read-only"
                       ]
               )
-              [text $ globalNamePretty def]
+              [text $ ms $ globalNamePretty def]
       ]
       <> case maybeDefSel of
         Nothing -> [text "no selection"]
@@ -453,8 +455,8 @@ viewModel Model{..} =
                             )
                     ]
                     [ text case action of
-                        Available.NoInput a -> show a
-                        Available.Input a -> show a
+                        Available.NoInput a -> showMs a
+                        Available.Input a -> showMs a
                     ]
                 where
                   def' = astDefTtoAstDef def
@@ -468,7 +470,7 @@ viewModel Model{..} =
                           [ input_
                               [ type_ "text"
                               , required_ True
-                              , onChange $ ApplyAction . Right . (action,) . stringToOpt
+                              , onChange $ ApplyAction . Right . (action,) . stringToOpt . fromMisoString
                               ]
                           , button_ [] [text "↩"]
                           ]
@@ -482,7 +484,7 @@ viewModel Model{..} =
                                    opt.matchesType
                                    [class_ "matches-type"]
                              )
-                             [ text $ either (unName . unLocalName) globalNamePretty $ optToName opt
+                             [ text $ ms $ either (unName . unLocalName) globalNamePretty $ optToName opt
                              ]
                      )
                   <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
@@ -518,7 +520,7 @@ viewModel Model{..} =
                                   maybe
                                     (NoOp "failed to read number input")
                                     (\n -> SetEvalOpts $ #stepLimit .~ n)
-                                    . readMaybe
+                                    . readMs
                               ]
                           , text "Steps"
                           ]
@@ -563,7 +565,7 @@ data NodeViewData action = NodeViewData
   }
 
 data NodeViewOpts action
-  = SyntaxNode {wide :: Bool, flavor :: Text, text :: Text}
+  = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
@@ -579,7 +581,7 @@ viewNodeData :: P2 Double -> V2 Double -> [View action] -> NodeViewData action -
 viewNodeData position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
-      [ src_ ("data:img/gif;base64," <> animation)
+      [ src_ ("data:img/gif;base64," <> ms animation)
       , style_ $ clayToMiso do
           Clay.width $ Clay.px $ realToClay dimensions.x
           Clay.height $ Clay.px $ realToClay dimensions.y
@@ -638,10 +640,10 @@ viewNodeData position dimensions edges node = case node.opts of
                            SyntaxNode{text = t} -> t
                            HoleNode{empty = e} -> if e then "?" else "⚠️"
                            PrimNode pc -> case pc of
-                             PrimChar c' -> show c'
-                             PrimInt n -> show n
-                           ConNode{name} -> unName name
-                           VarNode{name} -> unName name
+                             PrimChar c' -> showMs c'
+                             PrimInt n -> showMs n
+                           ConNode{name} -> ms $ unName name
+                           VarNode{name} -> ms $ unName name
                        ]
                    ]
            ]
