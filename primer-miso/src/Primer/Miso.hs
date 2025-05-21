@@ -586,23 +586,28 @@ viewNodeData position dimensions edges node = case node.opts of
           Clay.width $ Clay.px $ realToClay dimensions.x
           Clay.height $ Clay.px $ realToClay dimensions.y
       ]
-  _ ->
-    div_
-      ( [ class_ "node"
-        , class_ case node.level of
+  _ -> div_
+    ( [ class_
+      . mconcat
+      . intersperse " "
+      $ [ "node"
+        , case node.level of
             Expr -> "expr"
             Type -> "type"
             Kind -> "kind"
-        , class_ case node.opts of
+        , case node.opts of
             SyntaxNode{} -> "syntax"
             _ -> "non-syntax"
-        , class_ case node.opts of
+        , case node.opts of
             SyntaxNode{flavor} -> flavor
             HoleNode{} -> "hole"
             PrimNode{} -> "prim"
             ConNode{} -> "con"
             VarNode{} -> "var"
             PatternBoxNode{} -> "pattern-box"
+        ]
+        <> mwhen node.selected ["selected"]
+        <> mwhen (isJust node.clickAction) ["selectable"]
         , style_ $ clayToMiso do
             Clay.position Clay.absolute
             Clay.transform $
@@ -610,8 +615,7 @@ viewNodeData position dimensions edges node = case node.opts of
                 (Clay.px $ realToClay position.x)
                 (Clay.px $ realToClay position.y)
         ]
-          <> foldMap' (\a -> [onClick a, class_ "selectable"]) node.clickAction
-          <> mwhen node.selected [class_ "selected"]
+          <> foldMap' (pure . onClick) node.clickAction
       )
       $ edges -- Edges come first so that they appear behind contents.
         <> [ div_
