@@ -643,16 +643,17 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
                    [ div_
                        [ class_ "node-text"
                        ]
-                       [ if showIDs
-                           then text $ maybe "" (ms @Text . show) node.id
-                           else text case node.opts of
-                             SyntaxNode{text = t} -> t
-                             HoleNode{empty = e} -> if e then "?" else "⚠️"
-                             PrimNode pc -> case pc of
-                               PrimChar c' -> showMs c'
-                               PrimInt n -> showMs n
-                             ConNode{name} -> ms $ unName name
-                             VarNode{name} -> ms $ unName name
+                       [ text
+                           if showIDs
+                             then maybe "" (ms @Text . show) node.id
+                             else case node.opts of
+                               SyntaxNode{text = t} -> t
+                               HoleNode{empty = e} -> if e then "?" else "⚠️"
+                               PrimNode pc -> case pc of
+                                 PrimChar c' -> showMs c'
+                                 PrimInt n -> showMs n
+                               ConNode{name} -> ms $ unName name
+                               VarNode{name} -> ms $ unName name
                        ]
                    ]
            ]
