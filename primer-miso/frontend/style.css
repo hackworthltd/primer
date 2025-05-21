@@ -64,7 +64,7 @@
 body {
   margin: 0;
   font-family: sans;
-  height: 100vh;
+  height: 100dvh;
 }
 
 #miso-root {
