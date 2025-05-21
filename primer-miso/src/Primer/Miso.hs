@@ -586,28 +586,29 @@ viewNodeData position dimensions edges node = case node.opts of
           Clay.width $ Clay.px $ realToClay dimensions.x
           Clay.height $ Clay.px $ realToClay dimensions.y
       ]
-  _ -> div_
-    ( [ class_
-      . mconcat
-      . intersperse " "
-      $ [ "node"
-        , case node.level of
-            Expr -> "expr"
-            Type -> "type"
-            Kind -> "kind"
-        , case node.opts of
-            SyntaxNode{} -> "syntax"
-            _ -> "non-syntax"
-        , case node.opts of
-            SyntaxNode{flavor} -> flavor
-            HoleNode{} -> "hole"
-            PrimNode{} -> "prim"
-            ConNode{} -> "con"
-            VarNode{} -> "var"
-            PatternBoxNode{} -> "pattern-box"
-        ]
-        <> mwhen node.selected ["selected"]
-        <> mwhen (isJust node.clickAction) ["selectable"]
+  _ ->
+    div_
+      ( [ class_
+            . mconcat
+            . intersperse " "
+            $ [ "node"
+              , case node.level of
+                  Expr -> "expr"
+                  Type -> "type"
+                  Kind -> "kind"
+              , case node.opts of
+                  SyntaxNode{} -> "syntax"
+                  _ -> "non-syntax"
+              , case node.opts of
+                  SyntaxNode{flavor} -> flavor
+                  HoleNode{} -> "hole"
+                  PrimNode{} -> "prim"
+                  ConNode{} -> "con"
+                  VarNode{} -> "var"
+                  PatternBoxNode{} -> "pattern-box"
+              ]
+              <> mwhen node.selected ["selected"]
+              <> mwhen (isJust node.clickAction) ["selectable"]
         , style_ $ clayToMiso do
             Clay.position Clay.absolute
             Clay.transform $
