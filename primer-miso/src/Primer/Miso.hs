@@ -178,6 +178,7 @@ start =
       { model =
           Model
             { app = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
+            , readOnlySelection = Nothing
             , components =
                 ComponentModels
                   { actionPanel =
@@ -204,9 +205,9 @@ start =
                               , stepLimit = 10
                               , dir = Chk
                               }
+                        , fullscreen = False
                         }
                   }
-            , readOnlySelection = Nothing
             }
       , update = updateModel
       , view = viewModel
@@ -247,6 +248,7 @@ data EvalModel = EvalModel
   { expr :: Maybe Expr
   , error :: Maybe MisoString
   , opts :: EvalOpts
+  , fullscreen :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EvalModel
@@ -273,6 +275,7 @@ data Action
   | RunRedo
   | SetApp Primer.App.App
   | SetEvalOpts (EvalOpts -> EvalOpts)
+  | ToggleFullscreenEval
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
@@ -330,6 +333,7 @@ updateModel =
     SetEvalOpts f -> do
       #components % #eval % #opts %= f
       setEval
+    ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
@@ -347,9 +351,10 @@ updateModel =
     setEval = do
       app <- use #app
       opts <- use $ #components % #eval % #opts
+      fullscreen <- use $ #components % #eval % #fullscreen
       let (tydefs, defs, maybeDef) = getDefs app
       evalModel <- case maybeDef of
-        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval", opts}
+        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval", opts, fullscreen}
         Just def -> do
           let nextId = succ $ appIdCounter app
               nextName = succ $ appNameCounter app
@@ -362,8 +367,8 @@ updateModel =
                   $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
           scheduleIO_ $ logAllToConsole @EvalLog logs
           pure case evalResult of
-            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts}
-            Right expr -> EvalModel{expr = Just expr, error = Nothing, opts}
+            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts, fullscreen}
+            Right expr -> EvalModel{expr = Just expr, error = Nothing, opts, fullscreen}
       #components % #eval .= evalModel
     -- TODO better logging, including handling different severities appropriately
     logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
@@ -392,7 +397,7 @@ updateModel =
 viewModel :: Model -> View Action
 viewModel Model{..} =
   div_
-    [id_ "miso-root"]
+    ([id_ "miso-root"] <> mwhen components.eval.fullscreen [class_ "fullscreen-eval"])
     $ [ div_
           [id_ "def-panel"]
           $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
@@ -525,6 +530,7 @@ viewModel Model{..} =
                               ]
                           , text "Steps"
                           ]
+                      , button_ [onClick ToggleFullscreenEval] ["⛶"]
                       ]
               ]
                 <> case components.eval.expr of

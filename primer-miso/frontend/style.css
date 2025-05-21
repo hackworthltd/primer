@@ -64,7 +64,7 @@
 body {
   margin: 0;
   font-family: sans;
-  height: 100vh;
+  height: 100dvh;
 }
 
 #miso-root {
@@ -78,6 +78,10 @@ body {
     border-style: solid;
     border-width: 1px;
     border-color: var(--blue-primary);
+  }
+  &.fullscreen-eval {
+    grid-template-columns: 0 0 1fr 0;
+    grid-template-rows: 0 1fr;
   }
 }
 
@@ -103,6 +107,11 @@ body {
   grid-row-start: 2;
   grid-column-start: 3;
   display: flex;
+  > #options {
+    input[type="number"] {
+      width: 5rem;
+    }
+  }
 }
 
 #def-panel,
