@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -15,6 +16,7 @@ import Foreword hiding (hoistAccum)
 
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT)
+import Optics (lens, (.~), (^.))
 import Primer.Core (
   Expr,
   Expr' (
@@ -28,6 +30,7 @@ import Primer.Core (
     LetType,
     Letrec
   ),
+  HasID (_id),
   Type' (
     TForall,
     TLet
@@ -74,6 +77,18 @@ import Primer.Zipper.Type (
 data RedexWithContext
   = RExpr ExprZ Redex
   | RType TypeZ RedexType
+
+instance HasID RedexWithContext where
+  _id =
+    lens
+      ( \case
+          RExpr ez _ -> ez ^. _id
+          RType tz _ -> tz ^. _id
+      )
+      ( flip \id -> \case
+          RExpr ez r -> RExpr (ez & _id .~ id) r
+          RType tz r -> RType (tz & _id .~ id) r
+      )
 
 data ViewLet = ViewLet
   { bindingVL :: LetBinding

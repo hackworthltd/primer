@@ -7,9 +7,12 @@
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
+  requestFullscreen,
+  exitFullscreen,
   startAppWithSavedState,
   showMs,
   readMs,
+  logAllToConsole,
   clayToMiso,
   P2,
   unitX,
@@ -17,6 +20,7 @@ module Primer.Miso.Util (
   unitY,
   unit_Y,
   runTC,
+  runEval,
   TypeT,
   TermMeta',
   NodeSelectionT,
@@ -50,7 +54,7 @@ import Clay.Stylesheet qualified as Clay
 import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
-import Control.Monad.Log (WithSeverity)
+import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
@@ -62,6 +66,7 @@ import Linear.Affine (Point (..), unP)
 import Miso (
   App (initialAction, model, subs, update, view),
   JSM,
+  consoleLog,
   getLocalStorage,
   mapSub,
   setLocalStorage,
@@ -127,12 +132,24 @@ import Primer.Core (
  )
 import Primer.Database qualified as DB
 import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr)
+import Primer.Eval (AvoidShadowing (..), EvalLog, ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Log (runPureLogT)
+import Primer.Log (PureLogT, runPureLogT)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
+
+-- import Language.Javascript.JSaddle hiding ((<#))
+import Language.Javascript.JSaddle qualified as J
+
+-- import Optics
+
+-- exitFullscreen x = (doc J.# ("exitFullscreen" :: MisoString)) ()
+requestFullscreen :: JSM J.JSVal
+requestFullscreen = J.eval ("document.documentElement1.requestFullscreen()" :: MisoString)
+exitFullscreen :: JSM J.JSVal
+exitFullscreen = J.eval ("document.exitFullscreen()" :: MisoString)
 
 {- Miso -}
 
@@ -164,6 +181,12 @@ showMs = ms . show @_ @String
 
 readMs :: Read a => MisoString -> Maybe a
 readMs = readMaybe @_ @String . fromMisoString
+
+-- TODO better logging, including handling different severities appropriately
+logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
+logAllToConsole logs =
+  let issues = filter ((<= Notice) . msgSeverity) $ toList logs
+   in unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
 
 {- Clay -}
 
@@ -223,8 +246,14 @@ instance MonadFresh ID (M e) where
   fresh = M $ _1 <<%= succ
 instance MonadFresh NameCounter (M e) where
   fresh = M $ _2 <<%= succ
-runTC :: (ID, NameCounter) -> M e a -> Either e a
-runTC s0 = runExcept . flip evalStateT s0 . (.unM)
+runTC :: (ID, NameCounter) -> M e a -> (Either e (a, (ID, NameCounter)))
+runTC s0 = runExcept . flip runStateT s0 . (.unM)
+
+runEval ::
+  (ID, NameCounter) ->
+  PureLogT (WithSeverity EvalLog) (M Void) a ->
+  ((a, Seq (WithSeverity EvalLog)), (ID, NameCounter))
+runEval s = either absurd identity . runTC s . runPureLogT
 
 -- analogous with `ExprT`/`TypeT`
 -- type KindT = Kind' KindMetaT
@@ -382,3 +411,7 @@ runMutationWithNullDb req app = do
   (_res, logs) <- either absurd (first $ first Right) <$> race runDB runReq
   res <- atomically $ StmMap.lookup sid sessions -- returning `_res` would mean discarding the ID counter state
   pure (logs, maybe (error "impossible: ") (.sessionApp) res)
+
+-- TODO `ViewRedexOptions` should use `AvoidShadowing` instead of `Bool`
+instance HasField "avoidShadowing'" ViewRedexOptions AvoidShadowing where
+  getField o = if o.avoidShadowing then AvoidShadowing else NoAvoidShadowing

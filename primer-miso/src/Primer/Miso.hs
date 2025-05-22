@@ -12,11 +12,13 @@ import Foreword
 
 import Clay qualified
 import Control.Monad.Except (liftEither)
-import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
+import Control.Monad.Log (WithSeverity)
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
+import Data.List.Extra (compareLength)
 import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Tree (Tree)
@@ -129,9 +131,9 @@ import Primer.Core (
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Def (defAST)
-import Primer.Eval (Dir (..), NormalOrderOptions (..))
+import Primer.Eval (Dir (..), EvalLog, NormalOrderOptions (..), findRedex, redexes, step)
 import Primer.Eval.Redex (RunRedexOptions (..), ViewRedexOptions (..))
-import Primer.EvalFullStep (EvalFullError (TimedOut), EvalLog, evalFull)
+import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Miso.Layout (
@@ -154,21 +156,24 @@ import Primer.Miso.Util (
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  exitFullscreen,
   findASTDef,
   kindsInType,
+  logAllToConsole,
   nodeSelectionType,
   optToName,
   readMs,
   realToClay,
+  requestFullscreen,
+  runEval,
   runMutationWithNullDb,
-  runTC,
   selectedDefName,
   showMs,
   startAppWithSavedState,
   stringToOpt,
   typeBindingsInExpr,
  )
-import Primer.Name (Name, unName)
+import Primer.Name (Name, NameCounter, unName)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
 start :: JSM ()
@@ -187,11 +192,15 @@ start =
                         }
                   , eval =
                       EvalModel
-                        { expr = Nothing
-                        , error = Nothing
-                        , opts =
+                        { opts =
                             EvalOpts
-                              { normalOrder = UnderBinders
+                              { -- TODO we're setting these to `False` so that the initial states match visuals
+                                -- would maybe be better to use our defaults from tests and and old frontend instead
+                                -- (see `evalFullTest` - grouped lets, push and elide, aggressive)
+                                -- requires Miso stuff - not sure how to set initial state properly
+                                -- OTOH, maybe just reduce steps to 0? esp. now that we have interactive eval
+                                -- since the initial state isn't really displayed there anyway
+                                normalOrder = UnderBinders
                               , viewRedex =
                                   ViewRedexOptions
                                     { groupedLets = False
@@ -202,10 +211,11 @@ start =
                                   RunRedexOptions
                                     { pushAndElide = False
                                     }
-                              , stepLimit = 10
+                              , stepLimit = 0
                               , dir = Chk
                               }
                         , fullscreen = False
+                        , history = []
                         }
                   }
             }
@@ -245,10 +255,17 @@ data ActionPanelModel = ActionPanelModel
   deriving (ToJSON, FromJSON) via PrimerJSON ActionPanelModel
 
 data EvalModel = EvalModel
-  { expr :: Maybe Expr
-  , error :: Maybe MisoString
-  , opts :: EvalOpts
+  { opts :: EvalOpts
   , fullscreen :: Bool
+  , history :: [(Expr, (ID, NameCounter), ([ID], Maybe ID))]
+  -- ^ current first, original last
+  -- (where original is the expr we get to from non-interactive eval)
+  -- includes eval counter states after producing the expr
+  -- empty means no def selection
+  -- TODO set default steps down to 0 on account of this? be nice to be less arbitrary anyway, but maybe orthogonal
+  -- also, we now cache redexes here - not strictly necessary but a simple optimisation that also makes undo code simpler
+  -- well, now it's the only place we put them, but still we don't _have_ to remember old ones
+  -- TODO use record? `data EvalHistoryEntry`?
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EvalModel
@@ -276,6 +293,8 @@ data Action
   | SetApp Primer.App.App
   | SetEvalOpts (EvalOpts -> EvalOpts)
   | ToggleFullscreenEval
+  | ChooseRedex ID
+  | StepBackEval
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
@@ -333,7 +352,55 @@ updateModel =
     SetEvalOpts f -> do
       #components % #eval % #opts %= f
       setEval
-    ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
+    ToggleFullscreenEval -> do
+      #components % #eval % #fullscreen %= not
+      -- TODO this is nice on mobile...
+      -- orthogonal to this commit
+      -- we should really separate the notions of "eval takes up whole app" and "app is actually fullscreen"
+      -- JSaddle code needs clean up - error handling, not using `eval` etc.
+      -- ideally, mobile browsers would just have a generic option for this, like pressing f11 on desktop...
+      -- Opera Mini has this but it's clunky
+      fs' <- use $ #components % #eval % #fullscreen
+      scheduleIO_ $
+        void
+          if fs'
+            then requestFullscreen
+            else exitFullscreen
+    ChooseRedex id -> do
+      app <- use #app
+      history <- use $ #components % #eval % #history
+      opts <- use $ #components % #eval % #opts
+      let
+        -- TODO DRY with view
+        defs = progAllDefs (appProg app)
+        tydefs = progAllTypeDefs (appProg app)
+        defs' = snd <$> defs
+        tydefs' = snd <$> tydefs
+      let exprToEvalMaybe = case history of
+            (e0', s0', _) : _ -> Just (e0', s0')
+            [] -> Nothing
+      case exprToEvalMaybe of
+        -- TODO `Nothing` means no def selected...
+        -- this should only actually happen on race conditions,
+        -- given that `ChooseRedex` will only be triggered by clicking on an eval expr
+        Nothing -> pure ()
+        Just (currentEvalExpr, s0) -> do
+          let ((res, evalStepLogs), s1) =
+                runEval s0 $ step opts.viewRedex.avoidShadowing' tydefs' defs' currentEvalExpr opts.dir id
+          scheduleIO_ $ logAllToConsole evalStepLogs
+          case res of
+            -- TODO set the error field instead?
+            Left err -> scheduleIO_ $ consoleLog $ "eval error: " <> show err
+            -- TODO do something with detail? at least note that it's unused?
+            Right (expr, _detail) -> do
+              scheduleIO_ $ logAllToConsole redexesLogs
+              #components % #eval % #history %= ((expr, s1, rxs) :)
+              where
+                (rxs, redexesLogs) = getRedexes opts tydefs' defs' expr
+    StepBackEval -> do
+      (#components % #eval % #history) %= \case
+        [] -> [] -- TODO this shouldn't really happen - we should actually grey out the button in this state
+        _ : es -> es
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
@@ -353,28 +420,30 @@ updateModel =
       opts <- use $ #components % #eval % #opts
       fullscreen <- use $ #components % #eval % #fullscreen
       let (tydefs, defs, maybeDef) = getDefs app
+      -- TODO clean this whole section up a bit in separate commit
+      -- maybe re-inline `runEval`? now only used twice (`runPureLogT @_ @(WithSeverity EvalLog)`)
       evalModel <- case maybeDef of
-        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval", opts, fullscreen}
+        Nothing -> pure EvalModel{opts, fullscreen, history = []}
         Just def -> do
           let nextId = succ $ appIdCounter app
               nextName = succ $ appNameCounter app
               -- TODO put this in to a background thread rather than blocking whole program for expensive evaluations
-              (evalResult, logs) =
-                either absurd identity
-                  . runTC (succ nextId, nextName)
-                  . runPureLogT
+              ((evalResult, evalFullLogs), s') =
+                runEval (succ nextId, nextName)
                   . evalFull opts.normalOrder opts.viewRedex opts.runRedex tydefs defs opts.stepLimit opts.dir
                   $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
-          scheduleIO_ $ logAllToConsole @EvalLog logs
-          pure case evalResult of
-            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts, fullscreen}
-            Right expr -> EvalModel{expr = Just expr, error = Nothing, opts, fullscreen}
+              expr = case evalResult of
+                Left (TimedOut e) -> e
+                Right e -> e
+              (rxs, redexesLogs) = getRedexes opts tydefs defs expr
+          scheduleIO_ $ logAllToConsole evalFullLogs
+          scheduleIO_ $ logAllToConsole redexesLogs
+          pure EvalModel{opts, fullscreen, history = [(expr, s', rxs)]}
       #components % #eval .= evalModel
-    -- TODO better logging, including handling different severities appropriately
-    logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
-    logAllToConsole logs =
-      let issues = filter ((<= Notice) . msgSeverity) $ toList logs
-       in unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
+    getRedexes (opts :: EvalOpts) tydefs defs expr = runIdentity $ runPureLogT @_ @(WithSeverity EvalLog) do
+      normalOrderRedex <- runMaybeT $ getID <$> findRedex opts.normalOrder opts.viewRedex tydefs defs opts.dir expr
+      allRedexes <- redexes opts.viewRedex.avoidShadowing' tydefs defs opts.dir expr
+      pure (allRedexes, normalOrderRedex)
     -- TODO DRY this with `viewModel`
     -- when we use Miso components it might be easier to compute this in one place then send messages around
     getDefs app =
@@ -512,6 +581,10 @@ viewModel Model{..} =
                         ]
                  in div_
                       [id_ "options"]
+                      -- TODO some of these should in principle be able to be set on the fly for interactive eval
+                      -- i.e. without resetting history
+                      -- possibly crucial to debugging eval issues I've been seeing
+                      -- of course it's hard to square this with wanting the non-interactive eval output to reflect opts
                       [ checkBox "Stop at binders" \b -> #normalOrder .~ if b then StopAtBinders else UnderBinders
                       , checkBox "Grouped lets" \b -> #viewRedex % #groupedLets .~ b
                       , checkBox "Aggressive elision" \b -> #viewRedex % #aggressiveElision .~ b
@@ -530,17 +603,28 @@ viewModel Model{..} =
                               ]
                           , text "Steps"
                           ]
-                      , button_ [onClick ToggleFullscreenEval] ["⛶"]
                       ]
+              , div_
+                  -- TODO add styling here, and make this a separate commit
+                  -- maybe even just squash with introduction of the fullscreen button
+                  [id_ ""]
+                  $ munless (compareLength components.eval.history 2 == LT) [button_ [onClick StepBackEval] ["↩"]]
+                    <> [ button_ [onClick ToggleFullscreenEval] ["⛶"]
+                       ]
               ]
-                <> case components.eval.expr of
-                  Nothing -> [text "No definition selected for evaluation"]
-                  Just expr ->
-                    ( case components.eval.error of
-                        Nothing -> []
-                        Just s -> [text s]
-                    )
-                      <> [fst . viewTree $ viewTreeExpr mkMeta expr]
+                <> case components.eval.history of
+                  [] -> [text "No definition selected for evaluation"]
+                  (expr, _, rxs) : _ ->
+                    [fst . viewTree $ viewTreeExpr (mkMeta' . getID) expr]
+                    where
+                      mkMeta' id =
+                        if not $ id `elem` fst rxs
+                          then (Just id, Nothing, NoHighlight)
+                          else
+                            ( Just id
+                            , Just $ ChooseRedex id
+                            , if snd rxs == Just id then AnimatedHighlight else SimpleHighlight
+                            )
           ]
           where
             mkMeta = const (Nothing, Nothing, NoHighlight)
