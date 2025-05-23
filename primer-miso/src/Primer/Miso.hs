@@ -193,7 +193,17 @@ start =
                         , error = Nothing
                         , opts =
                             EvalOpts
-                              { normalOrder = UnderBinders
+                              { -- TODO we're setting these to `False` so that the initial states match visuals
+                                -- would maybe be better to use our defaults from tests and and old frontend instead
+                                -- (see `evalFullTest` - grouped lets, push and elide, aggressive)
+                                -- requires Miso stuff - not sure how to set initial state properly
+                                -- OTOH, maybe just reduce steps to 0? esp. now that we have interactive eval
+                                -- since the initial state isn't really displayed there anyway
+                                -- maybe just open an issue about eval weirdness, with an example, and mention this there
+                                -- along with the fact that we'd really like to be able to set these on the fly for interactive eval
+                                -- and that that doesn't fit very well with current (very much temporary) UX, given we also want full eval in sync with opts
+                                -- and that such issues are why we (I) initially added toggles for these in the frontend in the first place
+                                normalOrder = UnderBinders
                               , viewRedex =
                                   ViewRedexOptions
                                     { groupedLets = False
