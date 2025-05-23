@@ -544,8 +544,11 @@ viewModel Model{..} =
                               ]
                           , text "Steps"
                           ]
-                      , button_ [onClick ToggleFullscreenEval] ["⛶"]
                       ]
+              , div_
+                  [class_ "fullscreen"]
+                  $ [ button_ [onClick ToggleFullscreenEval] ["⛶"]
+                    ]
               ]
                 <> case components.eval.expr of
                   Nothing -> [text "No definition selected for evaluation"]
