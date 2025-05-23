@@ -12,7 +12,6 @@ import Foreword
 
 import Clay qualified
 import Control.Monad.Except (liftEither)
-import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
@@ -157,6 +156,7 @@ import Primer.Miso.Util (
   exitFullscreen,
   findASTDef,
   kindsInType,
+  logAllToConsole,
   nodeSelectionType,
   optToName,
   readMs,
@@ -389,11 +389,6 @@ updateModel =
             Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts, fullscreen}
             Right expr -> EvalModel{expr = Just expr, error = Nothing, opts, fullscreen}
       #components % #eval .= evalModel
-    -- TODO better logging, including handling different severities appropriately
-    logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
-    logAllToConsole logs =
-      let issues = filter ((<= Notice) . msgSeverity) $ toList logs
-       in unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
     -- TODO DRY this with `viewModel`
     -- when we use Miso components it might be easier to compute this in one place then send messages around
     getDefs app =

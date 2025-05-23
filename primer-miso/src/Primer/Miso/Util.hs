@@ -12,6 +12,7 @@ module Primer.Miso.Util (
   startAppWithSavedState,
   showMs,
   readMs,
+  logAllToConsole,
   clayToMiso,
   P2,
   unitX,
@@ -52,7 +53,7 @@ import Clay.Stylesheet qualified as Clay
 import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
-import Control.Monad.Log (WithSeverity)
+import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
@@ -65,6 +66,7 @@ import Linear.Affine (Point (..), unP)
 import Miso (
   App (initialAction, model, subs, update, view),
   JSM,
+  consoleLog,
   getLocalStorage,
   mapSub,
   setLocalStorage,
@@ -172,6 +174,12 @@ showMs = ms . show @_ @String
 
 readMs :: Read a => MisoString -> Maybe a
 readMs = readMaybe @_ @String . fromMisoString
+
+-- TODO better logging, including handling different severities appropriately
+logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
+logAllToConsole logs =
+  let issues = filter ((<= Notice) . msgSeverity) $ toList logs
+   in unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
 
 {- Clay -}
 
