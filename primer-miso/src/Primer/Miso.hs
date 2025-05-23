@@ -190,6 +190,11 @@ start =
                         { expr = Nothing
                         , error = Nothing
                         , opts =
+                            -- TODO we use these values so that the initial visuals are in sync with Miso's state,
+                            -- since it's not clear how best to e.g. set checboxes to start active,
+                            -- but it would maybe be better to use our defaults from tests instead
+                            -- (grouped lets, push and elide, aggressive - see `evalFullTest`),
+                            -- or whatever our React frontend used...
                             EvalOpts
                               { normalOrder = UnderBinders
                               , viewRedex =
