@@ -107,7 +107,7 @@ body {
   grid-row-start: 2;
   grid-column-start: 3;
   display: flex;
-  > #options {
+  > #eval-options {
     input[type="number"] {
       width: 5rem;
     }

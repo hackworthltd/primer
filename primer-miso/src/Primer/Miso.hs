@@ -516,7 +516,7 @@ viewModel Model{..} =
                         , text t
                         ]
                  in div_
-                      [id_ "options"]
+                      [id_ "eval-options"]
                       [ checkBox "Stop at binders" \b -> #normalOrder .~ if b then StopAtBinders else UnderBinders
                       , checkBox "Grouped lets" \b -> #viewRedex % #groupedLets .~ b
                       , checkBox "Aggressive elision" \b -> #viewRedex % #aggressiveElision .~ b
