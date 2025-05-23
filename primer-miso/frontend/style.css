@@ -112,6 +112,14 @@ body {
       width: 5rem;
     }
   }
+  > #eval-overlay {
+    position: absolute;
+    right: 0px;
+    > button {
+      width: 2rem;
+      aspect-ratio: 1/1;
+    }
+  }
 }
 
 #def-panel,
