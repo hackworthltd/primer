@@ -154,12 +154,14 @@ import Primer.Miso.Util (
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  exitFullscreen,
   findASTDef,
   kindsInType,
   nodeSelectionType,
   optToName,
   readMs,
   realToClay,
+  requestFullscreen,
   runMutationWithNullDb,
   runTC,
   selectedDefName,
@@ -333,7 +335,14 @@ updateModel =
     SetEvalOpts f -> do
       #components % #eval % #opts %= f
       setEval
-    ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
+    ToggleFullscreenEval -> do
+      #components % #eval % #fullscreen %= not
+      fs' <- use $ #components % #eval % #fullscreen
+      scheduleIO_ $
+        void
+          if fs'
+            then requestFullscreen
+            else exitFullscreen
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
