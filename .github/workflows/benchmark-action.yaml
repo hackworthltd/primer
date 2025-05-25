@@ -30,9 +30,9 @@ jobs:
         uses: hashicorp/vault-action@v3.3.0
         id: secrets
         with:
-          url: https://openbao.hackworth-corp.com
-          path: "github-actions/hackworthltd"
-          role: github-actions-hackworthltd-repo-primer-benchmarks
+          url: https://vault.hackworth-corp.com
+          path: "github-actions"
+          role: primer-workflow-benchmark-regressions
           method: jwt
           secrets: |
             secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
