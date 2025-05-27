@@ -112,11 +112,12 @@ body {
       width: 5rem;
     }
   }
-  > .fullscreen {
+  > .overlay {
     position: absolute;
     right: 0px;
     > button {
       width: 2rem;
+      vertical-align: middle;
       aspect-ratio: 1/1;
     }
   }
