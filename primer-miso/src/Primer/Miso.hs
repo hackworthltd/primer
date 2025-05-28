@@ -80,6 +80,7 @@ import Primer.App (
   ProgAction (..),
   ProgError (ActionError),
   Selection' (SelectionDef, SelectionTypeDef),
+  TypeDefSelection (..),
   appIdCounter,
   appNameCounter,
   appProg,
@@ -120,6 +121,7 @@ import Primer.Core (
   Pattern (PatCon, PatPrim),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
+  TyConName,
   Type' (..),
   getID,
   globalNamePretty,
@@ -145,13 +147,16 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
-  DefSelectionT,
   NodeSelectionT,
   P2,
+  SelectionT,
   TermMeta',
   assumeDefHasTypeCheckInfo,
   assumeDefSelectionHasTypeCheckInfo,
+  assumeTypeDefHasTypeCheckInfo,
+  assumeTypeDefSelectionHasTypeCheckInfo,
   astDefTtoAstDef,
+  astTypeDefTtoAstTypeDef,
   availableForSelection,
   bindingsInExpr,
   bindingsInType,
@@ -168,12 +173,15 @@ import Primer.Miso.Util (
   runMutationWithNullDb,
   runTC,
   selectedDefName,
+  selectionTermDef,
+  selectionTypeDef,
   showMs,
   startAppWithSavedState,
   stringToOpt,
   typeBindingsInExpr,
  )
 import Primer.Name (Name, NameCounter, unName)
+import Primer.TypeDef (typeDefAST)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
 start :: JSM ()
@@ -234,7 +242,7 @@ start =
 
 data Model = Model
   { app :: Primer.App.App
-  , readOnlySelection :: Maybe DefSelectionT
+  , readOnlySelection :: Maybe SelectionT
   -- ^ A non-editable def is being viewed (e.g. from an imported module), rather than the selection in `app`.
   , components :: ComponentModels
   }
@@ -286,9 +294,9 @@ data EvalOpts = EvalOpts
 
 data Action
   = NoOp MisoString -- For situations where Miso requires an action, but we don't actually want to do anything.
-  | SelectDef GVarName
+  | SelectDef (Either TyConName GVarName)
   | SelectNode NodeSelectionT
-  | ViewReadOnlyDef GVarName
+  | ViewReadOnlyDef (Either TyConName GVarName)
   | ShowActionOptions (Available.InputAction, Available.Options)
   | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
   | CancelActionInput
@@ -306,17 +314,27 @@ updateModel =
     NoOp _ -> pure ()
     SelectDef d -> do
       #readOnlySelection .= Nothing
-      runMutation $ Edit [MoveToDef d]
+      -- runMutation case d of
+      --   Left d' -> Edit [undefined d'] --TODO hmm, I guess we need a new action...
+      --   Right d' -> Edit [MoveToDef d']
+      case d of
+        Left _ -> pure ()
+        Right d' -> runMutation $ Edit [MoveToDef d']
       resetActionPanel
     SelectNode sel -> do
       use #readOnlySelection >>= \case
-        Just (DefSelection d _) -> #readOnlySelection ?= DefSelection d (Just sel)
+        -- TODO use selection for `node` field instead of always `Nothing`
+        -- requires groundwork to make type def nodes clickable etc.
+        Just (SelectionTypeDef (TypeDefSelection d _)) -> #readOnlySelection ?= SelectionTypeDef (TypeDefSelection d Nothing)
+        Just (SelectionDef (DefSelection d _)) -> #readOnlySelection ?= SelectionDef (DefSelection d (Just sel))
         Nothing -> runMutation $ Edit $ pure case sel.nodeType of
           BodyNode -> setCursorBody $ getID sel
           SigNode -> setCursorSig $ getID sel
       resetActionPanel
     ViewReadOnlyDef d -> do
-      #readOnlySelection ?= DefSelection d Nothing
+      #readOnlySelection ?= case d of
+        Left d' -> SelectionTypeDef $ TypeDefSelection d' Nothing
+        Right d' -> SelectionDef $ DefSelection d' Nothing
       resetActionPanel
     ShowActionOptions a ->
       #components % #actionPanel % #optionsMode ?= a
@@ -463,167 +481,211 @@ viewModel Model{..} =
     ([id_ "miso-root"] <> mwhen components.eval.fullscreen [class_ "fullscreen-eval"])
     $ [ div_
           [id_ "def-panel"]
-          $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
-            button_
-              ( [class_ $ mwhen (Just def == ((.def) <$> maybeDefSel)) "selected"]
-                  <> case editable of
-                    Editable ->
-                      [ onClick $ SelectDef def
-                      ]
-                    NonEditable ->
-                      [ onClick $ ViewReadOnlyDef def
-                      , class_ "read-only"
-                      ]
-              )
-              [text $ ms $ globalNamePretty def]
+          $ ( Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
+                button_
+                  ( [class_ $ mwhen (Just def == ((.def) <$> (selectionTermDef =<< maybeDefSel))) "selected"]
+                      <> case editable of
+                        Editable ->
+                          [ onClick $ SelectDef $ Right def
+                          ]
+                        NonEditable ->
+                          [ onClick $ ViewReadOnlyDef $ Right def
+                          , class_ "read-only"
+                          ]
+                  )
+                  [text $ ms $ globalNamePretty def]
+            )
+            -- TODO DRY with above, somehow
+            <> ( Map.toList (Map.mapMaybe (traverse typeDefAST) $ progAllTypeDefs prog) <&> \(def, (editable, _)) ->
+                   button_
+                     ( [ class_ $ mwhen (Just def == ((.def) <$> (selectionTypeDef =<< maybeDefSel))) "selected"
+                       , class_ "type" -- TODO factor out class spaces helper
+                       ]
+                         <> case editable of
+                           Editable ->
+                             [ onClick $ SelectDef $ Left def
+                             ]
+                           NonEditable ->
+                             [ onClick $ ViewReadOnlyDef $ Left def
+                             , class_ "read-only"
+                             ]
+                     )
+                     [text $ ms $ globalNamePretty def]
+               )
       ]
       <> case maybeDefSel of
         Nothing -> [text "no selection"]
-        Just defSel ->
-          [ div_
-              [ id_ "sig"
-              ]
-              [ SelectNode . NodeSelection SigNode
-                  <$> fst (viewTree (viewTreeType (\m -> (Just $ getID m, Just $ Right m, isSelected m)) def.sig))
-              ]
-          , div_
-              [ id_ "body"
-              ]
-              [ SelectNode . NodeSelection BodyNode
-                  <$> fst (viewTree (viewTreeExpr (\m -> (Just $ getID m, Just m, isSelected m)) def.expr))
-              ]
-          , div_
-              [ id_ "selection-type"
-              ]
-              [ fst $ viewTree case defSel.node of
-                  Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
-                  Just s -> case nodeSelectionType s of
-                    Left t -> viewTreeType mkMeta t
-                    Right (Left t) -> viewTreeKind mkMeta t
-                    -- TODO this isn't really correct - kinds in Primer don't have kinds
-                    Right (Right ()) -> viewTreeKind mkMeta $ KType ()
-              ]
-          , div_ [id_ "action-panel"] case components.actionPanel.optionsMode of
-              Nothing ->
-                availableForSelection tydefs defs level editable def' defSel <&> \action ->
-                  button_
-                    [ onClick case action of
-                        Available.NoInput a -> ApplyAction $ Left a
-                        Available.Input a ->
-                          ShowActionOptions
-                            ( a
-                            , fromMaybe (error "couldn't get action options") $
-                                Available.options
-                                  tydefs
-                                  defs
-                                  (buildTypingContext tydefs defs SmartHoles)
-                                  level
-                                  (Right def')
-                                  (SelectionDef $ getID <$> defSel)
-                                  a
-                            )
+        Just (defSel :: SelectionT) ->
+          -- TODO remove ann, and rename (no longer necessarily a term def)
+          ( case def of
+              Left def' ->
+                -- TODO how exactly to show this? big UI/UX decision
+                -- and obviously different possibilities now that we're showing one def at a time
+                [text $ showMs def']
+              Right def' ->
+                [ div_
+                    [ id_ "sig"
                     ]
-                    [ text case action of
-                        Available.NoInput a -> showMs a
-                        Available.Input a -> showMs a
+                    [ SelectNode . NodeSelection SigNode
+                        <$> fst (viewTree (viewTreeType (\m -> (Just $ getID m, Just $ Right m, isSelected m)) def'.sig))
                     ]
-                where
-                  def' = astDefTtoAstDef def
-                  level = Primer.App.Expert -- TODO don't hardcode
-              Just (action, opts) ->
-                ( case opts.free of
-                    Available.FreeNone -> []
-                    _ ->
-                      [ form_
-                          []
-                          [ input_
-                              [ type_ "text"
-                              , required_ True
-                              , onChange $ ApplyAction . Right . (action,) . stringToOpt . fromMisoString
-                              ]
-                          , button_ [] [text "↩"]
-                          ]
-                      ]
-                )
-                  <> ( opts.opts
-                         <&> \opt ->
-                           button_
-                             ( [onClick $ ApplyAction $ Right (action, opt)]
-                                 <> mwhen
-                                   opt.matchesType
-                                   [class_ "matches-type"]
-                             )
-                             [ text $ ms $ either (unName . unLocalName) globalNamePretty $ optToName opt
-                             ]
+                , div_
+                    [ id_ "body"
+                    ]
+                    [ SelectNode . NodeSelection BodyNode
+                        <$> fst (viewTree (viewTreeExpr (\m -> (Just $ getID m, Just m, isSelected m)) def'.expr))
+                    ]
+                ]
+          )
+            <> [ div_
+                   [ id_ "selection-type"
+                   ]
+                   [ -- TODO combine with above match? maybe not
+                     case def of
+                       Left _ -> case defSel of
+                         SelectionTypeDef _ ->
+                           fst
+                             . viewTree
+                             . viewTreeKind mkMeta
+                             $ KType () -- TODO what to show here?
+                         SelectionDef _ -> text "selection doesn't match def" -- TODO can we avoid this? ditto below
+                       Right def' -> case defSel of
+                         SelectionDef DefSelection{node} -> fst $ viewTree case node of
+                           Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def'.sig
+                           Just s -> case nodeSelectionType s of
+                             Left t -> viewTreeType mkMeta t
+                             Right (Left t) -> viewTreeKind mkMeta t
+                             -- TODO this isn't really correct - kinds in Primer don't have kinds
+                             Right (Right ()) -> viewTreeKind mkMeta $ KType ()
+                         SelectionTypeDef _ -> text "selection doesn't match def"
+                   ]
+               , div_ [id_ "action-panel"] case components.actionPanel.optionsMode of
+                   Nothing ->
+                     availableForSelection tydefs defs level editable def' defSel <&> \action ->
+                       button_
+                         [ onClick case action of
+                             Available.NoInput a -> ApplyAction $ Left a
+                             Available.Input a ->
+                               ShowActionOptions
+                                 ( a
+                                 , fromMaybe (error "couldn't get action options") $
+                                     Available.options
+                                       tydefs
+                                       defs
+                                       (buildTypingContext tydefs defs SmartHoles)
+                                       level
+                                       def'
+                                       (getID <$> defSel)
+                                       a
+                                 )
+                         ]
+                         [ text case action of
+                             Available.NoInput a -> showMs a
+                             Available.Input a -> showMs a
+                         ]
+                     where
+                       def' = bimap astTypeDefTtoAstTypeDef astDefTtoAstDef def
+                       level = Primer.App.Expert -- TODO don't hardcode
+                   Just (action, opts) ->
+                     ( case opts.free of
+                         Available.FreeNone -> []
+                         _ ->
+                           [ form_
+                               []
+                               [ input_
+                                   [ type_ "text"
+                                   , required_ True
+                                   , onChange $ ApplyAction . Right . (action,) . stringToOpt . fromMisoString
+                                   ]
+                               , button_ [] [text "↩"]
+                               ]
+                           ]
                      )
-                  <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
-                     ]
-          , div_
-              [id_ "undo-redo-panel"]
-              [ button_ [onClick RunUndo] [text "Undo"]
-              , button_ [onClick RunRedo] [text "Redo"]
-              ]
-          , div_ [id_ "eval"] $
-              [ let checkBox t f =
-                      div_
-                        []
-                        [ input_
-                            [ type_ "checkbox"
-                            , onChecked \(Checked b) -> SetEvalOpts $ f b
-                            ]
-                        , text t
-                        ]
-                 in div_
-                      [class_ "options"]
-                      [ checkBox "Stop at binders" \b -> #normalOrder .~ if b then StopAtBinders else UnderBinders
-                      , checkBox "Grouped lets" \b -> #viewRedex % #groupedLets .~ b
-                      , checkBox "Aggressive elision" \b -> #viewRedex % #aggressiveElision .~ b
-                      , checkBox "Avoid shadowing" \b -> #viewRedex % #avoidShadowing .~ b
-                      , checkBox "Push and elide" \b -> #runRedex % #pushAndElide .~ b
-                      , checkBox "Synthesise" \b -> #dir .~ if b then Syn else Chk
-                      , div_
-                          []
-                          [ input_
-                              [ type_ "number"
-                              , onChange $
-                                  maybe
-                                    (NoOp "failed to read number input")
-                                    (\n -> SetEvalOpts $ #stepLimit .~ n)
-                                    . readMs
-                              ]
-                          , text "Steps"
+                       <> ( opts.opts
+                              <&> \opt ->
+                                button_
+                                  ( [onClick $ ApplyAction $ Right (action, opt)]
+                                      <> mwhen
+                                        opt.matchesType
+                                        [class_ "matches-type"]
+                                  )
+                                  [ text $ ms $ either (unName . unLocalName) globalNamePretty $ optToName opt
+                                  ]
+                          )
+                       <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
                           ]
-                      ]
-              , div_
-                  [class_ "overlay"]
-                  $ munless (compareLength components.eval.history 2 == LT) [button_ [onClick StepBackEval] ["↩"]]
-                    <> [ button_ [onClick ToggleFullscreenEval] ["⛶"]
-                       ]
-              ]
-                <> case components.eval.history of
-                  [] -> [text "No definition selected for evaluation"]
-                  (expr, _, rxs) : _ ->
-                    [fst . viewTree $ viewTreeExpr (mkMeta' . getID) expr]
-                    where
-                      mkMeta' id =
-                        if not $ id `elem` fst rxs
-                          then (Just id, Nothing, NoHighlight)
-                          else
-                            ( Just id
-                            , Just $ ChooseRedex id
-                            , if snd rxs == Just id
-                                then AnimatedHighlight -- this is the normal order redex
-                                else SimpleHighlight
-                            )
-          ]
+               , div_
+                   [id_ "undo-redo-panel"]
+                   [ button_ [onClick RunUndo] [text "Undo"]
+                   , button_ [onClick RunRedo] [text "Redo"]
+                   ]
+               , div_ [id_ "eval"] $
+                   [ let checkBox t f =
+                           div_
+                             []
+                             [ input_
+                                 [ type_ "checkbox"
+                                 , onChecked \(Checked b) -> SetEvalOpts $ f b
+                                 ]
+                             , text t
+                             ]
+                      in div_
+                           [class_ "options"]
+                           [ checkBox "Stop at binders" \b -> #normalOrder .~ if b then StopAtBinders else UnderBinders
+                           , checkBox "Grouped lets" \b -> #viewRedex % #groupedLets .~ b
+                           , checkBox "Aggressive elision" \b -> #viewRedex % #aggressiveElision .~ b
+                           , checkBox "Avoid shadowing" \b -> #viewRedex % #avoidShadowing .~ b
+                           , checkBox "Push and elide" \b -> #runRedex % #pushAndElide .~ b
+                           , checkBox "Synthesise" \b -> #dir .~ if b then Syn else Chk
+                           , div_
+                               []
+                               [ input_
+                                   [ type_ "number"
+                                   , onChange $
+                                       maybe
+                                         (NoOp "failed to read number input")
+                                         (\n -> SetEvalOpts $ #stepLimit .~ n)
+                                         . readMs
+                                   ]
+                               , text "Steps"
+                               ]
+                           ]
+                   , div_
+                       [class_ "overlay"]
+                       $ munless (compareLength components.eval.history 2 == LT) [button_ [onClick StepBackEval] ["↩"]]
+                         <> [ button_ [onClick ToggleFullscreenEval] ["⛶"]
+                            ]
+                   ]
+                     <> case components.eval.history of
+                       [] -> [text "No definition selected for evaluation"]
+                       (expr, _, rxs) : _ ->
+                         [fst . viewTree $ viewTreeExpr (mkMeta' . getID) expr]
+                         where
+                           mkMeta' id =
+                             if not $ id `elem` fst rxs
+                               then (Just id, Nothing, NoHighlight)
+                               else
+                                 ( Just id
+                                 , Just $ ChooseRedex id
+                                 , if snd rxs == Just id
+                                     then AnimatedHighlight -- this is the normal order redex
+                                     else SimpleHighlight
+                                 )
+               ]
           where
             mkMeta = const (Nothing, Nothing, NoHighlight)
-            isSelected x = if (getID <$> defSel.node) == Just (getID x) then SimpleHighlight else NoHighlight
+            isSelected x = if (getID <$> ((.node) =<< selectionTermDef defSel)) == Just (getID x) then SimpleHighlight else NoHighlight
             defsWithEditable = progAllDefs prog
             tydefsWithEditable = progAllTypeDefs prog
             defs = snd <$> defsWithEditable
             tydefs = snd <$> tydefsWithEditable
-            (editable, def) = second getDef . fromMaybe (error "selected def not found") $ defsWithEditable !? defSel.def
+            (editable, def) = case defSel of
+              SelectionTypeDef TypeDefSelection{def = d} ->
+                second (Left . getTypeDef) . fromMaybe (error "selected def not found") $
+                  tydefsWithEditable !? d
+              SelectionDef DefSelection{def = d} ->
+                second (Right . getDef) . fromMaybe (error "selected def not found") $
+                  defsWithEditable !? d
   where
     prog = appProg app
     maybeDefSel = readOnlySelection <|> (getSelection <$> progSelection prog)
@@ -632,9 +694,13 @@ viewModel Model{..} =
       fromMaybe (error "selected def is not fully typechecked")
         . maybe (error "unexpected primitive def") assumeDefHasTypeCheckInfo
         . defAST
+    getTypeDef =
+      fromMaybe (error "selected typedef is not fully typechecked")
+        . maybe (error "unexpected primitive typedef") assumeTypeDefHasTypeCheckInfo
+        . typeDefAST
     getSelection = \case
-      SelectionTypeDef _ -> error "unexpected type def selection"
-      SelectionDef d -> fromMaybe (error "no TC info in selection") $ assumeDefSelectionHasTypeCheckInfo d
+      SelectionTypeDef d -> SelectionTypeDef $ fromMaybe (error "no TC info in selection") $ assumeTypeDefSelectionHasTypeCheckInfo d
+      SelectionDef d -> SelectionDef $ fromMaybe (error "no TC info in selection") $ assumeDefSelectionHasTypeCheckInfo d
 
 -- TODO `isNothing clickAction` implies `highlight == NoHighlight`, and `isNothing id` iff `isNothing clickAction`
 -- we could model this better, but in the long run, we intend to have no unselectable nodes anyway

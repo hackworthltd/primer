@@ -44,6 +44,14 @@ module Primer.Miso.Util (
   assumeDefSelectionHasTypeCheckInfo,
   selectedDefName,
   runMutationWithNullDb,
+  ASTTypeDefT, -- TODO move all these to approprate positions (match def order?)
+  SelectionT,
+  TypeDefSelectionT,
+  assumeTypeDefSelectionHasTypeCheckInfo,
+  assumeTypeDefHasTypeCheckInfo,
+  astTypeDefTtoAstTypeDef,
+  selectionTypeDef,
+  selectionTermDef,
 ) where
 
 import Foreword hiding (zero)
@@ -136,7 +144,7 @@ import Primer.Eval (AvoidShadowing (..), ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Name (Name, NameCounter)
-import Primer.TypeDef (TypeDefMap)
+import Primer.TypeDef (ASTTypeDef, TypeDefMap)
 import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
 
@@ -248,6 +256,8 @@ runTC s0 = runExcept . flip runStateT s0 . (.unM)
 -- type SelectionT = Selection' (Either ExprMetaT (Either TypeMetaT KindMetaT))
 type TypeT = Type' TypeMetaT KindMetaT -- TODO actually exists in Primer lib but is hidden
 type TermMeta' a b c = Either a (Either b c) -- TODO make this a proper sum type
+type SelectionT = Selection' (TermMeta' ExprMetaT TypeMetaT KindMetaT)
+type TypeDefSelectionT = TypeDefSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type DefSelectionT = DefSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type NodeSelectionT = NodeSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type ExprMetaT = Meta TypeCache
@@ -256,6 +266,7 @@ type KindMetaT = Meta ()
 data ASTDefT = ASTDefT {expr :: ExprT, sig :: TypeT} -- TODO parameterise `ASTDef` etc.?
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ASTDefT
+type ASTTypeDefT = () -- TODO...
 data ModuleT = ModuleT -- TODO include type defs and primitives
   { name :: ModuleName
   , defs :: Map Name ASTDefT
@@ -325,15 +336,21 @@ assumeDefHasTypeCheckInfo def = do
   expr <- sequenceOf (_exprMeta % _type) (astDefExpr def) >>= sequenceOf (_exprTypeMeta % _type)
   sig <- sequenceOf (_typeMeta % _type) (astDefType def)
   pure ASTDefT{expr, sig}
+assumeTypeDefHasTypeCheckInfo :: ASTTypeDef b c -> Maybe ASTTypeDefT
+assumeTypeDefHasTypeCheckInfo = undefined
 assumeDefSelectionHasTypeCheckInfo :: DefSelection (Either ExprMeta (Either TypeMeta KindMeta)) -> Maybe DefSelectionT
 assumeDefSelectionHasTypeCheckInfo =
   traverseOf #node $ traverse $ traverseOf #meta $ bitraverse (sequenceOf _type) $ bitraverse (sequenceOf _type) pure
+assumeTypeDefSelectionHasTypeCheckInfo :: TypeDefSelection (Either ExprMeta (Either TypeMeta KindMeta)) -> Maybe TypeDefSelectionT
+assumeTypeDefSelectionHasTypeCheckInfo = undefined
 
 -- see `assumeDefHasTypeCheckInfo`
 -- sometimes we need to discard that extra type-level information,
 -- in order to get an input for various Primer library functions
 astDefTtoAstDef :: ASTDefT -> ASTDef
 astDefTtoAstDef def = ASTDef{astDefExpr = exprTtoExpr def.expr, astDefType = typeTtoType def.sig}
+astTypeDefTtoAstTypeDef :: ASTTypeDefT -> ASTTypeDef TypeMeta KindMeta
+astTypeDefTtoAstTypeDef = undefined
 
 -- this is potentially a better API then the one which `Primer.Action.Available` currently exports
 availableForSelection ::
@@ -342,14 +359,19 @@ availableForSelection ::
   DefMap ->
   Level ->
   Editable ->
-  ASTDef ->
-  DefSelection a ->
+  Either (ASTTypeDef TypeMeta KindMeta) ASTDef ->
+  Selection' a ->
   [Action]
-availableForSelection tydefs defs level editable def defSel = case defSel.node of
-  Nothing -> Available.forDef defs level editable defSel.def
-  Just nodeSel -> case nodeSel.nodeType of
-    BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
-    SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+availableForSelection tydefs defs level editable defOrTypeDef sel = case (sel, defOrTypeDef) of
+  (SelectionTypeDef TypeDefSelection{def = defName, node}, Right def) -> case node of
+    _ -> [] -- TODO actually return the actions
+  (SelectionDef DefSelection{def = defName, node}, Right def) -> case node of
+    Nothing -> Available.forDef defs level editable defName
+    Just nodeSel -> case nodeSel.nodeType of
+      BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
+      SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+  -- TODO allow raising a warning instead (when def and selection don't match)?
+  _ -> []
 
 -- this part of the actions API needs a re-think
 -- (it was perhaps too motivated by what was convenient for our old TypeScript frontend):
@@ -403,3 +425,12 @@ runMutationWithNullDb req app = do
 -- TODO `ViewRedexOptions` should use `AvoidShadowing` instead of `Bool`
 instance HasField "avoidShadowing'" ViewRedexOptions AvoidShadowing where
   getField o = if o.avoidShadowing then AvoidShadowing else NoAvoidShadowing
+
+selectionTypeDef :: Selection' a -> Maybe (TypeDefSelection a)
+selectionTypeDef = \case
+  SelectionDef _ -> Nothing
+  SelectionTypeDef d -> Just d
+selectionTermDef :: Selection' a -> Maybe (DefSelection a)
+selectionTermDef = \case
+  SelectionDef d -> Just d
+  SelectionTypeDef _ -> Nothing
