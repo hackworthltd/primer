@@ -5,6 +5,7 @@ module Primer.Eval (
   -- The public API of this module
   step,
   redexes,
+  findRedex,
   AvoidShadowing (..),
   RunRedexOptions (..),
   ViewRedexOptions (..),
@@ -60,6 +61,7 @@ import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.NormalOrder (
   FMExpr (FMExpr, expr, ty),
   NormalOrderOptions (..),
+  findRedex,
   foldMapExpr,
   singletonCxt,
  )
