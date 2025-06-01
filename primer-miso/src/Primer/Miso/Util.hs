@@ -127,6 +127,7 @@ import Primer.Core (
  )
 import Primer.Database qualified as DB
 import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr)
+import Primer.Eval (AvoidShadowing (..), ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Name (Name, NameCounter)
@@ -223,8 +224,8 @@ instance MonadFresh ID (M e) where
   fresh = M $ _1 <<%= succ
 instance MonadFresh NameCounter (M e) where
   fresh = M $ _2 <<%= succ
-runTC :: (ID, NameCounter) -> M e a -> Either e a
-runTC s0 = runExcept . flip evalStateT s0 . (.unM)
+runTC :: (ID, NameCounter) -> M e a -> Either e (a, (ID, NameCounter))
+runTC s0 = runExcept . flip runStateT s0 . (.unM)
 
 -- analogous with `ExprT`/`TypeT`
 -- type KindT = Kind' KindMetaT
@@ -382,3 +383,7 @@ runMutationWithNullDb req app = do
   (_res, logs) <- either absurd (first $ first Right) <$> race runDB runReq
   res <- atomically $ StmMap.lookup sid sessions -- returning `_res` would mean discarding the ID counter state
   pure (logs, maybe (error "impossible: ") (.sessionApp) res)
+
+-- TODO `ViewRedexOptions` should use `AvoidShadowing` instead of `Bool`
+instance HasField "avoidShadowing'" ViewRedexOptions AvoidShadowing where
+  getField o = if o.avoidShadowing then AvoidShadowing else NoAvoidShadowing

@@ -13,10 +13,12 @@ import Foreword
 import Clay qualified
 import Control.Monad.Except (liftEither)
 import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
+import Data.List.Extra (compareLength)
 import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Tree (Tree)
@@ -129,9 +131,9 @@ import Primer.Core (
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Def (defAST)
-import Primer.Eval (Dir (..), NormalOrderOptions (..))
+import Primer.Eval (Dir (..), EvalLog, NormalOrderOptions (..), findRedex, redexes, step)
 import Primer.Eval.Redex (RunRedexOptions (..), ViewRedexOptions (..))
-import Primer.EvalFullStep (EvalFullError (TimedOut), EvalLog, evalFull)
+import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Miso.Layout (
@@ -168,7 +170,7 @@ import Primer.Miso.Util (
   stringToOpt,
   typeBindingsInExpr,
  )
-import Primer.Name (Name, unName)
+import Primer.Name (Name, NameCounter, unName)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
 start :: JSM ()
@@ -187,9 +189,7 @@ start =
                         }
                   , eval =
                       EvalModel
-                        { expr = Nothing
-                        , error = Nothing
-                        , opts =
+                        { opts =
                             -- TODO we use these values so that the initial visuals are in sync with Miso's state,
                             -- since it's not clear how best to e.g. set checboxes to start active,
                             -- but it would maybe be better to use our defaults from tests instead
@@ -207,10 +207,11 @@ start =
                                   RunRedexOptions
                                     { pushAndElide = False
                                     }
-                              , stepLimit = 10
+                              , stepLimit = 0
                               , dir = Chk
                               }
                         , fullscreen = False
+                        , history = []
                         }
                   }
             }
@@ -250,10 +251,11 @@ data ActionPanelModel = ActionPanelModel
   deriving (ToJSON, FromJSON) via PrimerJSON ActionPanelModel
 
 data EvalModel = EvalModel
-  { expr :: Maybe Expr
-  , error :: Maybe MisoString
-  , opts :: EvalOpts
+  { opts :: EvalOpts
   , fullscreen :: Bool
+  , history :: [(Expr, ([ID], Maybe ID), (ID, NameCounter))]
+  -- ^ The head is the result of non-interactive eval, and the rest are the steps which the student has chosen.
+  -- Each step includes the produced expression as well as its redexes, and the counter state which produced it.
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EvalModel
@@ -281,6 +283,8 @@ data Action
   | SetApp Primer.App.App
   | SetEvalOpts (EvalOpts -> EvalOpts)
   | ToggleFullscreenEval
+  | ChooseRedex ID
+  | StepBackEval
 
 updateModel :: Action -> Model -> Effect Action Model
 updateModel =
@@ -339,6 +343,36 @@ updateModel =
       #components % #eval % #opts %= f
       setEval
     ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
+    ChooseRedex id -> do
+      (tydefs, defs, _) <- getDefs <$> use #app
+      use (#components % #eval % #history) >>= \case
+        [] ->
+          -- TODO warn here
+          -- this shouldn't be possible
+          -- history can only be empty if eval panel is empty (which means no definition is selected)
+          -- but `ChooseRedex` is only currently triggered by clicking on a node in that panel
+          pure ()
+        (currentEvalExpr, _, s0) : _ -> do
+          opts <- use $ #components % #eval % #opts
+          let ((evalStepResult, evalStepLogs), s1) =
+                either absurd identity
+                  . runTC s0
+                  . runPureLogT
+                  $ step opts.viewRedex.avoidShadowing' tydefs defs currentEvalExpr opts.dir id
+          scheduleIO_ $ logAllToConsole @EvalLog evalStepLogs
+          case evalStepResult of
+            Left err -> scheduleIO_ $ consoleLog $ "eval error: " <> show err
+            -- TODO do something with `_detail`, i.e. move towards actual eval mode
+            -- a first step could be to label redexes with a brief explanation
+            -- i.e. match on the `EvalDetail` constructor, without looking at its fields
+            Right (expr, _detail) -> do
+              let (rxs, redexesLogs) = getRedexes opts tydefs defs expr
+              scheduleIO_ $ logAllToConsole redexesLogs
+              #components % #eval % #history %= ((expr, rxs, s1) :)
+    StepBackEval -> do
+      (#components % #eval % #history) %= \case
+        [] -> [] -- TODO warn here? this shouldn't happen since we don't display the button for this in this state
+        _ : h -> h
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
@@ -359,22 +393,30 @@ updateModel =
       fullscreen <- use $ #components % #eval % #fullscreen
       let (tydefs, defs, maybeDef) = getDefs app
       evalModel <- case maybeDef of
-        Nothing -> pure EvalModel{expr = Nothing, error = Just "No selection for eval", opts, fullscreen}
+        Nothing -> pure EvalModel{opts, fullscreen, history = []}
         Just def -> do
           let nextId = succ $ appIdCounter app
               nextName = succ $ appNameCounter app
               -- TODO put this in to a background thread rather than blocking whole program for expensive evaluations
-              (evalResult, logs) =
+              ((evalResult, evalFullLogs), s') =
                 either absurd identity
                   . runTC (succ nextId, nextName)
                   . runPureLogT
                   . evalFull opts.normalOrder opts.viewRedex opts.runRedex tydefs defs opts.stepLimit opts.dir
                   $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
-          scheduleIO_ $ logAllToConsole @EvalLog logs
-          pure case evalResult of
-            Left (TimedOut expr) -> EvalModel{expr = Just expr, error = Just "Eval timed out:", opts, fullscreen}
-            Right expr -> EvalModel{expr = Just expr, error = Nothing, opts, fullscreen}
+              expr = case evalResult of
+                Left (TimedOut e) -> e
+                Right e -> e
+              (rxs, redexesLogs) = getRedexes opts tydefs defs expr
+          scheduleIO_ $ logAllToConsole @EvalLog evalFullLogs
+          scheduleIO_ $ logAllToConsole redexesLogs
+          pure EvalModel{opts, fullscreen, history = [(expr, rxs, s')]}
       #components % #eval .= evalModel
+    -- TODO `findRedex` and `redexes` do a lot of the same work - we should find some way to use a single fold
+    getRedexes (opts :: EvalOpts) tydefs defs expr = runIdentity $ runPureLogT @_ @(WithSeverity EvalLog) do
+      normalOrderRedex <- runMaybeT $ getID <$> findRedex opts.normalOrder opts.viewRedex tydefs defs opts.dir expr
+      allRedexes <- redexes opts.viewRedex.avoidShadowing' tydefs defs opts.dir expr
+      pure (allRedexes, normalOrderRedex)
     -- TODO better logging, including handling different severities appropriately
     logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
     logAllToConsole logs =
@@ -538,17 +580,25 @@ viewModel Model{..} =
                       ]
               , div_
                   [id_ "eval-overlay"]
-                  $ [ button_ [onClick ToggleFullscreenEval] ["⛶"]
-                    ]
+                  $ munless (compareLength components.eval.history 2 == LT) [button_ [onClick StepBackEval] ["↩"]]
+                    <> [ button_ [onClick ToggleFullscreenEval] ["⛶"]
+                       ]
               ]
-                <> case components.eval.expr of
-                  Nothing -> [text "No definition selected for evaluation"]
-                  Just expr ->
-                    ( case components.eval.error of
-                        Nothing -> []
-                        Just s -> [text s]
-                    )
-                      <> [fst . viewTree $ viewTreeExpr mkMeta expr]
+                <> case components.eval.history of
+                  [] -> [text "No definition selected for evaluation"]
+                  (expr, rxs, _) : _ ->
+                    [fst . viewTree $ viewTreeExpr (mkMeta' . getID) expr]
+                    where
+                      mkMeta' id =
+                        if id `notElem` fst rxs
+                          then (Just id, Nothing, NoHighlight)
+                          else
+                            ( Just id
+                            , Just $ ChooseRedex id
+                            , if snd rxs == Just id
+                                then AnimatedHighlight -- this is the normal order redex
+                                else SimpleHighlight
+                            )
           ]
           where
             mkMeta = const (Nothing, Nothing, NoHighlight)

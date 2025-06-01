@@ -117,6 +117,7 @@ body {
     right: 0px;
     > button {
       width: 2rem;
+      vertical-align: middle;
       aspect-ratio: 1/1;
     }
   }
