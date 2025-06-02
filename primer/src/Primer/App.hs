@@ -773,6 +773,15 @@ applyProgAction prog = \case
                     e -> pure e
               )
         pure (ms', Nothing)
+  -- TODO check existence first, in all three cases
+  -- this is all a bit silly really, since we already have a selection in the frontend app model
+  -- we effectively deconstruct it just to build it back up again...
+  MoveToTypeDef d ->
+    pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d Nothing)
+  MoveToTypeDefParam d p ->
+    pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection p Nothing)
+  MoveToTypeDefCon d c ->
+    pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection c Nothing)
   RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) defName def -> do
     let defs = moduleDefs m
         newNameBase = unsafeMkName nameStr

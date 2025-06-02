@@ -62,7 +62,7 @@ data Level
   deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 data Editable = Editable | NonEditable
-  deriving stock (Bounded, Enum, Show)
+  deriving stock (Eq, Bounded, Enum, Show)
 
 data NodeType = BodyNode | SigNode
   deriving stock (Eq, Show, Read, Bounded, Enum, Generic, Data)
