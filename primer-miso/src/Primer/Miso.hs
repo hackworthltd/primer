@@ -63,6 +63,7 @@ import Miso.Html (
   form,
   img_,
   input_,
+  min_,
   onChange,
   onChecked,
   onClick,
@@ -701,6 +702,7 @@ viewModel Model{..} =
                           []
                           [ input_
                               [ type_ "number"
+                              , min_ "0"
                               , onChange $
                                   maybe
                                     (NoOp "failed to read number input")
