@@ -7,6 +7,8 @@
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
+  requestFullscreen,
+  exitFullscreen,
   startAppWithSavedState,
   showMs,
   readMs,
@@ -57,6 +59,7 @@ import Data.Map qualified as Map
 import Data.String (String)
 import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
+import Language.Javascript.JSaddle qualified as JS
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
@@ -133,6 +136,11 @@ import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
+
+requestFullscreen :: JSM JS.JSVal
+requestFullscreen = JS.eval ("document.documentElement.requestFullscreen()" :: MisoString)
+exitFullscreen :: JSM JS.JSVal
+exitFullscreen = JS.eval ("document.exitFullscreen()" :: MisoString)
 
 {- Miso -}
 
