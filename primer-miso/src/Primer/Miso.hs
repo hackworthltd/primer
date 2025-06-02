@@ -70,6 +70,7 @@ import Miso.Html (
 import Miso.Html.Property (
   class_,
   id_,
+  min_,
   required_,
   src_,
   type_,
@@ -701,6 +702,7 @@ viewModel Model{..} =
                           []
                           [ input_
                               [ type_ "number"
+                              , min_ "0"
                               , onChange $
                                   maybe
                                     (NoOp "failed to read number input")
