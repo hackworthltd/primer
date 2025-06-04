@@ -107,9 +107,18 @@ body {
   grid-row-start: 2;
   grid-column-start: 3;
   display: flex;
-  > #options {
+  > #eval-options {
     input[type="number"] {
       width: 5rem;
+    }
+  }
+  > #eval-overlay {
+    position: absolute;
+    right: 0px;
+    > button {
+      width: 2rem;
+      vertical-align: middle;
+      aspect-ratio: 1/1;
     }
   }
 }
@@ -196,14 +205,17 @@ body {
   }
 }
 
-.node.selected > .node-contents,
+.node.highlighted > .node-contents,
 .node.selectable > .node-contents:hover {
   --opacity: 50%;
   box-shadow: 0 0 0 4px var(--white-primary),
     0 0 0 8px color-mix(in srgb, transparent, var(--node-color) var(--opacity));
 }
-.node.selected > .node-contents {
+.node.highlighted > .node-contents {
   --opacity: 100% !important;
+}
+.node.animated > .node-contents {
+  animation: flash-shadow 0.25s infinite alternate;
 }
 
 .node.expr {
@@ -293,4 +305,10 @@ body {
 .edge {
   border-color: var(--node-color);
   border-width: 0.125rem;
+}
+
+@keyframes flash-shadow {
+  100% {
+    box-shadow: 0 0 0 4px var(--node-color), 0 0 0 8px var(--node-color);
+  }
 }
