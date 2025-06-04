@@ -29,6 +29,9 @@ data ProgAction
     CreateDef ModuleName (Maybe Text)
   | -- | Delete a new definition
     DeleteDef GVarName
+  | MoveToTypeDef TyConName
+  | MoveToTypeDefParam TyConName TyVarName
+  | MoveToTypeDefCon TyConName ValConName
   | -- | Add a new type definition
     AddTypeDef TyConName (ASTTypeDef () ())
   | -- | Delete a type definition

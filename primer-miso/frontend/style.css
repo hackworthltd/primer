@@ -189,8 +189,44 @@ body {
   }
 }
 
+#params,
+#cons {
+  > * {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    > .param-name,
+    .con-name {
+      text-align: center;
+      padding-top: 0.8rem;
+      padding-bottom: 1rem;
+      /* TODO copied from panel buttons */
+      font-size: inherit;
+      width: 100%;
+      color: var(--blue-primary);
+      background-color: transparent;
+      border-style: none;
+      &:hover {
+        color: var(--white-primary);
+        background-color: var(--blue-secondary);
+      }
+      &.selected {
+        color: var(--white-primary);
+        background-color: var(--blue-primary);
+      }
+    }
+    > *:nth-child(2) {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+    }
+  }
+}
+
 .tree {
-  padding: 0.625rem;
+  /* TODO any downside to this? it prevents some annoying scrollbars */
+  margin: 0.625rem;
 }
 
 .node {

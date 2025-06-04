@@ -19,9 +19,14 @@ module Primer.Miso.Util (
   runTC,
   TypeT,
   TermMeta',
+  SelectionT,
+  TypeDefSelectionT,
+  TypeDefNodeSelectionT,
+  DefSelectionT,
   NodeSelectionT,
   ExprMetaT,
   TypeMetaT,
+  ASTTypeDefT,
   KindMetaT,
   ASTDefT (..),
   ModuleT (..),
@@ -30,16 +35,19 @@ module Primer.Miso.Util (
   typeBindingsInExpr,
   bindingsInType,
   nodeSelectionType,
-  DefSelectionT,
   realToClay,
   availableForSelection,
   astDefTtoAstDef,
+  astTypeDefTtoAstTypeDef,
   optToName,
   stringToOpt,
   assumeDefHasTypeCheckInfo,
-  findASTDef,
+  assumeTypeDefHasTypeCheckInfo,
   assumeDefSelectionHasTypeCheckInfo,
-  selectedDefName,
+  assumeTypeDefSelectionHasTypeCheckInfo,
+  findASTTypeOrTermDef,
+  selectionTypeDef,
+  selectionTermDef,
   runMutationWithNullDb,
 ) where
 
@@ -75,11 +83,14 @@ import Optics (
   Field2 (_2),
   atraversalVL,
   lensVL,
+  over,
   sequenceOf,
   traverseOf,
+  traversed,
   (%),
   (.~),
   (^.),
+  _Just,
  )
 import Optics.State.Operators ((<<%=))
 import Primer.API (APILog, Env (Env), edit, runPrimerM)
@@ -92,8 +103,8 @@ import Primer.App (
   MutationRequest,
   NodeSelection (..),
   NodeType (..),
-  Selection,
   Selection' (..),
+  TypeDefNodeSelection (..),
   TypeDefSelection (..),
  )
 import Primer.App qualified
@@ -131,7 +142,7 @@ import Primer.Eval (AvoidShadowing (..), ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Name (Name, NameCounter)
-import Primer.TypeDef (TypeDefMap)
+import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), TypeDefMap, ValCon (..))
 import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
 
@@ -232,6 +243,9 @@ runTC s0 = runExcept . flip runStateT s0 . (.unM)
 -- type SelectionT = Selection' (Either ExprMetaT (Either TypeMetaT KindMetaT))
 type TypeT = Type' TypeMetaT KindMetaT -- TODO actually exists in Primer lib but is hidden
 type TermMeta' a b c = Either a (Either b c) -- TODO make this a proper sum type
+type SelectionT = Selection' (TermMeta' ExprMetaT TypeMetaT KindMetaT)
+type TypeDefSelectionT = TypeDefSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
+type TypeDefNodeSelectionT = TypeDefNodeSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type DefSelectionT = DefSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type NodeSelectionT = NodeSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type ExprMetaT = Meta TypeCache
@@ -240,6 +254,7 @@ type KindMetaT = Meta ()
 data ASTDefT = ASTDefT {expr :: ExprT, sig :: TypeT} -- TODO parameterise `ASTDef` etc.?
   deriving stock (Eq, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ASTDefT
+type ASTTypeDefT = ASTTypeDef TypeMetaT KindMetaT
 data ModuleT = ModuleT -- TODO include type defs and primitives
   { name :: ModuleName
   , defs :: Map Name ASTDefT
@@ -309,15 +324,31 @@ assumeDefHasTypeCheckInfo def = do
   expr <- sequenceOf (_exprMeta % _type) (astDefExpr def) >>= sequenceOf (_exprTypeMeta % _type)
   sig <- sequenceOf (_typeMeta % _type) (astDefType def)
   pure ASTDefT{expr, sig}
+assumeTypeDefHasTypeCheckInfo :: ASTTypeDef TypeMeta KindMeta -> Maybe ASTTypeDefT
+assumeTypeDefHasTypeCheckInfo =
+  sequenceOf $ (#astTypeDefConstructors % traversed % #valConArgs) % traversed % _typeMeta % _type
 assumeDefSelectionHasTypeCheckInfo :: DefSelection (Either ExprMeta (Either TypeMeta KindMeta)) -> Maybe DefSelectionT
 assumeDefSelectionHasTypeCheckInfo =
-  traverseOf #node $ traverse $ traverseOf #meta $ bitraverse (sequenceOf _type) $ bitraverse (sequenceOf _type) pure
+  traverseOf (#node % traversed % #meta) assumeMetaHasTypeCheckInfo
+assumeTypeDefSelectionHasTypeCheckInfo :: TypeDefSelection (Either ExprMeta (Either TypeMeta KindMeta)) -> Maybe TypeDefSelectionT
+assumeTypeDefSelectionHasTypeCheckInfo =
+  traverseOf #node $ traverse \case
+    TypeDefParamNodeSelection s ->
+      TypeDefParamNodeSelection
+        <$> traverseOf (#kindMeta % _Just) assumeMetaHasTypeCheckInfo s
+    TypeDefConsNodeSelection s ->
+      TypeDefConsNodeSelection
+        <$> traverseOf (#field % _Just) (traverseOf #meta assumeMetaHasTypeCheckInfo) s
+assumeMetaHasTypeCheckInfo :: Either ExprMeta (Either TypeMeta KindMeta) -> Maybe (Either ExprMetaT (Either TypeMetaT KindMetaT))
+assumeMetaHasTypeCheckInfo = bitraverse (sequenceOf _type) $ bitraverse (sequenceOf _type) pure
 
 -- see `assumeDefHasTypeCheckInfo`
 -- sometimes we need to discard that extra type-level information,
 -- in order to get an input for various Primer library functions
 astDefTtoAstDef :: ASTDefT -> ASTDef
 astDefTtoAstDef def = ASTDef{astDefExpr = exprTtoExpr def.expr, astDefType = typeTtoType def.sig}
+astTypeDefTtoAstTypeDef :: ASTTypeDefT -> ASTTypeDef TypeMeta KindMeta
+astTypeDefTtoAstTypeDef = over (#astTypeDefConstructors % traversed % #valConArgs % traversed % _typeMeta % _type) Just
 
 -- this is potentially a better API then the one which `Primer.Action.Available` currently exports
 availableForSelection ::
@@ -326,14 +357,24 @@ availableForSelection ::
   DefMap ->
   Level ->
   Editable ->
-  ASTDef ->
-  DefSelection a ->
+  Either (ASTTypeDef TypeMeta KindMeta) ASTDef ->
+  Selection' a ->
   [Action]
-availableForSelection tydefs defs level editable def defSel = case defSel.node of
-  Nothing -> Available.forDef defs level editable defSel.def
-  Just nodeSel -> case nodeSel.nodeType of
-    BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
-    SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+availableForSelection tydefs defs level editable defOrTypeDef sel = case (sel, defOrTypeDef) of
+  (SelectionTypeDef TypeDefSelection{def = defName, node}, Left def) -> case node of
+    Just (TypeDefParamNodeSelection sel') -> case sel'.kindMeta of
+      Nothing -> Available.forTypeDefParamNode sel'.param level editable tydefs defs defName def
+      Just sel'' -> Available.forTypeDefParamKindNode sel'.param (getID sel'') level editable tydefs defs defName def
+    Just (TypeDefConsNodeSelection sel') -> case sel'.field of
+      Nothing -> Available.forTypeDefConsNode level editable tydefs defs defName def
+      Just sel'' -> Available.forTypeDefConsFieldNode sel'.con sel''.index (getID sel''.meta) level editable tydefs defs defName def
+    Nothing -> Available.forTypeDef level editable tydefs defs defName def
+  (SelectionDef DefSelection{def = defName, node}, Right def) -> case node of
+    Nothing -> Available.forDef defs level editable defName
+    Just nodeSel -> case nodeSel.nodeType of
+      BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
+      SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+  _ -> [] -- TODO allow raising a warning instead (when def and selection don't match)
 
 -- this part of the actions API needs a re-think
 -- (it was perhaps too motivated by what was convenient for our old TypeScript frontend):
@@ -352,17 +393,29 @@ stringToOpt :: Text -> Available.Option
 stringToOpt t = Available.Option t Nothing True
 
 -- should DRY with function of some name in `primer-api`
--- ultimately probably only want the more general `findASTTypeOrTermDef`
-findASTDef :: Map GVarName (Editable, Def) -> GVarName -> Either Text (Editable, ASTDef)
-findASTDef allDefs def = case allDefs Map.!? def of
-  Nothing -> Left $ "unknown def: " <> globalNamePretty def
-  Just (_, DefPrim _) -> Left $ "unexpected primitive def: " <> globalNamePretty def
-  Just (editable, DefAST d) -> pure (editable, d)
+findASTTypeOrTermDef ::
+  Map TyConName (Editable, TypeDef b c) ->
+  Map GVarName (Editable, Def) ->
+  Selection' a ->
+  Either Text (Editable, Either (ASTTypeDef b c) ASTDef)
+findASTTypeOrTermDef tydefs defs sel = case sel of
+  SelectionTypeDef d -> case tydefs Map.!? d.def of
+    Nothing -> Left $ "unknown type def: " <> globalNamePretty d.def
+    Just (_, TypeDefPrim _) -> Left $ "unexpected primitive type def: " <> globalNamePretty d.def
+    Just (editable, TypeDefAST d') -> pure (editable, Left d')
+  SelectionDef d -> case defs Map.!? d.def of
+    Nothing -> Left $ "unknown def: " <> globalNamePretty d.def
+    Just (_, DefPrim _) -> Left $ "unexpected primitive def: " <> globalNamePretty d.def
+    Just (editable, DefAST d') -> pure (editable, Right d')
 
-selectedDefName :: Selection -> Either GVarName TyConName
-selectedDefName = \case
-  SelectionDef d -> Left d.def
-  SelectionTypeDef d -> Right d.def
+selectionTypeDef :: Selection' a -> Maybe (TypeDefSelection a)
+selectionTypeDef = \case
+  SelectionDef _ -> Nothing
+  SelectionTypeDef d -> Just d
+selectionTermDef :: Selection' a -> Maybe (DefSelection a)
+selectionTermDef = \case
+  SelectionDef d -> Just d
+  SelectionTypeDef _ -> Nothing
 
 -- this is a bit messy, but it's only temporary since we will soon want a proper database
 runMutationWithNullDb :: MutationRequest -> Primer.App.App -> IO (Seq (WithSeverity APILog), Primer.App.App)
