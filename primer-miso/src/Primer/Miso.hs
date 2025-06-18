@@ -69,7 +69,7 @@ import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
-import Primer.Action (setCursorBody, setCursorSig, toProgActionInput, toProgActionNoInput)
+import Primer.Action (toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
   DefSelection (..),
@@ -77,7 +77,6 @@ import Primer.App (
   MutationRequest (..),
   NodeSelection (..),
   NodeType (BodyNode, SigNode),
-  ProgAction (..),
   ProgError (ActionError),
   Selection' (SelectionDef, SelectionTypeDef),
   appIdCounter,
@@ -110,7 +109,6 @@ import Primer.Core (
     PrimCon,
     Var
   ),
-  GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
   Kind' (..),
@@ -146,7 +144,6 @@ import Primer.Miso.Layout (
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
   DefSelectionT,
-  NodeSelectionT,
   P2,
   TermMeta',
   assumeDefHasTypeCheckInfo,
@@ -165,6 +162,7 @@ import Primer.Miso.Util (
   runMutationWithNullDb,
   runTC,
   selectedDefName,
+  setSelectionAction,
   showMs,
   startAppWithSavedState,
   stringToOpt,
@@ -272,9 +270,7 @@ data EvalOpts = EvalOpts
 
 data Action
   = NoOp MisoString -- For situations where Miso requires an action, but we don't actually want to do anything.
-  | SelectDef GVarName
-  | SelectNode NodeSelectionT
-  | ViewReadOnlyDef GVarName
+  | Select Editable DefSelectionT
   | ShowActionOptions (Available.InputAction, Available.Options)
   | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
   | CancelActionInput
@@ -290,20 +286,14 @@ updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
-    SelectDef d -> do
-      #readOnlySelection .= Nothing
-      runMutation $ Edit [MoveToDef d]
+    Select editable sel -> do
       resetActionPanel
-    SelectNode sel -> do
-      use #readOnlySelection >>= \case
-        Just (DefSelection d _) -> #readOnlySelection ?= DefSelection d (Just sel)
-        Nothing -> runMutation $ Edit $ pure case sel.nodeType of
-          BodyNode -> setCursorBody $ getID sel
-          SigNode -> setCursorSig $ getID sel
-      resetActionPanel
-    ViewReadOnlyDef d -> do
-      #readOnlySelection ?= DefSelection d Nothing
-      resetActionPanel
+      case editable of
+        NonEditable ->
+          #readOnlySelection ?= sel
+        Editable -> do
+          #readOnlySelection .= Nothing
+          runMutation $ Edit $ pure $ setSelectionAction sel
     ShowActionOptions a ->
       #components % #actionPanel % #optionsMode ?= a
     ApplyAction actionAndOpts -> do
@@ -449,16 +439,10 @@ viewModel Model{..} =
           [id_ "def-panel"]
           $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
             button_
-              ( [class_ $ mwhen (Just def == ((.def) <$> maybeDefSel)) "selected"]
-                  <> case editable of
-                    Editable ->
-                      [ onClick $ SelectDef def
-                      ]
-                    NonEditable ->
-                      [ onClick $ ViewReadOnlyDef def
-                      , class_ "read-only"
-                      ]
-              )
+              [ class_ $ mwhen (Just def == ((.def) <$> maybeDefSel)) "selected"
+              , class_ $ mwhen (editable == NonEditable) "read-only"
+              , onClick $ Select editable $ DefSelection def Nothing
+              ]
               [text $ ms $ globalNamePretty def]
       ]
       <> case maybeDefSel of
@@ -467,13 +451,13 @@ viewModel Model{..} =
           [ div_
               [ id_ "sig"
               ]
-              [ SelectNode . NodeSelection SigNode
+              [ Select editable . DefSelection defSel.def . Just . NodeSelection SigNode
                   <$> fst (viewTree (viewTreeType (\m -> (Just $ getID m, Just $ Right m, isSelected m)) def.sig))
               ]
           , div_
               [ id_ "body"
               ]
-              [ SelectNode . NodeSelection BodyNode
+              [ Select editable . DefSelection defSel.def . Just . NodeSelection BodyNode
                   <$> fst (viewTree (viewTreeExpr (\m -> (Just $ getID m, Just m, isSelected m)) def.expr))
               ]
           , div_
