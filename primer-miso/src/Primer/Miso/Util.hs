@@ -33,6 +33,7 @@ module Primer.Miso.Util (
   DefSelectionT,
   realToClay,
   availableForSelection,
+  setSelectionAction,
   astDefTtoAstDef,
   optToName,
   stringToOpt,
@@ -83,6 +84,7 @@ import Optics (
  )
 import Optics.State.Operators ((<<%=))
 import Primer.API (APILog, Env (Env), edit, runPrimerM)
+import Primer.Action (ProgAction (MoveToDef), setCursorBody, setCursorSig)
 import Primer.Action.Available (Action)
 import Primer.Action.Available qualified as Available
 import Primer.App (
@@ -334,6 +336,13 @@ availableForSelection tydefs defs level editable def defSel = case defSel.node o
   Just nodeSel -> case nodeSel.nodeType of
     BodyNode -> Available.forBody tydefs level editable (astDefExpr def) (getID nodeSel)
     SigNode -> Available.forSig level editable (astDefType def) (getID nodeSel)
+
+setSelectionAction :: DefSelectionT -> ProgAction
+setSelectionAction sel = case sel.node of
+  Nothing -> MoveToDef sel.def
+  Just sel' -> case sel'.nodeType of
+    BodyNode -> setCursorBody $ getID sel'
+    SigNode -> setCursorSig $ getID sel'
 
 -- this part of the actions API needs a re-think
 -- (it was perhaps too motivated by what was convenient for our old TypeScript frontend):
