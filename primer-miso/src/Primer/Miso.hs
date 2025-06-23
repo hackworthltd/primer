@@ -18,7 +18,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
-import Data.List.Extra (compareLength)
+import Data.List.Extra (compareLength, partition)
 import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Tree (Tree)
@@ -437,14 +437,26 @@ viewModel Model{..} =
     ([id_ "miso-root"] <> mwhen components.eval.fullscreen [class_ "fullscreen-eval"])
     $ [ div_
           [id_ "def-panel"]
-          $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
-            let s = DefSelection def Nothing
-             in button_
-                  [ class_ $ mwhen (Just s == maybeDefSel) "selected"
-                  , class_ $ mwhen (editable == NonEditable) "read-only"
-                  , onClick $ Select editable s
-                  ]
-                  [text $ ms $ globalNamePretty def]
+          let
+            viewDef def editable =
+              let s = DefSelection def Nothing
+               in button_
+                    [ class_ $ mwhen (Just s == maybeDefSel) "selected"
+                    , class_ $ mwhen (editable == NonEditable) "read-only"
+                    , onClick $ Select editable s
+                    ]
+                    [text $ ms $ globalNamePretty def]
+            (editableDefs, nonEditableDefs) =
+              partition ((== Editable) . snd)
+                . Map.toList
+                . map fst
+                . Map.mapMaybe (traverse defAST)
+                $ progAllDefs prog
+           in
+            mconcat
+              [ uncurry viewDef <$> editableDefs
+              , uncurry viewDef <$> nonEditableDefs
+              ]
       ]
       <> case maybeDefSel of
         Nothing -> [text "no selection"]
