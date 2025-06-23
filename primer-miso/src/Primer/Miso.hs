@@ -438,12 +438,13 @@ viewModel Model{..} =
     $ [ div_
           [id_ "def-panel"]
           $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
-            button_
-              [ class_ $ mwhen (Just def == ((.def) <$> maybeDefSel)) "selected"
-              , class_ $ mwhen (editable == NonEditable) "read-only"
-              , onClick $ Select editable $ DefSelection def Nothing
-              ]
-              [text $ ms $ globalNamePretty def]
+            let s = DefSelection def Nothing
+             in button_
+                  [ class_ $ mwhen (Just s == maybeDefSel) "selected"
+                  , class_ $ mwhen (editable == NonEditable) "read-only"
+                  , onClick $ Select editable s
+                  ]
+                  [text $ ms $ globalNamePretty def]
       ]
       <> case maybeDefSel of
         Nothing -> [text "no selection"]
@@ -451,14 +452,29 @@ viewModel Model{..} =
           [ div_
               [ id_ "sig"
               ]
-              [ Select editable . DefSelection defSel.def . Just . NodeSelection SigNode
-                  <$> fst (viewTree (viewTreeType (\m -> (Just $ getID m, Just $ Right m, isSelected m)) def.sig))
+              [ fst
+                  . viewTree
+                  $ viewTreeType
+                    ( mkMetaSelectable $
+                        DefSelection defSel.def
+                          . Just
+                          . NodeSelection SigNode
+                          . Right
+                    )
+                    def.sig
               ]
           , div_
               [ id_ "body"
               ]
-              [ Select editable . DefSelection defSel.def . Just . NodeSelection BodyNode
-                  <$> fst (viewTree (viewTreeExpr (\m -> (Just $ getID m, Just m, isSelected m)) def.expr))
+              [ fst
+                  . viewTree
+                  $ viewTreeExpr
+                    ( mkMetaSelectable $
+                        DefSelection defSel.def
+                          . Just
+                          . NodeSelection BodyNode
+                    )
+                    def.expr
               ]
           , div_
               [ id_ "selection-type"
@@ -586,12 +602,17 @@ viewModel Model{..} =
           ]
           where
             mkMeta = const (Nothing, Nothing, NoHighlight)
-            isSelected x = if (getID <$> defSel.node) == Just (getID x) then SimpleHighlight else NoHighlight
             defsWithEditable = progAllDefs prog
             tydefsWithEditable = progAllTypeDefs prog
             defs = snd <$> defsWithEditable
             tydefs = snd <$> tydefsWithEditable
             (editable, def) = second getDef . fromMaybe (error "selected def not found") $ defsWithEditable !? defSel.def
+            mkMetaSelectable mkSel m =
+              let s = mkSel m
+               in ( Just $ getID m
+                  , Just $ Select editable s
+                  , if defSel == s then SimpleHighlight else NoHighlight
+                  )
   where
     prog = appProg app
     maybeDefSel = readOnlySelection <|> (getSelection <$> progSelection prog)
