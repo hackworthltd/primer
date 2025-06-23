@@ -25,6 +25,8 @@ module Primer.Action (
   insertSubseqBy,
   setCursorBody,
   setCursorSig,
+  setCursorTypeDefParamKind,
+  setCursorTypeDefConField,
 ) where
 
 import Foreword hiding (mod)
@@ -91,6 +93,7 @@ import Primer.Core (
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
+  TyConName,
   TyVarName,
   Type,
   Type' (..),
@@ -1481,3 +1484,7 @@ setCursorBody :: ID -> ProgAction
 setCursorBody id = BodyAction [SetCursor id]
 setCursorSig :: ID -> ProgAction
 setCursorSig id = SigAction [SetCursor id]
+setCursorTypeDefParamKind :: TyConName -> TyVarName -> ID -> ProgAction
+setCursorTypeDefParamKind t v id = ParamKindAction t v [SetCursor id]
+setCursorTypeDefConField :: TyConName -> ValConName -> Int -> ID -> ProgAction
+setCursorTypeDefConField t v i id = ConFieldAction t v i [SetCursor id]
