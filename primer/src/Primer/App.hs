@@ -773,6 +773,12 @@ applyProgAction prog = \case
                     e -> pure e
               )
         pure (ms', Nothing)
+  MoveToTypeDef d ->
+    pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d Nothing)
+  MoveToTypeDefParam d p ->
+    pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection p Nothing)
+  MoveToTypeDefCon d c ->
+    pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection c Nothing)
   RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) defName def -> do
     let defs = moduleDefs m
         newNameBase = unsafeMkName nameStr
