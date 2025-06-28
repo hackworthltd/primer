@@ -773,6 +773,43 @@ applyProgAction prog = \case
                     e -> pure e
               )
         pure (ms', Nothing)
+  MoveToTypeDef d -> do
+    m <- lookupEditableModule (qualifiedModule d) prog
+    case Map.lookup d $ moduleTypesQualified m of
+      Nothing -> throwError $ TypeDefNotFound d
+      Just _ -> pure $ prog & #progSelection ?~ SelectionTypeDef (TypeDefSelection d Nothing)
+  MoveToTypeDefParam d p -> do
+    m <- lookupEditableModule (qualifiedModule d) prog
+    case Map.lookup d $ moduleTypesQualified m of
+      Nothing -> throwError $ TypeDefNotFound d
+      Just d' -> do
+        case typeDefAST d' of
+          Nothing -> throwError $ TypeDefIsPrim d
+          Just d'' -> do
+            if p `elem` map fst (astTypeDefParameters d'')
+              then
+                pure $
+                  prog
+                    & #progSelection
+                      ?~ SelectionTypeDef
+                        (TypeDefSelection d $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection p Nothing)
+              else throwError $ TypeParamNotFound p
+  MoveToTypeDefCon d c -> do
+    m <- lookupEditableModule (qualifiedModule d) prog
+    case Map.lookup d $ moduleTypesQualified m of
+      Nothing -> throwError $ TypeDefNotFound d
+      Just d' -> do
+        case typeDefAST d' of
+          Nothing -> throwError $ TypeDefIsPrim d
+          Just d'' -> do
+            if c `elem` map valConName (astTypeDefConstructors d'')
+              then
+                pure $
+                  prog
+                    & #progSelection
+                      ?~ SelectionTypeDef
+                        (TypeDefSelection d $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection c Nothing)
+              else throwError $ ConNotFound c
   RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) defName def -> do
     let defs = moduleDefs m
         newNameBase = unsafeMkName nameStr
