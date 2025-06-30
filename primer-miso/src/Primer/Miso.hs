@@ -25,23 +25,24 @@ import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import Data.Tuple.Extra (uncurry3)
 import GHC.Base (error)
+import Language.Javascript.JSaddle (JSM)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
 import Miso (
-  App (
-    App,
+  Checked (Checked),
+  Component (
+    Component,
     events,
     initialAction,
     logLevel,
     model,
     mountPoint,
+    styles,
     subs,
     update,
     view
   ),
-  Checked (Checked),
   Effect,
-  JSM,
   LogLevel (Off),
   View,
   button_,
@@ -49,23 +50,22 @@ import Miso (
   consoleLog,
   defaultEvents,
   div_,
-  form_,
-  fromTransition,
+  form,
   id_,
   img_,
   input_,
+  io,
+  io_,
   onChange,
   onChecked,
   onClick,
   required_,
-  scheduleIO,
-  scheduleIO_,
   src_,
-  style_,
   text,
   type_,
  )
 import Miso.String (MisoString, fromMisoString, ms)
+import Miso.Style (style_)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
@@ -172,7 +172,7 @@ import Primer.Miso.Util (
   runTC,
   setSelectionAction,
   showMs,
-  startAppWithSavedState,
+  startComponentWithSavedState,
   stringToOpt,
   typeBindingsInExpr,
  )
@@ -182,8 +182,8 @@ import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExp
 
 start :: JSM ()
 start =
-  startAppWithSavedState
-    App
+  startComponentWithSavedState @"top"
+    Component
       { model =
           Model
             { app = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
@@ -226,9 +226,10 @@ start =
       , view = viewModel
       , subs = []
       , events = defaultEvents
-      , initialAction = NoOp "start"
+      , initialAction = Nothing
       , mountPoint = Nothing
       , logLevel = Off
+      , styles = []
       }
 
 data Model = Model
@@ -291,9 +292,9 @@ data Action
   | ChooseRedex ID
   | StepBackEval
 
-updateModel :: Action -> Model -> Effect Action Model
+updateModel :: Action -> Effect Model Action
 updateModel =
-  fromTransition . \case
+  \case
     NoOp _ -> pure ()
     Select editable sel -> do
       resetActionPanel
@@ -314,14 +315,14 @@ updateModel =
         sel <- liftEither $ maybeToEither (Left "no selection for action") $ progSelection prog
         (_editable, def) <-
           liftEither
-            . first (Left . ("findASTDef failure in runAction: " <>))
+            . first (Left . ms . ("findASTDef failure in runAction: " <>))
             $ findASTTypeOrTermDef tydefs defs sel
         liftEither $ first (Right . ActionError) case actionAndOpts of
           Left action -> toProgActionNoInput (snd <$> defs) def (getID <$> sel) action
           Right (action, opt) -> toProgActionInput def (getID <$> sel) opt action
       case actionResult of
         Right actions -> runMutation $ Edit actions
-        Left e -> scheduleIO_ $ consoleLog $ "running action failed: " <> either identity showMs e
+        Left e -> io_ $ consoleLog $ "running action failed: " <> either identity showMs e
       resetActionPanel
     RunUndo -> do
       runMutation Undo
@@ -354,15 +355,15 @@ updateModel =
                   . runTC s0
                   . runPureLogT
                   $ step opts.viewRedex.avoidShadowing' tydefs defs currentEvalExpr opts.dir id
-          scheduleIO_ $ logAllToConsole @EvalLog evalStepLogs
+          io_ $ logAllToConsole @EvalLog evalStepLogs
           case evalStepResult of
-            Left err -> scheduleIO_ $ consoleLog $ "eval error: " <> show err
+            Left err -> io_ $ consoleLog $ "eval error: " <> showMs err
             -- TODO do something with `_detail`, i.e. move towards actual eval mode
             -- a first step could be to label redexes with a brief explanation
             -- i.e. match on the `EvalDetail` constructor, without looking at its fields
             Right (expr, _detail) -> do
               let (rxs, redexesLogs) = getRedexes opts tydefs defs expr
-              scheduleIO_ $ logAllToConsole redexesLogs
+              io_ $ logAllToConsole redexesLogs
               #components % #eval % #history %= ((expr, rxs, s1) :)
     StepBackEval -> do
       (#components % #eval % #history) %= \case
@@ -375,7 +376,7 @@ updateModel =
     -- and we could drop the `SetApp` action and make this a lot simpler
     runMutation mr = do
       app <- use #app
-      scheduleIO do
+      io do
         (logs, res) <- liftIO $ runMutationWithNullDb mr app
         logAllToConsole logs
         pure $ SetApp res
@@ -403,8 +404,8 @@ updateModel =
                 Left (TimedOut e) -> e
                 Right e -> e
               (rxs, redexesLogs) = getRedexes opts tydefs defs expr
-          scheduleIO_ $ logAllToConsole @EvalLog evalFullLogs
-          scheduleIO_ $ logAllToConsole redexesLogs
+          io_ $ logAllToConsole @EvalLog evalFullLogs
+          io_ $ logAllToConsole redexesLogs
           pure EvalModel{opts, fullscreen, history = [(expr, rxs, s')]}
       #components % #eval .= evalModel
     -- TODO `findRedex` and `redexes` do a lot of the same work - we should find some way to use a single fold
@@ -637,7 +638,7 @@ viewModel Model{..} =
                 ( case opts.free of
                     Available.FreeNone -> []
                     _ ->
-                      [ form_
+                      [ form
                           []
                           [ input_
                               [ type_ "text"
