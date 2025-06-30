@@ -53,7 +53,7 @@ library
     , jsaddle-dom     ^>=0.9.9.2
     , linear          ^>=1.23
     , logging-effect  ^>=1.4
-    , miso            ^>=1.8.7.0
+    , miso            ^>=1.9
     , mtl             >=2.2.2    && <2.4.0
     , optics          >=0.4      && <0.5.0
     , primer          ^>=0.7.2
