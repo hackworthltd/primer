@@ -293,82 +293,81 @@ data Action
   | StepBackEval
 
 updateModel :: Action -> Effect Model Action
-updateModel =
-  \case
-    NoOp _ -> pure ()
-    Select editable sel -> do
-      resetActionPanel
-      case editable of
-        NonEditable ->
-          #readOnlySelection ?= sel
-        Editable -> do
-          #readOnlySelection .= Nothing
-          runMutation $ Edit $ pure $ setSelectionAction sel
-    ShowActionOptions a ->
-      #components % #actionPanel % #optionsMode ?= a
-    ApplyAction actionAndOpts -> do
-      prog <- appProg <$> use #app
-      let defs = progAllDefs prog
-          tydefs = progAllTypeDefsMeta prog
-      -- TODO handle errors properly, not just `Either MisoString`
-      actionResult <- runExceptT do
-        sel <- liftEither $ maybeToEither (Left "no selection for action") $ progSelection prog
-        (_editable, def) <-
-          liftEither
-            . first (Left . ms . ("findASTDef failure in runAction: " <>))
-            $ findASTTypeOrTermDef tydefs defs sel
-        liftEither $ first (Right . ActionError) case actionAndOpts of
-          Left action -> toProgActionNoInput (snd <$> defs) def (getID <$> sel) action
-          Right (action, opt) -> toProgActionInput def (getID <$> sel) opt action
-      case actionResult of
-        Right actions -> runMutation $ Edit actions
-        Left e -> io_ $ consoleLog $ "running action failed: " <> either identity showMs e
-      resetActionPanel
-    RunUndo -> do
-      runMutation Undo
-      resetActionPanel
-    RunRedo -> do
-      runMutation Redo
-      resetActionPanel
-    CancelActionInput ->
-      resetActionPanel
-    SetApp a -> do
-      #app .= a
-      setEval
-    SetEvalOpts f -> do
-      #components % #eval % #opts %= f
-      setEval
-    ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
-    ChooseRedex id -> do
-      (tydefs, defs, _) <- getDefs <$> use #app
-      use (#components % #eval % #history) >>= \case
-        [] ->
-          -- TODO warn here
-          -- this shouldn't be possible
-          -- history can only be empty if eval panel is empty (which means no definition is selected)
-          -- but `ChooseRedex` is only currently triggered by clicking on a node in that panel
-          pure ()
-        (currentEvalExpr, _, s0) : _ -> do
-          opts <- use $ #components % #eval % #opts
-          let ((evalStepResult, evalStepLogs), s1) =
-                either absurd identity
-                  . runTC s0
-                  . runPureLogT
-                  $ step opts.viewRedex.avoidShadowing' tydefs defs currentEvalExpr opts.dir id
-          io_ $ logAllToConsole @EvalLog evalStepLogs
-          case evalStepResult of
-            Left err -> io_ $ consoleLog $ "eval error: " <> showMs err
-            -- TODO do something with `_detail`, i.e. move towards actual eval mode
-            -- a first step could be to label redexes with a brief explanation
-            -- i.e. match on the `EvalDetail` constructor, without looking at its fields
-            Right (expr, _detail) -> do
-              let (rxs, redexesLogs) = getRedexes opts tydefs defs expr
-              io_ $ logAllToConsole redexesLogs
-              #components % #eval % #history %= ((expr, rxs, s1) :)
-    StepBackEval -> do
-      (#components % #eval % #history) %= \case
-        [] -> [] -- TODO warn here? this shouldn't happen since we don't display the button for this in this state
-        _ : h -> h
+updateModel = \case
+  NoOp _ -> pure ()
+  Select editable sel -> do
+    resetActionPanel
+    case editable of
+      NonEditable ->
+        #readOnlySelection ?= sel
+      Editable -> do
+        #readOnlySelection .= Nothing
+        runMutation $ Edit $ pure $ setSelectionAction sel
+  ShowActionOptions a ->
+    #components % #actionPanel % #optionsMode ?= a
+  ApplyAction actionAndOpts -> do
+    prog <- appProg <$> use #app
+    let defs = progAllDefs prog
+        tydefs = progAllTypeDefsMeta prog
+    -- TODO handle errors properly, not just `Either MisoString`
+    actionResult <- runExceptT do
+      sel <- liftEither $ maybeToEither (Left "no selection for action") $ progSelection prog
+      (_editable, def) <-
+        liftEither
+          . first (Left . ms . ("findASTDef failure in runAction: " <>))
+          $ findASTTypeOrTermDef tydefs defs sel
+      liftEither $ first (Right . ActionError) case actionAndOpts of
+        Left action -> toProgActionNoInput (snd <$> defs) def (getID <$> sel) action
+        Right (action, opt) -> toProgActionInput def (getID <$> sel) opt action
+    case actionResult of
+      Right actions -> runMutation $ Edit actions
+      Left e -> io_ $ consoleLog $ "running action failed: " <> either identity showMs e
+    resetActionPanel
+  RunUndo -> do
+    runMutation Undo
+    resetActionPanel
+  RunRedo -> do
+    runMutation Redo
+    resetActionPanel
+  CancelActionInput ->
+    resetActionPanel
+  SetApp a -> do
+    #app .= a
+    setEval
+  SetEvalOpts f -> do
+    #components % #eval % #opts %= f
+    setEval
+  ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
+  ChooseRedex id -> do
+    (tydefs, defs, _) <- getDefs <$> use #app
+    use (#components % #eval % #history) >>= \case
+      [] ->
+        -- TODO warn here
+        -- this shouldn't be possible
+        -- history can only be empty if eval panel is empty (which means no definition is selected)
+        -- but `ChooseRedex` is only currently triggered by clicking on a node in that panel
+        pure ()
+      (currentEvalExpr, _, s0) : _ -> do
+        opts <- use $ #components % #eval % #opts
+        let ((evalStepResult, evalStepLogs), s1) =
+              either absurd identity
+                . runTC s0
+                . runPureLogT
+                $ step opts.viewRedex.avoidShadowing' tydefs defs currentEvalExpr opts.dir id
+        io_ $ logAllToConsole @EvalLog evalStepLogs
+        case evalStepResult of
+          Left err -> io_ $ consoleLog $ "eval error: " <> showMs err
+          -- TODO do something with `_detail`, i.e. move towards actual eval mode
+          -- a first step could be to label redexes with a brief explanation
+          -- i.e. match on the `EvalDetail` constructor, without looking at its fields
+          Right (expr, _detail) -> do
+            let (rxs, redexesLogs) = getRedexes opts tydefs defs expr
+            io_ $ logAllToConsole redexesLogs
+            #components % #eval % #history %= ((expr, rxs, s1) :)
+  StepBackEval -> do
+    (#components % #eval % #history) %= \case
+      [] -> [] -- TODO warn here? this shouldn't happen since we don't display the button for this in this state
+      _ : h -> h
   where
     -- TODO the only part of this that should really require `IO` is writing to a database
     -- (currently we use `NullDb` anyway but this will change)
