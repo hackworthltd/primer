@@ -18,7 +18,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
-import Data.List.Extra (compareLength)
+import Data.List.Extra (compareLength, partition)
 import Data.Map ((!?))
 import Data.Map qualified as Map
 import Data.Tree (Tree)
@@ -69,7 +69,7 @@ import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
-import Primer.Action (setCursorBody, setCursorSig, toProgActionInput, toProgActionNoInput)
+import Primer.Action (toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
   DefSelection (..),
@@ -77,9 +77,13 @@ import Primer.App (
   MutationRequest (..),
   NodeSelection (..),
   NodeType (BodyNode, SigNode),
-  ProgAction (..),
   ProgError (ActionError),
   Selection' (SelectionDef, SelectionTypeDef),
+  TypeDefConsFieldSelection (..),
+  TypeDefConsSelection (..),
+  TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
+  TypeDefSelection (..),
   appIdCounter,
   appNameCounter,
   appProg,
@@ -87,6 +91,7 @@ import Primer.App (
   newApp,
   progAllDefs,
   progAllTypeDefs,
+  progAllTypeDefsMeta,
   progSelection,
  )
 import Primer.App qualified
@@ -110,7 +115,6 @@ import Primer.Core (
     PrimCon,
     Var
   ),
-  GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
   Kind' (..),
@@ -145,18 +149,20 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
-  DefSelectionT,
-  NodeSelectionT,
   P2,
+  SelectionT,
   TermMeta',
   assumeDefHasTypeCheckInfo,
   assumeDefSelectionHasTypeCheckInfo,
+  assumeTypeDefHasTypeCheckInfo,
+  assumeTypeDefSelectionHasTypeCheckInfo,
   astDefTtoAstDef,
+  astTypeDefTtoAstTypeDef,
   availableForSelection,
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
-  findASTDef,
+  findASTTypeOrTermDef,
   kindsInType,
   nodeSelectionType,
   optToName,
@@ -164,13 +170,14 @@ import Primer.Miso.Util (
   realToClay,
   runMutationWithNullDb,
   runTC,
-  selectedDefName,
+  setSelectionAction,
   showMs,
   startAppWithSavedState,
   stringToOpt,
   typeBindingsInExpr,
  )
 import Primer.Name (Name, NameCounter, unName)
+import Primer.TypeDef (ASTTypeDef (..), TypeDef (TypeDefAST), ValCon (..), forgetTypeDefMetadata, typeDefAST, typeDefKind)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
 start :: JSM ()
@@ -226,7 +233,7 @@ start =
 
 data Model = Model
   { app :: Primer.App.App
-  , readOnlySelection :: Maybe DefSelectionT
+  , readOnlySelection :: Maybe SelectionT
   -- ^ A non-editable def is being viewed (e.g. from an imported module), rather than the selection in `app`.
   , components :: ComponentModels
   }
@@ -272,9 +279,7 @@ data EvalOpts = EvalOpts
 
 data Action
   = NoOp MisoString -- For situations where Miso requires an action, but we don't actually want to do anything.
-  | SelectDef GVarName
-  | SelectNode NodeSelectionT
-  | ViewReadOnlyDef GVarName
+  | Select Editable SelectionT
   | ShowActionOptions (Available.InputAction, Available.Options)
   | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
   | CancelActionInput
@@ -290,40 +295,30 @@ updateModel :: Action -> Model -> Effect Action Model
 updateModel =
   fromTransition . \case
     NoOp _ -> pure ()
-    SelectDef d -> do
-      #readOnlySelection .= Nothing
-      runMutation $ Edit [MoveToDef d]
+    Select editable sel -> do
       resetActionPanel
-    SelectNode sel -> do
-      use #readOnlySelection >>= \case
-        Just (DefSelection d _) -> #readOnlySelection ?= DefSelection d (Just sel)
-        Nothing -> runMutation $ Edit $ pure case sel.nodeType of
-          BodyNode -> setCursorBody $ getID sel
-          SigNode -> setCursorSig $ getID sel
-      resetActionPanel
-    ViewReadOnlyDef d -> do
-      #readOnlySelection ?= DefSelection d Nothing
-      resetActionPanel
+      case editable of
+        NonEditable ->
+          #readOnlySelection ?= sel
+        Editable -> do
+          #readOnlySelection .= Nothing
+          runMutation $ Edit $ pure $ setSelectionAction sel
     ShowActionOptions a ->
       #components % #actionPanel % #optionsMode ?= a
     ApplyAction actionAndOpts -> do
       prog <- appProg <$> use #app
       let defs = progAllDefs prog
+          tydefs = progAllTypeDefsMeta prog
       -- TODO handle errors properly, not just `Either MisoString`
       actionResult <- runExceptT do
         sel <- liftEither $ maybeToEither (Left "no selection for action") $ progSelection prog
-        defName <-
-          liftEither
-            . first (const $ Left "unexpected type def selection")
-            . either Right Left
-            $ selectedDefName sel
         (_editable, def) <-
           liftEither
-            . first (Left . ("findASTDef failure in runAction: " <>) . ms)
-            $ findASTDef defs defName
+            . first (Left . ("findASTDef failure in runAction: " <>))
+            $ findASTTypeOrTermDef tydefs defs sel
         liftEither $ first (Right . ActionError) case actionAndOpts of
-          Left action -> toProgActionNoInput (snd <$> defs) (Right def) (getID <$> sel) action
-          Right (action, opt) -> toProgActionInput (Right def) (getID <$> sel) opt action
+          Left action -> toProgActionNoInput (snd <$> defs) def (getID <$> sel) action
+          Right (action, opt) -> toProgActionInput def (getID <$> sel) opt action
       case actionResult of
         Right actions -> runMutation $ Edit actions
         Left e -> scheduleIO_ $ consoleLog $ "running action failed: " <> either identity showMs e
@@ -447,49 +442,173 @@ viewModel Model{..} =
     ([id_ "miso-root"] <> mwhen components.eval.fullscreen [class_ "fullscreen-eval"])
     $ [ div_
           [id_ "def-panel"]
-          $ Map.toList (Map.mapMaybe (traverse defAST) $ progAllDefs prog) <&> \(def, (editable, _)) ->
-            button_
-              ( [class_ $ mwhen (Just def == ((.def) <$> maybeDefSel)) "selected"]
-                  <> case editable of
-                    Editable ->
-                      [ onClick $ SelectDef def
-                      ]
-                    NonEditable ->
-                      [ onClick $ ViewReadOnlyDef def
-                      , class_ "read-only"
-                      ]
-              )
-              [text $ ms $ globalNamePretty def]
+          let
+            viewDef def editable =
+              let s = SelectionDef $ DefSelection def Nothing
+               in button_
+                    [ class_ $ mwhen (Just s == maybeDefSel) "selected"
+                    , class_ $ mwhen (editable == NonEditable) "read-only"
+                    , onClick $ Select editable s
+                    ]
+                    [text $ ms $ globalNamePretty def]
+            viewTypeDef def editable =
+              let s = SelectionTypeDef $ TypeDefSelection def Nothing
+               in button_
+                    [ class_ $ mwhen (Just s == maybeDefSel) "selected"
+                    , class_ $ mwhen (editable == NonEditable) "read-only"
+                    , onClick $ Select editable s
+                    , class_ "type"
+                    ]
+                    [text $ ms $ globalNamePretty def]
+            (editableDefs, nonEditableDefs) =
+              partition ((== Editable) . snd)
+                . Map.toList
+                . map fst
+                . Map.mapMaybe (traverse defAST)
+                $ progAllDefs prog
+            (editableTypeDefs, nonEditableTypeDefs) =
+              partition ((== Editable) . snd)
+                . Map.toList
+                . map fst
+                . Map.mapMaybe (traverse typeDefAST)
+                $ progAllTypeDefs prog
+           in
+            mconcat
+              [ uncurry viewTypeDef <$> editableTypeDefs
+              , uncurry viewDef <$> editableDefs
+              , uncurry viewTypeDef <$> nonEditableTypeDefs
+              , uncurry viewDef <$> nonEditableDefs
+              ]
       ]
       <> case maybeDefSel of
         Nothing -> [text "no selection"]
-        Just defSel ->
-          [ div_
-              [ id_ "sig"
-              ]
-              [ SelectNode . NodeSelection SigNode
-                  <$> fst (viewTree (viewTreeType (\m -> (Just $ getID m, Just $ Right m, isSelected m)) def.sig))
-              ]
-          , div_
-              [ id_ "body"
-              ]
-              [ SelectNode . NodeSelection BodyNode
-                  <$> fst (viewTree (viewTreeExpr (\m -> (Just $ getID m, Just m, isSelected m)) def.expr))
-              ]
+        Just sel ->
+          [ case selAndDef of
+              Left (sel', ASTTypeDef{astTypeDefParameters}) ->
+                div_ [id_ "params"] $
+                  astTypeDefParameters <&> \(paramName, paramKind) ->
+                    div_
+                      []
+                      [ div_
+                          ( let s =
+                                  SelectionTypeDef
+                                    . TypeDefSelection sel'.def
+                                    . Just
+                                    . TypeDefParamNodeSelection
+                                    $ TypeDefParamSelection paramName Nothing
+                             in [ onClick $ Select editable s
+                                , class_ "param-name"
+                                ]
+                                  <> mwhen (sel == s) [class_ "selected"]
+                          )
+                          [text $ ms $ unName $ unLocalName paramName]
+                      , fst
+                          . viewTree
+                          $ viewTreeKind
+                            ( mkMetaSelectable $
+                                SelectionTypeDef
+                                  . TypeDefSelection sel'.def
+                                  . Just
+                                  . TypeDefParamNodeSelection
+                                  . TypeDefParamSelection paramName
+                                  . Just
+                                  . Right
+                                  . Right
+                            )
+                            paramKind
+                      ]
+              Right (sel', def) ->
+                div_
+                  [ id_ "sig"
+                  ]
+                  [ fst
+                      . viewTree
+                      $ viewTreeType
+                        ( mkMetaSelectable $
+                            SelectionDef
+                              . DefSelection sel'.def
+                              . Just
+                              . NodeSelection SigNode
+                              . Right
+                        )
+                        def.sig
+                  ]
+          , case selAndDef of
+              Left (sel', ASTTypeDef{astTypeDefConstructors}) ->
+                div_ [id_ "cons"] $
+                  astTypeDefConstructors <&> \ValCon{valConName, valConArgs} ->
+                    div_
+                      []
+                      [ div_
+                          ( let s =
+                                  SelectionTypeDef
+                                    . TypeDefSelection sel'.def
+                                    . Just
+                                    . TypeDefConsNodeSelection
+                                    $ TypeDefConsSelection valConName Nothing
+                             in [ onClick $ Select editable s
+                                , class_ "con-name"
+                                ]
+                                  <> mwhen (sel == s) [class_ "selected"]
+                          )
+                          [text $ ms $ unName $ baseName valConName]
+                      , div_ [class_ "con-fields"] $
+                          zip [0 ..] valConArgs <&> \(valConIndex, conArgType) ->
+                            fst
+                              . viewTree
+                              $ viewTreeType
+                                ( mkMetaSelectable $
+                                    SelectionTypeDef
+                                      . TypeDefSelection sel'.def
+                                      . Just
+                                      . TypeDefConsNodeSelection
+                                      . TypeDefConsSelection valConName
+                                      . Just
+                                      . TypeDefConsFieldSelection valConIndex
+                                      . Right
+                                )
+                                conArgType
+                      ]
+              Right (sel', def) ->
+                div_
+                  [ id_ "body"
+                  ]
+                  [ fst
+                      . viewTree
+                      $ viewTreeExpr
+                        ( mkMetaSelectable $
+                            SelectionDef
+                              . DefSelection sel'.def
+                              . Just
+                              . NodeSelection BodyNode
+                        )
+                        def.expr
+                  ]
           , div_
               [ id_ "selection-type"
               ]
-              [ fst $ viewTree case defSel.node of
-                  Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
-                  Just s -> case nodeSelectionType s of
-                    Left t -> viewTreeType mkMeta t
-                    Right (Left t) -> viewTreeKind mkMeta t
-                    -- TODO this isn't really correct - kinds in Primer don't have kinds
-                    Right (Right ()) -> viewTreeKind mkMeta $ KType ()
+              [ let mkMeta = const (Nothing, Nothing, NoHighlight)
+                    metaToTree = \case
+                      Left t -> viewTreeType mkMeta t
+                      Right (Left t) -> viewTreeKind mkMeta t
+                      -- TODO this isn't really correct - kinds in Primer don't have kinds
+                      Right (Right ()) -> viewTreeKind mkMeta $ KType ()
+                 in case selAndDef of
+                      Right (DefSelection{node}, def) -> fst $ viewTree case node of
+                        Nothing -> viewTreeType mkMeta $ forgetTypeMetadata def.sig
+                        Just s -> metaToTree $ nodeSelectionType s.meta
+                      Left (TypeDefSelection{def = defName, node}, def) -> fst $ viewTree case node of
+                        Nothing -> viewTreeKind mkMeta $ typeDefKind $ forgetTypeDefMetadata $ TypeDefAST def
+                        Just (TypeDefParamNodeSelection (TypeDefParamSelection{kindMeta})) -> case kindMeta of
+                          Nothing -> viewTreeType @() @() mkMeta $ TCon () defName
+                          Just m -> metaToTree $ nodeSelectionType m
+                        Just (TypeDefConsNodeSelection (TypeDefConsSelection{field})) -> case field of
+                          Nothing -> viewTreeType @() @() mkMeta $ TCon () defName
+                          Just m -> metaToTree $ nodeSelectionType m.meta
               ]
           , div_ [id_ "action-panel"] case components.actionPanel.optionsMode of
               Nothing ->
-                availableForSelection tydefs defs level editable def' defSel <&> \action ->
+                availableForSelection tydefs defs level editable def sel <&> \action ->
                   button_
                     [ onClick case action of
                         Available.NoInput a -> ApplyAction $ Left a
@@ -502,8 +621,8 @@ viewModel Model{..} =
                                   defs
                                   (buildTypingContext tydefs defs SmartHoles)
                                   level
-                                  (Right def')
-                                  (SelectionDef $ getID <$> defSel)
+                                  def
+                                  (getID <$> sel)
                                   a
                             )
                     ]
@@ -512,7 +631,7 @@ viewModel Model{..} =
                         Available.Input a -> showMs a
                     ]
                 where
-                  def' = astDefTtoAstDef def
+                  def = bimap (astTypeDefTtoAstTypeDef . snd) (astDefTtoAstDef . snd) selAndDef
                   level = Primer.App.Expert -- TODO don't hardcode
               Just (action, opts) ->
                 ( case opts.free of
@@ -601,13 +720,24 @@ viewModel Model{..} =
                             )
           ]
           where
-            mkMeta = const (Nothing, Nothing, NoHighlight)
-            isSelected x = if (getID <$> defSel.node) == Just (getID x) then SimpleHighlight else NoHighlight
             defsWithEditable = progAllDefs prog
-            tydefsWithEditable = progAllTypeDefs prog
+            tydefsWithEditable = second forgetTypeDefMetadata <$> tydefsWithEditableMeta
+            tydefsWithEditableMeta = progAllTypeDefsMeta prog
             defs = snd <$> defsWithEditable
             tydefs = snd <$> tydefsWithEditable
-            (editable, def) = second getDef . fromMaybe (error "selected def not found") $ defsWithEditable !? defSel.def
+            (editable, selAndDef) = case sel of
+              SelectionTypeDef sel'@TypeDefSelection{def = d} ->
+                second (Left . (sel',) . getTypeDef) . fromMaybe (error "selected def not found") $
+                  tydefsWithEditableMeta !? d
+              SelectionDef sel'@DefSelection{def = d} ->
+                second (Right . (sel',) . getDef) . fromMaybe (error "selected def not found") $
+                  defsWithEditable !? d
+            mkMetaSelectable mkSel m =
+              let s = mkSel m
+               in ( Just $ getID m
+                  , Just $ Select editable s
+                  , if sel == s then SimpleHighlight else NoHighlight
+                  )
   where
     prog = appProg app
     maybeDefSel = readOnlySelection <|> (getSelection <$> progSelection prog)
@@ -616,9 +746,13 @@ viewModel Model{..} =
       fromMaybe (error "selected def is not fully typechecked")
         . maybe (error "unexpected primitive def") assumeDefHasTypeCheckInfo
         . defAST
+    getTypeDef =
+      fromMaybe (error "selected typedef is not fully typechecked")
+        . maybe (error "unexpected primitive typedef") assumeTypeDefHasTypeCheckInfo
+        . typeDefAST
     getSelection = \case
-      SelectionTypeDef _ -> error "unexpected type def selection"
-      SelectionDef d -> fromMaybe (error "no TC info in selection") $ assumeDefSelectionHasTypeCheckInfo d
+      SelectionTypeDef d -> SelectionTypeDef $ fromMaybe (error "no TC info in selection") $ assumeTypeDefSelectionHasTypeCheckInfo d
+      SelectionDef d -> SelectionDef $ fromMaybe (error "no TC info in selection") $ assumeDefSelectionHasTypeCheckInfo d
 
 -- TODO `isNothing clickAction` implies `highlight == NoHighlight`, and `isNothing id` iff `isNothing clickAction`
 -- we could model this better, but in the long run, we intend to have no unselectable nodes anyway

@@ -27,6 +27,7 @@ data ProgError
     -- - clash between parameter and constructor
     TypeDefModifyNameClash Name
   | TypeParamInUse TyConName TyVarName
+  | TypeParamNotFound TyVarName
   | ConNotFound ValConName
   | ConAlreadyExists ValConName
   | -- | We expected to see more arguments to a constructor than actually existed
