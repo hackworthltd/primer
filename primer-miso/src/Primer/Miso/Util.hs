@@ -7,7 +7,7 @@
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
-  startAppWithSavedState,
+  startComponentWithSavedState,
   showMs,
   readMs,
   clayToMiso,
@@ -58,24 +58,27 @@ import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (WithSeverity)
+import Control.Monad.RWS (mapRWS)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
 import Data.String (String)
+import Data.Tuple.Extra (third3)
 import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
+import Language.Javascript.JSaddle (JSM)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
-  App (initialAction, model, subs, update, view),
-  JSM,
+  Component (initialAction, model, subs, update, view),
   getLocalStorage,
+  io_,
   mapSub,
   setLocalStorage,
-  startApp,
-  (<#),
+  startComponent,
  )
 import Miso.String (MisoString, fromMisoString, ms)
+import Miso.Style (Style)
 import Optics (
   AffineTraversal',
   Field1 (_1),
@@ -157,21 +160,22 @@ import StmContainers.Map qualified as StmMap
 {- Miso -}
 
 -- https://github.com/dmjio/miso/issues/749
-startAppWithSavedState :: forall model action. (Eq model, FromJSON model, ToJSON model) => Miso.App model action -> JSM ()
-startAppWithSavedState app = do
+startComponentWithSavedState ::
+  forall name model action.
+  (KnownSymbol name, Eq model, FromJSON model, ToJSON model) =>
+  Component name model action -> JSM ()
+startComponentWithSavedState app = do
   savedModel <-
     eitherM (\e -> liftIO $ putStrLn ("saved state not loaded: " <> e) >> pure Nothing) (pure . Just) $
       getLocalStorage storageKey
-  startApp
+  startComponent @name
     app
       { model = fromMaybe app.model savedModel
       , update = \case
-          Nothing -> pure
-          Just a -> \m -> do
-            m' <- first Just $ app.update a m
-            m' <# do
-              setLocalStorage storageKey m'
-              pure Nothing
+          Nothing -> pure ()
+          Just a -> do
+            mapRWS (third3 $ map $ mapSub Just) $ app.update a
+            io_ . setLocalStorage storageKey =<< get
       , subs = mapSub Just <$> app.subs
       , view = fmap Just . app.view
       , initialAction = Just app.initialAction
@@ -191,16 +195,16 @@ readMs = readMaybe @_ @String . fromMisoString
 -- note that we silently ignore non-properties, and modifiers on properties
 -- what we really want is for Clay property functions to return something much more precise than `Css`
 -- but this would be a big breaking change, and Clay is really designed primarily for generating stylesheets
-clayToMiso :: Clay.Css -> Map MisoString MisoString
+clayToMiso :: Clay.Css -> [Style]
 clayToMiso =
-  Map.fromList
-    . concatMap \case
+  ( concatMap \case
       Clay.Property _modifiers (Clay.Key k) (Clay.Value v) -> (,) <$> allPrefixes k <*> allPrefixes v
         where
           allPrefixes = \case
             Clay.Prefixed ts -> map (ms . uncurry (<>)) ts
             Clay.Plain t -> pure $ ms t
       _ -> []
+  )
     . Clay.runS
 
 realToClay :: Real a => a -> Clay.Number

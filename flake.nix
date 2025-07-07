@@ -457,7 +457,7 @@
                     ghcid
 
                     # For Language Server support.
-                    nodejs-18_x
+                    nodejs_22
                   ]);
 
                   shellHook = ''
