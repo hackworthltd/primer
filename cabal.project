@@ -37,7 +37,7 @@ benchmarks: True
 
 tests: True
 
-allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, protolude:ghc-prim,base, logging-effect:base, servant:base, http-api-data:base
+allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, logging-effect:base, servant:base, http-api-data:base
 
 package primer
   test-options: "--size-cutoff=32768"
@@ -48,14 +48,6 @@ package primer-api
 if arch(wasm32)
   package tasty
     flags: -unix
-
--- Protolude upstream doesn't support GHC 9.10, and appears to
--- be dormant.
-source-repository-package
-  type: git
-  location: https://github.com/tomjaguarpaw/protolude
-  tag: 57ffd726d9685a862df8c9773f3eb09de2b89594
-  --sha256: 1z9z887s4f1wv0pv3njyd8h8zgr2ha89jyvaxz3k5k3rk6h2g1cp
 
 -- Using unreleased support for components.
 source-repository-package
