@@ -26,30 +26,12 @@ jobs:
           # Required by flakes
           fetch-depth: 0
 
-      - name: Import secrets from Vault
-        uses: hashicorp/vault-action@v3.4.0
-        id: secrets
-        with:
-          url: https://openbao.hackworth-corp.com
-          path: "github-actions/hackworthltd"
-          role: github-actions-hackworthltd-repo-primer-benchmarks
-          method: jwt
-          secrets: |
-            secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
-
       - name: Install & configure Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hackworthltd.cachix.org-1:0JTCI0qDo2J+tonOalrSQP3yRNleN6bQucJ05yDltRI= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk=
             substituters = https://cache.nixos.org?priority=10 https://hackworthltd.cachix.org?priority=30 https://cache.iog.io?priority=40 https://cache.zw3rk.com?priority=50
-
-      - name: Configure Cachix for private Hackworth Ltd cache
-        uses: cachix/cachix-action@v16
-        with:
-          name: hackworthltd-private
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true
 
         # Note: if this Nix derivation hasn't been built yet, it will
         # kick off a Primer Nix build on a GitHub runner, which isn't
