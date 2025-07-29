@@ -289,7 +289,7 @@
             };
 
           devShells = {
-            default = primerFlake.devShell // {
+            default = primerFlake.devShells.default // {
               inputsFrom = [
                 config.treefmt.build.devShell
               ];
