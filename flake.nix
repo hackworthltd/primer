@@ -26,7 +26,7 @@
     ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
 
     haskell-language-server.url = "github:haskell/haskell-language-server/748603e1cf4d85b3aa31bff4d91edd4b8b3fa66b";
-};
+  };
 
   outputs = inputs@ { flake-parts, ... }:
     let
