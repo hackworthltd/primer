@@ -35,8 +35,10 @@ import Miso (
     events,
     initialAction,
     logLevel,
+    mailbox,
     model,
     mountPoint,
+    scripts,
     styles,
     subs,
     update,
@@ -182,7 +184,7 @@ import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExp
 
 start :: JSM ()
 start =
-  startComponentWithSavedState @"top"
+  startComponentWithSavedState
     Component
       { model =
           Model
@@ -226,10 +228,12 @@ start =
       , view = viewModel
       , subs = []
       , events = defaultEvents
+      , styles = []
+      , scripts = []
       , initialAction = Nothing
       , mountPoint = Nothing
       , logLevel = Off
-      , styles = []
+      , mailbox = const Nothing
       }
 
 data Model = Model
