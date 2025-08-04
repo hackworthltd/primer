@@ -58,22 +58,19 @@ import Control.Concurrent.STM (atomically, newTBQueueIO)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (WithSeverity)
-import Control.Monad.RWS (mapRWS)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
 import Data.String (String)
-import Data.Tuple.Extra (third3)
 import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
 import Language.Javascript.JSaddle (JSM)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
-  Component (initialAction, model, subs, update, view),
+  Component (model, update),
   getLocalStorage,
   io_,
-  mapSub,
   setLocalStorage,
   startComponent,
  )
@@ -161,24 +158,19 @@ import StmContainers.Map qualified as StmMap
 
 -- https://github.com/dmjio/miso/issues/749
 startComponentWithSavedState ::
-  forall name model action.
-  (KnownSymbol name, Eq model, FromJSON model, ToJSON model) =>
-  Component name model action -> JSM ()
+  forall model action.
+  (Eq model, FromJSON model, ToJSON model) =>
+  Component model action -> JSM ()
 startComponentWithSavedState app = do
   savedModel <-
     eitherM (\e -> liftIO $ putStrLn ("saved state not loaded: " <> e) >> pure Nothing) (pure . Just) $
       getLocalStorage storageKey
-  startComponent @name
+  startComponent
     app
       { model = fromMaybe app.model savedModel
-      , update = \case
-          Nothing -> pure ()
-          Just a -> do
-            mapRWS (third3 $ map $ mapSub Just) $ app.update a
-            io_ . setLocalStorage storageKey =<< get
-      , subs = mapSub Just <$> app.subs
-      , view = fmap Just . app.view
-      , initialAction = Just app.initialAction
+      , update = \a -> do
+          app.update a
+          io_ . setLocalStorage storageKey =<< get
       }
   where
     storageKey = "miso-app-state"

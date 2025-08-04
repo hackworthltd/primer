@@ -53,8 +53,8 @@ if arch(wasm32)
 source-repository-package
   type: git
   location: https://github.com/dmjio/miso
-  tag: adaf0420b4c95cc4241d8cdb663a713fea43f2da
-  --sha256: 1w9a7jvc2bhxhy6dx9lpd8j048ff6i031xpb45zw501ni11myjnw
+  tag: a66bf903f9f4a8f9a8e92c0629d68ac8587710f2
+  --sha256: 12b4rpcwimgjcganm1vkw4ms4k3dzwsddfkp7x1bm4bxa4x42q62
 
 -- Wasm workarounds.
 --
