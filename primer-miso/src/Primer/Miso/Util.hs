@@ -68,6 +68,7 @@ import Language.Javascript.JSaddle (JSM)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
+  App,
   Component (model, update),
   getLocalStorage,
   io_,
@@ -160,7 +161,7 @@ import StmContainers.Map qualified as StmMap
 startComponentWithSavedState ::
   forall model action.
   (Eq model, FromJSON model, ToJSON model) =>
-  Component model action -> JSM ()
+  App model action -> JSM ()
 startComponentWithSavedState app = do
   savedModel <-
     eitherM (\e -> liftIO $ putStrLn ("saved state not loaded: " <> e) >> pure Nothing) (pure . Just) $
