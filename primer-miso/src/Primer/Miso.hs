@@ -32,6 +32,7 @@ import Miso (
   Checked (Checked),
   Component (
     Component,
+    bindings,
     events,
     initialAction,
     logLevel,
@@ -46,6 +47,7 @@ import Miso (
   ),
   Effect,
   LogLevel (Off),
+  ROOT,
   View,
   button_,
   class_,
@@ -234,6 +236,7 @@ start =
       , mountPoint = Nothing
       , logLevel = Off
       , mailbox = const Nothing
+      , bindings = []
       }
 
 data Model = Model
@@ -296,7 +299,7 @@ data Action
   | ChooseRedex ID
   | StepBackEval
 
-updateModel :: Action -> Effect Model Action
+updateModel :: Action -> Effect ROOT Model Action
 updateModel = \case
   NoOp _ -> pure ()
   Select editable sel -> do
@@ -440,7 +443,7 @@ updateModel = \case
        in
         (tydefs, defs, def)
 
-viewModel :: Model -> View Action
+viewModel :: Model -> View Model Action
 viewModel Model{..} =
   div_
     ([id_ "miso-root"] <> mwhen components.eval.fullscreen [class_ "fullscreen-eval"])
@@ -779,14 +782,14 @@ data NodeViewOpts action
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (Maybe (View action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
+  | PatternBoxNode (Maybe (View Model action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
 
 data Level
   = Expr
   | Type
   | Kind
 
-viewNodeData :: Bool -> P2 Double -> V2 Double -> [View action] -> NodeViewData action -> View action
+viewNodeData :: Bool -> P2 Double -> V2 Double -> [View Model action] -> NodeViewData action -> View Model action
 viewNodeData showIDs position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
@@ -973,7 +976,7 @@ viewTreeKind mkMeta k =
       KFun{} -> SyntaxNode False "kind-fun" "→"
     childViews = map (viewTreeKind mkMeta) (children k)
 
-viewEdge :: V2 Double -> View action
+viewEdge :: V2 Double -> View Model action
 viewEdge v =
   div_
     [ class_ "edge"
@@ -991,7 +994,7 @@ viewEdge v =
     theta = unangle v
     size = norm v
 
-viewTree :: Tree (NodeViewData action) -> (View action, V2 Double)
+viewTree :: Tree (NodeViewData action) -> (View Model action, V2 Double)
 viewTree t =
   ( div_
       [ class_ "tree"
