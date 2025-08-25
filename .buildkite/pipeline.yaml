@@ -1,30 +1,34 @@
 agents:
-    queue: "nix-eval"
+  queue: "nix-eval"
 
 steps:
-    - command: nix flake archive .#
-      label: ":nixos: Archive Nix flake inputs"
-      agents:
-          queue: "nix-build"
+  - command: nix flake archive .#
+    label: ":nixos: Archive Nix flake inputs"
+    agents:
+      queue: "nix-build"
 
-    - command: nix-buildkite
-      label: ":nixos: :buildkite:"
-      plugins:
-          - hackworthltd/nix#87495e887d4240f34215e6416f8547253d5d2912:
-                file: ci.nix
-                agent-tags: queue=nix-build,os=linux
+  - command: nix-buildkite
+    label: ":nixos: :buildkite:"
+    plugins:
+      - hackworthltd/nix#v2.0.0:
+          expr: ".#hydraJobs"
+          use-nix-build: "true"
+          attr-prefix: ".#hydraJobs."
+          nix-build-opts: --max-jobs 0 --print-build-logs --eval-store auto --store 'ssh-ng://remote-builder@remote-builders.nix-daemon.svc.cluster.local?ssh-key=/etc/secrets/remote-builder-ssh-key'
+          nix-eval-jobs-args: --workers 8 --max-memory-size 8GiB --flake --force-recurse
+          agent-tags: queue=nix-build,os=linux
 
-    - wait
+  - wait
 
-    - label: ":nixos: :linux: Cache the Nix shell"
-      command: |
-          nix develop --print-build-logs --profile /tmp/primer --command echo "done"
-      agents:
-          queue: "nix-build"
+  - label: ":nixos: :linux: Cache the Nix shell"
+    command: |
+      nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+    agents:
+      queue: "nix-build"
 
-    - label: ":nixos: :macos: Cache the Nix shell"
-      command: |
-          nix develop --print-build-logs --profile /tmp/primer --command echo "done"
-      agents:
-          queue: "nix-build"
-          os: "darwin"
+  - label: ":nixos: :macos: Cache the Nix shell"
+    command: |
+      nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+    agents:
+      queue: "nix-build"
+      os: "darwin"
