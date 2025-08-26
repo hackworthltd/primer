@@ -10,7 +10,7 @@ steps:
   - command: nix-buildkite
     label: ":nixos: :buildkite:"
     plugins:
-      - hackworthltd/nix#v2.0.0:
+      - hackworthltd/nix#v2.1.0:
           expr: ".#hydraJobs"
           use-nix-build: "true"
           attr-prefix: ".#hydraJobs."
