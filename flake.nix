@@ -102,7 +102,7 @@
               getHIEs = package:
                 getLibHIE package
                 ++ pkgs.lib.concatMap (getHIE package)
-                  [ "benchmarks" "exes" "sublibs" "tests" ];
+                  [ "exes" "sublibs" "tests" ];
               primer-packages = pkgs.haskell-nix.haskellLib.selectProjectPackages pkgs.primer;
             in
             pkgs.runCommand "weeder"
@@ -194,12 +194,8 @@
           };
 
           packages = {
-            inherit (pkgs) primer-benchmark;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-            inherit (pkgs) primer-benchmark-results-json;
-            inherit (pkgs) primer-criterion-results-github-action-benchmark;
-            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
           })
           // primerFlake.packages;
 
@@ -252,7 +248,6 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) primer-benchmark;
             })
             // primerFlake.apps;
 
@@ -362,10 +357,6 @@
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
                         };
-                        primer-benchmark = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
                       };
                   }
                   {
@@ -418,7 +409,6 @@
                     {
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
                   )
                 ];
@@ -469,33 +459,6 @@
               };
 
               primerFlake = primer.flake { };
-
-              # Note: these benchmarks should only be run (in CI) on a
-              # "benchmark" machine. This is enforced for our CI system
-              # via Nix's `requiredSystemFeatures`.
-              #
-              # The `lastEnvChange` value is an impurity that we can
-              # modify when we want to force a new benchmark run
-              # despite the benchmarking code not having changed, as
-              # otherwise Nix will cache the results. It's intended to
-              # be used to track changes to the benchmarking
-              # environment, such as changes to hardware, that Nix
-              # doesn't know about.
-              #
-              # The value should be formatted as an ISO date, followed
-              # by a "." and a 2-digit monotonic counter, to allow for
-              # multiple changes on the same date. We store this value
-              # in a `lastEnvChange` file in the derivation output, so
-              # that we can examine results in the Nix store and know
-              # which benchmarking environment was used to generate
-              # them.
-              benchmarks =
-                let
-                  lastEnvChange = "20240408.02";
-                in
-                final.callPackage ./nix/pkgs/benchmarks {
-                  inherit lastEnvChange;
-                };
             in
             {
               lib = (prev.lib or { }) // {
@@ -505,12 +468,6 @@
               };
 
               inherit primer;
-
-              primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
-
-              inherit (benchmarks) primer-benchmark-results-json;
-              inherit (benchmarks) primer-criterion-results-github-action-benchmark;
-              inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
 
               inherit (ghc982Tools) cabal-fmt hlint ghcid;
             }
