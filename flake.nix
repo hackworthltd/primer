@@ -378,7 +378,6 @@
                     packages.bytestring-builder.writeHieFiles = false;
                     packages.fail.writeHieFiles = false;
                     packages.diagrams.writeHieFiles = false;
-                    packages.happy-lib.writeHieFiles = false;
                   }
                   {
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
