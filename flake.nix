@@ -77,7 +77,9 @@
           # haskell.nix does a lot of heavy lifiting for us and gives us a
           # flake for our Cabal project with the following attributes:
           # `checks`, `apps`, and `packages`.
-          primerFlake = pkgs.primer.flake { };
+          primerFlake = pkgs.primer.flake {
+            crossPlatforms = p: [ p.wasi32 ];
+          };
 
           weeder =
             let
@@ -185,11 +187,9 @@
             };
           };
 
-          packages = {
-          }
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          })
-          // primerFlake.packages;
+          packages = { }
+            // (pkgs.lib.optionalAttrs (system == "x86_64-linux") { })
+            // primerFlake.packages;
 
           checks = {
             # Disabled, as it doesn't currently build with Nix.
@@ -239,8 +239,7 @@
                 program = "${pkg}/bin/${script}";
               };
             in
-            (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-            })
+            (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) { })
             // primerFlake.apps;
 
           treefmt.config =
@@ -400,6 +399,8 @@
                 ];
 
                 shell = {
+                  crossPlatforms = p: [ p.wasi32 ];
+
                   # We're using a `source-repository-package`, so we must disable this.
                   # See:
                   # https://github.com/hackworthltd/primer/issues/876
@@ -446,7 +447,9 @@
                 };
               };
 
-              primerFlake = primer.flake { };
+              primerFlake = primer.flake {
+                crossPlatforms = p: [ p.wasi32 ];
+              };
             in
             {
               lib = (prev.lib or { }) // {
