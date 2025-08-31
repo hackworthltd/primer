@@ -24,7 +24,7 @@ steps:
     command: |
       nix develop --print-build-logs --profile /tmp/primer --command echo "done"
     agents:
-      queue: "nix-build"
+      queue: "nix-eval"
 
   - label: ":nixos: :macos: Cache the Nix shell"
     command: |
