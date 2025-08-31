@@ -56,6 +56,14 @@ source-repository-package
   tag: ba94173bd8ff22110e65beb51c66cdf1172ce677
   --sha256: 0nqdmxddmcd5c74mbw7yxsg8849rfmvaqq8afmw6ap8qfzr7dax2
 
+-- Upstream requires `happy` at build time, which doesn't work on Wasm
+-- targets.
+source-repository-package
+  type: git
+  location: https://github.com/hackworthltd/pretty-show
+  tag: 91d119cb0e3c5f7d866589b25158739580c8fc88
+  --sha256: sha256-mu8Eq0Sg6nCF8C2sXB6ebZcLhz8TVZAbNMiorA7RVc8=
+
 -- Wasm workarounds.
 --
 -- We would prefer that these workarounds were not Wasm-dependent;
@@ -68,11 +76,3 @@ source-repository-package
 if arch(wasm32)
   -- Required for TemplateHaskell support on Wasm targets.
   shared: True
-
-  -- Upstream requires `happy` at build time, which doesn't work on Wasm
-  -- targets.
-  source-repository-package
-    type: git
-    location: https://github.com/hackworthltd/pretty-show
-    tag: 91d119cb0e3c5f7d866589b25158739580c8fc88
-    --sha256: sha256-mu8Eq0Sg6nCF8C2sXB6ebZcLhz8TVZAbNMiorA7RVc8=
