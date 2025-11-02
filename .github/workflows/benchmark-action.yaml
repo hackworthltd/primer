@@ -1,13 +1,7 @@
 name: Benchmark regression checks
 
 on:
-  push:
-
-    # NOTE: if you want to add a branch here other than `main`, please
-    # consider whether it will cause an unnecessary Primer Nix build
-    # on a GitHub runner! See the note below.
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   benchmark:
