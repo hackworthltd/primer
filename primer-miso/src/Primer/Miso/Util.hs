@@ -75,8 +75,8 @@ import Miso (
   setLocalStorage,
   startComponent,
  )
+import Miso.CSS (Style)
 import Miso.String (MisoString, fromMisoString, ms)
-import Miso.Style (Style)
 import Optics (
   AffineTraversal',
   Field1 (_1),

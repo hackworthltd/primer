@@ -34,6 +34,7 @@ import Miso (
     Component,
     bindings,
     events,
+    hydrateModel,
     initialAction,
     logLevel,
     mailbox,
@@ -49,27 +50,31 @@ import Miso (
   LogLevel (Off),
   ROOT,
   View,
-  button_,
-  class_,
   consoleLog,
   defaultEvents,
-  div_,
-  form,
-  id_,
-  img_,
-  input_,
   io,
   io_,
+  text,
+ )
+import Miso.CSS (style_)
+import Miso.Html (
+  button_,
+  div_,
+  form,
+  img_,
+  input_,
   onChange,
   onChecked,
   onClick,
+ )
+import Miso.Html.Property (
+  class_,
+  id_,
   required_,
   src_,
-  text,
   type_,
  )
 import Miso.String (MisoString, fromMisoString, ms)
-import Miso.Style (style_)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
@@ -237,6 +242,7 @@ start =
       , logLevel = Off
       , mailbox = const Nothing
       , bindings = []
+      , hydrateModel = Nothing
       }
 
 data Model = Model
