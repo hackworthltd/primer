@@ -1,0 +1,91 @@
+cabal-version:      3.0
+name:               primer-miso-ui
+version:            0.8.0.0
+license:            AGPL-3.0-or-later
+license-file:       COPYING
+copyright:          (c) 2025 Hackworth Ltd
+maintainer:         src@hackworthltd.com
+author:             Hackworth Ltd <src@hackworthltd.com>
+stability:          experimental
+synopsis:
+  Primer's frontend UI and design library, implemented with Miso.
+
+extra-source-files: build-demo.sh
+data-files:
+  static/**/*.css
+  static/**/*.html
+  static/**/*.js
+
+category:           UI
+
+library
+  exposed-modules:    Primer.Miso.UI
+  hs-source-dirs:     src
+  default-language:   GHC2021
+  default-extensions:
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    NoImplicitPrelude
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
+
+  build-depends:
+    , base         >=4.12     && <4.22
+    , jsaddle      ^>=0.9.9.2
+    , jsaddle-dom  ^>=0.9.9.2
+    , miso         ^>=1.9
+    , primer       ^>=0.7.2
+    , primer-api   ^>=0.7.2
+    , text         >=2.0      && <2.2
+
+  if arch(wasm32)
+    build-depends: jsaddle-wasm
+
+  else
+    build-depends: jsaddle-warp ==0.9.9.2
+
+executable primer-miso-ui-demo
+  main-is:            Main.hs
+  hs-source-dirs:     exe
+  default-language:   GHC2021
+  default-extensions:
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    NoImplicitPrelude
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
+
+  build-depends:
+    , base
+    , jsaddle
+    , miso
+    , primer
+    , primer-miso-ui
+
+  if arch(wasm32)
+    build-depends:
+      , ghc-experimental
+      , jsaddle-wasm
+
+    ghc-options:
+      -no-hs-main -optl-mexec-model=reactor "-optl-Wl,--export=hs_start"
+
+    cpp-options:   -DWASM
+
+  else
+    build-depends: jsaddle-dom
+    ghc-options:   -threaded -rtsopts -with-rtsopts=-N

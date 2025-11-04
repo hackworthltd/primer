@@ -20,6 +20,7 @@ steps:
     command: |
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 ui-demo-prod
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 test
 
   - label: ":haskell: :linux: Primer Wasm build"
@@ -29,6 +30,7 @@ steps:
     command: |
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
+      nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 ui-demo-prod
 
   - label: ":haskell: :macos: Primer Wasm build"
     if: |
@@ -37,5 +39,6 @@ steps:
     command: |
       nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
+      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 ui-demo-prod
     agents:
       os: "darwin"
