@@ -25,10 +25,13 @@ develop-frontend:
 develop-ui-demo:
 	$(MAKE) -C primer-miso-ui develop-ui-demo
 
+format:
+	nix develop .#treefmt -c treefmt
+
 clean:
 	cabal clean
 
-.PHONY: build $(project-targets) $(package-targets) clean
+.PHONY: build $(project-targets) $(package-targets) format clean
 
 # Disabled until Weeder is fixed with haskell.nix
 
