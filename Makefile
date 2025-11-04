@@ -16,10 +16,14 @@ $(package-targets):
 	$(MAKE) -C primer $@
 	$(MAKE) -C primer-api $@
 	$(MAKE) -C primer-miso $@
+	$(MAKE) -C primer-miso-ui $@
 	$(MAKE) -C primer-benchmark $@
 
 develop-frontend:
 	$(MAKE) -C primer-miso develop-frontend
+
+develop-ui-demo:
+	$(MAKE) -C primer-miso-ui develop-ui-demo
 
 clean:
 	cabal clean
