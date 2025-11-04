@@ -31,7 +31,7 @@ fi
 if $dev_mode; then
     cp "$hs_wasm_path" dist/bin.wasm
 else
-    wizer --allow-wasi --wasm-bulk-memory true --init-func _initialize -o dist/bin.wasm "$hs_wasm_path"
+    env -i GHCRTS=-H64m "$(type -P wizer)" --allow-wasi --wasm-bulk-memory true --inherit-env true --init-func _initialize -o dist/bin.wasm "$hs_wasm_path"
     wasm-opt ${1+"$@"} dist/bin.wasm -o dist/bin.wasm
     wasm-tools strip -o dist/bin.wasm dist/bin.wasm
     brotli --rm --best dist/bin.wasm -o dist/bin.wasm.br
