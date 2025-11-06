@@ -1,12 +1,17 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 module Main (main) where
 
 import Foreword
 
-import Miso (App, component, noop, run, startComponent)
+import Data.Data (Data)
+import Miso (App, Binding (..), MisoString, component, key_, noop, run, startComponent, (+>))
 import Miso.Html qualified as H
-import Miso.Html.Property qualified as P
+import Optics (Iso', Lens', set, simple, view)
+import Primer.Miso.UI qualified as UI
 
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
@@ -27,19 +32,22 @@ main = run $ startComponent app
 #endif
 
 data Model
-  = Model
-  deriving stock (Eq)
+  = Model {testButton :: UI.Button}
+  deriving stock (Eq, Show, Read, Data, Generic)
 
-emptyModel :: Model
-emptyModel = Model
+defaultModel :: Model
+defaultModel = Model (UI.Button "Test button")
+
+_id :: Iso' a a
+_id = simple
+
+(-->) :: Lens' parent a -> Iso' model a -> Binding parent model
+parent --> child = ParentToChild (view parent) (set child)
 
 app :: App Model ()
-app = component emptyModel noop $ \_ ->
+app = component defaultModel noop $ \_ ->
   H.div_
     []
-    [ H.button_
-        [ P.className "btn"
-        ]
-        [ "UI button"
-        ]
+    [ H.div_ [key_ @MisoString "test-button"]
+        +> UI.button_ (#testButton --> _id)
     ]
