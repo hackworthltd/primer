@@ -12,11 +12,8 @@ fi
 
 rm -rf dist
 mkdir dist
-cp frontend/*.html dist/
-cp frontend/*.css dist/
-cp -r frontend/fonts dist/
 
-hs_wasm_path=$(wasm32-wasi-cabal list-bin -v0 exe:primer-miso)
+hs_wasm_path=$(wasm32-wasi-cabal list-bin -v0 exe:primer-miso-ui-demo)
 
 ghc_wasm_jsffi="dist/ghc_wasm_jsffi.js"
 
@@ -38,4 +35,6 @@ else
     mv dist/bin.wasm.br dist/bin.wasm
 fi
 
-cp frontend/*.js dist
+cp static/*.html dist/
+cp static/*.js dist
+cp -r static/deps dist/
