@@ -56,6 +56,19 @@ export default (_env = {}, argv = {}) => {
       new HtmlRspackPlugin({
         template: './frontend/index.html',
       }),
+      new rspack.CopyRspackPlugin({
+        patterns: [
+          {
+            from: path.resolve(__dirname, 'frontend/generated/bin.wasm'),
+            to: 'bin.wasm',
+          },
+          {
+            from: path.resolve(__dirname, 'frontend/generated/bin.wasm.br'),
+            to: 'bin.wasm.br',
+            noErrorOnMissing: true,
+          },
+        ],
+      }),
     ],
   };
 };

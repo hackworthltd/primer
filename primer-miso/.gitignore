@@ -1,3 +1,6 @@
 dist/
+frontend/bin.wasm
+frontend/bin.wasm.br
+frontend/generated/
 ghc_wasm_jsffi.js
 node_modules/
