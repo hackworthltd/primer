@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "rspack build --mode=development",
-    "build:prod": "rspack build --mode=production",
-    "watch": "rspack watch",
-    "serve": "rspack serve"
+    "build": "rspack build --mode=development --entry=./frontend/index.js",
+    "build:prod": "rspack build --mode=production --entry=./frontend/index.js",
+    "watch": "rspack watch --entry=./frontend/index.js",
+    "serve": "rspack serve --entry=./frontend/index.js"
   },
   "devDependencies": {
     "@rspack/cli": "^1.6.1",
