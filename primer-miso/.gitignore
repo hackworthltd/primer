@@ -1,2 +1,3 @@
 dist/
 ghc_wasm_jsffi.js
+node_modules/

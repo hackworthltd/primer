@@ -1,0 +1,16 @@
+{
+  "name": "primer-miso",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "rspack build --mode=development",
+    "build:prod": "rspack build --mode=production",
+    "watch": "rspack watch",
+    "serve": "rspack serve"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^1.6.1",
+    "@rspack/core": "^1.6.1",
+    "html-rspack-plugin": "^6.1.3"
+  }
+}
