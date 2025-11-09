@@ -1,6 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { rspack } from '@rspack/core';
+import HtmlRspackPlugin from 'html-rspack-plugin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,10 +42,20 @@ export default (_env = {}, argv = {}) => {
           test: /\.wasm$/i,
           type: 'asset/resource',
         },
+        {
+          test: /\.(woff2?|otf|ttf)$/i,
+          type: 'asset/resource',
+          generator: {
+            filename: 'fonts/[name][ext]',
+          },
+        },
       ],
     },
     plugins: [
       new rspack.CssExtractRspackPlugin(),
+      new HtmlRspackPlugin({
+        template: './frontend/index.html',
+      }),
     ],
   };
 };
