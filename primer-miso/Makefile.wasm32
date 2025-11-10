@@ -8,16 +8,19 @@ build:
 	$(CABAL) build
 
 frontend: build
-	./build-frontend.sh
+	NODE_ENV=development RSPACK_MODE=development ./build-frontend.sh
 
 frontend-prod: build
-	./build-frontend.sh -Oz
+	NODE_ENV=production RSPACK_MODE=production ./build-frontend.sh -Oz
 
-serve-frontend: frontend
-	simple-http-server -i -p 8000 -- dist
+serve-frontend: build
+	NODE_ENV=development RSPACK_MODE=development RSPACK_COMMAND=serve ./build-frontend.sh
+
+frontend-watch: build
+	NODE_ENV=development RSPACK_MODE=development RSPACK_COMMAND=watch ./build-frontend.sh
 
 clean:
 	$(CABAL) clean
 	rm -rf dist/
 
-.PHONY: build clean
+.PHONY: build clean frontend frontend-prod serve-frontend frontend-watch
