@@ -12,7 +12,7 @@ const fds = [
 const options = { debug: false };
 const wasi = new WASI(args, env, fds, options);
 
-const wasmUrl = new URL("./bin.wasm", import.meta.url);
+const wasmUrl = new URL("./generated/bin.wasm", import.meta.url);
 const ghcModule = await import(/* webpackIgnore: true */ ghc_wasm_jsffiUrl);
 const ghc_wasm_jsffi =
   ghcModule && typeof ghcModule === "object" && "default" in ghcModule ? ghcModule.default : ghcModule;
