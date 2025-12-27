@@ -74,12 +74,6 @@ library
   if arch(wasm32)
     build-depends: jsaddle-wasm
 
-  else
-    build-depends:
-      , jsaddle-warp  ==0.9.9.2
-      , warp          >=3.3       && <3.5
-      , websockets    ^>=0.13.0.0
-
 executable primer-miso
   main-is:            Main.hs
   hs-source-dirs:     exe
@@ -112,16 +106,6 @@ executable primer-miso
 
     ghc-options:
       -no-hs-main -optl-mexec-model=reactor "-optl-Wl,--export=hs_start"
-
-  else
-    build-depends:
-      , jsaddle-dom
-      , jsaddle-warp
-      , wai-app-static
-      , warp
-      , websockets
-
-    ghc-options:   -threaded -rtsopts -with-rtsopts=-N
 
   if flag (interactive)
     cpp-options:
