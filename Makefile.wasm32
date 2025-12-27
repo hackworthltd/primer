@@ -31,6 +31,9 @@ serve-frontend:
 frontend-repl:
 	$(MAKE) -C primer-miso repl
 
+frontend-watch:
+	$(MAKE) -C primer-miso watch
+
 clean:
 	$(CABAL) clean
 	$(MAKE) -C primer-miso clean

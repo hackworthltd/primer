@@ -457,6 +457,7 @@
                     hlint
                     cabal-fmt
                     ghcid
+                    ghciwatch
 
                     # For Language Server support.
                     nodejs_22
