@@ -6,7 +6,6 @@ module MyMain (main) where
 
 import Foreword
 
-import Language.Javascript.JSaddle.Wasm qualified as JSaddle.Wasm
 import Miso qualified
 import Primer.Miso (start)
 
@@ -14,7 +13,7 @@ main :: IO ()
 #ifdef INTERACTIVE
 main = Miso.reload start
 #else
-main = JSaddle.Wasm.run start
+main = Miso.run start
 foreign export javascript "hs_start" main :: IO ()
 #endif
 

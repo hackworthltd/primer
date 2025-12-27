@@ -25,7 +25,6 @@ import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import Data.Tuple.Extra (uncurry3)
 import GHC.Base (error)
-import Language.Javascript.JSaddle (JSM)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
 import Miso (
@@ -48,6 +47,7 @@ import Miso (
     view
   ),
   Effect,
+  JSM,
   LogLevel (Off),
   ROOT,
   View,

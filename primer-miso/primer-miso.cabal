@@ -55,8 +55,6 @@ library
     , deriving-aeson  >=0.2      && <0.3.0
     , exceptions      >=0.10.4   && <0.11.0
     , extra           >=1.7.10   && <1.8.0
-    , jsaddle         ^>=0.9.9.2
-    , jsaddle-dom     ^>=0.9.9.2
     , linear          ^>=1.23
     , logging-effect  ^>=1.4
     , miso            ^>=1.9
@@ -70,9 +68,6 @@ library
     , transformers    >=0.5.6.2  && <0.7.0
     , uniplate        >=1.6      && <1.7.0
     , uuid-types      ^>=1.0.5.1
-
-  if arch(wasm32)
-    build-depends: jsaddle-wasm
 
 executable primer-miso
   main-is:            Main.hs
@@ -94,7 +89,6 @@ executable primer-miso
 
   build-depends:
     , base
-    , jsaddle
     , miso
     , primer
     , primer-miso
@@ -102,7 +96,6 @@ executable primer-miso
   if arch(wasm32)
     build-depends:
       , ghc-experimental
-      , jsaddle-wasm
 
     ghc-options:
       -no-hs-main -optl-mexec-model=reactor "-optl-Wl,--export=hs_start"
