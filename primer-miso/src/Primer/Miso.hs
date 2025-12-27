@@ -25,7 +25,6 @@ import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import Data.Tuple.Extra (uncurry3)
 import GHC.Base (error)
-import Language.Javascript.JSaddle (JSM)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
 import Miso (
@@ -33,6 +32,7 @@ import Miso (
   Component (
     Component,
     bindings,
+    eventPropagation,
     events,
     hydrateModel,
     initialAction,
@@ -47,6 +47,7 @@ import Miso (
     view
   ),
   Effect,
+  JSM,
   LogLevel (Off),
   ROOT,
   View,
@@ -60,7 +61,7 @@ import Miso.CSS (style_)
 import Miso.Html (
   button_,
   div_,
-  form,
+  form_,
   img_,
   input_,
   onChange,
@@ -243,6 +244,7 @@ start =
       , mailbox = const Nothing
       , bindings = []
       , hydrateModel = Nothing
+      , eventPropagation = False
       }
 
 data Model = Model
@@ -650,7 +652,7 @@ viewModel Model{..} =
                 ( case opts.free of
                     Available.FreeNone -> []
                     _ ->
-                      [ form
+                      [ form_
                           []
                           [ input_
                               [ type_ "text"

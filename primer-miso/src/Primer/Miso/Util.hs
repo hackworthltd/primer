@@ -64,12 +64,12 @@ import Data.Map qualified as Map
 import Data.String (String)
 import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
-import Language.Javascript.JSaddle (JSM)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
 import Miso (
   App,
   Component (model, update),
+  JSM,
   getLocalStorage,
   io_,
   setLocalStorage,
