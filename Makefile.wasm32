@@ -34,6 +34,12 @@ frontend-repl:
 frontend-watch:
 	$(MAKE) -C primer-miso watch
 
+frontend-repl-multi:
+	$(MAKE) -C primer-miso repl-multi
+
+frontend-watch-multi:
+	$(MAKE) -C primer-miso watch-multi
+
 clean:
 	$(CABAL) clean
 	$(MAKE) -C primer-miso clean
