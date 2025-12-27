@@ -94,9 +94,6 @@ executable primer-miso
     , primer-miso
 
   if arch(wasm32)
-    build-depends:
-      , ghc-experimental
-
     ghc-options:
       -no-hs-main -optl-mexec-model=reactor "-optl-Wl,--export=hs_start"
 
