@@ -28,6 +28,9 @@ frontend-prod:
 serve-frontend:
 	$(MAKE) -C primer-miso serve-frontend
 
+frontend-repl:
+	$(MAKE) -C primer-miso repl
+
 clean:
 	$(CABAL) clean
 	$(MAKE) -C primer-miso clean

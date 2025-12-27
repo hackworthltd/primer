@@ -16,6 +16,9 @@ frontend-prod: build
 serve-frontend: frontend
 	simple-http-server -i -p 8000 -- dist
 
+repl:
+	wasm32-wasi-cabal repl exe:primer-miso -finteractive --repl-options='-fghci-browser -fghci-browser-port=8080'
+
 clean:
 	$(CABAL) clean
 	rm -rf dist/
