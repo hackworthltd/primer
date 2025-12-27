@@ -4,6 +4,8 @@
 
 CABAL = wasm32-wasi-cabal
 
+REPL_CMD = $(CABAL) repl exe:primer-miso -finteractive --repl-options='-fghci-browser -fghci-browser-port=8080'
+
 build:
 	$(CABAL) build
 
@@ -17,10 +19,10 @@ serve-frontend: frontend
 	simple-http-server -i -p 8000 -- dist
 
 repl:
-	wasm32-wasi-cabal repl exe:primer-miso -finteractive --repl-options='-fghci-browser -fghci-browser-port=8080'
+	$(REPL_CMD)
 
 watch:
-	ghciwatch --after-reload-ghci :main --watch src --debounce 50ms --command "wasm32-wasi-cabal repl exe:primer-miso -finteractive --repl-options='-fghci-browser -fghci-browser-port=8080'"
+	ghciwatch --after-reload-ghci :main --watch src --debounce 50ms --command "$(REPL_CMD)"
 
 clean:
 	$(CABAL) clean
