@@ -1,22 +1,22 @@
 cabal-version: 3.0
-name:          primer-benchmark
-version:       0.7.2.0
-license:       AGPL-3.0-or-later
-license-file:  COPYING
-copyright:     (c) 2023 Hackworth Ltd
-maintainer:    src@hackworthltd.com
-author:        Hackworth Ltd <src@hackworthltd.com>
-stability:     experimental
-synopsis:      Benchmarks for Primer
-homepage:      https://github.com/hackworthltd/primer
-bug-reports:   https://github.com/hackworthltd/primer/issues
+name: primer-benchmark
+version: 0.7.2.0
+license: AGPL-3.0-or-later
+license-file: COPYING
+copyright: (c) 2023 Hackworth Ltd
+maintainer: src@hackworthltd.com
+author: Hackworth Ltd <src@hackworthltd.com>
+stability: experimental
+synopsis: Benchmarks for Primer
+homepage: https://github.com/hackworthltd/primer
+bug-reports: https://github.com/hackworthltd/primer/issues
 
 source-repository head
-  type:     git
+  type: git
   location: https://github.com/hackworthltd/primer
 
 common options-lib
-  default-language:   GHC2021
+  default-language: GHC2021
   default-extensions:
     DataKinds
     DeriveAnyClass
@@ -27,49 +27,57 @@ common options-lib
     OverloadedStrings
 
   ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wcompat
+    -Widentities
+    -Wredundant-constraints
+    -Wmissing-deriving-strategies
+    -fhide-source-paths
 
 common options
-  import:      options-lib
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  import: options-lib
+  ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
 
 library
-  import:          options-lib
-  hs-source-dirs:  src
+  import: options-lib
+  hs-source-dirs: src
   exposed-modules: Benchmarks
   build-depends:
-    , aeson                  >=2.0      && <2.3
-    , base                   >=4.12     && <4.22
-    , containers             >=0.6.0.1  && <0.7.0
-    , criterion              ^>=1.6.0.0
-    , deepseq                ^>=1.5
-    , logging-effect         ^>=1.4
-    , primer
-    , primer:primer-testlib
-    , tasty                  ^>=1.5
-    , tasty-hunit            ^>=0.10.0
-    , text                   >=2.0      && <2.2
+    aeson >=2.0 && <2.3,
+    base >=4.12 && <4.22,
+    containers >=0.6.0.1 && <0.7.0,
+    criterion ^>=1.6.0.0,
+    deepseq ^>=1.5,
+    logging-effect ^>=1.4,
+    primer,
+    primer:primer-testlib,
+    tasty ^>=1.5,
+    tasty-hunit ^>=0.10.0,
+    text >=2.0 && <2.2,
 
 benchmark primer-benchmark
-  import:         options
-  type:           exitcode-stdio-1.0
-  main-is:        Main.hs
+  import: options
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
   hs-source-dirs: bench
   build-depends:
-    , base
-    , criterion
-    , primer
-    , primer-benchmark
+    base,
+    criterion,
+    primer,
+    primer-benchmark,
 
 test-suite primer-benchmark-test
-  import:         options
-  type:           exitcode-stdio-1.0
-  main-is:        Main.hs
+  import: options
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
   hs-source-dirs: test
   build-depends:
-    , base
-    , primer
-    , primer-benchmark
-    , tasty
+    base,
+    primer,
+    primer-benchmark,
+    tasty,

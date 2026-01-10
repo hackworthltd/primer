@@ -1,14 +1,14 @@
 cabal-version: 3.0
-name:          primer-api
-version:       0.7.2.0
-license:       AGPL-3.0-or-later
-license-file:  COPYING
-copyright:     (c) 2023 Hackworth Ltd
-maintainer:    src@hackworthltd.com
-author:        Hackworth Ltd <src@hackworthltd.com>
-stability:     experimental
-synopsis:      An API for Primer
-category:      API
+name: primer-api
+version: 0.7.2.0
+license: AGPL-3.0-or-later
+license-file: COPYING
+copyright: (c) 2023 Hackworth Ltd
+maintainer: src@hackworthltd.com
+author: Hackworth Ltd <src@hackworthltd.com>
+stability: experimental
+synopsis: An API for Primer
+category: API
 
 library
   exposed-modules:
@@ -17,8 +17,8 @@ library
     Primer.API.NodeFlavor
     Primer.API.RecordPair
 
-  hs-source-dirs:     src
-  default-language:   GHC2021
+  hs-source-dirs: src
+  default-language: GHC2021
   default-extensions:
     DataKinds
     DeriveAnyClass
@@ -29,30 +29,35 @@ library
     OverloadedStrings
 
   ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wcompat
+    -Widentities
+    -Wredundant-constraints
+    -Wmissing-deriving-strategies
+    -fhide-source-paths
 
   build-depends:
-    , base            >=4.12    && <4.22
-    , containers      >=0.6.0.1 && <0.7.0
-    , deriving-aeson  >=0.2     && <0.3.0
-    , extra           >=1.7.10  && <1.8.0
-    , logging-effect  ^>=1.4
-    , mtl             >=2.2.2   && <2.4.0
-    , optics          >=0.4     && <0.5.0
-    , primer          ^>=0.7.2
-    , protolude       >=0.3.5   && <0.4.0
-    , stm             >=2.5     && <2.6.0
-    , stm-containers  >=1.1     && <1.3.0
-    , transformers    >=0.5.6.2 && <0.7.0
+    base >=4.12 && <4.22,
+    containers >=0.6.0.1 && <0.7.0,
+    deriving-aeson >=0.2 && <0.3.0,
+    extra >=1.7.10 && <1.8.0,
+    logging-effect ^>=1.4,
+    mtl >=2.2.2 && <2.4.0,
+    optics >=0.4 && <0.5.0,
+    primer ^>=0.7.2,
+    protolude >=0.3.5 && <0.4.0,
+    stm >=2.5 && <2.6.0,
+    stm-containers >=1.1 && <1.3.0,
+    transformers >=0.5.6.2 && <0.7.0,
 
 library primer-api-hedgehog
-  visibility:         public
-  exposed-modules:    Primer.Gen.API
+  visibility: public
+  exposed-modules: Primer.Gen.API
   other-modules:
-  hs-source-dirs:     gen
-  default-language:   GHC2021
+  hs-source-dirs: gen
+  default-language: GHC2021
   default-extensions:
     DataKinds
     DerivingStrategies
@@ -62,24 +67,29 @@ library primer-api-hedgehog
     OverloadedStrings
 
   ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wcompat
+    -Widentities
+    -Wredundant-constraints
+    -Wmissing-deriving-strategies
+    -fhide-source-paths
 
   build-depends:
-    , base
-    , hedgehog                ^>=1.5
-    , primer
-    , primer-api
-    , primer:primer-hedgehog
-    , primer:primer-testlib
+    base,
+    hedgehog ^>=1.5,
+    primer,
+    primer:primer-hedgehog,
+    primer:primer-testlib,
+    primer-api,
 
 library primer-api-testlib
-  visibility:         public
-  exposed-modules:    Primer.API.Test.Util
+  visibility: public
+  exposed-modules: Primer.API.Test.Util
   other-modules:
-  hs-source-dirs:     testlib
-  default-language:   GHC2021
+  hs-source-dirs: testlib
+  default-language: GHC2021
   default-extensions:
     DataKinds
     DeriveAnyClass
@@ -90,27 +100,32 @@ library primer-api-testlib
     OverloadedStrings
 
   ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wcompat
+    -Widentities
+    -Wredundant-constraints
+    -Wmissing-deriving-strategies
+    -fhide-source-paths
 
   build-depends:
-    , base
-    , logging-effect
-    , primer
-    , primer-api
-    , primer:primer-testlib
-    , stm
-    , stm-containers
+    base,
+    logging-effect,
+    primer,
+    primer:primer-testlib,
+    primer-api,
+    stm,
+    stm-containers,
 
 test-suite primer-api-test
-  hs-source-dirs:     test
+  hs-source-dirs: test
   other-modules:
     Tests.API
     Tests.Database
     Tests.Undo
 
-  default-language:   GHC2021
+  default-language: GHC2021
   default-extensions:
     DataKinds
     DerivingStrategies
@@ -121,47 +136,58 @@ test-suite primer-api-test
     OverloadedStrings
 
   if arch(wasm32)
-    type:        exitcode-stdio-1.0
-    main-is:     TestsWasm32.hs
+    type: exitcode-stdio-1.0
+    main-is: TestsWasm32.hs
     ghc-options:
-      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-      -Wcompat -Widentities -Wredundant-constraints
-      -Wmissing-deriving-strategies -fhide-source-paths
-
+      -Wall
+      -Wincomplete-uni-patterns
+      -Wincomplete-record-updates
+      -Wcompat
+      -Widentities
+      -Wredundant-constraints
+      -Wmissing-deriving-strategies
+      -fhide-source-paths
   else
-    type:        exitcode-stdio-1.0
-    main-is:     Test.hs
+    type: exitcode-stdio-1.0
+    main-is: Test.hs
     ghc-options:
-      -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-      -Wcompat -Widentities -Wredundant-constraints
-      -Wmissing-deriving-strategies -fhide-source-paths -threaded
-      -rtsopts -with-rtsopts=-N
+      -Wall
+      -Wincomplete-uni-patterns
+      -Wincomplete-record-updates
+      -Wcompat
+      -Widentities
+      -Wredundant-constraints
+      -Wmissing-deriving-strategies
+      -fhide-source-paths
+      -threaded
+      -rtsopts
+      -with-rtsopts=-N
 
   build-depends:
-    , base
-    , bytestring
-    , containers
-    , hedgehog
-    , logging-effect
-    , mtl
-    , optics
-    , pretty-simple           ^>=4.1.3.0
-    , primer
-    , primer-api
-    , primer-api-testlib
-    , primer:primer-hedgehog
-    , primer:primer-testlib
-    , protolude
-    , stm
-    , stm-containers
-    , tasty                   ^>=1.5
-    , tasty-discover
-    , tasty-expected-failure  ^>=0.12.3
-    , tasty-golden            ^>=2.3.5
-    , tasty-hunit
-    , text
-    , transformers
-    , uuid-types              ^>=1.0.5.1
+    base,
+    bytestring,
+    containers,
+    hedgehog,
+    logging-effect,
+    mtl,
+    optics,
+    pretty-simple ^>=4.1.3.0,
+    primer,
+    primer:primer-hedgehog,
+    primer:primer-testlib,
+    primer-api,
+    primer-api-testlib,
+    protolude,
+    stm,
+    stm-containers,
+    tasty ^>=1.5,
+    tasty-discover,
+    tasty-expected-failure ^>=0.12.3,
+    tasty-golden ^>=2.3.5,
+    tasty-hunit,
+    text,
+    transformers,
+    uuid-types ^>=1.0.5.1,
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839
