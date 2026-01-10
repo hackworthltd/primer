@@ -62,14 +62,6 @@
         inputs.self.overlays.default
       ];
 
-      # cabal-fmt needs an override for GHC > 9.8.1.
-      cabal-fmt-override = {
-        version = "latest";
-        cabalProject = ''
-          packages: .
-          allow-newer: cabal-fmt:base
-        '';
-      };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
       debug = true;
@@ -276,7 +268,7 @@
               };
               programs.cabal-fmt = {
                 enable = true;
-                package = pkgs.cabal-fmt;
+                package = pkgs.haskellPackages.cabal-fmt;
               };
               programs.fourmolu = {
                 enable = true;
@@ -329,12 +321,6 @@
         {
           overlays.default = (final: prev:
             let
-              ghc982Tools = final.haskell-nix.tools "ghc982" {
-                hlint = "latest";
-                cabal-fmt = "latest";
-                ghcid = "latest";
-              };
-
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
@@ -438,6 +424,10 @@
                       '';
                     };
 
+                    hlint = "latest";
+
+                    ghcid = "latest";
+
                     implicit-hie = "latest";
 
                     cabal = "latest";
@@ -453,10 +443,7 @@
 
                   buildInputs = (with final; [
                     nixpkgs-fmt
-
-                    hlint
-                    cabal-fmt
-                    ghcid
+                    haskellPackages.cabal-fmt
 
                     # For Language Server support.
                     nodejs_22
@@ -511,8 +498,6 @@
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
-
-              inherit (ghc982Tools) cabal-fmt hlint ghcid;
             }
           );
 
