@@ -1,5 +1,4 @@
 index-state: 2025-07-06T00:00:00Z
-
 jobs: $ncpus
 
 if arch(wasm32)
@@ -15,28 +14,28 @@ else
     primer-benchmark
 
 if arch(wasm32)
-  haddock-hoogle:           False
-  haddock-html:             False
-  haddock-quickjump:        False
+  haddock-hoogle: False
+  haddock-html: False
+  haddock-quickjump: False
   haddock-hyperlink-source: False
-  haddock-internal:         False
+  haddock-internal: False
+
   package *
     optimization: 2
     ghc-options: -fno-external-interpreter
 else
   optimization: 0
-  haddock-hoogle:           True
-  haddock-html:             True
-  haddock-quickjump:        True
+  haddock-hoogle: True
+  haddock-html: True
+  haddock-quickjump: True
   haddock-hyperlink-source: True
-  haddock-internal:         True
+  haddock-internal: True
+
   package *
     ghc-options: -fwrite-ide-info
 
 benchmarks: True
-
 tests: True
-
 allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, logging-effect:base, servant:base, http-api-data:base
 
 package primer
@@ -53,8 +52,8 @@ if arch(wasm32)
 source-repository-package
   type: git
   location: https://github.com/dmjio/miso
-  tag: 879bae2cb873a80672997d8b0daedfbaa42258d2
   --sha256: 11i42b8qjjxfvd0hz8xvsxbw9k4rkyaia9ckl8y1jv2af6ajh192
+  tag: 879bae2cb873a80672997d8b0daedfbaa42258d2
 
 -- Wasm workarounds.
 --
@@ -64,7 +63,6 @@ source-repository-package
 -- Wasm-dependent, because haskell.nix cannot build any of these
 -- source-repository-package dependencies, *nor their reverse
 -- dependencies*, using Nix while in the Nix development shell.
-
 if arch(wasm32)
   -- Required for TemplateHaskell support on Wasm targets.
   shared: True
@@ -74,5 +72,5 @@ if arch(wasm32)
   source-repository-package
     type: git
     location: https://github.com/hackworthltd/pretty-show
-    tag: 91d119cb0e3c5f7d866589b25158739580c8fc88
     --sha256: sha256-mu8Eq0Sg6nCF8C2sXB6ebZcLhz8TVZAbNMiorA7RVc8=
+    tag: 91d119cb0e3c5f7d866589b25158739580c8fc88

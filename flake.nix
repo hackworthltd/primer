@@ -257,6 +257,7 @@
 
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
                 fourmolu = fourmoluVersion;
+                cabal-gild = "latest";
               };
             in
             {
@@ -266,9 +267,9 @@
                 enable = true;
                 package = pkgs.hlint;
               };
-              programs.cabal-fmt = {
+              programs.cabal-gild = {
                 enable = true;
-                package = pkgs.haskellPackages.cabal-fmt;
+                package = haskellNixTools.cabal-gild;
               };
               programs.fourmolu = {
                 enable = true;
@@ -432,6 +433,8 @@
 
                     cabal = "latest";
 
+                    cabal-gild = "latest";
+
                     # Disabled, as it doesn't currently build with Nix.
                     #weeder = weederVersion;
 
@@ -443,7 +446,6 @@
 
                   buildInputs = (with final; [
                     nixpkgs-fmt
-                    haskellPackages.cabal-fmt
 
                     # For Language Server support.
                     nodejs_22
