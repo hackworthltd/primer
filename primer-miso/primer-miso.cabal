@@ -59,6 +59,7 @@ library
     linear ^>=1.23,
     logging-effect ^>=1.4,
     miso ^>=1.9,
+    miso-aeson ^>=0.1.0.0,
     mtl >=2.2.2 && <2.4.0,
     optics >=0.4 && <0.5.0,
     primer ^>=0.7.2,
@@ -71,7 +72,6 @@ library
     uuid-types ^>=1.0.5.1,
 
   if arch(wasm32)
-    build-depends: jsaddle-wasm
   else
     build-depends:
       jsaddle-warp ==0.9.9.2,
@@ -110,7 +110,6 @@ executable primer-miso
   if arch(wasm32)
     build-depends:
       ghc-experimental,
-      jsaddle-wasm,
 
     ghc-options:
       -no-hs-main

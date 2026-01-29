@@ -6,13 +6,12 @@ module MyMain (main) where
 
 import Foreword
 
-import Language.Javascript.JSaddle.Wasm qualified as JSaddle.Wasm
 import Primer.Miso (start)
 
 foreign export javascript "hs_start" main :: IO ()
 
 main :: IO ()
-main = JSaddle.Wasm.run start
+main = start
 
 #else
 
@@ -37,7 +36,7 @@ main :: IO ()
 main =
   debugOr
     8001
-    (insertStylesheet "style.css" >> start)
+    (insertStylesheet "style.css" >> liftIO start)
     (staticApp $ defaultWebAppSettings "frontend")
 
 -- https://github.com/ghcjs/jsaddle/pull/149#issuecomment-2525187769
