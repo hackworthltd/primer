@@ -411,6 +411,7 @@
                     haskell-language-server = {
                       src = inputs.haskell-language-server;
                       cabalProjectLocal = ''
+                        index-state: 2026-01-31T00:00:00Z
                         allow-newer: haddock-library:base
                       '';
                     };
