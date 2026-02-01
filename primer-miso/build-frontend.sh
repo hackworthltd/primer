@@ -16,11 +16,11 @@ cp frontend/*.html dist/
 cp frontend/*.css dist/
 cp -r frontend/fonts dist/
 
-hs_wasm_path=$(wasm32-wasi-cabal list-bin -v0 exe:primer-miso)
+hs_wasm_path=$(wasm32-unknown-wasi-cabal list-bin -v0 exe:primer-miso)
 
 ghc_wasm_jsffi="dist/ghc_wasm_jsffi.js"
 
-"$(wasm32-wasi-ghc --print-libdir)"/post-link.mjs \
+"$(wasm32-unknown-wasi-ghc --print-libdir)"/post-link.mjs \
                                    --input "$hs_wasm_path" --output "$ghc_wasm_jsffi"
 
 if ! [ -f "$ghc_wasm_jsffi" ] ; then
