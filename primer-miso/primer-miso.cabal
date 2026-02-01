@@ -55,7 +55,6 @@ library
     exceptions >=0.10.4 && <0.11.0,
     extra >=1.7.10 && <1.8.0,
     jsaddle ^>=0.9.9.2,
-    jsaddle-dom ^>=0.9.9.2,
     linear ^>=1.23,
     logging-effect ^>=1.4,
     miso ^>=1.9,
