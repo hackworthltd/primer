@@ -355,11 +355,11 @@
     "hackage": {
       "flake": false,
       "locked": {
-        "lastModified": 1769215260,
-        "narHash": "sha256-3fqGGmnBiSWHRkPgwHb5kHRQdcbRJfYq0ZyzbEGauvc=",
+        "lastModified": 1769906236,
+        "narHash": "sha256-dnpsT/OoYw1pFDCBCHBV3Q0SYRoEU9OCdYDJg6QX++Y=",
         "owner": "input-output-hk",
         "repo": "hackage.nix",
-        "rev": "b24af50590aea971fbf9765f8a64be9ebde5a2aa",
+        "rev": "a4de2dcf65f7e1cdfe5cf17c6abfbd26d0486cc1",
         "type": "github"
       },
       "original": {
@@ -371,11 +371,11 @@
     "hackage-for-stackage": {
       "flake": false,
       "locked": {
-        "lastModified": 1769214472,
-        "narHash": "sha256-fgDhp/ugs0hM0Ey9bgTcj2Zlm/mTkBDTmQHdI2QP0K0=",
+        "lastModified": 1769906226,
+        "narHash": "sha256-9sGKc8ajBUEP5vBA7mK+GCI99OW9cgITcwpNr2qd1ts=",
         "owner": "input-output-hk",
         "repo": "hackage.nix",
-        "rev": "7d6e553a029a882a04e4d2437b4425c9b1a1ea2a",
+        "rev": "e5b41b6f88727b716d50078ec2c67dfc6b8946fd",
         "type": "github"
       },
       "original": {
@@ -492,15 +492,16 @@
         "stackage": "stackage"
       },
       "locked": {
-        "lastModified": 1769215933,
-        "narHash": "sha256-vh0TuvXv2vQdIUUF/T/lmz1AZjtJHcIliura/QRBwiw=",
-        "owner": "input-output-hk",
+        "lastModified": 1769974890,
+        "narHash": "sha256-41OtCXa+suusSInAzOUTJ4/tqDV89D3/ylHP2tFfjoI=",
+        "owner": "georgefst",
         "repo": "haskell.nix",
-        "rev": "54089ab44218d6e6d392bd82b5d1953a0407d85a",
+        "rev": "4ead2c4cc748b5aeb9baca891b625d7d9b7f9890",
         "type": "github"
       },
       "original": {
-        "owner": "input-output-hk",
+        "owner": "georgefst",
+        "ref": "wasm-9.12.3",
         "repo": "haskell.nix",
         "type": "github"
       }
@@ -1124,11 +1125,11 @@
     "stackage": {
       "flake": false,
       "locked": {
-        "lastModified": 1769213649,
-        "narHash": "sha256-cC5/XmKyKJgRyCw962aooUJnl2OgMinwc8sNl/lhU04=",
+        "lastModified": 1769472927,
+        "narHash": "sha256-n2Jv7dUZOrBpMRMHrUoX4eOXNIkr0kglh7opMWKU+OQ=",
         "owner": "input-output-hk",
         "repo": "stackage.nix",
-        "rev": "d050a484ee028bf97b40217b97541923e22d7b7d",
+        "rev": "cea1fb3718c41ad56ed9edcc723a93f2fc8100f5",
         "type": "github"
       },
       "original": {
