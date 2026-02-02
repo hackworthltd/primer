@@ -76,7 +76,7 @@ import Miso (
   startComponent,
  )
 import Miso.CSS (Style)
-import Miso.JSON (FromJSON, ToJSON)
+import Miso.JSON (ToJSON)
 import Miso.String (MisoString, fromMisoString, ms)
 import Optics (
   AffineTraversal',
