@@ -16,7 +16,7 @@ cp frontend/*.html dist/
 cp frontend/*.css dist/
 cp -r frontend/fonts dist/
 
-hs_wasm_path=$(wasm32-unknown-wasi-cabal list-bin -v0 exe:primer-miso)
+hs_wasm_path=../result/bin/primer-miso.wasm
 
 ghc_wasm_jsffi="dist/ghc_wasm_jsffi.js"
 
