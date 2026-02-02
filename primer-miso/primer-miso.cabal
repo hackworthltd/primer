@@ -71,6 +71,8 @@ library
     uuid-types ^>=1.0.5.1,
 
   if arch(wasm32)
+    build-depends:
+      ghc-experimental,
   else
     build-depends:
       jsaddle-warp ==0.9.9.2,

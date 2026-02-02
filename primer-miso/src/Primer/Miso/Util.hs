@@ -1,9 +1,11 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
@@ -70,7 +72,6 @@ import Miso (
   App,
   Component (model, update),
   Events,
-  getLocalStorage,
   io_,
   setLocalStorage,
   startComponent,
@@ -156,12 +157,33 @@ import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), TypeDefMap, ValCon (..))
 import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
 
+#ifdef wasi_HOST_OS
+import GHC.Wasm.Prim (JSVal)
+import Miso.String (JSString (JSString))
+#endif
+
+getLocalStorage :: Aeson.FromJSON a => MisoString -> IO (Either MisoString a)
+#ifdef wasi_HOST_OS
+getLocalStorage key = do
+  result <- js_getLocalStorage key
+  pure
+    if js_isNull result
+      then Left "key not found"
+      else first ms $ Aeson.eitherDecode $ fromMisoString $ JSString result
+foreign import javascript unsafe "window.localStorage.getItem($1)"
+  js_getLocalStorage :: MisoString -> IO JSVal
+foreign import javascript unsafe "$1 === null"
+  js_isNull :: JSVal -> Bool
+#else
+getLocalStorage = error "getLocalStorage native stub"
+#endif
+
 {- Miso -}
 
 -- https://github.com/dmjio/miso/issues/749
 startComponentWithSavedState ::
   forall model action.
-  (Eq model, FromJSON model, ToJSON model) =>
+  (Eq model, Aeson.FromJSON model, ToJSON model) =>
   Events -> App model action -> IO ()
 startComponentWithSavedState evs app = do
   savedModel <-
