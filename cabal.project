@@ -36,7 +36,7 @@ else
 
 benchmarks: True
 tests: True
-allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, *:time, logging-effect:base, servant:base, http-api-data:base
+allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, hedgehog-classes:hedgehog, *:time, logging-effect:base, servant:base, http-api-data:base
 
 package primer
   test-options: "--size-cutoff=32768"

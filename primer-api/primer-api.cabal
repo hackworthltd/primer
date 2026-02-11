@@ -40,9 +40,9 @@ library
 
   build-depends:
     base >=4.12 && <4.22,
-    containers >=0.6.0.1 && <0.7.0,
+    containers >=0.6.0.1 && <0.9.0,
     deriving-aeson >=0.2 && <0.3.0,
-    extra >=1.7.10 && <1.8.0,
+    extra >=1.7.10 && <1.9.0,
     logging-effect ^>=1.4,
     mtl >=2.2.2 && <2.4.0,
     optics >=0.4 && <0.5.0,
@@ -78,7 +78,7 @@ library primer-api-hedgehog
 
   build-depends:
     base,
-    hedgehog ^>=1.5,
+    hedgehog ^>=1.7,
     primer,
     primer:primer-hedgehog,
     primer:primer-testlib,
