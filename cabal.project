@@ -36,7 +36,8 @@ else
 
 benchmarks: True
 tests: True
-allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, hedgehog-classes:hedgehog, *:time, logging-effect:base, servant:base, http-api-data:base
+--allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, hedgehog-classes:hedgehog, *:time, logging-effect:base, servant:base, http-api-data:base
+allow-newer: all
 
 package primer
   test-options: "--size-cutoff=32768"
@@ -47,6 +48,30 @@ package primer-api
 if arch(wasm32)
   package tasty
     flags: -unix
+
+-- Sigh.
+source-repository-package
+  type: git
+  location: https://github.com/hackworthltd/these
+  --sha256: sha256-QaldABOjeqMVRaivBU3pW1WodqCSyd8Iy5jid1zTm4Y=
+  tag: 4392ae17a278b3b2c949862fe1caf8eeacb4e0c6
+  subdir: these
+
+-- Sigh.
+source-repository-package
+  type: git
+  location: https://github.com/hackworthltd/indexed-traversable
+  --sha256: sha256-NQhhID02npxFSEE9RWoBtUaa8IB3lm5wovJMDMGS1EM=
+  tag: afccfb663c5d0a168a9ca97151b32bda715a4957
+  subdir: indexed-traversable-instances
+
+-- Sigh.
+source-repository-package
+  type: git
+  location: https://github.com/hackworthltd/indexed-traversable
+  --sha256: sha256-NQhhID02npxFSEE9RWoBtUaa8IB3lm5wovJMDMGS1EM=
+  tag: afccfb663c5d0a168a9ca97151b32bda715a4957
+  subdir: indexed-traversable
 
 -- Using unreleased support for components.
 source-repository-package

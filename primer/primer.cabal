@@ -115,7 +115,7 @@ library
   build-depends:
     aeson >=2.0 && <2.3,
     assoc ^>=1.1,
-    base >=4.12 && <4.22,
+    base >=4.12 && <4.23,
     base64-bytestring ^>=1.2.1,
     containers >=0.6.0.1 && <0.9.0,
     deriving-aeson >=0.2 && <0.3.0,

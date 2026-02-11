@@ -24,6 +24,8 @@
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
+
+    haskell-language-server.url = "github:haskell/haskell-language-server/fe6551bca3b4a7fa7f161e485781bf2ba89f8c3a";
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -45,7 +47,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc9122";
+      ghcVersion = "ghc9141";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
@@ -254,7 +256,6 @@
               ];
 
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-                fourmolu = fourmoluVersion;
                 cabal-gild = "latest";
               };
             in
@@ -271,7 +272,7 @@
               };
               programs.fourmolu = {
                 enable = true;
-                package = haskellNixTools.fourmolu;
+                package = pkgs.fourmolu;
               };
               programs.nixpkgs-fmt.enable = true;
               programs.shellcheck.enable = true;
@@ -290,7 +291,7 @@
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [
-                  all_9_12
+                  all_9_14
 
                   pkgs.gnumake
                   pkgs.simple-http-server
@@ -320,6 +321,11 @@
         {
           overlays.default = (final: prev:
             let
+              ghc9123Tools = final.haskell-nix.tools "ghc9123" {
+                fourmolu = fourmoluVersion;
+                hlint = "latest";
+              };
+
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
@@ -365,7 +371,10 @@
                     doHaddock = true;
                     doHyperlinkSource = true;
                     doQuickjump = true;
-                    doHoogle = true;
+
+                    # Hoogle generation is currently broken:
+                    # https://github.com/input-output-hk/haskell.nix/issues/2477
+                    doHoogle = false;
                   }
                   {
                     # Some packages are not visible to haskell.nix's planner, and need
@@ -413,16 +422,23 @@
                   # See:
                   # https://github.com/hackworthltd/primer/issues/876
                   #exactDeps = true;
-                  withHoogle = true;
+
+                  # Hoogle generation is currently broken:
+                  # https://github.com/input-output-hk/haskell.nix/issues/2477
+                  withHoogle = false;
 
                   tools = {
-                    haskell-language-server = "latest";
-
-                    hlint = "latest";
+                    haskell-language-server = {
+                      src = inputs.haskell-language-server;
+                    };
 
                     ghcid = "latest";
 
-                    implicit-hie = "latest";
+                    implicit-hie = {
+                      cabalProjectLocal = ''
+                        allow-newer: all
+                      '';
+                    };
 
                     cabal = "latest";
 
@@ -430,8 +446,6 @@
 
                     # Disabled, as it doesn't currently build with Nix.
                     #weeder = weederVersion;
-
-                    fourmolu = fourmoluVersion;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
@@ -442,11 +456,12 @@
 
                     # For Language Server support.
                     nodejs_22
-                  ]);
 
-                  shellHook = ''
-                    export HIE_HOOGLE_DATABASE="$(cat $(${final.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
-                  '';
+                    # Normally available via `shell.tools`, but
+                    # currently part of our overlay, instead.
+                    hlint
+                    fourmolu
+                  ]);
                 };
               };
 
@@ -493,6 +508,8 @@
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
+
+              inherit (ghc9123Tools) fourmolu hlint;
             }
           );
 
