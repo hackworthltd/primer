@@ -28,8 +28,18 @@ frontend-prod:
 serve-frontend:
 	$(MAKE) -C primer-miso serve-frontend
 
+ui-demo:
+	$(MAKE) -C primer-miso-ui ui-demo
+
+ui-demo-prod:
+	$(MAKE) -C primer-miso-ui ui-demo-prod
+
+serve-ui-demo:
+	$(MAKE) -C primer-miso-ui serve-ui-demo
+
 clean:
 	$(CABAL) clean
 	$(MAKE) -C primer-miso clean
+	$(MAKE) -C primer-miso-ui clean
 
 .PHONY: build $(test-targets) update clean

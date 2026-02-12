@@ -282,11 +282,7 @@
             };
 
           devShells = {
-            default = primerFlake.devShells.default // {
-              inputsFrom = [
-                config.treefmt.build.devShell
-              ];
-            };
+            default = primerFlake.devShells.default;
             wasm = pkgs.mkShell {
               packages = with inputs.ghc-wasm.packages.${system};
                 [
@@ -300,6 +296,11 @@
                   # time, because we can't do it via `wasmtime`.
                   (pkgs.haskell-nix.tool ghcVersion "tasty-discover" { })
                 ];
+            };
+            treefmt = pkgs.mkShell {
+              inputsFrom = [
+                config.treefmt.build.devShell
+              ];
             };
           };
         };
