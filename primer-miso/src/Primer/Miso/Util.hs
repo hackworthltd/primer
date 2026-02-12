@@ -7,7 +7,6 @@
 
 -- | Things which should really be upstreamed rather than living in this project.
 module Primer.Miso.Util (
-  startComponentWithSavedState,
   showMs,
   readMs,
   clayToMiso,
@@ -55,26 +54,16 @@ import Foreword hiding (zero)
 import Clay qualified
 import Clay.Stylesheet qualified as Clay
 import Control.Concurrent.STM (atomically, newTBQueueIO)
-import Control.Monad.Extra (eitherM)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (WithSeverity)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.Bitraversable (bitraverse)
 import Data.Map qualified as Map
 import Data.String (String)
 import Data.UUID.Types qualified as UUID
 import GHC.Base (error)
-import Language.Javascript.JSaddle (JSM)
 import Linear (Additive, R1 (_x), R2 (_y), V2, zero)
 import Linear.Affine (Point (..), unP)
-import Miso (
-  App,
-  Component (model, update),
-  getLocalStorage,
-  io_,
-  setLocalStorage,
-  startComponent,
- )
 import Miso.CSS (Style)
 import Miso.String (MisoString, fromMisoString, ms)
 import Optics (
@@ -156,25 +145,6 @@ import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
 
 {- Miso -}
-
--- https://github.com/dmjio/miso/issues/749
-startComponentWithSavedState ::
-  forall model action.
-  (Eq model, FromJSON model, ToJSON model) =>
-  App model action -> JSM ()
-startComponentWithSavedState app = do
-  savedModel <-
-    eitherM (\e -> liftIO $ putStrLn ("saved state not loaded: " <> e) >> pure Nothing) (pure . Just) $
-      getLocalStorage storageKey
-  startComponent
-    app
-      { model = fromMaybe app.model savedModel
-      , update = \a -> do
-          app.update a
-          io_ . setLocalStorage storageKey =<< get
-      }
-  where
-    storageKey = "miso-app-state"
 
 showMs :: Show a => a -> MisoString
 showMs = ms . show @_ @String
@@ -258,14 +228,14 @@ type TypeMetaT = Meta (Kind' ())
 type KindMetaT = Meta ()
 data ASTDefT = ASTDefT {expr :: ExprT, sig :: TypeT} -- TODO parameterise `ASTDef` etc.?
   deriving stock (Eq, Show, Read, Generic)
-  deriving (ToJSON, FromJSON) via PrimerJSON ASTDefT
+  deriving (Aeson.ToJSON, Aeson.FromJSON) via PrimerJSON ASTDefT
 type ASTTypeDefT = ASTTypeDef TypeMetaT KindMetaT
 data ModuleT = ModuleT -- TODO include type defs and primitives
   { name :: ModuleName
   , defs :: Map Name ASTDefT
   }
   deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ModuleT
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via PrimerJSON ModuleT
 
 -- analogous to `typesInExpr`
 kindsInType :: AffineTraversal' (Type' a b) (Kind' b)
