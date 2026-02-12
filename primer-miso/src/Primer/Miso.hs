@@ -15,6 +15,8 @@ import Control.Monad.Except (liftEither)
 import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
@@ -25,27 +27,11 @@ import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import Data.Tuple.Extra (uncurry3)
 import GHC.Base (error)
-import Language.Javascript.JSaddle (JSM)
 import Linear (Metric (norm), R1 (_x), V2 (V2), unangle)
 import Linear.Affine ((.+^), (.-.), (.-^))
 import Miso (
   Checked (Checked),
-  Component (
-    Component,
-    bindings,
-    events,
-    hydrateModel,
-    initialAction,
-    logLevel,
-    mailbox,
-    model,
-    mountPoint,
-    scripts,
-    styles,
-    subs,
-    update,
-    view
-  ),
+  Component (..),
   Effect,
   LogLevel (Off),
   ROOT,
@@ -56,11 +42,12 @@ import Miso (
   io_,
   text,
  )
+import Miso.Aeson qualified
 import Miso.CSS (style_)
 import Miso.Html (
   button_,
   div_,
-  form,
+  form_,
   img_,
   input_,
   onChange,
@@ -75,6 +62,7 @@ import Miso.Html.Property (
   src_,
   type_,
  )
+import Miso.JSON qualified
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
@@ -190,9 +178,10 @@ import Primer.Name (Name, NameCounter, unName)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (TypeDefAST), ValCon (..), forgetTypeDefMetadata, typeDefAST, typeDefKind)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
-start :: JSM ()
+start :: IO ()
 start =
   startComponentWithSavedState
+    defaultEvents
     Component
       { model =
           Model
@@ -235,15 +224,16 @@ start =
       , update = updateModel
       , view = viewModel
       , subs = []
-      , events = defaultEvents
       , styles = []
       , scripts = []
-      , initialAction = Nothing
       , mountPoint = Nothing
+      , mount = Nothing
+      , unmount = Nothing
       , logLevel = Off
       , mailbox = const Nothing
       , bindings = []
       , hydrateModel = Nothing
+      , eventPropagation = False
       }
 
 data Model = Model
@@ -254,6 +244,14 @@ data Model = Model
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
+
+instance Miso.JSON.ToJSON Model where
+  toJSON = Miso.Aeson.aesonToJSON . Aeson.toJSON
+instance Miso.JSON.FromJSON Model where
+  parseJSON = convertParser . Aeson.parseJSON . Miso.Aeson.jsonToAeson
+    where
+      convertParser :: Aeson.Parser a -> Miso.JSON.Parser a
+      convertParser p = hush $ Aeson.parseEither (\() -> p) ()
 
 -- TODO When Miso 1.9/2.0 is released, we should take advantage of its component support
 -- we can then simplify some code, removing unnecessary error handling etc.
@@ -427,7 +425,7 @@ updateModel = \case
       allRedexes <- redexes opts.viewRedex.avoidShadowing' tydefs defs opts.dir expr
       pure (allRedexes, normalOrderRedex)
     -- TODO better logging, including handling different severities appropriately
-    logAllToConsole :: Show a => Seq (WithSeverity a) -> JSM ()
+    logAllToConsole :: Show a => Seq (WithSeverity a) -> IO ()
     logAllToConsole logs =
       let issues = filter ((<= Notice) . msgSeverity) $ toList logs
        in unless (null issues) $ consoleLog $ ms $ unlines $ map show issues
@@ -651,7 +649,7 @@ viewModel Model{..} =
                 ( case opts.free of
                     Available.FreeNone -> []
                     _ ->
-                      [ form
+                      [ form_
                           []
                           [ input_
                               [ type_ "text"
