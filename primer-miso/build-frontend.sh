@@ -29,13 +29,13 @@ if ! [ -f "$ghc_wasm_jsffi" ] ; then
 fi
 
 if $dev_mode; then
-    cp "$hs_wasm_path" dist/bin.wasm
+    cp "$hs_wasm_path" dist/app.wasm
 else
-    wizer --allow-wasi --wasm-bulk-memory true --init-func _initialize -o dist/bin.wasm "$hs_wasm_path"
-    wasm-opt ${1+"$@"} dist/bin.wasm -o dist/bin.wasm
-    wasm-tools strip -o dist/bin.wasm dist/bin.wasm
-    brotli --rm --best dist/bin.wasm -o dist/bin.wasm.br
-    mv dist/bin.wasm.br dist/bin.wasm
+    wizer --allow-wasi --wasm-bulk-memory true --init-func _initialize -o dist/app.wasm "$hs_wasm_path"
+    wasm-opt ${1+"$@"} dist/app.wasm -o dist/app.wasm
+    wasm-tools strip -o dist/app.wasm dist/app.wasm
+    brotli --rm --best dist/app.wasm -o dist/app.wasm.br
+    mv dist/app.wasm.br dist/app.wasm
 fi
 
 cp frontend/*.js dist
