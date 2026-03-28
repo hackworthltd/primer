@@ -6,11 +6,13 @@ if arch(wasm32)
     primer
     primer-api
     primer-miso
+    primer-miso-ui
 else
   packages:
     primer
     primer-api
     primer-miso
+    primer-miso-ui
     primer-benchmark
 
 if arch(wasm32)
