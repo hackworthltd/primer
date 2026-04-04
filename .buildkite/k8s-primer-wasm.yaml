@@ -5,8 +5,7 @@
 # 2. The PR has the "Run Wasm tests" label.
 
 agents:
-  queue: "nix-build"
-  os: "linux"
+  queue: "kubernetes"
 
 steps:
   # Note: only one of these should run during any given build.
@@ -21,6 +20,9 @@ steps:
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 test
+    plugins:
+      - kubernetes:
+          podTemplate: nix-ci-template
 
   - label: ":haskell: :linux: Primer Wasm build"
     if: |
@@ -29,13 +31,6 @@ steps:
     command: |
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 update
       nix develop .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
-
-  - label: ":haskell: :macos: Primer Wasm build"
-    if: |
-      build.branch !~ /^gh-readonly-queue\// &&
-      !(build.pull_request.labels includes "Run Wasm tests")
-    command: |
-      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 update
-      nix develop --no-sandbox .#wasm --print-build-logs --command make -f Makefile.wasm32 frontend-prod
-    agents:
-      os: "darwin"
+    plugins:
+      - kubernetes:
+          podTemplate: nix-ci-template

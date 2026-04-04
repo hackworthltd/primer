@@ -1,0 +1,14 @@
+agents:
+  queue: macos
+
+steps:
+  - command: nix-buildkite
+    label: ":mac: :buildkite: Evaluate aarch64-darwin jobs"
+    plugins:
+      - hackworthltd/nix#v2.4.0: &nix-plugin
+          expr: ".#aarch64-darwin-ci"
+          use-nix-build: "true"
+          nix-build-opts: --print-build-logs --no-update-lock-file --eval-store auto
+          attr-prefix: ".#aarch64-darwin-ci."
+          nix-eval-jobs-args: --workers 1 --max-memory-size 4GiB --flake
+          agent-tags: queue=macos
