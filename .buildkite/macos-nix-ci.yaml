@@ -1,0 +1,30 @@
+agents:
+  queue: macos
+
+steps:
+  - command: nix-buildkite
+    label: ":mac: :buildkite: Eval packages.aarch64-darwin"
+    plugins:
+      - hackworthltd/nix#v2.4.0: &nix-plugin
+          expr: ".#packages.aarch64-darwin"
+          use-nix-build: "true"
+          nix-build-opts: --print-build-logs --no-update-lock-file --eval-store auto
+          attr-prefix: ".#packages.aarch64-darwin."
+          nix-eval-jobs-args: --workers 1 --max-memory-size 4GiB --flake
+          agent-tags: queue=macos
+
+  - command: nix-buildkite
+    label: ":mac: :buildkite: Eval checks.aarch64-darwin"
+    plugins:
+      - hackworthltd/nix#v2.4.0:
+          <<: *nix-plugin
+          expr: ".#checks.aarch64-darwin"
+          attr-prefix: ".#checks.aarch64-darwin."
+
+  - command: nix-buildkite
+    label: ":mac: :buildkite: Eval devShells.aarch64-darwin"
+    plugins:
+      - hackworthltd/nix#v2.4.0:
+          <<: *nix-plugin
+          expr: ".#devShells.aarch64-darwin"
+          attr-prefix: ".#devShells.aarch64-darwin."
