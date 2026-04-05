@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/agent-stack-k8s/main/cmd/linter/schema.json
+
+agents:
+  queue: kubernetes
+
+steps:
+  - command: nix flake archive .#
+    label: ":kubernetes: :nixos: Archive Nix flake inputs"
+    plugins:
+      - kubernetes:
+          podTemplate: nix-ci-template
+
+  - command: nix-buildkite
+    label: ":kubernetes: :nixos: :buildkite: Evaluate x86_64-linux jobs"
+    plugins:
+      - hackworthltd/nix#v2.4.0:
+          expr: ".#x86_64-linux-ci"
+          use-nix-build: "true"
+          nix-build-opts: --print-build-logs --no-update-lock-file --max-jobs 0 --eval-store auto --store ssh-ng://remote-builder@remote-builders.nix-daemon.svc.cluster.local?ssh-key=/etc/secrets/ssh/remote-builder-ssh-key
+          attr-prefix: ".#x86_64-linux-ci."
+          nix-eval-jobs-args: --workers 4 --max-memory-size 4GiB --flake
+          kubernetes-pod-template: nix-ci-template
+          agent-tags: queue=kubernetes
+      - kubernetes:
+          podTemplate: nix-ci-template

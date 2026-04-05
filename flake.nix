@@ -134,7 +134,6 @@
                   baseName == "SECURITY.md" ||
                   baseName == "bugreport.sh" ||
                   pkgs.lib.hasPrefix "cabal.project.local" baseName ||
-                  baseName == "ci.nix" ||
                   baseName == "default.nix" ||
                   baseName == "docs" ||
                   baseName == "flake-compat.nix" ||
@@ -308,15 +307,18 @@
       flake =
         let
           # See above, we need to use our own `pkgs` within the flake.
-          pkgs = import inputs.nixpkgs
-            {
-              system = "x86_64-linux";
+          pkgsFor =
+            system:
+            import inputs.nixpkgs {
+              inherit system;
               config = {
                 allowUnfree = true;
                 allowBroken = true;
               };
               overlays = allOverlays;
             };
+          pkgs = pkgsFor "x86_64-linux";
+          aarch64-darwin-pkgs = pkgsFor "aarch64-darwin";
         in
         {
           overlays.default = (final: prev:
@@ -517,26 +519,51 @@
             nixpkgs.overlays = allOverlays;
           };
 
-          hydraJobs = {
-            inherit (inputs.self) packages;
-            inherit (inputs.self) checks;
-            inherit (inputs.self) devShells;
-
-            required-ci = pkgs.releaseTools.aggregate {
-              name = "required-ci";
-              constituents = builtins.map builtins.attrValues (with inputs.self.hydraJobs; [
-                packages.x86_64-linux
-                packages.aarch64-darwin
-                checks.x86_64-linux
-                checks.aarch64-darwin
-                devShells.x86_64-linux
-                devShells.aarch64-darwin
-              ]);
-              meta.description = "Required CI builds";
+          x86_64-linux-ci =
+            let
+              packages = inputs.self.packages.x86_64-linux;
+              checks = inputs.self.checks.x86_64-linux;
+              devShells = inputs.self.devShells.x86_64-linux;
+            in
+            inputs.hacknix.lib.flakes.recurseIntoHydraJobs {
+              inherit
+                packages
+                checks
+                devShells
+                ;
+              required = pkgs.releaseTools.aggregate {
+                name = "required";
+                constituents = builtins.map builtins.attrValues ([
+                  packages
+                  checks
+                  devShells
+                ]);
+                meta.description = "Required x86_64-linux CI builds";
+              };
             };
-          };
 
-          ciJobs = inputs.hacknix.lib.flakes.recurseIntoHydraJobs inputs.self.hydraJobs;
+          aarch64-darwin-ci =
+            let
+              packages = inputs.self.packages.aarch64-darwin;
+              checks = inputs.self.checks.aarch64-darwin;
+              devShells = inputs.self.devShells.aarch64-darwin;
+            in
+            inputs.hacknix.lib.flakes.recurseIntoHydraJobs {
+              inherit
+                packages
+                checks
+                devShells
+                ;
+              required = aarch64-darwin-pkgs.releaseTools.aggregate {
+                name = "required";
+                constituents = builtins.map builtins.attrValues ([
+                  packages
+                  checks
+                  devShells
+                ]);
+                meta.description = "Required aarch64-darwin CI builds";
+              };
+            };
         };
     };
 }
