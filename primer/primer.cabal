@@ -52,10 +52,10 @@ library
     Primer.Questions
     Primer.Refine
     Primer.Subst
-    Primer.TypeDef
     Primer.Typecheck
-    Primer.UUIDv4
+    Primer.TypeDef
     Primer.Unification
+    Primer.UUIDv4
     Primer.Zipper
     Primer.ZipperCxt
 
@@ -84,8 +84,8 @@ library
     Primer.Eval.Push
     Primer.Primitives.PrimDef
     Primer.Typecheck.Cxt
-    Primer.Typecheck.KindError
     Primer.Typecheck.Kindcheck
+    Primer.Typecheck.KindError
     Primer.Typecheck.SmartHoles
     Primer.Typecheck.TypeError
     Primer.Typecheck.Utils

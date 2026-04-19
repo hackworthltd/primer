@@ -53,7 +53,6 @@ if arch(wasm32)
 -- `source-repository-packages`, e.g., for Miso:
 --
 -- nix run nixpkgs#nix-prefetch-git https://github.com/haskell-miso/miso.git <tag>
-
 -- Wasm workarounds.
 --
 -- We would prefer that these workarounds were not Wasm-dependent;
