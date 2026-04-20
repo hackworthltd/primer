@@ -26,6 +26,12 @@
     ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
 
     haskell-language-server.url = "github:haskell/haskell-language-server/fe6551bca3b4a7fa7f161e485781bf2ba89f8c3a";
+
+    browser-wasi-shim.url = "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.3.0.tgz";
+    browser-wasi-shim.flake = false;
+
+    ws.url = "https://registry.npmjs.org/ws/-/ws-8.18.0.tgz";
+    ws.flake = false;
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -330,9 +336,21 @@
                 hlint = "latest";
               };
 
+              haskell-nix = prev.haskell-nix // {
+                compiler = prev.haskell-nix.compiler // {
+                  ghc9141 = prev.haskell-nix.compiler.ghc9141.override {
+                    ghc-patches = prev.haskell-nix.compiler.ghc9141.patches ++
+                      (with final.lib; optionals final.stdenv.targetPlatform.isWasm (
+                        filter (hasSuffix ".patch") (filesystem.listFilesRecursive ./ghc-wasm-patches))
+                      );
+                  };
+                };
+              };
+
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
+                crossPlatforms = p: [ p.wasi32 ];
                 modules = [
                   {
                     # We want -Werror for Nix builds (primarily for CI).
@@ -398,7 +416,6 @@
                     packages.bytestring-builder.writeHieFiles = false;
                     packages.fail.writeHieFiles = false;
                     packages.diagrams.writeHieFiles = false;
-                    packages.happy-lib.writeHieFiles = false;
                   }
                   {
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
@@ -466,6 +483,15 @@
                     hlint
                     fourmolu
                   ]);
+
+                  shellHook =
+                    let
+                      node_modules = pkgs.linkFarm "node_modules" [{ name = "ws"; path = inputs.ws; }];
+                    in
+                    ''
+                      export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
+                      export NODE_PATH="${node_modules}''${NODE_PATH:+:$NODE_PATH}"
+                    '';
                 };
               };
 

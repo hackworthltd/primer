@@ -16,6 +16,19 @@
         "type": "github"
       }
     },
+    "browser-wasi-shim": {
+      "flake": false,
+      "locked": {
+        "lastModified": 499162500,
+        "narHash": "sha256-XzecaHiZQVrPEekxGu/KLRbDqpZmki9Clk/QfJCmHUk=",
+        "type": "tarball",
+        "url": "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.3.0.tgz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.3.0.tgz"
+      }
+    },
     "cabal-34": {
       "flake": false,
       "locked": {
@@ -992,6 +1005,7 @@
     },
     "root": {
       "inputs": {
+        "browser-wasi-shim": "browser-wasi-shim",
         "flake-compat": "flake-compat",
         "flake-parts": "flake-parts",
         "ghc-wasm": "ghc-wasm",
@@ -1003,7 +1017,8 @@
           "nixpkgs-unstable"
         ],
         "pre-commit-hooks-nix": "pre-commit-hooks-nix_2",
-        "treefmt-nix": "treefmt-nix_2"
+        "treefmt-nix": "treefmt-nix_2",
+        "ws": "ws"
       }
     },
     "stackage": {
@@ -1091,6 +1106,19 @@
         "owner": "numtide",
         "repo": "treefmt-nix",
         "type": "github"
+      }
+    },
+    "ws": {
+      "flake": false,
+      "locked": {
+        "lastModified": 499162500,
+        "narHash": "sha256-uzG7GCkrFSWrkxfkTLDp2J0rX/w/w98np7wJbYz8vU8=",
+        "type": "tarball",
+        "url": "https://registry.npmjs.org/ws/-/ws-8.18.0.tgz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://registry.npmjs.org/ws/-/ws-8.18.0.tgz"
       }
     }
   },

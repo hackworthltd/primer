@@ -1,0 +1,167 @@
+diff --git a/compiler/GHC.hs b/compiler/GHC.hs
+--- a/compiler/GHC.hs
++++ b/compiler/GHC.hs
+@@ -737,6 +737,7 @@ setTopSessionDynFlags dflags = do
+                   wasmInterpBrowser = gopt Opt_GhciBrowser dflags,
+                   wasmInterpBrowserHost = ghciBrowserHost dflags,
+                   wasmInterpBrowserPort = ghciBrowserPort dflags,
++                  wasmInterpBrowserAssetsDir = ghciBrowserAssetsDir dflags,
+                   wasmInterpBrowserRedirectWasiConsole = gopt Opt_GhciBrowserRedirectWasiConsole dflags,
+                   wasmInterpBrowserPuppeteerLaunchOpts = ghciBrowserPuppeteerLaunchOpts dflags,
+                   wasmInterpBrowserPlaywrightBrowserType = ghciBrowserPlaywrightBrowserType dflags,
+diff --git a/compiler/GHC/Driver/DynFlags.hs b/compiler/GHC/Driver/DynFlags.hs
+--- a/compiler/GHC/Driver/DynFlags.hs
++++ b/compiler/GHC/Driver/DynFlags.hs
+@@ -411,6 +411,7 @@ data DynFlags = DynFlags {
+   -- wasm ghci browser mode
+   ghciBrowserHost                  :: !String,
+   ghciBrowserPort                  :: !Int,
++  ghciBrowserAssetsDir             :: !(Maybe FilePath),
+   ghciBrowserPuppeteerLaunchOpts   :: !(Maybe String),
+   ghciBrowserPlaywrightBrowserType :: !(Maybe String),
+   ghciBrowserPlaywrightLaunchOpts  :: !(Maybe String),
+@@ -702,6 +703,7 @@ defaultDynFlags mySettings =
+ 
+         ghciBrowserHost = "127.0.0.1",
+         ghciBrowserPort = 0,
++        ghciBrowserAssetsDir = Nothing,
+         ghciBrowserPuppeteerLaunchOpts = Nothing,
+         ghciBrowserPlaywrightBrowserType = Nothing,
+         ghciBrowserPlaywrightLaunchOpts = Nothing,
+diff --git a/compiler/GHC/Driver/Session.hs b/compiler/GHC/Driver/Session.hs
+--- a/compiler/GHC/Driver/Session.hs
++++ b/compiler/GHC/Driver/Session.hs
+@@ -1851,6 +1851,8 @@ dynamic_flags_deps = [
+       $ hasArg $ \f d -> d { ghciBrowserHost = f }
+   , make_ord_flag defGhciFlag "fghci-browser-port"
+       $ intSuffix $ \n d -> d { ghciBrowserPort = n }
++  , make_ord_flag defGhciFlag "fghci-browser-assets-dir"
++      $ hasArg $ \f d -> d { ghciBrowserAssetsDir = Just f }
+   , make_ord_flag defGhciFlag "fghci-browser-puppeteer-launch-opts"
+       $ hasArg $ \f d -> d { ghciBrowserPuppeteerLaunchOpts = Just f }
+   , make_ord_flag defGhciFlag "fghci-browser-playwright-browser-type"
+diff --git a/compiler/GHC/Runtime/Interpreter/Types.hs b/compiler/GHC/Runtime/Interpreter/Types.hs
+--- a/compiler/GHC/Runtime/Interpreter/Types.hs
++++ b/compiler/GHC/Runtime/Interpreter/Types.hs
+@@ -221,6 +221,7 @@ data WasmInterpConfig = WasmInterpConfig
+   , wasmInterpBrowser                      :: !Bool
+   , wasmInterpBrowserHost                  :: !String
+   , wasmInterpBrowserPort                  :: !Int
++  , wasmInterpBrowserAssetsDir             :: !(Maybe FilePath)
+   , wasmInterpBrowserRedirectWasiConsole   :: !Bool
+   , wasmInterpBrowserPuppeteerLaunchOpts   :: !(Maybe String)
+   , wasmInterpBrowserPlaywrightBrowserType :: !(Maybe String)
+diff --git a/compiler/GHC/Runtime/Interpreter/Wasm.hs b/compiler/GHC/Runtime/Interpreter/Wasm.hs
+--- a/compiler/GHC/Runtime/Interpreter/Wasm.hs
++++ b/compiler/GHC/Runtime/Interpreter/Wasm.hs
+@@ -52,6 +52,7 @@ spawnWasmInterp WasmInterpConfig {..} = do
+   let dyld_env =
+         [("GHCI_BROWSER", "1") | wasmInterpBrowser]
+         ++ [("GHCI_BROWSER_HOST", wasmInterpBrowserHost), ("GHCI_BROWSER_PORT", show wasmInterpBrowserPort)]
++        ++ [("GHCI_BROWSER_ASSETS_DIR", f) | f <- maybeToList wasmInterpBrowserAssetsDir]
+         ++ [("GHCI_BROWSER_REDIRECT_WASI_CONSOLE", "1") | wasmInterpBrowserRedirectWasiConsole]
+         ++ [("GHCI_BROWSER_PUPPETEER_LAUNCH_OPTS", f) | f <- maybeToList wasmInterpBrowserPuppeteerLaunchOpts]
+         ++ [("GHCI_BROWSER_PLAYWRIGHT_BROWSER_TYPE", f) | f <- maybeToList wasmInterpBrowserPlaywrightBrowserType]
+diff --git a/docs/users_guide/wasm.rst b/docs/users_guide/wasm.rst
+--- a/docs/users_guide/wasm.rst
++++ b/docs/users_guide/wasm.rst
+@@ -193,6 +193,18 @@ See below for other optional GHC flags of wasm ghci browser mode:
+     Specify the port that the ``dyld`` HTTP server should listen on.
+     Defaults to a random idle port.
+ 
++.. ghc-flag:: -fghci-browser-assets-dir
++    :shortdesc: User-specified assets root directory
++    :type: dynamic
++
++    :default: ``$PWD``
++
++    The HTTP server also exposes an ``/assets`` endpoint that allows
++    the users to fetch custom assets with sensible default MIME type,
++    e.g. `http://127.0.0.1:8080/assets/index.html` would fetch
++    `index.html` in the assets root directory with ``text/html`` MIME
++    type.
++
+ .. ghc-flag:: -fghci-browser-redirect-wasi-console
+     :shortdesc: Redirect wasi console stdout/stderr back to host ghci.
+     :type: dynamic
+diff --git a/utils/jsffi/dyld.mjs b/utils/jsffi/dyld.mjs
+--- a/utils/jsffi/dyld.mjs
++++ b/utils/jsffi/dyld.mjs
+@@ -494,6 +494,7 @@ export class DyLDRPC {
+ 
+ // Actual implementation of endpoints used by DyLDRPC
+ class DyLDRPCServer {
++  #mimeDb;
+   #dyldHost = new DyLDHost();
+   #server;
+   #wss;
+@@ -501,12 +502,27 @@ class DyLDRPCServer {
+   constructor({
+     host,
+     port,
++    assetsDir,
+     dyldPath,
+     libdir,
+     ghciSoPath,
+     args,
+     redirectWasiConsole,
+   }) {
++    this.#mimeDb = fetch("https://cdn.jsdelivr.net/npm/mime-db@1.54.0/db.json")
++      .then((resp) => resp.json())
++      .then((db) => {
++        const ext2mime = {};
++        for (const mime in db) {
++          if (db[mime].extensions) {
++            for (const ext of db[mime].extensions) {
++              ext2mime[`.${ext}`] = mime;
++            }
++          }
++        }
++        return ext2mime;
++      });
++
+     this.#server = http.createServer(async (req, res) => {
+       const origin = originFromServerAddress(await this.listening);
+ 
+@@ -564,6 +580,33 @@ args.rpc.opened.then(() => main(args));
+         return;
+       }
+ 
++      if (req.url.startsWith("/assets")) {
++        const p = path.resolve(
++          assetsDir,
++          new URL(req.url, origin).pathname.replace("/assets/", ""),
++        );
++        try {
++          await fs.promises.access(p, fs.promises.constants.R_OK);
++
++          res.setHeader(
++            "Content-Type",
++            (await this.#mimeDb)[path.extname(p)] || "application/octet-stream",
++          );
++
++          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
++
++          res.writeHead(200);
++          fs.createReadStream(p).pipe(res);
++        } catch {
++          res.writeHead(404, {
++            "Content-Type": "text/plain",
++          });
++          res.end("not found");
++        }
++
++        return;
++      }
++
+       if (req.url.startsWith("/rpc")) {
+         const endpoint = req.url.replace("/rpc/", "");
+ 
+@@ -1156,6 +1199,7 @@ export async function main({ rpc, libdir, ghciSoPath, args }) {
+   const server = new DyLDRPCServer({
+     host: process.env.GHCI_BROWSER_HOST || "127.0.0.1",
+     port: process.env.GHCI_BROWSER_PORT || 0,
++    assetsDir: process.env.GHCI_BROWSER_ASSETS_DIR || process.cwd(),
+     dyldPath: import.meta.filename,
+     libdir,
+     ghciSoPath,

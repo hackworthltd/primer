@@ -1,0 +1,28 @@
+diff --git a/utils/jsffi/dyld.mjs b/utils/jsffi/dyld.mjs
+--- a/utils/jsffi/dyld.mjs
++++ b/utils/jsffi/dyld.mjs
+@@ -1249,7 +1293,20 @@
+     }
+   }
+
+-  console.log(
+-    `Open ${origin}/main.html or import ${origin}/main.js to boot ghci`
+-  );
+-})();
++  if (process.env.GHCI_BROWSER_OPEN_CMD) {
++    const { execFile } = require("node:child_process");
++    execFile(
++      process.env.GHCI_BROWSER_OPEN_CMD,
++      [`${origin}/main.html`],
++      (err) => {
++        if (err) {
++          console.warn(`Failed to run GHCI_BROWSER_OPEN_CMD: ${err.message}`);
++        }
++      },
++    );
++  } else {
++    console.log(
++      `Open ${origin}/main.html or import ${origin}/main.js to boot ghci`
++    );
++  }
++})();
