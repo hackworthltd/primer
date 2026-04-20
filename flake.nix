@@ -23,8 +23,6 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
-
     haskell-language-server.url = "github:haskell/haskell-language-server/fe6551bca3b4a7fa7f161e485781bf2ba89f8c3a";
 
     browser-wasi-shim.url = "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.3.0.tgz";
@@ -292,22 +290,6 @@
               inputsFrom = [
                 config.treefmt.build.devShell
               ];
-            };
-            wasm = pkgs.mkShell {
-              packages = with inputs.ghc-wasm.packages.${system};
-                [
-                  all_9_14
-
-                  pkgs.gnumake
-                  pkgs.simple-http-server
-                  pkgs.brotli
-
-                  pkgs.ghciwatch
-
-                  # We need to run native `tasty-discover` at compile
-                  # time, because we can't do it via `wasmtime`.
-                  (pkgs.haskell-nix.tool ghcVersion "tasty-discover" { })
-                ];
             };
           };
         };
