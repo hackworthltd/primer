@@ -14,6 +14,8 @@ else
     primer-benchmark
 
 if arch(wasm32)
+  -- Required for TemplateHaskell support on Wasm targets.
+  shared: True
   haddock-hoogle: False
   haddock-html: False
   haddock-quickjump: False
@@ -62,9 +64,6 @@ if arch(wasm32)
 -- source-repository-package dependencies, *nor their reverse
 -- dependencies*, using Nix while in the Nix development shell.
 if arch(wasm32)
-  -- Required for TemplateHaskell support on Wasm targets.
-  shared: True
-
   -- Upstream requires `happy` at build time, which doesn't work on Wasm
   -- targets.
   source-repository-package
