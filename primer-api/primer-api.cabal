@@ -80,9 +80,9 @@ library primer-api-hedgehog
     base,
     hedgehog ^>=1.7,
     primer,
+    primer-api,
     primer:primer-hedgehog,
     primer:primer-testlib,
-    primer-api,
 
 library primer-api-testlib
   visibility: public
@@ -113,8 +113,8 @@ library primer-api-testlib
     base,
     logging-effect,
     primer,
-    primer:primer-testlib,
     primer-api,
+    primer:primer-testlib,
     stm,
     stm-containers,
 
@@ -173,10 +173,10 @@ test-suite primer-api-test
     optics,
     pretty-simple ^>=4.1.3.0,
     primer,
-    primer:primer-hedgehog,
-    primer:primer-testlib,
     primer-api,
     primer-api-testlib,
+    primer:primer-hedgehog,
+    primer:primer-testlib,
     protolude,
     stm,
     stm-containers,

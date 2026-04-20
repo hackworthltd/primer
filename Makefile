@@ -18,9 +18,6 @@ $(package-targets):
 	$(MAKE) -C primer-miso $@
 	$(MAKE) -C primer-benchmark $@
 
-develop-frontend:
-	$(MAKE) -C primer-miso develop-frontend
-
 clean:
 	cabal clean
 

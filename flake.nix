@@ -296,6 +296,8 @@
                   pkgs.simple-http-server
                   pkgs.brotli
 
+                  pkgs.ghciwatch
+
                   # We need to run native `tasty-discover` at compile
                   # time, because we can't do it via `wasmtime`.
                   (pkgs.haskell-nix.tool ghcVersion "tasty-discover" { })

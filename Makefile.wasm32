@@ -1,7 +1,8 @@
 # NOTE:
 #
 # Most commands assume you're running this from the top-level `nix
-# develop` shell.
+# develop .#wasm` shell.
+#
 
 MAKE := $(MAKE) -f Makefile.wasm32
 
@@ -27,6 +28,18 @@ frontend-prod:
 
 serve-frontend:
 	$(MAKE) -C primer-miso serve-frontend
+
+frontend-repl:
+	$(MAKE) -C primer-miso repl
+
+frontend-watch:
+	$(MAKE) -C primer-miso watch
+
+frontend-repl-multi:
+	$(MAKE) -C primer-miso repl-multi
+
+frontend-watch-multi:
+	$(MAKE) -C primer-miso watch-multi
 
 clean:
 	$(CABAL) clean
