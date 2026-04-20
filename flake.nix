@@ -486,7 +486,7 @@
 
                   shellHook =
                     let
-                      node_modules = pkgs.linkFarm "node_modules" [{ name = "ws"; path = inputs.ws; }];
+                      node_modules = final.linkFarm "node_modules" [{ name = "ws"; path = inputs.ws; }];
                     in
                     ''
                       export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
