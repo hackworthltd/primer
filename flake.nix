@@ -313,22 +313,24 @@
         {
           overlays.default =
             inputs.hacknix.lib.overlays.combine [
+              (final: prev: {
+                haskell-nix = prev.haskell-nix // {
+                  compiler = prev.haskell-nix.compiler // {
+                    ghc9141 = prev.haskell-nix.compiler.ghc9141.override {
+                      ghc-patches = prev.haskell-nix.compiler.ghc9141.patches ++
+                        (with final.lib; optionals final.stdenv.targetPlatform.isWasm (
+                          filter (hasSuffix ".patch") (filesystem.listFilesRecursive ./ghc-wasm-patches))
+                        );
+                    };
+                  };
+                };
+              })
+
               (final: prev:
                 let
                   ghc9123Tools = final.haskell-nix.tools "ghc9123" {
                     fourmolu = fourmoluVersion;
                     hlint = "latest";
-                  };
-
-                  haskell-nix = prev.haskell-nix // {
-                    compiler = prev.haskell-nix.compiler // {
-                      ghc9141 = prev.haskell-nix.compiler.ghc9141.override {
-                        ghc-patches = prev.haskell-nix.compiler.ghc9141.patches ++
-                          (with final.lib; optionals final.stdenv.targetPlatform.isWasm (
-                            filter (hasSuffix ".patch") (filesystem.listFilesRecursive ./ghc-wasm-patches))
-                          );
-                      };
-                    };
                   };
 
                   primer = final.haskell-nix.cabalProject {
