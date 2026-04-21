@@ -137,7 +137,7 @@ test-suite primer-api-test
 
   if arch(wasm32)
     type: exitcode-stdio-1.0
-    main-is: TestsWasm32.hs
+    main-is: Test.hs
     ghc-options:
       -Wall
       -Wincomplete-uni-patterns

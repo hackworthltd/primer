@@ -418,7 +418,17 @@
                       packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
                   )
-                ];
+                ] ++ (final.lib.lists.optional final.stdenv.targetPlatform.isWasm (
+                  ({ pkgs, ... }: {
+                    # Source:
+                    # https://github.com/input-output-hk/haskell.nix/blob/c179719f50011c64a8639d885f998bc662e4d2d1/overlays/wasm.nix#L49
+                    #
+                    # Note: if we try only to add only the extra
+                    # arguments we need here, haskell.nix prepends
+                    # them to the list, unfortunately.
+                    testWrapper = final.lib.mkForce [ "HOME=$(mktemp -d)" (pkgs.pkgsBuildBuild.wasmtime + "/bin/wasmtime") "--dir" "test::test" ];
+                  })
+                ));
 
                 shell = {
                   # We're using a `source-repository-package`, so we must disable this.
