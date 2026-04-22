@@ -61,7 +61,11 @@ library
     text >=2.0 && <2.2,
 
 benchmark primer-benchmark
-  import: options
+  if arch(wasm32)
+    import: options-lib
+  else
+    import: options
+
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: bench
@@ -72,7 +76,11 @@ benchmark primer-benchmark
     primer-benchmark,
 
 test-suite primer-benchmark-test
-  import: options
+  if arch(wasm32)
+    import: options-lib
+  else
+    import: options
+
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test

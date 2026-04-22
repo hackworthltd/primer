@@ -25,4 +25,3 @@ the various packages' Haddocks.
 
 * [Primitives](primitives.md)
 * [Benchmarking](benchmarking.md)
-* [WebAssembly support](wasm.md)

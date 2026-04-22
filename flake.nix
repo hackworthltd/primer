@@ -23,9 +23,13 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    ghc-wasm.url = "git+https://gitlab.haskell.org/ghc/ghc-wasm-meta";
-
     haskell-language-server.url = "github:haskell/haskell-language-server/fe6551bca3b4a7fa7f161e485781bf2ba89f8c3a";
+
+    browser-wasi-shim.url = "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.3.0.tgz";
+    browser-wasi-shim.flake = false;
+
+    ws.url = "https://registry.npmjs.org/ws/-/ws-8.18.0.tgz";
+    ws.flake = false;
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -287,22 +291,6 @@
                 config.treefmt.build.devShell
               ];
             };
-            wasm = pkgs.mkShell {
-              packages = with inputs.ghc-wasm.packages.${system};
-                [
-                  all_9_14
-
-                  pkgs.gnumake
-                  pkgs.simple-http-server
-                  pkgs.brotli
-
-                  pkgs.ghciwatch
-
-                  # We need to run native `tasty-discover` at compile
-                  # time, because we can't do it via `wasmtime`.
-                  (pkgs.haskell-nix.tool ghcVersion "tasty-discover" { })
-                ];
-            };
           };
         };
 
@@ -323,199 +311,292 @@
           aarch64-darwin-pkgs = pkgsFor "aarch64-darwin";
         in
         {
-          overlays.default = (final: prev:
-            let
-              ghc9123Tools = final.haskell-nix.tools "ghc9123" {
-                fourmolu = fourmoluVersion;
-                hlint = "latest";
-              };
-
-              primer = final.haskell-nix.cabalProject {
-                compiler-nix-name = ghcVersion;
-                src = ./.;
-                modules = [
-                  {
-                    # We want -Werror for Nix builds (primarily for CI).
-                    packages =
-                      let
-                        # Tell Tasty to detect missing golden tests,
-                        # rather than silently ignoring them.
-                        #
-                        # Until upstream addresses the issue, this is a
-                        # workaround for
-                        # https://github.com/hackworthltd/primer/issues/298
-                        preCheckTasty = ''
-                          export TASTY_NO_CREATE=true
-                        '';
-                      in
-                      {
-                        primer = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
-                        primer-api = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
-                        primer-benchmark = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
-                      };
-                  }
-                  {
-                    # Build everything with -O2.
-                    configureFlags = [ "-O2" ];
-
-                    # Generate HIE files for everything.
-                    writeHieFiles = true;
-
-                    # Generate nice Haddocks & a Hoogle index for
-                    # everything.
-                    doHaddock = true;
-                    doHyperlinkSource = true;
-                    doQuickjump = true;
-
-                    # Hoogle generation is currently broken:
-                    # https://github.com/input-output-hk/haskell.nix/issues/2477
-                    doHoogle = false;
-                  }
-                  {
-                    # Some packages are not visible to haskell.nix's planner, and need
-                    # to be added manually.
-                    #
-                    # Ref:
-                    # https://github.com/input-output-hk/haskell.nix/commit/61fbe408c01b6d61d010e6fb8e78bd19b5b025cc
-                    package-keys = [
-                      "bytestring-builder"
-                      "diagrams"
-                      "fail"
-                    ];
-
-                    # These packages don't/can't generate HIE files. See:
-                    # https://github.com/input-output-hk/haskell.nix/issues/1242
-                    packages.mtl-compat.writeHieFiles = false;
-                    packages.bytestring-builder.writeHieFiles = false;
-                    packages.fail.writeHieFiles = false;
-                    packages.diagrams.writeHieFiles = false;
-                    packages.happy-lib.writeHieFiles = false;
-                  }
-                  {
-                    #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-                    packages.primer.components.tests.primer-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
-                    packages.primer-api.components.tests.primer-api-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
-                  }
-                  (
-                    let
-                      # This makes it a lot easier to see which test is the culprit when CI fails.
-                      hide-successes = [ "--hide-successes" ];
-                      #TODO Haskell.nix would ideally pick this up from `cabal.project`.
-                      # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
-                      size-cutoff = [ "--size-cutoff=32768" ];
-                    in
-                    {
-                      packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
-                    }
-                  )
-                ];
-
-                shell = {
-                  # We're using a `source-repository-package`, so we must disable this.
-                  # See:
-                  # https://github.com/hackworthltd/primer/issues/876
-                  #exactDeps = true;
-
-                  # Hoogle generation is currently broken:
-                  # https://github.com/input-output-hk/haskell.nix/issues/2477
-                  withHoogle = false;
-
-                  tools = {
-                    haskell-language-server = {
-                      src = inputs.haskell-language-server;
+          overlays.default =
+            inputs.hacknix.lib.overlays.combine [
+              (final: prev: {
+                haskell-nix = prev.haskell-nix // {
+                  compiler = prev.haskell-nix.compiler // {
+                    ghc9141 = prev.haskell-nix.compiler.ghc9141.override {
+                      ghc-patches = prev.haskell-nix.compiler.ghc9141.patches ++
+                        (with final.lib; optionals final.stdenv.targetPlatform.isWasm (
+                          filter (hasSuffix ".patch") (filesystem.listFilesRecursive ./ghc-wasm-patches))
+                        );
                     };
+                  };
+                };
+              })
 
-                    ghcid = "latest";
-
-                    implicit-hie = {
-                      cabalProjectLocal = ''
-                        allow-newer: all
-                      '';
-                    };
-
-                    cabal = "latest";
-
-                    cabal-gild = "latest";
-
-                    # Disabled, as it doesn't currently build with Nix.
-                    #weeder = weederVersion;
-
-                    #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-                    tasty-discover = "latest";
+              (final: prev:
+                let
+                  ghc9123Tools = final.haskell-nix.tools "ghc9123" {
+                    fourmolu = fourmoluVersion;
+                    hlint = "latest";
                   };
 
-                  buildInputs = (with final; [
-                    nixpkgs-fmt
+                  primer = final.haskell-nix.cabalProject {
+                    compiler-nix-name = ghcVersion;
+                    src = ./.;
+                    crossPlatforms = p: [ p.wasi32 ];
+                    modules = [
+                      {
+                        # We want -Werror for Nix builds (primarily for CI).
+                        packages =
+                          let
+                            # Tell Tasty to detect missing golden tests,
+                            # rather than silently ignoring them.
+                            #
+                            # Until upstream addresses the issue, this is a
+                            # workaround for
+                            # https://github.com/hackworthltd/primer/issues/298
+                            preCheckTasty = ''
+                              export TASTY_NO_CREATE=true
+                            '';
+                          in
+                          {
+                            primer = {
+                              ghcOptions = [ "-Werror" ];
+                              preCheck = preCheckTasty;
+                            };
+                            primer-api = {
+                              ghcOptions = [ "-Werror" ];
+                              preCheck = preCheckTasty;
+                            };
+                            primer-benchmark = {
+                              ghcOptions = [ "-Werror" ];
+                              preCheck = preCheckTasty;
+                            };
+                          };
+                      }
+                      {
+                        # Build everything with -O2.
+                        configureFlags = [ "-O2" ];
 
-                    # For Language Server support.
-                    nodejs_22
+                        # Generate HIE files for everything.
+                        writeHieFiles = true;
 
-                    # Normally available via `shell.tools`, but
-                    # currently part of our overlay, instead.
-                    hlint
-                    fourmolu
-                  ]);
-                };
-              };
+                        # Generate nice Haddocks & a Hoogle index for
+                        # everything.
+                        doHaddock = true;
+                        doHyperlinkSource = true;
+                        doQuickjump = true;
 
-              primerFlake = primer.flake { };
+                        # Hoogle generation is currently broken:
+                        # https://github.com/input-output-hk/haskell.nix/issues/2477
+                        doHoogle = false;
+                      }
+                      {
+                        # Some packages are not visible to haskell.nix's planner, and need
+                        # to be added manually.
+                        #
+                        # Ref:
+                        # https://github.com/input-output-hk/haskell.nix/commit/61fbe408c01b6d61d010e6fb8e78bd19b5b025cc
+                        package-keys = [
+                          "bytestring-builder"
+                          "diagrams"
+                          "fail"
+                        ];
 
-              # Note: these benchmarks should only be run (in CI) on a
-              # "benchmark" machine. This is enforced for our CI system
-              # via Nix's `requiredSystemFeatures`.
-              #
-              # The `lastEnvChange` value is an impurity that we can
-              # modify when we want to force a new benchmark run
-              # despite the benchmarking code not having changed, as
-              # otherwise Nix will cache the results. It's intended to
-              # be used to track changes to the benchmarking
-              # environment, such as changes to hardware, that Nix
-              # doesn't know about.
-              #
-              # The value should be formatted as an ISO date, followed
-              # by a "." and a 2-digit monotonic counter, to allow for
-              # multiple changes on the same date. We store this value
-              # in a `lastEnvChange` file in the derivation output, so
-              # that we can examine results in the Nix store and know
-              # which benchmarking environment was used to generate
-              # them.
-              benchmarks =
-                let
-                  lastEnvChange = "20240408.02";
+                        # These packages don't/can't generate HIE files. See:
+                        # https://github.com/input-output-hk/haskell.nix/issues/1242
+                        packages.mtl-compat.writeHieFiles = false;
+                        packages.bytestring-builder.writeHieFiles = false;
+                        packages.fail.writeHieFiles = false;
+                        packages.diagrams.writeHieFiles = false;
+                      }
+                      {
+                        #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+                        packages.primer.components.tests.primer-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
+                        packages.primer-api.components.tests.primer-api-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
+                      }
+                      (
+                        let
+                          # This makes it a lot easier to see which test is the culprit when CI fails.
+                          hide-successes = [ "--hide-successes" ];
+                          #TODO Haskell.nix would ideally pick this up from `cabal.project`.
+                          # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
+                          size-cutoff = [ "--size-cutoff=32768" ];
+                        in
+                        {
+                          packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
+                          packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
+                          packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
+                        }
+                      )
+                    ];
+
+                    shell = {
+                      # We're using a `source-repository-package`, so we must disable this.
+                      # See:
+                      # https://github.com/hackworthltd/primer/issues/876
+                      #exactDeps = true;
+
+                      # Hoogle generation is currently broken:
+                      # https://github.com/input-output-hk/haskell.nix/issues/2477
+                      withHoogle = false;
+
+                      tools = {
+                        haskell-language-server = {
+                          src = inputs.haskell-language-server;
+                        };
+
+                        ghcid = "latest";
+
+                        implicit-hie = {
+                          cabalProjectLocal = ''
+                            allow-newer: all
+                          '';
+                        };
+
+                        cabal = "latest";
+
+                        cabal-gild = "latest";
+
+                        # Disabled, as it doesn't currently build with Nix.
+                        #weeder = weederVersion;
+
+                        #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+                        tasty-discover = "latest";
+                      };
+
+                      buildInputs = (with final; [
+                        nixpkgs-fmt
+
+                        # For Language Server support.
+                        nodejs_22
+
+                        # Normally available via `shell.tools`, but
+                        # currently part of our overlay, instead.
+                        hlint
+                        fourmolu
+
+                        simple-http-server
+                        binaryen
+                        wasm-tools
+                        brotli
+                        coreutils
+                        wizer
+                      ]);
+
+                      nativeBuildInputs = [
+                        (
+                          let
+                            wasm-dummy-liblibdl = final.runCommand "liblibdl"
+                              {
+                                nativeBuildInputs = [ final.pkgsCross.wasi32.buildPackages.llvmPackages.clang ];
+                              }
+                              ''
+                                mkdir -p $out/lib
+                                echo 'void __liblibdl_stub(void) {}' | wasm32-unknown-wasi-cc -shared -x c - -o $out/lib/liblibdl.so 2>/dev/null
+                              '';
+                            forced-wasm-ghc-pkg = final.writeShellScriptBin "ghc-pkg" ''
+                              exec wasm32-unknown-wasi-ghc-pkg "$@"
+                            '';
+                          in
+                          final.writeShellScriptBin "wasm32-unknown-wasi-cabal" ''
+                            PATH="${forced-wasm-ghc-pkg}/bin:$PATH" \
+                            LD_LIBRARY_PATH="${wasm-dummy-liblibdl}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+                            NIX_LDFLAGS=$(echo "$NIX_LDFLAGS" | tr ' ' '\n' | grep -v 'libffi-[0-9]' | tr '\n' ' ') \
+                            NIX_LDFLAGS_FOR_TARGET=$(echo "$NIX_LDFLAGS_FOR_TARGET" | tr ' ' '\n' | grep -v 'libffi-[0-9]' | tr '\n' ' ') \
+                            exec cabal \
+                              --with-ghc=wasm32-unknown-wasi-ghc \
+                              --with-compiler=wasm32-unknown-wasi-ghc \
+                              --with-ghc-pkg=wasm32-unknown-wasi-ghc-pkg \
+                              --with-hsc2hs=wasm32-unknown-wasi-hsc2hs \
+                              $(builtin type -P "wasm32-unknown-wasi-pkg-config" &> /dev/null && echo "--with-pkg-config=wasm32-unknown-wasi-pkg-config") \
+                              "$@"
+                          ''
+                        )
+
+                        (final.writeShellScriptBin "wasm32-test-runner" ''
+                          			  ${final.lib.getExe final.pkgsBuildBuild.wasmtime} --dir test::test "$@"
+                        '')
+                      ];
+
+                      shellHook =
+                        let
+                          node_modules = final.linkFarm "node_modules" [{ name = "ws"; path = inputs.ws; }];
+                        in
+                        ''
+                          export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
+                          export NODE_PATH="${node_modules}''${NODE_PATH:+:$NODE_PATH}"
+                        '';
+                    };
+                  };
+
+                  primerFlake = primer.flake { };
+
+                  # Note: these benchmarks should only be run (in CI) on a
+                  # "benchmark" machine. This is enforced for our CI system
+                  # via Nix's `requiredSystemFeatures`.
+                  #
+                  # The `lastEnvChange` value is an impurity that we can
+                  # modify when we want to force a new benchmark run
+                  # despite the benchmarking code not having changed, as
+                  # otherwise Nix will cache the results. It's intended to
+                  # be used to track changes to the benchmarking
+                  # environment, such as changes to hardware, that Nix
+                  # doesn't know about.
+                  #
+                  # The value should be formatted as an ISO date, followed
+                  # by a "." and a 2-digit monotonic counter, to allow for
+                  # multiple changes on the same date. We store this value
+                  # in a `lastEnvChange` file in the derivation output, so
+                  # that we can examine results in the Nix store and know
+                  # which benchmarking environment was used to generate
+                  # them.
+                  benchmarks =
+                    let
+                      lastEnvChange = "20240408.02";
+                    in
+                    final.callPackage ./nix/pkgs/benchmarks {
+                      inherit lastEnvChange;
+                    };
                 in
-                final.callPackage ./nix/pkgs/benchmarks {
-                  inherit lastEnvChange;
-                };
-            in
-            {
-              lib = (prev.lib or { }) // {
-                primer = (prev.lib.primer or { }) // {
-                  inherit version;
-                };
-              };
+                {
+                  lib = (prev.lib or { }) // {
+                    primer = (prev.lib.primer or { }) // {
+                      inherit version;
+                    };
+                  };
 
-              inherit primer;
+                  inherit primer;
 
-              primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
+                  primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
-              inherit (benchmarks) primer-benchmark-results-json;
-              inherit (benchmarks) primer-criterion-results-github-action-benchmark;
-              inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
+                  inherit (benchmarks) primer-benchmark-results-json;
+                  inherit (benchmarks) primer-criterion-results-github-action-benchmark;
+                  inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
 
-              inherit (ghc9123Tools) fourmolu hlint;
-            }
-          );
+                  inherit (ghc9123Tools) fourmolu hlint;
+                }
+              )
+
+              # Note: we'd prefer to do this in the overlay above
+              # where we define `primer`, but when we do that, Nix
+              # misinterprets `stdenv.targetPlatform` as the
+              # evaluation platform, so `isWasm` never evaluates to
+              # `true`. Here in its own overlay, it works as expected,
+              # like it does upstream.
+              (
+                final: prev: prev.lib.optionalAttrs prev.stdenv.targetPlatform.isWasm {
+                  haskell-nix = prev.haskell-nix // ({
+                    defaultModules = prev.haskell-nix.defaultModules ++ [
+                      ({ pkgs, ... }: {
+                        # Note: we have to use `mkForce` here to
+                        # prevent `haskell.nix` from merging
+                        # `testWrapper` settings. It would actually
+                        # work fine if the merge concatenated our
+                        # setting to upstream's, but it's actually the
+                        # opposite, which means the args are the wrong
+                        # way around.
+
+                        testWrapper = prev.lib.mkForce [ "HOME=$(mktemp -d)" (pkgs.pkgsBuildBuild.wasmtime + "/bin/wasmtime") "--dir" "test::test" ];
+                      })
+                    ];
+                  });
+                }
+              )
+            ];
 
           nixosModules.default = {
             nixpkgs.overlays = allOverlays;
