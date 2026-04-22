@@ -21,7 +21,20 @@ $(package-targets):
 clean:
 	cabal clean
 
-.PHONY: build $(project-targets) $(package-targets) clean
+# Wasm
+
+build-wasm:
+	wasm32-unknown-wasi-cabal build all
+
+test-wasm:
+	wasm32-unknown-wasi-cabal test all --test-wrapper=wasm32-test-runner
+
+frontend-targets = frontend frontend-prod serve
+
+$(frontend-targets):
+	$(MAKE) -C primer-miso $@
+
+.PHONY: build $(project-targets) $(package-targets) clean build-wasm test-wasm $(frontend-targets)
 
 # Disabled until Weeder is fixed with haskell.nix
 

@@ -15,16 +15,17 @@ mkdir dist
 cp frontend/*.html dist/
 cp frontend/*.css dist/
 cp -r frontend/fonts dist/
+cp -r --no-preserve=mode "$BROWSER_WASI_SHIM/dist" dist/browser_wasi_shim
 
-hs_wasm_path=$(wasm32-wasi-cabal list-bin -v0 exe:primer-miso)
+hs_wasm_path=$(wasm32-unknown-wasi-cabal list-bin -v0 exe:primer-miso)
 
 ghc_wasm_jsffi="dist/ghc_wasm_jsffi.js"
 
-"$(wasm32-wasi-ghc --print-libdir)"/post-link.mjs \
+"$(wasm32-unknown-wasi-ghc --print-libdir)"/post-link.mjs \
                                    --input "$hs_wasm_path" --output "$ghc_wasm_jsffi"
 
 if ! [ -f "$ghc_wasm_jsffi" ] ; then
-    echo "post-link.mjs didn't produce a $ghc_wasm_jsffi file. Make sure you're in the Nix Wasm shell."
+    echo "post-link.mjs didn't produce a $ghc_wasm_jsffi file. Make sure you're in the Nix shell."
     exit 1
 fi
 
