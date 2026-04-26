@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+program_name=${BUILD_FRONTEND_NAME:-${0##*/}}
+
+usage() {
+    cat <<EOF
+Usage: $program_name [OPTIONS]
+
+Options:
+  --dev                    Package a development frontend (default)
+  --prod                   Package a production frontend
+  --out-dir DIR            Write the frontend distribution to DIR (default: dist)
+  --frontend-dir DIR       Read static frontend files from DIR (default: frontend)
+  --browser-wasi-shim DIR  Read browser_wasi_shim from DIR (default: BROWSER_WASI_SHIM)
+  --wasm FILE              Use FILE instead of wasm32-unknown-wasi-cabal list-bin
+  --help                   Show this help
+EOF
+}
+
+require_arg() {
+    if [ "$#" -lt 2 ]; then
+        echo "$1 requires an argument" >&2
+        exit 1
+    fi
+}
+
+dev_mode=true
+out_dir=dist
+frontend_dir=frontend
+browser_wasi_shim=${BROWSER_WASI_SHIM:-}
+hs_wasm_path=
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --dev)
+            dev_mode=true
+            shift
+            ;;
+        --prod)
+            dev_mode=false
+            shift
+            ;;
+        --out-dir)
+            require_arg "$@"
+            out_dir=$2
+            shift 2
+            ;;
+        --out-dir=*)
+            out_dir=${1#--out-dir=}
+            shift
+            ;;
+        --frontend-dir)
+            require_arg "$@"
+            frontend_dir=$2
+            shift 2
+            ;;
+        --frontend-dir=*)
+            frontend_dir=${1#--frontend-dir=}
+            shift
+            ;;
+        --browser-wasi-shim)
+            require_arg "$@"
+            browser_wasi_shim=$2
+            shift 2
+            ;;
+        --browser-wasi-shim=*)
+            browser_wasi_shim=${1#--browser-wasi-shim=}
+            shift
+            ;;
+        --wasm)
+            require_arg "$@"
+            hs_wasm_path=$2
+            shift 2
+            ;;
+        --wasm=*)
+            hs_wasm_path=${1#--wasm=}
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            if [ "$#" -gt 0 ]; then
+                echo "Unexpected argument: $1" >&2
+                exit 1
+            fi
+            break
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [ -z "$out_dir" ] || [ "$out_dir" = "/" ]; then
+    echo "Refusing to package frontend into unsafe output directory: $out_dir" >&2
+    exit 1
+fi
+
+if [ -z "$browser_wasi_shim" ]; then
+    echo "BROWSER_WASI_SHIM is not set. Pass --browser-wasi-shim or run via Nix." >&2
+    exit 1
+fi
+
+if ! [ -d "$frontend_dir" ]; then
+    echo "Frontend directory does not exist: $frontend_dir" >&2
+    exit 1
+fi
+
+if ! [ -d "$browser_wasi_shim/dist" ]; then
+    echo "browser_wasi_shim dist directory does not exist: $browser_wasi_shim/dist" >&2
+    exit 1
+fi
+
+if [ -z "$hs_wasm_path" ]; then
+    hs_wasm_path=$(wasm32-unknown-wasi-cabal list-bin -v0 exe:primer-miso)
+fi
+
+if ! [ -f "$hs_wasm_path" ]; then
+    echo "Wasm executable does not exist: $hs_wasm_path" >&2
+    exit 1
+fi
+
+if $dev_mode; then
+    echo "Packaging frontend for dev"
+else
+    echo "Packaging frontend for prod"
+fi
+
+rm -rf "$out_dir"
+mkdir -p "$out_dir"
+cp "$frontend_dir"/*.html "$out_dir/"
+cp "$frontend_dir"/*.css "$out_dir/"
+cp -r "$frontend_dir/fonts" "$out_dir/"
+cp -r --no-preserve=mode "$browser_wasi_shim/dist" "$out_dir/browser_wasi_shim"
+
+ghc_wasm_jsffi="$out_dir/ghc_wasm_jsffi.js"
+
+"$(wasm32-unknown-wasi-ghc --print-libdir)"/post-link.mjs \
+    --input "$hs_wasm_path" --output "$ghc_wasm_jsffi"
+
+if ! [ -f "$ghc_wasm_jsffi" ]; then
+    echo "post-link.mjs didn't produce a $ghc_wasm_jsffi file. Make sure you're in the Nix shell."
+    exit 1
+fi
+
+if $dev_mode; then
+    cp "$hs_wasm_path" "$out_dir/app.wasm"
+else
+    wizer --allow-wasi --wasm-bulk-memory true --init-func _initialize -o "$out_dir/app.wasm" "$hs_wasm_path"
+    wasm-opt -Oz "$out_dir/app.wasm" -o "$out_dir/app.wasm"
+    wasm-tools strip -o "$out_dir/app.wasm" "$out_dir/app.wasm"
+    brotli --rm --best "$out_dir/app.wasm" -o "$out_dir/app.wasm.br"
+    mv "$out_dir/app.wasm.br" "$out_dir/app.wasm"
+fi
+
+cp "$frontend_dir"/*.js "$out_dir"

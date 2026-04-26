@@ -189,7 +189,15 @@
           };
 
           packages = {
-            inherit (pkgs) primer-benchmark;
+            inherit (pkgs)
+              primer-benchmark
+              primer-miso-build-frontend
+              primer-miso-dist
+              primer-miso-frontend-tools
+              primer-miso-node-modules
+              wasm32-test-runner
+              wasm32-unknown-wasi-cabal
+              ;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
             inherit (pkgs) primer-benchmark-results-json;
@@ -247,7 +255,7 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) primer-benchmark;
+              inherit (pkgs) primer-benchmark primer-miso-build-frontend;
             })
             // primerFlake.apps;
 
@@ -331,6 +339,22 @@
                   ghc9123Tools = final.haskell-nix.tools "ghc9123" {
                     fourmolu = fourmoluVersion;
                     hlint = "latest";
+                  };
+
+                  cabalTool = final.haskell-nix.tool ghcVersion "cabal" "latest";
+
+                  primer-miso-node-modules = final.callPackage ./nix/pkgs/primer-miso-node-modules {
+                    inherit (inputs) ws;
+                  };
+
+                  wasm32-unknown-wasi-cabal = final.callPackage ./nix/pkgs/wasm32-unknown-wasi-cabal {
+                    inherit cabalTool;
+                  };
+
+                  wasm32-test-runner = final.callPackage ./nix/pkgs/wasm32-test-runner { };
+
+                  primer-miso-frontend-tools = final.callPackage ./nix/pkgs/primer-miso-frontend-tools {
+                    inherit wasm32-unknown-wasi-cabal;
                   };
 
                   primer = final.haskell-nix.cabalProject {
@@ -461,69 +485,40 @@
                       buildInputs = (with final; [
                         nixpkgs-fmt
 
-                        # For Language Server support.
-                        nodejs_22
-
                         # Normally available via `shell.tools`, but
                         # currently part of our overlay, instead.
                         hlint
                         fourmolu
 
                         simple-http-server
-                        binaryen
-                        wasm-tools
-                        brotli
-                        coreutils
-                        wizer
                       ]);
 
                       nativeBuildInputs = [
-                        (
-                          let
-                            wasm-dummy-liblibdl = final.runCommand "liblibdl"
-                              {
-                                nativeBuildInputs = [ final.pkgsCross.wasi32.buildPackages.llvmPackages.clang ];
-                              }
-                              ''
-                                mkdir -p $out/lib
-                                echo 'void __liblibdl_stub(void) {}' | wasm32-unknown-wasi-cc -shared -x c - -o $out/lib/liblibdl.so 2>/dev/null
-                              '';
-                            forced-wasm-ghc-pkg = final.writeShellScriptBin "ghc-pkg" ''
-                              exec wasm32-unknown-wasi-ghc-pkg "$@"
-                            '';
-                          in
-                          final.writeShellScriptBin "wasm32-unknown-wasi-cabal" ''
-                            PATH="${forced-wasm-ghc-pkg}/bin:$PATH" \
-                            LD_LIBRARY_PATH="${wasm-dummy-liblibdl}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-                            NIX_LDFLAGS=$(echo "$NIX_LDFLAGS" | tr ' ' '\n' | grep -v 'libffi-[0-9]' | tr '\n' ' ') \
-                            NIX_LDFLAGS_FOR_TARGET=$(echo "$NIX_LDFLAGS_FOR_TARGET" | tr ' ' '\n' | grep -v 'libffi-[0-9]' | tr '\n' ' ') \
-                            exec cabal \
-                              --with-ghc=wasm32-unknown-wasi-ghc \
-                              --with-compiler=wasm32-unknown-wasi-ghc \
-                              --with-ghc-pkg=wasm32-unknown-wasi-ghc-pkg \
-                              --with-hsc2hs=wasm32-unknown-wasi-hsc2hs \
-                              $(builtin type -P "wasm32-unknown-wasi-pkg-config" &> /dev/null && echo "--with-pkg-config=wasm32-unknown-wasi-pkg-config") \
-                              "$@"
-                          ''
-                        )
-
-                        (final.writeShellScriptBin "wasm32-test-runner" ''
-                          			  ${final.lib.getExe final.pkgsBuildBuild.wasmtime} --dir test::test "$@"
-                        '')
+                        wasm32-test-runner
+                        primer-miso-frontend-tools
                       ];
 
-                      shellHook =
-                        let
-                          node_modules = final.linkFarm "node_modules" [{ name = "ws"; path = inputs.ws; }];
-                        in
-                        ''
-                          export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
-                          export NODE_PATH="${node_modules}''${NODE_PATH:+:$NODE_PATH}"
-                        '';
+                      shellHook = ''
+                        export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
+                        export NODE_PATH="${primer-miso-node-modules}''${NODE_PATH:+:$NODE_PATH}"
+                      '';
                     };
                   };
 
                   primerFlake = primer.flake { };
+
+                  primer-miso-build-frontend = final.callPackage ./nix/pkgs/primer-miso-build-frontend {
+                    browser-wasi-shim = inputs.browser-wasi-shim;
+                    inherit primer-miso-frontend-tools primer-miso-node-modules;
+                    wasmGhc = primer.projectCross.wasi32.pkg-set.config.ghc.package;
+                  };
+
+                  primer-miso-dist = final.callPackage ./nix/pkgs/primer-miso-dist {
+                    browser-wasi-shim = inputs.browser-wasi-shim;
+                    inherit version;
+                    inherit primer-miso-build-frontend;
+                    primer-miso-wasm = primerFlake.packages."wasm32-unknown-wasi:primer-miso:exe:primer-miso";
+                  };
 
                   # Note: these benchmarks should only be run (in CI) on a
                   # "benchmark" machine. This is enforced for our CI system
@@ -562,6 +557,15 @@
                   inherit primer;
 
                   primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
+
+                  inherit
+                    primer-miso-build-frontend
+                    primer-miso-dist
+                    primer-miso-frontend-tools
+                    primer-miso-node-modules
+                    wasm32-test-runner
+                    wasm32-unknown-wasi-cabal
+                    ;
 
                   inherit (benchmarks) primer-benchmark-results-json;
                   inherit (benchmarks) primer-criterion-results-github-action-benchmark;
