@@ -155,8 +155,12 @@ else
     wizer --allow-wasi --wasm-bulk-memory true --init-func _initialize -o "$out_dir/app.wasm" "$hs_wasm_path"
     wasm-opt -Oz "$out_dir/app.wasm" -o "$out_dir/app.wasm"
     wasm-tools strip -o "$out_dir/app.wasm" "$out_dir/app.wasm"
-    brotli --rm --best "$out_dir/app.wasm" -o "$out_dir/app.wasm.br"
-    mv "$out_dir/app.wasm.br" "$out_dir/app.wasm"
+
+    # Skip this step, as it causes problems with Cloudflare.
+    # Ref: https://github.com/hackworthltd/primer/issues/1433
+    #
+    #brotli --rm --best "$out_dir/app.wasm" -o "$out_dir/app.wasm.br"
+    #mv "$out_dir/app.wasm.br" "$out_dir/app.wasm"
 fi
 
 cp "$frontend_dir"/*.js "$out_dir"
