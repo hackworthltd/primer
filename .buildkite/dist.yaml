@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/agent-stack-k8s/main/cmd/linter/schema.json
+
+agents:
+  queue: kubernetes
+
+steps:
+  - command: |
+      set -euo pipefail
+
+      nix run --print-build-logs --no-update-lock-file .#deploy-to-cloudflare -- wrangler.toml
+    label: ":kubernetes: :nixos: :cloudflare: Deploy alpha.primer.dev"
+    concurrency: 1
+    concurrency_group: primer-dist/deploy
+    concurrency_method: ordered
+    plugins:
+      - kubernetes:
+          podTemplate: nix-ci-template
