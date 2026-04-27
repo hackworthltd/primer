@@ -190,6 +190,7 @@
 
           packages = {
             inherit (pkgs)
+              deploy-to-cloudflare
               primer-benchmark
               primer-miso-build-frontend
               primer-miso-dist
@@ -255,7 +256,7 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) primer-benchmark primer-miso-build-frontend;
+              inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend;
             })
             // primerFlake.apps;
 
@@ -520,6 +521,8 @@
                     primer-miso-wasm = primerFlake.packages."wasm32-unknown-wasi:primer-miso:exe:primer-miso";
                   };
 
+                  deploy-to-cloudflare = final.callPackage ./nix/pkgs/deploy-to-cloudflare { };
+
                   # Note: these benchmarks should only be run (in CI) on a
                   # "benchmark" machine. This is enforced for our CI system
                   # via Nix's `requiredSystemFeatures`.
@@ -559,6 +562,7 @@
                   primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
                   inherit
+                    deploy-to-cloudflare
                     primer-miso-build-frontend
                     primer-miso-dist
                     primer-miso-frontend-tools
