@@ -1084,7 +1084,11 @@ unit_handleEvalBoundedInterpRequest_modules =
               EvalBoundedInterpReq
                 { expr = foo
                 , dir = Chk
-                , timeout = MicroSec 100
+                , -- A generous guard, not a timeout assertion: this completes
+                  -- near-instantly, and the much slower wasm32 runner needs the
+                  -- headroom (cf. the divergent-term test below, which is a real
+                  -- timeout assertion and so keeps a tight bound).
+                  timeout = MicroSec 1_000_000
                 }
         expect <- char 'A'
         pure $ case resp of
@@ -1196,7 +1200,8 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
               EvalBoundedInterpReq
                 { expr = foo
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , -- A generous guard (see 'unit_handleEvalBoundedInterpRequest_modules').
+                  timeout = MicroSec 1_000_000
                 }
         expect <- con0 cFalse
         pure $ case resp of
@@ -1276,6 +1281,10 @@ unit_handleEvalBoundedInterpRequest_mapOddPrim =
         Right assertion -> assertion
 
 -- Test that 'handleEvalBoundedInterpRequest' will return timeouts.
+--
+-- Unlike the guards above, the bound here is load-bearing: the term diverges,
+-- so the test asserts the bound is actually hit. Keep it tight (a generous
+-- bound would just make the suite wait that much longer for the timeout).
 unit_handleEvalBoundedInterpRequest_timeout :: Assertion
 unit_handleEvalBoundedInterpRequest_timeout =
   let test = do
@@ -1321,7 +1330,9 @@ unit_handleEvalBoundedInterpRequest_missing_branch =
               EvalBoundedInterpReq
                 { expr = e
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , -- A generous guard: this fails fast with 'NoBranch', so the
+                  -- bound only needs to outlast that on the slow wasm32 runner.
+                  timeout = MicroSec 1_000_000
                 }
         let expect = NoBranch (Left cTrue) [PatCon cFalse]
         pure $ case resp of
@@ -1385,7 +1396,9 @@ unit_handleEvalBoundedInterpRequest_missing_branch_prim =
               EvalBoundedInterpReq
                 { expr = e
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , -- A generous guard: this fails fast with 'NoBranch', so the
+                  -- bound only needs to outlast that on the slow wasm32 runner.
+                  timeout = MicroSec 1_000_000
                 }
         let expect = NoBranch (Right (PrimChar 'a')) [PatPrim (PrimChar 'b')]
         pure $ case resp of
