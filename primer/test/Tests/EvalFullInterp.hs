@@ -1282,9 +1282,15 @@ unit_handleEvalBoundedInterpRequest_mapOddPrim =
 
 -- Test that 'handleEvalBoundedInterpRequest' will return timeouts.
 --
--- Unlike the guards above, the bound here is load-bearing: the term diverges,
--- so the test asserts the bound is actually hit. Keep it tight (a generous
--- bound would just make the suite wait that much longer for the timeout).
+-- Unlike the guards above, this bound is load-bearing: the term diverges, so the
+-- test asserts the bound is actually hit. We deliberately keep it tight rather than
+-- raising it to 1s with the guards. That costs a little signal -- at 10ms we cannot
+-- fully tell "diverges" from "merely too slow to finish in 10ms", a regime the slow
+-- wasm32 runner makes real -- but evaluating a divergent term can allocate without
+-- bound ('interp'' warns of exactly this), so spinning it ~100x longer risks
+-- exhausting that runner's memory before the timeout fires, which would flake the
+-- test. The term here ('letrec x = x in x') is so plainly divergent that the safer,
+-- tighter bound is the better trade.
 unit_handleEvalBoundedInterpRequest_timeout :: Assertion
 unit_handleEvalBoundedInterpRequest_timeout =
   let test = do
