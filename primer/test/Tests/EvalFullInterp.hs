@@ -367,6 +367,44 @@ unit_tlet_self_capture = do
         r <- evalFullTest mempty mempty Syn expr
         r @?= Right expected
 
+-- tlet a = C in (tlet v = a in v)
+--   ==>
+-- C
+--
+-- The RHS of a type-level @tlet@ must be reduced before it is bound, just as at
+-- every other binding site in the interpreter. The inner binding @v = a@ has the
+-- in-scope variable @a@ as its RHS; binding it unreduced makes the lookup of @v@
+-- return @a@ verbatim, leaving a dangling @TVar "a"@ in the result -- @a@ is out
+-- of scope once both @tlet@s have been consumed.
+-- https://github.com/hackworthltd/primer/issues/1439
+unit_tlet_reduce_rhs :: Assertion
+unit_tlet_reduce_rhs =
+  let (expr, expected) = create2 $ do
+        e0 <- ann emptyHole $ tlet "a" (tcon' ["M"] "C") $ tlet "v" (tvar "a") $ tvar "v"
+        e1 <- ann emptyHole $ tcon' ["M"] "C"
+        pure (e0, e1)
+   in do
+        r <- evalFullTest mempty mempty Syn expr
+        r @?= Right expected
+
+-- tlet v = (tlet w = C in w) in (v -> v)
+--   ==>
+-- C -> C
+--
+-- A second witness: when the RHS is itself reducible (here another @tlet@),
+-- binding it unreduced leaves residual @tlet@s in the result instead of a
+-- normal form.
+-- https://github.com/hackworthltd/primer/issues/1439
+unit_tlet_reduce_rhs_let :: Assertion
+unit_tlet_reduce_rhs_let =
+  let (expr, expected) = create2 $ do
+        e0 <- ann emptyHole $ tlet "v" (tlet "w" (tcon' ["M"] "C") $ tvar "w") $ tfun (tvar "v") (tvar "v")
+        e1 <- ann emptyHole $ tfun (tcon' ["M"] "C") (tcon' ["M"] "C")
+        pure (e0, e1)
+   in do
+        r <- evalFullTest mempty mempty Syn expr
+        r @?= Right expected
+
 -- This test is mainly for the step evaluator, but we check it here as
 -- well just for completeness.
 unit_closed_let_beta :: Assertion
