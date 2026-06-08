@@ -380,7 +380,11 @@ interpTy env = \case
   TForall _ v k t ->
     let v' = freshLikeTy v env
      in TForall () v' k (interpTy (extendTyEnv' v (TVar () v') env) t)
-  TLet _ v s t -> interpTy (extendTyEnv' v s env) t
+  -- We must reduce the RHS before binding it, just as every other binding site
+  -- does: the 'TVar' case returns stored values verbatim, relying on the
+  -- environment holding normal forms. (Type evaluation always terminates, so
+  -- this cannot loop.)
+  TLet _ v s t -> interpTy (extendTyEnv' v (interpTy env s) env) t
 
 extendTmEnv ::
   Either GVarName LVarName ->
