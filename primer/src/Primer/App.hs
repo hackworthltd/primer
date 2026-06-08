@@ -720,7 +720,7 @@ handleEvalInterpRequest ::
 handleEvalInterpRequest (EvalInterpReq{expr, dir}) = do
   app <- ask
   let prog = appProg app
-  let env = mkGlobalEnv (progDefMap prog)
+  let env = mkGlobalEnv (progTypeDefMap prog) (progDefMap prog)
   result <- runFreshM app $ generateIDs $ interp' (progTypeDefMap prog) env dir (forgetMetadata expr)
   pure $ EvalInterpRespNormal result
 
@@ -744,7 +744,7 @@ handleEvalBoundedInterpRequest ::
 handleEvalBoundedInterpRequest (EvalBoundedInterpReq{expr, dir, timeout}) = do
   app <- ask
   let prog = appProg app
-  let env = mkGlobalEnv (progDefMap prog)
+  let env = mkGlobalEnv (progTypeDefMap prog) (progDefMap prog)
   result <- liftIO $ interp timeout (progTypeDefMap prog) env dir (forgetMetadata expr)
   case result of
     Left x -> pure $ EvalBoundedInterpRespFailed x

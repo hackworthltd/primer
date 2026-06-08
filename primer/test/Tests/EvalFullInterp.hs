@@ -23,6 +23,8 @@ import Primer.App (
   handleEvalInterpRequest,
   importModules,
   newEmptyApp,
+  progDefMap,
+  progTypeDefMap,
  )
 import Primer.Builtins (
   boolDef,
@@ -30,6 +32,7 @@ import Primer.Builtins (
   cFalse,
   cJust,
   cMakePair,
+  cNil,
   cNothing,
   cTrue,
   cZero,
@@ -37,6 +40,7 @@ import Primer.Builtins (
   tList,
   tMaybe,
   tNat,
+  tPair,
  )
 import Primer.Builtins.DSL (boolAnn, nat)
 import Primer.Core
@@ -46,10 +50,28 @@ import Primer.Core.Utils (
   forgetMetadata,
   generateIDs,
  )
-import Primer.Def (DefMap)
+import Primer.Def (
+  ASTDef (ASTDef),
+  Def (DefAST),
+  DefMap,
+ )
 import Primer.Eval
 import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), interp, mkGlobalEnv)
 import Primer.EvalFullStep (evalFullStepCount)
+import Primer.Examples (
+  even3App,
+  even3MainExpected,
+  even3MainName,
+  even3Prog,
+  mapOddApp,
+  mapOddMainExpected,
+  mapOddMainName,
+  mapOddPrimApp,
+  mapOddPrimMainExpected,
+  mapOddPrimMainName,
+  mapOddPrimProg,
+  mapOddProg,
+ )
 import Primer.Gen.Core.Typed (forAllT, propertyWT)
 import Primer.Module (
   Module (..),
@@ -893,38 +915,138 @@ unit_prim_partial_map =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_interp_even3 :: Assertion
--- unit_interp_even3 =
---   let (prog, _, _) = even3Prog
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar even3MainName
---       expect = forgetMetadata even3MainExpected
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_even3 :: Assertion
+unit_interp_even3 =
+  let (prog, _, _) = even3Prog
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar even3MainName
+      expect = forgetMetadata even3MainExpected
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
 
--- unit_interp_mapOdd2 :: Assertion
--- unit_interp_mapOdd2 =
---   let (prog, _, _) = mapOddProg 2
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar mapOddMainName
---       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_mapOdd2 :: Assertion
+unit_interp_mapOdd2 =
+  let (prog, _, _) = mapOddProg 2
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar mapOddMainName
+      expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
 
--- unit_interp_mapOddPrim2 :: Assertion
--- unit_interp_mapOddPrim2 =
---   let (prog, _, _) = mapOddPrimProg 2
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar mapOddPrimMainName
---       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_mapOddPrim2 :: Assertion
+unit_interp_mapOddPrim2 =
+  let (prog, _, _) = mapOddPrimProg 2
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar mapOddPrimMainName
+      expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
+
+-- A top-level definition whose body is a redex (here a @case@) reduces, and so
+-- does a definition that references another definition. These are smaller,
+-- bespoke versions of the programs above for
+-- https://github.com/hackworthltd/primer/issues/1247.
+unit_interp_toplevel_redex :: Assertion
+unit_interp_toplevel_redex =
+  let modName = mkSimpleModuleName "TestModule"
+      x = qualifyName modName "x"
+      (globals, forgetMetadata -> expr, forgetMetadata -> expect) = create' $ do
+        xBody <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [ branch cTrue [] (con0 cFalse)
+            , branch cFalse [] (con0 cTrue)
+            ]
+        xTy <- tcon tBool
+        e <- gvar x
+        expected <- con0 cFalse
+        pure ([(x, DefAST (ASTDef xBody xTy))], e, expected)
+   in do
+        s <- evalFullTest builtinTypes (M.fromList globals) Chk expr
+        s @?= Right expect
+
+unit_interp_toplevel_reference :: Assertion
+unit_interp_toplevel_reference =
+  let modName = mkSimpleModuleName "TestModule"
+      a = qualifyName modName "a"
+      b = qualifyName modName "b"
+      (globals, forgetMetadata -> expr, forgetMetadata -> expect) = create' $ do
+        aBody <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [ branch cTrue [] (con0 cFalse)
+            , branch cFalse [] (con0 cTrue)
+            ]
+        aTy <- tcon tBool
+        bBody <-
+          case_
+            (gvar a)
+            [ branch cFalse [] (con0 cTrue)
+            , branch cTrue [] (con0 cFalse)
+            ]
+        bTy <- tcon tBool
+        e <- gvar b
+        expected <- con0 cTrue
+        pure
+          ( [(a, DefAST (ASTDef aBody aTy)), (b, DefAST (ASTDef bBody bTy))]
+          , e
+          , expected
+          )
+   in do
+        s <- evalFullTest builtinTypes (M.fromList globals) Chk expr
+        s @?= Right expect
+
+-- A recursive top-level definition has no finite normal form (we evaluate under
+-- binders), so the App, Let and Case rules record the free variables of the raw
+-- expression rather than of the bound value's normal form -- otherwise binding
+-- such a definition as a value and then entering a binder would diverge. One
+-- test per site: each binds the recursive 'odd' and then enters '\y -> y'.
+unit_interp_recursive_value_app :: Assertion
+unit_interp_recursive_value_app =
+  let (prog, _, _) = even3Prog
+      oddName = qualifyName (mkSimpleModuleName "Even3") "odd"
+      expr =
+        create1 $
+          app
+            ( ann
+                (lam "o" (lam "y" (lvar "y")))
+                (tfun (tfun (tcon tNat) (tcon tBool)) (tfun (tcon tBool) (tcon tBool)))
+            )
+            (gvar oddName)
+   in do
+        s <- evalFullTest (progTypeDefMap prog) (progDefMap prog) Chk expr
+        s @?= Right (create1 (lam "y" (lvar "y")))
+
+unit_interp_recursive_value_let :: Assertion
+unit_interp_recursive_value_let =
+  let (prog, _, _) = even3Prog
+      oddName = qualifyName (mkSimpleModuleName "Even3") "odd"
+      expr = create1 $ let_ "o" (gvar oddName) (ann (lam "y" (lvar "y")) (tfun (tcon tBool) (tcon tBool)))
+   in do
+        s <- evalFullTest (progTypeDefMap prog) (progDefMap prog) Chk expr
+        s @?= Right (create1 (lam "y" (lvar "y")))
+
+unit_interp_recursive_value_case :: Assertion
+unit_interp_recursive_value_case =
+  let (prog, _, _) = even3Prog
+      oddName = qualifyName (mkSimpleModuleName "Even3") "odd"
+      expr =
+        create1 $
+          case_
+            ( ann
+                (con cMakePair [gvar oddName, con0 cTrue])
+                (tapp (tapp (tcon tPair) (tfun (tcon tNat) (tcon tBool))) (tcon tBool))
+            )
+            [branch cMakePair [("o", Nothing), ("b", Nothing)] (ann (lam "y" (lvar "y")) (tfun (tcon tBool) (tcon tBool)))]
+   in do
+        s <- evalFullTest (progTypeDefMap prog) (progDefMap prog) Chk expr
+        s @?= Right (create1 (lam "y" (lvar "y")))
 
 -- Test that 'handleEvalInterpRequest' will reduce imported terms
 unit_handleEvalInterpRequest_modules :: Assertion
@@ -962,7 +1084,11 @@ unit_handleEvalBoundedInterpRequest_modules =
               EvalBoundedInterpReq
                 { expr = foo
                 , dir = Chk
-                , timeout = MicroSec 100
+                , -- A generous guard, not a timeout assertion: this completes
+                  -- near-instantly, and the much slower wasm32 runner needs the
+                  -- headroom (cf. the divergent-term test below, which is a real
+                  -- timeout assertion and so keeps a tight bound).
+                  timeout = MicroSec 1_000_000
                 }
         expect <- char 'A'
         pure $ case resp of
@@ -975,53 +1101,53 @@ unit_handleEvalBoundedInterpRequest_modules =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_handleEvalInterpRequest_even3 :: Assertion
--- unit_handleEvalInterpRequest_even3 =
---   let test = do
---         expr <- gvar even3MainName
---         (EvalInterpRespNormal e) <-
---           readerToState
---             $ handleEvalInterpRequest
---             $ EvalInterpReq
---               { expr = expr
---               , dir = Chk
---               }
---         pure $ e ~= even3MainExpected
---    in runAppTestM even3App test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalInterpRequest_even3 :: Assertion
+unit_handleEvalInterpRequest_even3 =
+  let test = do
+        expr <- gvar even3MainName
+        (EvalInterpRespNormal e) <-
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = expr
+                , dir = Chk
+                }
+        pure $ e ~= even3MainExpected
+   in runAppTestM even3App test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalInterpRequest_mapOdd :: Assertion
--- unit_handleEvalInterpRequest_mapOdd =
---   let test = do
---         expr <- gvar mapOddMainName
---         (EvalInterpRespNormal e) <-
---           readerToState
---             $ handleEvalInterpRequest
---             $ EvalInterpReq
---               { expr = expr
---               , dir = Chk
---               }
---         pure $ e ~= mapOddMainExpected
---    in runAppTestM mapOddApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalInterpRequest_mapOdd :: Assertion
+unit_handleEvalInterpRequest_mapOdd =
+  let test = do
+        expr <- gvar mapOddMainName
+        (EvalInterpRespNormal e) <-
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = expr
+                , dir = Chk
+                }
+        pure $ e ~= mapOddMainExpected
+   in runAppTestM mapOddApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalInterpRequest_mapOddPrim :: Assertion
--- unit_handleEvalInterpRequest_mapOddPrim =
---   let test = do
---         expr <- gvar mapOddPrimMainName
---         (EvalInterpRespNormal e) <-
---           readerToState
---             $ handleEvalInterpRequest
---             $ EvalInterpReq
---               { expr = expr
---               , dir = Chk
---               }
---         pure $ e ~= mapOddPrimMainExpected
---    in runAppTestM mapOddPrimApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalInterpRequest_mapOddPrim :: Assertion
+unit_handleEvalInterpRequest_mapOddPrim =
+  let test = do
+        expr <- gvar mapOddPrimMainName
+        (EvalInterpRespNormal e) <-
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = expr
+                , dir = Chk
+                }
+        pure $ e ~= mapOddPrimMainExpected
+   in runAppTestM mapOddPrimApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- Test that 'handleEvalInterpRequest' will reduce case analysis of
 -- imported types
@@ -1074,7 +1200,8 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
               EvalBoundedInterpReq
                 { expr = foo
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , -- A generous guard (see 'unit_handleEvalBoundedInterpRequest_modules').
+                  timeout = MicroSec 1_000_000
                 }
         expect <- con0 cFalse
         pure $ case resp of
@@ -1096,64 +1223,74 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_handleEvalBoundedInterpRequest_even3 :: Assertion
--- unit_handleEvalBoundedInterpRequest_even3 =
---   let test = do
---         expr <- gvar even3MainName
---         resp <-
---           readerToState
---             $ handleEvalBoundedInterpRequest
---             $ EvalBoundedInterpReq
---               { expr = expr
---               , dir = Chk
---               , timeout = MicroSec 10_000
---               }
---         pure $ case resp of
---           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= even3MainExpected
---    in runAppTestM even3App test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalBoundedInterpRequest_even3 :: Assertion
+unit_handleEvalBoundedInterpRequest_even3 =
+  let test = do
+        expr <- gvar even3MainName
+        resp <-
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = expr
+                , dir = Chk
+                , timeout = MicroSec 1_000_000
+                }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= even3MainExpected
+   in runAppTestM even3App test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalBoundedInterpRequest_mapOdd :: Assertion
--- unit_handleEvalBoundedInterpRequest_mapOdd =
---   let test = do
---         expr <- gvar mapOddMainName
---         resp <-
---           readerToState
---             $ handleEvalBoundedInterpRequest
---             $ EvalBoundedInterpReq
---               { expr = expr
---               , dir = Chk
---               , timeout = MicroSec 10_000
---               }
---         pure $ case resp of
---           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= mapOddMainExpected
---    in runAppTestM mapOddApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalBoundedInterpRequest_mapOdd :: Assertion
+unit_handleEvalBoundedInterpRequest_mapOdd =
+  let test = do
+        expr <- gvar mapOddMainName
+        resp <-
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = expr
+                , dir = Chk
+                , timeout = MicroSec 1_000_000
+                }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= mapOddMainExpected
+   in runAppTestM mapOddApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalBoundedInterpRequest_mapOddPrim :: Assertion
--- unit_handleEvalBoundedInterpRequest_mapOddPrim =
---   let test = do
---         expr <- gvar mapOddPrimMainName
---         resp <-
---           readerToState
---             $ handleEvalBoundedInterpRequest
---             $ EvalBoundedInterpReq
---               { expr = expr
---               , dir = Chk
---               , timeout = MicroSec 10_000
---               }
---         pure $ case resp of
---           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= mapOddPrimMainExpected
---    in runAppTestM mapOddPrimApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalBoundedInterpRequest_mapOddPrim :: Assertion
+unit_handleEvalBoundedInterpRequest_mapOddPrim =
+  let test = do
+        expr <- gvar mapOddPrimMainName
+        resp <-
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = expr
+                , dir = Chk
+                , timeout = MicroSec 1_000_000
+                }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= mapOddPrimMainExpected
+   in runAppTestM mapOddPrimApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- Test that 'handleEvalBoundedInterpRequest' will return timeouts.
+--
+-- Unlike the guards above, this bound is load-bearing: the term diverges, so the
+-- test asserts the bound is actually hit. We deliberately keep it tight rather than
+-- raising it to 1s with the guards. That costs a little signal -- at 10ms we cannot
+-- fully tell "diverges" from "merely too slow to finish in 10ms", a regime the slow
+-- wasm32 runner makes real -- but evaluating a divergent term can allocate without
+-- bound ('interp'' warns of exactly this), so spinning it ~100x longer risks
+-- exhausting that runner's memory before the timeout fires, which would flake the
+-- test. The term here ('letrec x = x in x') is so plainly divergent that the safer,
+-- tighter bound is the better trade.
 unit_handleEvalBoundedInterpRequest_timeout :: Assertion
 unit_handleEvalBoundedInterpRequest_timeout =
   let test = do
@@ -1199,7 +1336,9 @@ unit_handleEvalBoundedInterpRequest_missing_branch =
               EvalBoundedInterpReq
                 { expr = e
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , -- A generous guard: this fails fast with 'NoBranch', so the
+                  -- bound only needs to outlast that on the slow wasm32 runner.
+                  timeout = MicroSec 1_000_000
                 }
         let expect = NoBranch (Left cTrue) [PatCon cFalse]
         pure $ case resp of
@@ -1263,7 +1402,9 @@ unit_handleEvalBoundedInterpRequest_missing_branch_prim =
               EvalBoundedInterpReq
                 { expr = e
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , -- A generous guard: this fails fast with 'NoBranch', so the
+                  -- bound only needs to outlast that on the slow wasm32 runner.
+                  timeout = MicroSec 1_000_000
                 }
         let expect = NoBranch (Right (PrimChar 'a')) [PatPrim (PrimChar 'b')]
         pure $ case resp of
@@ -1381,7 +1522,7 @@ unit_lazy_head =
 -- * Utilities
 
 evalFullTest' :: Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest' t tydefs = interp t tydefs . mkGlobalEnv
+evalFullTest' t tydefs = interp t tydefs . mkGlobalEnv tydefs
 
 evalFullTest :: TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 evalFullTest = evalFullTest' (MicroSec (-1)) -- negative time means wait forever
