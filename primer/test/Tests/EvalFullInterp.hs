@@ -40,6 +40,7 @@ import Primer.Builtins (
   tList,
   tMaybe,
   tNat,
+  tPair,
  )
 import Primer.Builtins.DSL (boolAnn, nat)
 import Primer.Core
@@ -1000,6 +1001,52 @@ unit_interp_toplevel_reference =
    in do
         s <- evalFullTest builtinTypes (M.fromList globals) Chk expr
         s @?= Right expect
+
+-- A recursive top-level definition has no finite normal form (we evaluate under
+-- binders), so the App, Let and Case rules record the free variables of the raw
+-- expression rather than of the bound value's normal form -- otherwise binding
+-- such a definition as a value and then entering a binder would diverge. One
+-- test per site: each binds the recursive 'odd' and then enters '\y -> y'.
+unit_interp_recursive_value_app :: Assertion
+unit_interp_recursive_value_app =
+  let (prog, _, _) = even3Prog
+      oddName = qualifyName (mkSimpleModuleName "Even3") "odd"
+      expr =
+        create1 $
+          app
+            ( ann
+                (lam "o" (lam "y" (lvar "y")))
+                (tfun (tfun (tcon tNat) (tcon tBool)) (tfun (tcon tBool) (tcon tBool)))
+            )
+            (gvar oddName)
+   in do
+        s <- evalFullTest (progTypeDefMap prog) (progDefMap prog) Chk expr
+        s @?= Right (create1 (lam "y" (lvar "y")))
+
+unit_interp_recursive_value_let :: Assertion
+unit_interp_recursive_value_let =
+  let (prog, _, _) = even3Prog
+      oddName = qualifyName (mkSimpleModuleName "Even3") "odd"
+      expr = create1 $ let_ "o" (gvar oddName) (ann (lam "y" (lvar "y")) (tfun (tcon tBool) (tcon tBool)))
+   in do
+        s <- evalFullTest (progTypeDefMap prog) (progDefMap prog) Chk expr
+        s @?= Right (create1 (lam "y" (lvar "y")))
+
+unit_interp_recursive_value_case :: Assertion
+unit_interp_recursive_value_case =
+  let (prog, _, _) = even3Prog
+      oddName = qualifyName (mkSimpleModuleName "Even3") "odd"
+      expr =
+        create1 $
+          case_
+            ( ann
+                (con cMakePair [gvar oddName, con0 cTrue])
+                (tapp (tapp (tcon tPair) (tfun (tcon tNat) (tcon tBool))) (tcon tBool))
+            )
+            [branch cMakePair [("o", Nothing), ("b", Nothing)] (ann (lam "y" (lvar "y")) (tfun (tcon tBool) (tcon tBool)))]
+   in do
+        s <- evalFullTest (progTypeDefMap prog) (progDefMap prog) Chk expr
+        s @?= Right (create1 (lam "y" (lvar "y")))
 
 -- Test that 'handleEvalInterpRequest' will reduce imported terms
 unit_handleEvalInterpRequest_modules :: Assertion
