@@ -122,7 +122,7 @@ benchmarks =
         runDiscardLogT $
           EFStep.evalFull @EFStep.EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMInterp e d =
-      EFInterp.interp' builtinTypes (EFInterp.mkGlobalEnv $ defMap e) d (forgetMetadata $ expr e)
+      EFInterp.interp' builtinTypes (EFInterp.mkGlobalEnv builtinTypes (defMap e)) d (forgetMetadata $ expr e)
 
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF

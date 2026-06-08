@@ -94,25 +94,36 @@ mkEnv tms prims tys =
     , extendTysEnv' (second forgetTypeMetadata <$> tys) $ EnvTy mempty mempty
     )
 
--- | Convert an environment into the form needed for 'interp'
-mkGlobalEnv :: DefMap -> (EnvTm, EnvTy)
-mkGlobalEnv defs =
-  mkEnv
-    ( mapMaybe
+-- | Convert a set of global definitions into the form needed for 'interp'.
+-- Each definition is stored as its normal form (computed lazily), in a
+-- self-referential environment, so that a reference to a global reduces just
+-- like a local @let@ binding, and (mutually) recursive definitions can refer
+-- to one another. We need the 'TypeDefMap' because computing those normal
+-- forms runs 'interp'', which must be able to reduce @case@ expressions.
+mkGlobalEnv :: TypeDefMap -> DefMap -> (EnvTm, EnvTy)
+mkGlobalEnv tydefs defs = env
+  where
+    env = extendTmsEnvWithFVs globals (EnvTm mempty mempty prims, EnvTy mempty mempty)
+    -- We take the free variables from the raw definition body, not from its
+    -- normal form: the latter can be infinite (we evaluate under binders, so a
+    -- recursive definition has no finite normal form), and forcing its free
+    -- variables would loop.
+    globals =
+      mapMaybe
         ( \(f, d) -> case d of
-            DefAST (ASTDef tm ty) -> Just (Left f, Ann () (forgetMetadata tm) (forgetTypeMetadata ty))
+            DefAST (ASTDef tm ty) ->
+              let body = Ann () (forgetMetadata tm) (forgetTypeMetadata ty)
+               in Just (Left f, interp' tydefs env Syn body, freeVars body)
             _ -> Nothing
         )
-        $ Map.assocs defs
-    )
-    ( Map.mapMaybe
+        (Map.assocs defs)
+    prims =
+      Map.mapMaybe
         ( \case
             DefPrim p -> Just p
             _ -> Nothing
         )
         defs
-    )
-    mempty
 
 data InterpError
   = Timeout
@@ -224,7 +235,20 @@ interp' tydefs env@(envTm, envTy) dir = \case
         interp' tydefs env dir r
   App _ f s -> case interp' tydefs env Syn f of
     Ann _ (Lam _ v t) (TFun _ src tgt) ->
-      ann dir (interp' tydefs (extendTmsEnv [(Right v, Ann () (interp' tydefs env Chk s) src)] env) Chk t) tgt
+      -- NB: the free variables we record come from the raw argument @s@, not
+      -- its normal form. The normal form can be infinite (when @s@ reduces to
+      -- a recursive function, since we evaluate under binders), so forcing its
+      -- free variables would loop; the raw free variables are a safe finite
+      -- superset.
+      ann
+        dir
+        ( interp'
+            tydefs
+            (extendTmEnvWithFVs (Right v) (Ann () (interp' tydefs env Chk s) src) (freeVars (Ann () s src)) env)
+            Chk
+            t
+        )
+        tgt
     f' -> App () f' $ interp' tydefs env Chk s
   APP _ f s -> case interp' tydefs env Syn f of
     Ann _ (LAM _ a t) (TForall _ b _ ty) ->
@@ -242,7 +266,10 @@ interp' tydefs env@(envTm, envTy) dir = \case
   LAM _ v t -> let v' = freshLike v env in LAM () v' $ interp' tydefs (extendTyEnv v (TVar () v') env) Chk t
   Var _ (LocalVarRef v) -> upsilon dir $ envTm.env ! Right v -- recall the environment is in normal form
   Var _ (GlobalVarRef v) -> upsilon dir $ envTm.env ! Left v -- recall the environment is in normal form
-  Let _ v e b -> interp' tydefs (extendTmEnv (Right v) (interp' tydefs env Syn e) env) dir b
+  -- NB: as with App (above) and Letrec (below), we record the bound variable's
+  -- free variables from the raw definition @e@, not from its normal form, which
+  -- may be infinite when @e@ reduces to a recursive function.
+  Let _ v e b -> interp' tydefs (extendTmEnvWithFVs (Right v) (interp' tydefs env Syn e) (freeVars e) env) dir b
   LetType _ v t b -> interp' tydefs (extendTyEnv v (interpTy envTy t) env) dir b
   -- this interpretation af letrec can easily cause deadlocked or infinite-size programs
   -- and can't be detected but has advantage of being lazy and having sharing
@@ -264,15 +291,17 @@ interp' tydefs env@(envTm, envTy) dir = \case
       Ann _ (Con _ c as) (decomposeTAppCon -> Just (tycon, tyargs))
         | Just (CaseBranch _ xs t) <- find ((PatCon c ==) . caseBranchName) brs ->
             let envTy' = extendTysEnv' (tyParamEnvExt tycon tyargs) envTy
+                -- NB: as with App/Let/Letrec, the bound variables' free
+                -- variables come from the raw scrutinee @e@, not the (possibly
+                -- infinite) normal forms of the constructor arguments @as@.
+                -- Argument types always have finite normal forms, so we take
+                -- their free variables directly.
+                mkBind x (a, argTy) =
+                  let argTy' = interpTy envTy' argTy
+                   in (Right $ bindName x, Ann () a argTy', freeVars e <> Set.map unLocalName (freeVarsTy argTy'))
              in interp'
                   tydefs
-                  ( extendTmsEnv
-                      ( zip (Right . bindName <$> xs) $
-                          zipWith (\a argTy -> Ann () a $ interpTy envTy' argTy) as $
-                            ctorArgTys tycon c
-                      )
-                      env
-                  )
+                  (extendTmsEnvWithFVs (zipWith mkBind xs (zip as (ctorArgTys tycon c))) env)
                   Chk
                   t
         | CaseFallback t <- fb -> interp' tydefs env Chk t

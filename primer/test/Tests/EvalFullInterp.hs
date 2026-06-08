@@ -23,6 +23,8 @@ import Primer.App (
   handleEvalInterpRequest,
   importModules,
   newEmptyApp,
+  progDefMap,
+  progTypeDefMap,
  )
 import Primer.Builtins (
   boolDef,
@@ -30,6 +32,7 @@ import Primer.Builtins (
   cFalse,
   cJust,
   cMakePair,
+  cNil,
   cNothing,
   cTrue,
   cZero,
@@ -46,10 +49,28 @@ import Primer.Core.Utils (
   forgetMetadata,
   generateIDs,
  )
-import Primer.Def (DefMap)
+import Primer.Def (
+  ASTDef (ASTDef),
+  Def (DefAST),
+  DefMap,
+ )
 import Primer.Eval
 import Primer.EvalFullInterp (InterpError (..), Timeout (MicroSec), interp, mkGlobalEnv)
 import Primer.EvalFullStep (evalFullStepCount)
+import Primer.Examples (
+  even3App,
+  even3MainExpected,
+  even3MainName,
+  even3Prog,
+  mapOddApp,
+  mapOddMainExpected,
+  mapOddMainName,
+  mapOddPrimApp,
+  mapOddPrimMainExpected,
+  mapOddPrimMainName,
+  mapOddPrimProg,
+  mapOddProg,
+ )
 import Primer.Gen.Core.Typed (forAllT, propertyWT)
 import Primer.Module (
   Module (..),
@@ -893,38 +914,92 @@ unit_prim_partial_map =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_interp_even3 :: Assertion
--- unit_interp_even3 =
---   let (prog, _, _) = even3Prog
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar even3MainName
---       expect = forgetMetadata even3MainExpected
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_even3 :: Assertion
+unit_interp_even3 =
+  let (prog, _, _) = even3Prog
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar even3MainName
+      expect = forgetMetadata even3MainExpected
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
 
--- unit_interp_mapOdd2 :: Assertion
--- unit_interp_mapOdd2 =
---   let (prog, _, _) = mapOddProg 2
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar mapOddMainName
---       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_mapOdd2 :: Assertion
+unit_interp_mapOdd2 =
+  let (prog, _, _) = mapOddProg 2
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar mapOddMainName
+      expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
 
--- unit_interp_mapOddPrim2 :: Assertion
--- unit_interp_mapOddPrim2 =
---   let (prog, _, _) = mapOddPrimProg 2
---       types = progTypeDefMap prog
---       defs = progDefMap prog
---       expr = create1 $ gvar mapOddPrimMainName
---       expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
---    in do
---         s <- evalFullTest types defs Chk expr
---         s @?= Right expect
+unit_interp_mapOddPrim2 :: Assertion
+unit_interp_mapOddPrim2 =
+  let (prog, _, _) = mapOddPrimProg 2
+      types = progTypeDefMap prog
+      defs = progDefMap prog
+      expr = create1 $ gvar mapOddPrimMainName
+      expect = create1 $ con cCons [con0 cFalse, con cCons [con0 cTrue, con cNil []]]
+   in do
+        s <- evalFullTest types defs Chk expr
+        s @?= Right expect
+
+-- A top-level definition whose body is a redex (here a @case@) reduces, and so
+-- does a definition that references another definition. These are smaller,
+-- bespoke versions of the programs above for
+-- https://github.com/hackworthltd/primer/issues/1247.
+unit_interp_toplevel_redex :: Assertion
+unit_interp_toplevel_redex =
+  let modName = mkSimpleModuleName "TestModule"
+      x = qualifyName modName "x"
+      (globals, forgetMetadata -> expr, forgetMetadata -> expect) = create' $ do
+        xBody <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [ branch cTrue [] (con0 cFalse)
+            , branch cFalse [] (con0 cTrue)
+            ]
+        xTy <- tcon tBool
+        e <- gvar x
+        expected <- con0 cFalse
+        pure ([(x, DefAST (ASTDef xBody xTy))], e, expected)
+   in do
+        s <- evalFullTest builtinTypes (M.fromList globals) Chk expr
+        s @?= Right expect
+
+unit_interp_toplevel_reference :: Assertion
+unit_interp_toplevel_reference =
+  let modName = mkSimpleModuleName "TestModule"
+      a = qualifyName modName "a"
+      b = qualifyName modName "b"
+      (globals, forgetMetadata -> expr, forgetMetadata -> expect) = create' $ do
+        aBody <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [ branch cTrue [] (con0 cFalse)
+            , branch cFalse [] (con0 cTrue)
+            ]
+        aTy <- tcon tBool
+        bBody <-
+          case_
+            (gvar a)
+            [ branch cFalse [] (con0 cTrue)
+            , branch cTrue [] (con0 cFalse)
+            ]
+        bTy <- tcon tBool
+        e <- gvar b
+        expected <- con0 cTrue
+        pure
+          ( [(a, DefAST (ASTDef aBody aTy)), (b, DefAST (ASTDef bBody bTy))]
+          , e
+          , expected
+          )
+   in do
+        s <- evalFullTest builtinTypes (M.fromList globals) Chk expr
+        s @?= Right expect
 
 -- Test that 'handleEvalInterpRequest' will reduce imported terms
 unit_handleEvalInterpRequest_modules :: Assertion
@@ -975,53 +1050,53 @@ unit_handleEvalBoundedInterpRequest_modules =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_handleEvalInterpRequest_even3 :: Assertion
--- unit_handleEvalInterpRequest_even3 =
---   let test = do
---         expr <- gvar even3MainName
---         (EvalInterpRespNormal e) <-
---           readerToState
---             $ handleEvalInterpRequest
---             $ EvalInterpReq
---               { expr = expr
---               , dir = Chk
---               }
---         pure $ e ~= even3MainExpected
---    in runAppTestM even3App test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalInterpRequest_even3 :: Assertion
+unit_handleEvalInterpRequest_even3 =
+  let test = do
+        expr <- gvar even3MainName
+        (EvalInterpRespNormal e) <-
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = expr
+                , dir = Chk
+                }
+        pure $ e ~= even3MainExpected
+   in runAppTestM even3App test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalInterpRequest_mapOdd :: Assertion
--- unit_handleEvalInterpRequest_mapOdd =
---   let test = do
---         expr <- gvar mapOddMainName
---         (EvalInterpRespNormal e) <-
---           readerToState
---             $ handleEvalInterpRequest
---             $ EvalInterpReq
---               { expr = expr
---               , dir = Chk
---               }
---         pure $ e ~= mapOddMainExpected
---    in runAppTestM mapOddApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalInterpRequest_mapOdd :: Assertion
+unit_handleEvalInterpRequest_mapOdd =
+  let test = do
+        expr <- gvar mapOddMainName
+        (EvalInterpRespNormal e) <-
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = expr
+                , dir = Chk
+                }
+        pure $ e ~= mapOddMainExpected
+   in runAppTestM mapOddApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalInterpRequest_mapOddPrim :: Assertion
--- unit_handleEvalInterpRequest_mapOddPrim =
---   let test = do
---         expr <- gvar mapOddPrimMainName
---         (EvalInterpRespNormal e) <-
---           readerToState
---             $ handleEvalInterpRequest
---             $ EvalInterpReq
---               { expr = expr
---               , dir = Chk
---               }
---         pure $ e ~= mapOddPrimMainExpected
---    in runAppTestM mapOddPrimApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalInterpRequest_mapOddPrim :: Assertion
+unit_handleEvalInterpRequest_mapOddPrim =
+  let test = do
+        expr <- gvar mapOddPrimMainName
+        (EvalInterpRespNormal e) <-
+          readerToState $
+            handleEvalInterpRequest $
+              EvalInterpReq
+                { expr = expr
+                , dir = Chk
+                }
+        pure $ e ~= mapOddPrimMainExpected
+   in runAppTestM mapOddPrimApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- Test that 'handleEvalInterpRequest' will reduce case analysis of
 -- imported types
@@ -1096,62 +1171,62 @@ unit_handleEvalBoundedInterpRequest_modules_scrutinize_imported_type =
 
 -- https://github.com/hackworthltd/primer/issues/1247
 
--- unit_handleEvalBoundedInterpRequest_even3 :: Assertion
--- unit_handleEvalBoundedInterpRequest_even3 =
---   let test = do
---         expr <- gvar even3MainName
---         resp <-
---           readerToState
---             $ handleEvalBoundedInterpRequest
---             $ EvalBoundedInterpReq
---               { expr = expr
---               , dir = Chk
---               , timeout = MicroSec 10_000
---               }
---         pure $ case resp of
---           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= even3MainExpected
---    in runAppTestM even3App test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalBoundedInterpRequest_even3 :: Assertion
+unit_handleEvalBoundedInterpRequest_even3 =
+  let test = do
+        expr <- gvar even3MainName
+        resp <-
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = expr
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= even3MainExpected
+   in runAppTestM even3App test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalBoundedInterpRequest_mapOdd :: Assertion
--- unit_handleEvalBoundedInterpRequest_mapOdd =
---   let test = do
---         expr <- gvar mapOddMainName
---         resp <-
---           readerToState
---             $ handleEvalBoundedInterpRequest
---             $ EvalBoundedInterpReq
---               { expr = expr
---               , dir = Chk
---               , timeout = MicroSec 10_000
---               }
---         pure $ case resp of
---           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= mapOddMainExpected
---    in runAppTestM mapOddApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalBoundedInterpRequest_mapOdd :: Assertion
+unit_handleEvalBoundedInterpRequest_mapOdd =
+  let test = do
+        expr <- gvar mapOddMainName
+        resp <-
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = expr
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= mapOddMainExpected
+   in runAppTestM mapOddApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
--- unit_handleEvalBoundedInterpRequest_mapOddPrim :: Assertion
--- unit_handleEvalBoundedInterpRequest_mapOddPrim =
---   let test = do
---         expr <- gvar mapOddPrimMainName
---         resp <-
---           readerToState
---             $ handleEvalBoundedInterpRequest
---             $ EvalBoundedInterpReq
---               { expr = expr
---               , dir = Chk
---               , timeout = MicroSec 10_000
---               }
---         pure $ case resp of
---           EvalBoundedInterpRespFailed err -> assertFailure $ show err
---           EvalBoundedInterpRespNormal e -> e ~= mapOddPrimMainExpected
---    in runAppTestM mapOddPrimApp test <&> fst >>= \case
---         Left err -> assertFailure $ show err
---         Right assertion -> assertion
+unit_handleEvalBoundedInterpRequest_mapOddPrim :: Assertion
+unit_handleEvalBoundedInterpRequest_mapOddPrim =
+  let test = do
+        expr <- gvar mapOddPrimMainName
+        resp <-
+          readerToState $
+            handleEvalBoundedInterpRequest $
+              EvalBoundedInterpReq
+                { expr = expr
+                , dir = Chk
+                , timeout = MicroSec 10_000
+                }
+        pure $ case resp of
+          EvalBoundedInterpRespFailed err -> assertFailure $ show err
+          EvalBoundedInterpRespNormal e -> e ~= mapOddPrimMainExpected
+   in runAppTestM mapOddPrimApp test <&> fst >>= \case
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- Test that 'handleEvalBoundedInterpRequest' will return timeouts.
 unit_handleEvalBoundedInterpRequest_timeout :: Assertion
@@ -1381,7 +1456,7 @@ unit_lazy_head =
 -- * Utilities
 
 evalFullTest' :: Timeout -> TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
-evalFullTest' t tydefs = interp t tydefs . mkGlobalEnv
+evalFullTest' t tydefs = interp t tydefs . mkGlobalEnv tydefs
 
 evalFullTest :: TypeDefMap -> DefMap -> Dir -> Expr' () () () -> IO (Either InterpError (Expr' () () ()))
 evalFullTest = evalFullTest' (MicroSec (-1)) -- negative time means wait forever
