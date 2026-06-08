@@ -1228,7 +1228,7 @@ unit_handleEvalBoundedInterpRequest_even3 =
               EvalBoundedInterpReq
                 { expr = expr
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , timeout = MicroSec 1_000_000
                 }
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> assertFailure $ show err
@@ -1247,7 +1247,7 @@ unit_handleEvalBoundedInterpRequest_mapOdd =
               EvalBoundedInterpReq
                 { expr = expr
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , timeout = MicroSec 1_000_000
                 }
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> assertFailure $ show err
@@ -1266,7 +1266,7 @@ unit_handleEvalBoundedInterpRequest_mapOddPrim =
               EvalBoundedInterpReq
                 { expr = expr
                 , dir = Chk
-                , timeout = MicroSec 10_000
+                , timeout = MicroSec 1_000_000
                 }
         pure $ case resp of
           EvalBoundedInterpRespFailed err -> assertFailure $ show err

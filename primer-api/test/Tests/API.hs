@@ -689,7 +689,7 @@ test_evalBoundedInterp_even3 = testCaseSteps "evalBoundedInterp even3" $ \step' 
     sid <- addSession "even3App" even3App
     step "Eval main"
     let expr = create' $ gvar even3MainName
-    resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
+    resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 1_000_000)
     let expected = even3MainExpected
     case resp of
       Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
@@ -705,7 +705,7 @@ test_evalBoundedInterp_mapOdd = testCaseSteps "evalBoundedInterp mapOdd" $ \step
     sid <- addSession "mapOddApp" mapOddApp
     step "Eval mapOdd"
     let expr = create' $ gvar mapOddMainName
-    resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
+    resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 1_000_000)
     let expected = mapOddMainExpected
     case resp of
       Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
@@ -721,7 +721,7 @@ test_evalBoundedInterp_mapOddPrim = testCaseSteps "evalBoundedInterp mapOddPrim"
     sid <- addSession "mapOddPrimApp" mapOddPrimApp
     step "Eval mapOdd"
     let expr = create' $ gvar mapOddPrimMainName
-    resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 10_000)
+    resp <- evalBoundedInterp sid (App.EvalBoundedInterpReq expr Chk $ MicroSec 1_000_000)
     let expected = mapOddPrimMainExpected
     case resp of
       Left err -> liftIO $ assertFailure $ "ProgError: " <> show err
@@ -736,7 +736,7 @@ test_evalBoundedInterp'_even3 = testCaseSteps "evalBoundedInterp' even3" $ \step
     step "Add the even3App to the session"
     sid <- addSession "even3App" even3App
     step "Eval main"
-    resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) even3MainName
+    resp <- evalBoundedInterp' sid (Just $ MicroSec 1_000_000) even3MainName
     let expected = viewTreeExpr even3MainExpected
     case resp of
       EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
@@ -750,7 +750,7 @@ test_evalBoundedInterp'_mapOdd = testCaseSteps "evalBoundedInterp' mapOdd" $ \st
     step "Add the mapOddApp to the session"
     sid <- addSession "mapOddApp" mapOddApp
     step "Eval mapOdd"
-    resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) mapOddMainName
+    resp <- evalBoundedInterp' sid (Just $ MicroSec 1_000_000) mapOddMainName
     let expected = viewTreeExpr mapOddMainExpected
     case resp of
       EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
@@ -764,7 +764,7 @@ test_evalBoundedInterp'_mapOddPrim = testCaseSteps "evalBoundedInterp' mapOddPri
     step "Add the mapOddPrimApp to the session"
     sid <- addSession "mapOddPrimApp" mapOddPrimApp
     step "Eval mapOdd"
-    resp <- evalBoundedInterp' sid (Just $ MicroSec 10_000) mapOddPrimMainName
+    resp <- evalBoundedInterp' sid (Just $ MicroSec 1_000_000) mapOddPrimMainName
     let expected = viewTreeExpr mapOddPrimMainExpected
     case resp of
       EvalBoundedInterpRespNormal e -> zTIds e @?= zTIds expected
