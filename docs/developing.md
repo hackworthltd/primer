@@ -59,6 +59,40 @@ may have some success with [NixOS on
 WSL](https://github.com/nix-community/NixOS-WSL), but we don't have
 the resources to provide any support for this environment.
 
+## The WebAssembly frontend
+
+`primer-miso` is built with GHC's WebAssembly backend, cross-compiled
+via haskell.nix. `make frontend` builds it and packages `dist`, and
+`make serve` additionally serves that on port 8000. Both are run from
+the `primer-miso` directory.
+
+A few constraints are worth knowing about, because they're not obvious
+and you'll break things if you undo them:
+
+* **The Wasm build uses its own `dist-newstyle-wasm`.** This is set
+  by `--builddir` in the `wasm32-unknown-wasi-cabal` wrapper, so that
+  every subcommand agrees on it. Without it, the Wasm and native builds
+  share `dist-newstyle/cache` and each invalidates the other's
+  configuration.
+
+* **`primer-miso` must not use Template Haskell.** Running a splice
+  requires HLS to load the relevant package's shared library, and
+  haskell.nix currently produces two builds of some packages that share
+  a SONAME and unit ID but differ in content. Since the dynamic loader
+  resolves by SONAME, HLS's own copy wins over ours and the splice fails
+  with an undefined symbol. Write the code out by hand instead - see
+  `Primer.Miso.Layout` for the lenses this cost us.
+
+* **The dev shell strips the Wasm compiler-rt from the linker flags.**
+  Both toolchains share `NIX_LDFLAGS`/`NIX_LDFLAGS_FOR_TARGET`, and that
+  directory contains a `libgcc.a` of Wasm objects which native links
+  would otherwise pick up. Don't widen this to strip Wasm paths
+  generally: the Wasm build needs the rest.
+
+* **Nothing in the frontend cache-busts its assets**, so `make serve`
+  passes `--nocache`. If you serve `dist` some other way, disable HTTP
+  caching or you'll be debugging a stale `app.wasm`.
+
 ## `Makefile` targets
 
 For interactive development workflows, both with and without Nix, we
