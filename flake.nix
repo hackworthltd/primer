@@ -502,6 +502,26 @@
                       shellHook = ''
                         export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
                         export NODE_PATH="${primer-miso-node-modules}''${NODE_PATH:+:$NODE_PATH}"
+
+                        # `crossPlatforms = p: [ p.wasi32 ]` makes haskell.nix propagate the
+                        # Wasm toolchain's library paths into the linker flags that the
+                        # *native* toolchain also reads (in this shell both toolchains are
+                        # registered in the "target" role, so they share `NIX_LDFLAGS` and
+                        # `NIX_LDFLAGS_FOR_TARGET`). The Wasm compiler-rt ships a `libgcc.a`
+                        # of Wasm objects, so a native link resolves `-lgcc` to it and dies:
+                        #   ld.gold: error: gcc: plugin failed to claim member udivti3.c.obj
+                        #
+                        # Drop just that one directory. The Wasm build doesn't need it
+                        # explicitly (Clang finds its own builtins from `--target`), whereas
+                        # the other Wasm entries here - libffi-wasm in particular - *are*
+                        # needed, so we must not strip Wasm paths wholesale. This mirrors the
+                        # Wasm Cabal wrapper, which conversely strips the native libffi.
+                        for _var in NIX_LDFLAGS NIX_LDFLAGS_FOR_TARGET; do
+                          if [ -n "''${!_var:-}" ]; then
+                            export "$_var=$(echo "''${!_var}" | tr ' ' '\n' | grep -v 'compiler-rt-static-wasm32' | tr '\n' ' ')"
+                          fi
+                        done
+                        unset _var
                       '';
                     };
                   };
