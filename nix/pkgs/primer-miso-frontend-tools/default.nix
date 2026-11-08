@@ -5,7 +5,7 @@
 , gnugrep
 , nodejs_22
 , wasm-tools
-, wasm32-unknown-wasi-cabal
+, wasm32-unknown-wasip1-cabal
 , wizer
 }:
 
@@ -18,7 +18,7 @@ buildEnv {
     gnugrep
     nodejs_22
     wasm-tools
-    wasm32-unknown-wasi-cabal
+    wasm32-unknown-wasip1-cabal
     wizer
   ];
 }

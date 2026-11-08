@@ -24,10 +24,10 @@ clean:
 # Wasm
 
 build-wasm:
-	wasm32-unknown-wasi-cabal build all
+	wasm32-unknown-wasip1-cabal build all
 
 test-wasm:
-	wasm32-unknown-wasi-cabal test all --test-wrapper=wasm32-test-runner
+	wasm32-unknown-wasip1-cabal test all --test-wrapper=wasm32-test-runner
 
 frontend-targets = frontend frontend-prod serve
 

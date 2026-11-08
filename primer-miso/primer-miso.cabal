@@ -52,7 +52,7 @@ executable primer-miso
     -fhide-source-paths
 
   build-depends:
-    aeson >=2.0 && <2.3,
+    aeson >=2.0 && <2.4,
     base >=4.12 && <4.23,
     bytestring >=0.10.8.2 && <0.13,
     clay >=0.15 && <0.17,
