@@ -46,11 +46,11 @@ Differences from upstream:
 - Use `optics` instead of `lens`.
 - Make some adjustments so that y-coordinates are always non-negative, with the root being at zero.
 - Avoid partial `maximum` function.
+- Hand-write lenses instead of using TH, to avoid HLS failing in the Haskell.nix shell.
 -}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoLexicalNegation #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -80,7 +80,7 @@ import Data.Tree (Tree (Node, rootLabel))
 import Linear (V2 (V2), (*^))
 import Linear.Affine (Affine ((.+^)), Point (P), origin)
 
-import Optics (makeLenses, (^.))
+import Optics (Lens', lens, (^.))
 import Primer.Miso.Util (P2, unitX, unit_Y)
 
 ------------------------------------------------------------
@@ -224,7 +224,14 @@ data SymmLayoutOpts n a
   --   the documentation for 'slWidth' for more information.
   }
 
-makeLenses ''SymmLayoutOpts
+slHSep :: Lens' (SymmLayoutOpts n a) n
+slHSep = lens _slHSep (\o x -> o{_slHSep = x})
+slVSep :: Lens' (SymmLayoutOpts n a) n
+slVSep = lens _slVSep (\o x -> o{_slVSep = x})
+slWidth :: Lens' (SymmLayoutOpts n a) (a -> (n, n))
+slWidth = lens _slWidth (\o x -> o{_slWidth = x})
+slHeight :: Lens' (SymmLayoutOpts n a) (a -> (n, n))
+slHeight = lens _slHeight (\o x -> o{_slHeight = x})
 
 instance Num n => Default (SymmLayoutOpts n a) where
   def =
