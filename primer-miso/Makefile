@@ -11,4 +11,4 @@ frontend-prod: build-wasm
 	nix run ..#primer-miso-build-frontend -- --prod --frontend-dir frontend --out-dir dist
 
 serve: frontend
-	simple-http-server -i -p 8000 -- dist
+	simple-http-server -i --nocache -p 8000 -- dist
