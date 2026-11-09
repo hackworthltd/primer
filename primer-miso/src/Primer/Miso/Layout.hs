@@ -16,18 +16,27 @@
 -- we keep each subtree's contours as separate lists, as Section 8.3 suggests for a purely functional implementation.
 -- We use plain lists rather than catenable deques, so we lose the guarantee of linear running time,
 -- which is no great loss at the sizes of tree we deal with.
+--
+-- As an extension, a child may be placed 'Beside' its parent rather than 'Below' it,
+-- i.e. to its right, with their tops aligned. This suits things which, while not really subexpressions,
+-- belong with a node, such as the variable bound by a lambda, or the branches of a pattern match.
+-- A node, along with its children below it, is packed against the subtrees of its children beside it
+-- exactly as siblings are packed against each other, so these never overlap, and are free to tuck underneath each other.
+-- It's the node itself, rather than the whole group, which its own parent is centred over.
 module Primer.Miso.Layout (
   tidyLayout,
   TidyOpts (..),
   defaultTidyOpts,
   Layering (..),
+  Placement (..),
 ) where
 
 import Foreword
 
 import Data.IntMap.Strict qualified as IntMap
+import Data.List (partition)
 import Data.List.NonEmpty qualified as NE
-import Data.Tree (Tree (Node), levels)
+import Data.Tree (Tree (Node), subForest)
 import Linear (V2 (V2))
 import Linear.Affine (Point (P))
 import Primer.Miso.Util (P2)
@@ -51,7 +60,18 @@ data TidyOpts n a = TidyOpts
   -- This spreads smaller subtrees evenly between larger siblings, rather than piling them up against the left one.
   , nodeSize :: a -> V2 n
   -- ^ Width and height.
+  , placement :: a -> Placement
+  -- ^ This is ignored for the root.
   }
+
+-- | Where to position a node relative to its parent.
+data Placement
+  = -- | Below the parent, as in a conventional tree.
+    Below
+  | -- | To the right of the parent, at the same height.
+    -- Such a node counts as being at its parent's depth, for 'Layered' placement.
+    Beside
+  deriving stock (Eq, Show)
 
 defaultTidyOpts :: Num n => (a -> V2 n) -> TidyOpts n a
 defaultTidyOpts nodeSize =
@@ -61,6 +81,7 @@ defaultTidyOpts nodeSize =
     , layering = NonLayered
     , symmetric = True
     , nodeSize
+    , placement = const Below
     }
 
 -- | Lay out a tree, annotating each node with the position of its centre.
@@ -74,24 +95,34 @@ data Box n a = Box
   { label :: a
   , size :: V2 n
   -- ^ The size of the node itself, as opposed to its box.
+  , placement :: Placement
   , top :: n
   , width :: n
   , height :: n
   }
 
 boxes :: (Num n, Ord n) => TidyOpts n a -> Tree a -> Tree (Box n a)
-boxes opts t = go 0 layerHeights t
+boxes opts t = go Below 0 layerHeights t
   where
-    go top hs (Node label ts) =
+    go placement top hs (Node label ts) =
       let size@(V2 w h) = opts.nodeSize label
           height =
             opts.verticalGap + case (opts.layering, hs) of
               (Layered, h' : _) -> h'
               _ -> h
-       in Node Box{label, size, top, width = w + opts.horizontalGap, height} $
-            map (go (top + height) $ drop 1 hs) ts
+       in Node Box{label, size, placement, top, width = w + opts.horizontalGap, height} $
+            ts <&> \c@(Node a _) -> case opts.placement a of
+              Below -> go Below (top + height) (drop 1 hs) c
+              Beside -> go Beside top hs c
     -- In the layered case, all nodes at the same depth are considered to be equally tall (Section 2).
-    layerHeights = map (foldl' max 0 . map ((\(V2 _ h) -> h) . opts.nodeSize)) $ levels t
+    -- Children placed beside a node count as being at the same depth.
+    layerHeights =
+      map (foldl' max 0 . map (\(Node a _) -> let V2 _ h = opts.nodeSize a in h))
+        . takeWhile (not . null)
+        . iterate (concatMap $ concatMap row . childrenAt Below)
+        $ row t
+    row n = n : concatMap row (childrenAt Beside n)
+    childrenAt p = filter (\(Node a _) -> opts.placement a == p) . subForest
 
 -- | One side of the outline of a subtree, from top to bottom (Section 3).
 -- Each element covers the vertical range from the bottom of the previous one (or the subtree's top) to its own bottom.
@@ -115,21 +146,46 @@ data Laid n a = Laid
 
 walk :: (Fractional n, Ord n) => Bool -> Tree (Box n a) -> Laid n a
 walk symmetric (Node b ts) =
-  let self side = Extent{bottom = b.top + b.height, edge = side * b.width / 2}
-   in case nonEmpty $ map (walk symmetric) ts of
-        Nothing -> Laid{tree = Node (b, 0) [], left = [self (-1)], right = [self 1], lowest = b.top + b.height}
-        Just children ->
-          let siblings = foldl' (addSibling symmetric) (firstSibling $ NE.head children) (NE.tail children)
-              xs = spaceSiblings siblings
-              -- `positionRoot` (lines 105-109).
-              rootX = (NE.head xs + NE.last xs) / 2
-           in Laid
-                { tree = Node (b, 0) . toList $ NE.zipWith (\c x -> setX (x - rootX) c.tree) children xs
-                , left = self (-1) : move (-rootX) siblings.left
-                , right = self 1 : move (-rootX) siblings.right
-                , lowest = foldl' max (b.top + b.height) $ (.lowest) <$> children
-                }
+  case nonEmpty beside of
+    Nothing -> core
+    Just besideChildren ->
+      -- We pack the node and its children below it against its children beside it, as though they were all siblings.
+      let (xs, siblings) = arrange $ core :| map snd (toList besideChildren)
+          rootX :| xs' = xs
+          Node root belowTrees = core.tree
+       in Laid
+            { tree =
+                Node root . map snd . sortOn fst $
+                  zip (map fst below) belowTrees
+                    <> zipWith (\(i, c) x -> (i, setX (x - rootX) c.tree)) (toList besideChildren) xs'
+            , left = move (-rootX) siblings.left
+            , right = move (-rootX) siblings.right
+            , lowest = foldl' max core.lowest $ (.lowest) . snd <$> besideChildren
+            }
   where
+    -- We remember each child's index, so that we can restore the original order at the end.
+    (below, beside) =
+      bimap (map snd) (map snd) . partition ((== Below) . fst) $
+        zipWith (\i t@(Node b' _) -> (b'.placement, (i, walk symmetric t))) [0 :: Int ..] ts
+    -- The node itself, along with its children below it.
+    core =
+      let self side = Extent{bottom = b.top + b.height, edge = side * b.width / 2}
+       in case nonEmpty $ map snd below of
+            Nothing -> Laid{tree = Node (b, 0) [], left = [self (-1)], right = [self 1], lowest = b.top + b.height}
+            Just children ->
+              let (xs, siblings) = arrange children
+                  -- `positionRoot` (lines 105-109).
+                  rootX = (NE.head xs + NE.last xs) / 2
+               in Laid
+                    { tree = Node (b, 0) . toList $ NE.zipWith (\c x -> setX (x - rootX) c.tree) children xs
+                    , left = self (-1) : move (-rootX) siblings.left
+                    , right = self 1 : move (-rootX) siblings.right
+                    , lowest = foldl' max (b.top + b.height) $ (.lowest) <$> children
+                    }
+    -- Place subtrees side by side, returning their x-coordinates relative to the first.
+    arrange children =
+      let siblings = foldl' (addSibling symmetric) (firstSibling $ NE.head children) (NE.tail children)
+       in (spaceSiblings siblings, siblings)
     setX x (Node (b', _) cs) = Node (b', x) cs
 
 -- | The siblings placed so far, with x-coordinates relative to the first.

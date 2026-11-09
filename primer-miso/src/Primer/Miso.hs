@@ -149,6 +149,7 @@ import Primer.Log (runPureLogT)
 import Primer.Miso.ActionName (actionName)
 import Primer.Miso.Layout (
   Layering (NonLayered),
+  Placement (Below, Beside),
   TidyOpts (..),
   tidyLayout,
  )
@@ -874,6 +875,7 @@ data NodeViewData action = NodeViewData
   { id :: Maybe ID
   , clickAction :: Maybe action
   , highlight :: NodeHighlight
+  , placement :: Placement
   , level :: Level
   , opts :: NodeViewOpts action
   }
@@ -987,7 +989,7 @@ viewTreeExpr ::
   Tree.Tree (NodeViewData action)
 viewTreeExpr mkMeta e =
   Tree.Node
-    (uncurry3 NodeViewData (mkMeta $ Left $ e ^. _exprMetaLens) Expr nodeView)
+    (uncurry3 NodeViewData (mkMeta $ Left $ e ^. _exprMetaLens) Below Expr nodeView)
     childViews
   where
     nodeView = case e of
@@ -1007,30 +1009,36 @@ viewTreeExpr mkMeta e =
       PrimCon _ c -> PrimNode c
       Case{} -> SyntaxNode True "match" "match"
     childViews = case e of
+      -- The scrutinee goes below, and the branches form a chain off to the right.
       Case _ scrut branches fb ->
-        mconcat
-          [ [viewTreeExpr mkMeta scrut]
-          , branches <&> \(CaseBranch p bindings r) ->
-              Tree.Node
-                ( NodeViewData Nothing Nothing NoHighlight Expr
-                    $ PatternBoxNode
-                    $ Just
-                    $ viewTree
-                    $ Tree.Node
-                      ( NodeViewData Nothing Nothing NoHighlight Expr case p of
-                          PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
-                          PatPrim c -> PrimNode c
-                      )
-                    $ bindings <&> \(Bind m v) ->
-                      Tree.Node
-                        (uncurry3 NodeViewData (mkMeta $ Left m) Expr VarNode{name = unLocalName v, mscope = Nothing})
-                        []
+        viewTreeExpr mkMeta scrut
+          : maybeToList
+            ( foldr
+                ( \(pat, r) next ->
+                    Just
+                      . Tree.Node (NodeViewData Nothing Nothing NoHighlight Beside Expr $ PatternBoxNode pat)
+                      $ viewTreeExpr mkMeta r : maybeToList next
                 )
-                [viewTreeExpr mkMeta r]
-          , case fb of
-              CaseExhaustive -> []
-              CaseFallback r -> [Tree.Node (NodeViewData Nothing Nothing NoHighlight Expr $ PatternBoxNode Nothing) [viewTreeExpr mkMeta r]]
-          ]
+                Nothing
+                $ ( branches <&> \(CaseBranch p bindings r) ->
+                      ( Just
+                          . viewTree
+                          . Tree.Node
+                            ( NodeViewData Nothing Nothing NoHighlight Below Expr case p of
+                                PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
+                                PatPrim c -> PrimNode c
+                            )
+                          $ bindings <&> \(Bind m v) ->
+                            Tree.Node
+                              (uncurry3 NodeViewData (mkMeta $ Left m) Below Expr VarNode{name = unLocalName v, mscope = Nothing})
+                              []
+                      , r
+                      )
+                  )
+                  <> case fb of
+                    CaseExhaustive -> []
+                    CaseFallback r -> [(Nothing, r)]
+            )
       _ ->
         mconcat
           [ map (viewTreeBinding Type) (e ^.. typeBindingsInExpr)
@@ -1039,7 +1047,7 @@ viewTreeExpr mkMeta e =
           , map (viewTreeExpr mkMeta) (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight Beside l VarNode{name = unLocalName name, mscope = Nothing}) []
 
 viewTreeType ::
   (Data b, Data c) =>
@@ -1048,7 +1056,7 @@ viewTreeType ::
   Tree.Tree (NodeViewData action)
 viewTreeType mkMeta t =
   Tree.Node
-    (uncurry3 NodeViewData (mkMeta $ Left $ t ^. _typeMetaLens) Type nodeView)
+    (uncurry3 NodeViewData (mkMeta $ Left $ t ^. _typeMetaLens) Below Type nodeView)
     childViews
   where
     nodeView = case t of
@@ -1062,7 +1070,7 @@ viewTreeType mkMeta t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (NodeViewData Nothing Nothing NoHighlight Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (NodeViewData Nothing Nothing NoHighlight Beside Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
         <> map (viewTreeType mkMeta) (children t)
@@ -1074,7 +1082,7 @@ viewTreeKind ::
   Tree.Tree (NodeViewData action)
 viewTreeKind mkMeta k =
   Tree.Node
-    (uncurry3 NodeViewData (mkMeta $ k ^. _kindMetaLens) Kind nodeView)
+    (uncurry3 NodeViewData (mkMeta $ k ^. _kindMetaLens) Below Kind nodeView)
     childViews
   where
     nodeView = case k of
@@ -1141,6 +1149,7 @@ viewTree t =
           , layering = NonLayered
           , symmetric = True
           , nodeSize = snd
+          , placement = (.placement) . fst
           }
         $ map (\opts -> (opts, getDimensions opts.opts)) t
     getDimensions = \case
