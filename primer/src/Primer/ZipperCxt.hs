@@ -31,7 +31,6 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata)
-import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
@@ -103,19 +102,13 @@ extractLocalsExprZ = foldAbove getBoundHere
   where
     getBoundHere :: FoldAbove Expr -> ShadowedVarsExpr
     getBoundHere e = case current e of
-      Lam m (Bind _ x) _ ->
-        let tx = case typeOrHole m of
-              TFun _ a _ -> a
-              _ -> TEmptyHole ()
-         in M [] [(x, tx)] []
-      LAM m (Bind _ n) _ ->
-        let k = case typeOrHole m of
-              TForall _ _ a _ -> a
-              _ -> KHole ()
-         in M [(n, k)] [] []
-      Let _ (Bind _ x) e1 _
+      -- The types and kinds of variables bound by lambdas and lets are cached in their bindings.
+      -- For letrecs and let types, we instead use the annotation and bound type respectively, which are the source of truth.
+      Lam _ (Bind m x) _ -> M [] [(x, typeOrHole m)] []
+      LAM _ (Bind m n) _ -> M [(n, fromMaybe (KHole ()) $ m ^. _type)] [] []
+      Let _ (Bind m x) e1 _
         | prior e == e1 -> mempty
-        | otherwise -> M [] [(x, typeOrHole' $ maybeTypeOf e1)] []
+        | otherwise -> M [] [(x, typeOrHole m)] []
       Letrec _ (Bind _ x) _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
       LetType _ (Bind _ x) ty _ -> M [(x, kindOrHoleOf ty)] [] []
       Case _ _ branches _ ->
