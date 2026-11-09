@@ -43,6 +43,7 @@ import Miso (
  )
 import Miso.CSS (style_)
 import Miso.DSL ((#))
+import Miso.Event (stopPropagation)
 import Miso.FFI (alert)
 import Miso.Html (
   button_,
@@ -53,6 +54,7 @@ import Miso.Html (
   onChange,
   onChecked,
   onClick,
+  onClickWithOptions,
   onInput,
   onSubmit,
   textarea_,
@@ -69,7 +71,7 @@ import Miso.Html.Property (
 import Miso.Navigator (copyClipboard)
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
-import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
+import Optics (ix, lensVL, to, use, (%), (%~), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
 import Primer.Action (toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
@@ -135,6 +137,7 @@ import Primer.Core (
   typesInExpr,
   _exprMetaLens,
   _kindMetaLens,
+  _type,
   _typeMetaLens,
  )
 import Primer.Core qualified as Primer
@@ -153,9 +156,11 @@ import Primer.Miso.Layout (
   TidyOpts (..),
   tidyLayout,
  )
+import Primer.Miso.Projection (Projection (StringProjection), projectString)
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
   EvalExprT,
+  ExprInfo (projection),
   P2,
   SelectionT,
   TermMeta',
@@ -170,6 +175,7 @@ import Primer.Miso.Util (
   bindingsInExpr,
   bindingsInType,
   clayToMiso,
+  defaultProjections,
   findASTTypeOrTermDef,
   forgetExprInfo,
   kindsInType,
@@ -179,6 +185,7 @@ import Primer.Miso.Util (
   realToClay,
   runMutationWithNullDb,
   runTC,
+  setProjection,
   setSelectionAction,
   showMs,
   stringToOpt,
@@ -195,7 +202,7 @@ component =
     { model =
         Model
           { app = initialApp
-          , defsT = syncDefs $ snd <$> progAllDefs (appProg initialApp)
+          , defsT = syncDefs (snd <$> progAllDefs (appProg initialApp)) mempty
           , readOnlySelection = Nothing
           , components =
               ComponentModels
@@ -323,6 +330,8 @@ data Action
   | SetApp Primer.App.App
   | SetEvalOpts (EvalOpts -> EvalOpts)
   | ToggleFullscreenEval
+  | SetDefProjection GVarName ID (Maybe Projection)
+  | SetEvalProjection ID (Maybe Projection)
   | ChooseRedex ID
   | StepBackEval
   | SetInterpResult (Either InterpError (Expr' () () ()))
@@ -404,7 +413,7 @@ updateModel = \case
     resetActionPanel
   SetApp a -> do
     #app .= a
-    #defsT .= syncDefs (snd <$> progAllDefs (appProg a))
+    #defsT %= syncDefs (snd <$> progAllDefs (appProg a))
     setEval
   SetEvalOpts f -> do
     #components % #eval % #opts %= f
@@ -416,6 +425,11 @@ updateModel = \case
       app <- use #app
       let (expr, s) = either absurd identity $ runTC (succ $ appIdCounter app, succ $ appNameCounter app) $ generateIDs e
       #components % #eval % #history .= [(fromEvalResult expr, ([], Nothing), s)]
+  SetDefProjection def id p -> #defsT % ix def % #expr %= setProjection id p
+  SetEvalProjection id p ->
+    #components % #eval % #history %= \case
+      [] -> [] -- TODO warn here? this shouldn't happen since we don't display the eval panel in this state
+      (expr, rxs, s) : h -> (setProjection id p expr, rxs, s) : h
   ChooseRedex id -> do
     (tydefs, defs, _) <- getDefs <$> use #app
     use (#components % #eval % #history) >>= \case
@@ -460,6 +474,7 @@ updateModel = \case
     -- TODO this replaces the whole app, including its undo history, so it can't itself be undone
     replaceApp app = do
       #readOnlySelection .= Nothing
+      #defsT .= mempty
       resetActionPanel
       updateModel $ SetApp app
     -- TODO find a more principled way to decide when to do this, or just run it all the time
@@ -509,9 +524,9 @@ updateModel = \case
           io_ $ logAllToConsole redexesLogs
           pure EvalModel{opts, fullscreen, history = [(fromEvalResult expr, rxs, s')]}
       #components % #eval .= evalModel
-    -- Note that any frontend-only metadata of the definition being evaluated, or of the previous step, is lost,
-    -- since the core doesn't pass it through (see `ExprInfo`).
-    fromEvalResult = addExprInfo
+    -- Note that any projections chosen in the previous step, or in the definition being evaluated, are lost,
+    -- since the core doesn't pass through our metadata (see `ExprInfo`).
+    fromEvalResult = defaultProjections . addExprInfo
     -- TODO `findRedex` and `redexes` do a lot of the same work - we should find some way to use a single fold
     getRedexes (opts :: EvalOpts) tydefs defs expr = runIdentity $ runPureLogT @_ @(WithSeverity EvalLog) do
       normalOrderRedex <- runMaybeT $ getID <$> findRedex opts.normalOrder opts.viewRedex tydefs defs opts.dir expr
@@ -681,6 +696,7 @@ viewModel Model{..} =
                   [ fst
                       . viewTree
                       $ viewTreeExpr
+                        (SetDefProjection sel'.def)
                         ( mkMetaSelectable $
                             SelectionDef
                               . DefSelection sel'.def
@@ -832,7 +848,7 @@ viewModel Model{..} =
                 <> case components.eval.history of
                   [] -> [text "No definition selected for evaluation"]
                   (expr, rxs, _) : _ ->
-                    [fst . viewTree $ viewTreeExpr (mkMeta' . getID) expr]
+                    [fst . viewTree $ viewTreeExpr SetEvalProjection (mkMeta' . getID) expr]
                     where
                       mkMeta' id =
                         if id `notElem` fst rxs
@@ -883,6 +899,8 @@ data NodeViewData action = NodeViewData
   { id :: Maybe ID
   , clickAction :: Maybe action
   , highlight :: NodeHighlight
+  , projectionToggle :: Maybe (MisoString, action)
+  -- ^ A button for switching between displaying the node as a tree and as a projection, with its label.
   , placement :: Placement
   , level :: Level
   , opts :: NodeViewOpts action
@@ -897,6 +915,7 @@ data NodeViewOpts action
   = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
+  | StringNode Text -- See `projectString`.
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
   | PatternBoxNode (Maybe (View () () Model action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
@@ -932,6 +951,7 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
                   SyntaxNode{flavor} -> flavor
                   HoleNode{} -> "hole"
                   PrimNode{} -> "prim"
+                  StringNode{} -> "string"
                   ConNode{} -> "con"
                   VarNode{} -> "var"
                   PatternBoxNode{} -> "pattern-box"
@@ -985,23 +1005,60 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
                                  PrimChar c' -> showMs c'
                                  PrimInt n -> showMs n
                                  PrimDouble x -> showMs x
+                               StringNode s -> showStringLiteral s
                                ConNode{name} -> ms $ unName name
                                VarNode{name} -> ms $ unName name
                        ]
                    ]
+                     <> foldMap'
+                       ( \(label, action) ->
+                           [ button_
+                               [ class_ "projection-toggle"
+                               , onClickWithOptions stopPropagation action
+                               ]
+                               [text label]
+                           ]
+                       )
+                       node.projectionToggle
            ]
 
+-- | Show a string literal, with quotes, but escaping only those characters which would otherwise be confusing.
+showStringLiteral :: Text -> MisoString
+showStringLiteral s = ms $ "\"" <> T.concatMap escape s <> "\""
+  where
+    escape = \case
+      '"' -> "\\\""
+      '\\' -> "\\\\"
+      '\n' -> "\\n"
+      '\t' -> "\\t"
+      c -> T.singleton c
+
 viewTreeExpr ::
-  (Data a, Data b, Data c) =>
-  (TermMeta' a b c -> (Maybe ID, Maybe action, NodeHighlight)) ->
-  Expr' a b c ->
+  (Data t, Data b, Data c) =>
+  -- | Set the projection of the node with the given ID.
+  (ID -> Maybe Projection -> action) ->
+  (TermMeta' (Meta (ExprInfo t)) b c -> (Maybe ID, Maybe action, NodeHighlight)) ->
+  Expr' (Meta (ExprInfo t)) b c ->
   Tree.Tree (NodeViewData action)
-viewTreeExpr mkMeta e =
+viewTreeExpr setProjection' mkMeta e =
   Tree.Node
-    (uncurry3 NodeViewData (mkMeta $ Left $ e ^. _exprMetaLens) Below Expr nodeView)
+    (uncurry3 NodeViewData (mkMeta $ Left meta) projectionToggle Below Expr nodeView)
     childViews
   where
-    nodeView = case e of
+    meta = e ^. _exprMetaLens
+    string = projectString e
+    -- We check that the term actually has the projection, rather than just trusting the metadata,
+    -- since the latter may have been carried over from before an edit (see `syncDefs`).
+    projected = isJust string && (meta ^. _type).projection == Just StringProjection
+    projectionToggle =
+      string
+        $> if projected
+          then ("🌲", setProjection' (getID meta) Nothing)
+          else ("\"…\"", setProjection' (getID meta) (Just StringProjection))
+    nodeView = case string of
+      Just s | projected -> StringNode s
+      _ -> nodeViewTree
+    nodeViewTree = case e of
       Hole{} -> HoleNode{empty = False}
       EmptyHole{} -> HoleNode{empty = True}
       Ann{} -> SyntaxNode False "ann" ":"
@@ -1017,29 +1074,30 @@ viewTreeExpr mkMeta e =
       Letrec{} -> SyntaxNode False "letrec" "let rec"
       PrimCon _ c -> PrimNode c
       Case{} -> SyntaxNode True "match" "match"
-    childViews = case e of
+    childViews = if projected then [] else childViewsTree
+    childViewsTree = case e of
       -- The scrutinee goes below, and the branches form a chain off to the right.
       Case _ scrut branches fb ->
-        viewTreeExpr mkMeta scrut
+        viewTreeExpr' scrut
           : maybeToList
             ( foldr
                 ( \(pat, r) next ->
                     Just
-                      . Tree.Node (NodeViewData Nothing Nothing NoHighlight Beside Expr $ PatternBoxNode pat)
-                      $ viewTreeExpr mkMeta r : maybeToList next
+                      . Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside Expr $ PatternBoxNode pat)
+                      $ viewTreeExpr' r : maybeToList next
                 )
                 Nothing
                 $ ( branches <&> \(CaseBranch p bindings r) ->
                       ( Just
                           . viewTree
                           . Tree.Node
-                            ( NodeViewData Nothing Nothing NoHighlight Below Expr case p of
+                            ( NodeViewData Nothing Nothing NoHighlight Nothing Below Expr case p of
                                 PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                                 PatPrim c -> PrimNode c
                             )
                           $ bindings <&> \(Bind m v) ->
                             Tree.Node
-                              (uncurry3 NodeViewData (mkMeta $ Left m) Below Expr VarNode{name = unLocalName v, mscope = Nothing})
+                              (uncurry3 NodeViewData (mkMeta $ Left m) Nothing Below Expr VarNode{name = unLocalName v, mscope = Nothing})
                               []
                       , r
                       )
@@ -1053,10 +1111,11 @@ viewTreeExpr mkMeta e =
           [ map (viewTreeBinding Type) (e ^.. typeBindingsInExpr)
           , map (viewTreeBinding Expr) (e ^.. bindingsInExpr)
           , map (viewTreeType (mkMeta . Right)) (e ^.. typesInExpr)
-          , map (viewTreeExpr mkMeta) (children e)
+          , map viewTreeExpr' (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight Beside l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside l VarNode{name = unLocalName name, mscope = Nothing}) []
+    viewTreeExpr' = viewTreeExpr setProjection' mkMeta
 
 viewTreeType ::
   (Data b, Data c) =>
@@ -1065,7 +1124,7 @@ viewTreeType ::
   Tree.Tree (NodeViewData action)
 viewTreeType mkMeta t =
   Tree.Node
-    (uncurry3 NodeViewData (mkMeta $ Left $ t ^. _typeMetaLens) Below Type nodeView)
+    (uncurry3 NodeViewData (mkMeta $ Left $ t ^. _typeMetaLens) Nothing Below Type nodeView)
     childViews
   where
     nodeView = case t of
@@ -1079,7 +1138,7 @@ viewTreeType mkMeta t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (NodeViewData Nothing Nothing NoHighlight Beside Type VarNode{name, mscope = Nothing}) [])
+        (\name -> Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside Type VarNode{name, mscope = Nothing}) [])
         (t ^.. bindingsInType % to unLocalName)
         <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
         <> map (viewTreeType mkMeta) (children t)
@@ -1091,7 +1150,7 @@ viewTreeKind ::
   Tree.Tree (NodeViewData action)
 viewTreeKind mkMeta k =
   Tree.Node
-    (uncurry3 NodeViewData (mkMeta $ k ^. _kindMetaLens) Below Kind nodeView)
+    (uncurry3 NodeViewData (mkMeta $ k ^. _kindMetaLens) Nothing Below Kind nodeView)
     childViews
   where
     nodeView = case k of
@@ -1166,6 +1225,9 @@ viewTree t =
       PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
       SyntaxNode{wide = False} -> basicDimsSquare
       HoleNode{} -> basicDimsSquare
+      StringNode s ->
+        -- A rough estimate, assuming an average character width. Text which overflows is truncated with an ellipsis anyway.
+        basicDims & lensVL _x %~ max (fromIntegral (T.length s + 2) * 10 + 30)
       _ -> basicDims
       where
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y

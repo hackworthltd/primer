@@ -29,6 +29,7 @@ executable primer-miso
     Primer.Miso
     Primer.Miso.ActionName
     Primer.Miso.Layout
+    Primer.Miso.Projection
     Primer.Miso.Util
 
   hs-source-dirs: src

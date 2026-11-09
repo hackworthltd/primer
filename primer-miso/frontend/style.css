@@ -337,6 +337,9 @@ body {
 .node.prim {
   --node-color: var(--green-primary);
 }
+.node.string {
+  --node-color: var(--green-primary);
+}
 .node.hole {
   --node-color: var(--red-tertiary);
   color: var(--red-tertiary);
@@ -351,6 +354,23 @@ body {
 
 .fallback-pattern {
   transform: scale(1.5);
+}
+
+.projection-toggle {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  padding: 0 0.25rem;
+  font-size: x-small;
+  color: var(--blue-primary);
+  background-color: var(--white-primary);
+  border: 0.125rem solid var(--node-color);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  &:hover {
+    color: var(--white-primary);
+    background-color: var(--node-color);
+  }
 }
 
 .edge {

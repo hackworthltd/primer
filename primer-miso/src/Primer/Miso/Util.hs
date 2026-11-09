@@ -29,6 +29,8 @@ module Primer.Miso.Util (
   EvalExprT,
   addExprInfo,
   forgetExprInfo,
+  setProjection,
+  defaultProjections,
   syncDefs,
   TypeMetaT,
   ASTTypeDefT,
@@ -65,6 +67,7 @@ import Control.Monad.Log (WithSeverity)
 import Data.Aeson qualified as Aeson
 import Data.Bitraversable (bitraverse)
 import Data.Data (Data)
+import Data.Generics.Uniplate.Data (descend)
 import Data.Map qualified as Map
 import Data.String (String)
 import Data.UUID.Types qualified as UUID
@@ -85,7 +88,9 @@ import Optics (
   traversed,
   (%),
   (.~),
+  (?~),
   (^.),
+  (^..),
   _Just,
  )
 import Optics.State.Operators ((<<%=))
@@ -137,6 +142,7 @@ import Primer.Core (
   unsafeMkGlobalName,
   unsafeMkLocalName,
   _exprMeta,
+  _exprMetaLens,
   _exprTypeMeta,
   _type,
   _typeMeta,
@@ -146,6 +152,7 @@ import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr, defAST)
 import Primer.Eval (AvoidShadowing (..), ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
+import Primer.Miso.Projection (Projection (StringProjection), projectString)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), TypeDefMap, ValCon (..))
 import Primer.Typecheck (exprTtoExpr, typeTtoType)
@@ -245,6 +252,8 @@ type KindMetaT = Meta ()
 -- which would also be a step towards not needing `assumeDefHasTypeCheckInfo`.
 data ExprInfo t = ExprInfo
   { typeInfo :: t
+  , projection :: Maybe Projection
+  -- ^ `Nothing` means that the node is displayed as a tree.
   }
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (Aeson.ToJSON, Aeson.FromJSON) via PrimerJSON (ExprInfo t)
@@ -253,15 +262,40 @@ data ExprInfo t = ExprInfo
 type EvalExprT = Expr' (Meta (ExprInfo (Maybe TypeCache))) TypeMeta KindMeta
 
 addExprInfo :: Expr' (Meta t) b c -> Expr' (Meta (ExprInfo t)) b c
-addExprInfo = over (_exprMeta % _type) \typeInfo -> ExprInfo{typeInfo}
+addExprInfo = over (_exprMeta % _type) noProjection
+
+noProjection :: t -> ExprInfo t
+noProjection typeInfo = ExprInfo{typeInfo, projection = Nothing}
 
 forgetExprInfo :: Expr' (Meta (ExprInfo t)) b c -> Expr' (Meta t) b c
 forgetExprInfo = over (_exprMeta % _type) (.typeInfo)
 
--- | Compute the frontend versions of all definitions, e.g. after a change to the program.
+setProjection :: ID -> Maybe Projection -> Expr' (Meta (ExprInfo t)) b c -> Expr' (Meta (ExprInfo t)) b c
+setProjection id p = over _exprMeta \m -> if getID m == id then m & _type % #projection .~ p else m
+
+-- | Display all outermost subterms which have a projection as such.
+-- We don't set projections for the subterms of those, so that e.g. switching a string literal back to a tree
+-- shows a list of characters, rather than a character followed by a shorter string literal.
+defaultProjections :: (Data t, Data b, Data c) => Expr' (Meta (ExprInfo t)) b c -> Expr' (Meta (ExprInfo t)) b c
+defaultProjections e = case projectString e of
+  Just _ -> e & _exprMetaLens % _type % #projection ?~ StringProjection
+  Nothing -> descend defaultProjections e
+
+-- | Recompute the frontend versions of all definitions after a change to the program,
+-- carrying over frontend-only metadata, which the core doesn't know about (see `ExprInfo`), from the previous versions.
 -- Definitions which fail `assumeDefHasTypeCheckInfo` are dropped.
-syncDefs :: DefMap -> Map GVarName ASTDefT
-syncDefs = Map.mapMaybe $ assumeDefHasTypeCheckInfo <=< defAST
+syncDefs :: DefMap -> Map GVarName ASTDefT -> Map GVarName ASTDefT
+syncDefs defs old =
+  Map.mapMaybe (fmap (over #expr $ over _exprMeta keepProjection) . assumeDefHasTypeCheckInfo <=< defAST) defs
+  where
+    keepProjection m = m & _type % #projection .~ Map.lookup (getID m) oldProjections
+    oldProjections =
+      Map.fromList
+        [ (getID m, p)
+        | def <- Map.elems old
+        , m <- def.expr ^.. _exprMeta
+        , Just p <- [m ^. _type % #projection]
+        ]
 
 data ASTDefT = ASTDefT {expr :: ExprT, sig :: TypeT} -- TODO parameterise `ASTDef` etc.?
   deriving stock (Eq, Show, Read, Generic)
@@ -352,7 +386,7 @@ assumeTypeDefSelectionHasTypeCheckInfo =
         <$> traverseOf (#field % _Just) (traverseOf #meta assumeMetaHasTypeCheckInfo) s
 assumeMetaHasTypeCheckInfo :: Either ExprMeta (Either TypeMeta KindMeta) -> Maybe (Either ExprMetaT (Either TypeMetaT KindMetaT))
 assumeMetaHasTypeCheckInfo =
-  bitraverse (fmap (over _type \typeInfo -> ExprInfo{typeInfo}) . sequenceOf _type) $ bitraverse (sequenceOf _type) pure
+  bitraverse (fmap (over _type noProjection) . sequenceOf _type) $ bitraverse (sequenceOf _type) pure
 
 -- see `assumeDefHasTypeCheckInfo`
 -- sometimes we need to discard that extra type-level information,
