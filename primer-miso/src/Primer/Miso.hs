@@ -878,7 +878,8 @@ viewModel Model{..} =
               let s = mkSel m
                in ( Just $ getID m
                   , Just $ Select editable s
-                  , if sel == s then SimpleHighlight else NoHighlight
+                  , -- We compare IDs, since the metadata may differ, e.g. due to projections.
+                    if (getID <$> sel) == (getID <$> s) then SimpleHighlight else NoHighlight
                   )
   where
     prog = appProg app
