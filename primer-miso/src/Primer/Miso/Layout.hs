@@ -1,285 +1,238 @@
-{- Vendored from: https://hackage.haskell.org/package/diagrams-contrib-1.4.5.1/docs/Diagrams-TwoD-Layout-Tree.html
+-- NOTE: Unlike the rest of Primer, this entire module was written by an LLM, with little human review.
+-- Treat it with appropriate suspicion.
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
-The license follows:
-
-Copyright (c) 2011-2015, Brent Yorgey
-
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above
-      copyright notice, this list of conditions and the following
-      disclaimer in the documentation and/or other materials provided
-      with the distribution.
-
-    * Neither the name of Various nor the names of other
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-We can't use `diagrams-contrib` since it pulls in `diagrams-lib`, which in turn uses `fsnotify`,
-which uses `unix-compat`, which contains some C code that fails to compile to Wasm.
-See https://github.com/diagrams/diagrams-lib/issues/370.
-It potentially makes sense to avoid such a huge dependency tree anyway.
-Besides, this is all a temporary solution in lieu of a better layout algorithm,
-such as a Haskell implementation of Tidy.
-
-Differences from upstream:
-- Remove everything but the simple symmetric layout algorithm.
-- Add `NoLexicalNegation` to override this package's default, in order to avoid a syntax error in `unRelativize`.
-- Use `optics` instead of `lens`.
-- Make some adjustments so that y-coordinates are always non-negative, with the root being at zero.
-- Avoid partial `maximum` function.
-- Hand-write lenses instead of using TH, to avoid HLS failing in the Haskell.nix shell.
--}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE NoLexicalNegation #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-
+-- | Tidy drawings of trees, following
+-- [Drawing Non-layered Tidy Trees in Linear Time](https://ir.cwi.nl/pub/21856) (A.J. van der Ploeg, 2013),
+-- which extends the classic algorithm of Reingold and Tilford to nodes of varying heights.
+-- Section and line numbers below refer to that paper, and to the Java code in its Appendix C.
+--
+-- The aesthetic criteria (Section 2) are that nodes don't overlap, children keep their order,
+-- parents are centred over their outermost children, identical subtrees are drawn identically,
+-- and (optionally, see 'symmetric') the drawing of a mirrored tree is the mirror image of the original drawing.
+--
+-- Rather than linking contours through the tree with mutable "threads" (Appendix A),
+-- we keep each subtree's contours as separate lists, as Section 8.3 suggests for a purely functional implementation.
+-- We use plain lists rather than catenable deques, so we lose the guarantee of linear running time,
+-- which is no great loss at the sizes of tree we deal with.
 module Primer.Miso.Layout (
-  -- * Layout algorithms
-
-  -- ** Symmetric layout
-  -- $symmetric
-  symmLayout,
-  symmLayout',
-  SymmLayoutOpts (..),
-  slHSep,
-  slVSep,
-  slWidth,
-  slHeight,
-  P2,
+  tidyLayout,
+  TidyOpts (..),
+  defaultTidyOpts,
+  Layering (..),
 ) where
 
-import Foreword hiding (second)
+import Foreword
 
-import Control.Arrow (second, (&&&), (***))
+import Data.IntMap.Strict qualified as IntMap
+import Data.List.NonEmpty qualified as NE
+import Data.Tree (Tree (Node), levels)
+import Linear (V2 (V2))
+import Linear.Affine (Point (P))
+import Primer.Miso.Util (P2)
 
-import Data.Default (Default (..))
-import Data.Tree (Tree (Node, rootLabel))
+-- | How to position nodes vertically.
+data Layering
+  = -- | Children start a fixed distance below the bottom of their parent. This is more compact.
+    NonLayered
+  | -- | All nodes at the same depth share a top, and are treated as being as tall as the tallest of them.
+    Layered
+  deriving stock (Eq, Show)
 
-import Linear (V2 (V2), (*^))
-import Linear.Affine (Affine ((.+^)), Point (P), origin)
-
-import Optics (Lens', lens, (^.))
-import Primer.Miso.Util (P2, unitX, unit_Y)
-
-------------------------------------------------------------
---  Binary trees
-------------------------------------------------------------
-
--- $BTree
--- There is a standard type of rose trees ('Tree') defined in the
--- @containers@ package, but there is no standard type for binary
--- trees, so we define one here.  Note, if you want to draw binary
--- trees with data of type @a@ at the leaves, you can use something
--- like @BTree (Maybe a)@ with @Nothing@ at internal nodes;
--- 'renderTree' lets you specify how to draw each node.
-
-------------------------------------------------------------
---  Layout algorithms
-------------------------------------------------------------
-
---------------------------------------------------
--- "Symmetric" layout of rose trees.
-
--- $symmetric
--- \"Symmetric\" layout of rose trees, based on the algorithm described in:
---
--- Andrew J. Kennedy. /Drawing Trees/, J Func. Prog. 6 (3): 527-534,
--- May 1996.
---
--- Trees laid out using this algorithm satisfy:
---
---   1. Nodes at a given level are always separated by at least a
---   given minimum distance.
---
---   2. Parent nodes are centered with respect to their immediate
---   offspring (though /not/ necessarily with respect to the entire
---   subtrees under them).
---
---   3. Layout commutes with mirroring: that is, the layout of a given
---   tree is the mirror image of the layout of the tree's mirror
---   image.  Put another way, there is no inherent left or right bias.
---
---   4. Identical subtrees are always rendered identically.  Put
---   another way, the layout of any subtree is independent of the rest
---   of the tree.
---
---   5. The layouts are as narrow as possible while satisfying all the
---   above constraints.
-
--- | A tree with /relative/ positioning information.  The @n@
---   at each node is the horizontal /offset/ from its parent.
-type Rel t n a = t (a, n)
-
--- | Shift a RelTree horizontally.
-moveTree :: Num n => n -> Rel Tree n a -> Rel Tree n a
-moveTree x' (Node (a, x) ts) = Node (a, x + x') ts
-
--- | An /extent/ is a list of pairs, recording the leftmost and
---   rightmost (absolute) horizontal positions of a tree at each
---   depth.
-newtype Extent n = Extent {getExtent :: [(n, n)]}
-
-extent :: ([(n, n)] -> [(n, n)]) -> Extent n -> Extent n
-extent f = Extent . f . getExtent
-
-consExtent :: (n, n) -> Extent n -> Extent n
-consExtent = extent . (:)
-
--- | Shift an extent horizontally.
-moveExtent :: Num n => n -> Extent n -> Extent n
-moveExtent x = (extent . map) ((+ x) *** (+ x))
-
--- | Reflect an extent about the vertical axis.
-flipExtent :: Num n => Extent n -> Extent n
-flipExtent = (extent . map) (\(p, q) -> (-q, -p))
-
--- | Merge two non-overlapping extents.
-mergeExtents :: Extent n -> Extent n -> Extent n
-mergeExtents (Extent e1) (Extent e2) = Extent $ mergeExtents' e1 e2
-  where
-    mergeExtents' [] qs = qs
-    mergeExtents' ps [] = ps
-    mergeExtents' ((p, _) : ps) ((_, q) : qs) = (p, q) : mergeExtents' ps qs
-
-instance Semigroup (Extent n) where
-  (<>) = mergeExtents
-
-instance Monoid (Extent n) where
-  mempty = Extent []
-  mappend = (<>)
-
--- | Determine the amount to shift in order to \"fit\" two extents
---   next to one another.  The first argument is the separation to
---   leave between them.
-fit :: (Num n, Ord n) => n -> Extent n -> Extent n -> n
-fit hSep (Extent ps) (Extent qs) = maximum (0 :| zipWith (\(_, p) (q, _) -> p - q + hSep) ps qs)
-
--- | Fit a list of subtree extents together using a left-biased
---   algorithm.  Compute a list of positions (relative to the leftmost
---   subtree which is considered to have position 0).
-fitListL :: (Num n, Ord n) => n -> [Extent n] -> [n]
-fitListL hSep = snd . mapAccumL fitOne mempty
-  where
-    fitOne acc e =
-      let x = fit hSep acc e
-       in (acc <> moveExtent x e, x)
-
--- | Fit a list of subtree extents together with a right bias.
-fitListR :: (Num n, Ord n) => n -> [Extent n] -> [n]
-fitListR hSep = reverse . map negate . fitListL hSep . map flipExtent . reverse
-
--- | Compute a symmetric fitting by averaging the results of left- and
---   right-biased fitting.
-fitList :: (Fractional n, Ord n) => n -> [Extent n] -> [n]
-fitList hSep = uncurry (zipWith mean) . (fitListL hSep &&& fitListR hSep)
-  where
-    mean x y = (x + y) / 2
-
--- | Options for controlling the symmetric tree layout algorithm.
-data SymmLayoutOpts n a
-  = SLOpts
-  { _slHSep :: n
-  -- ^ Minimum horizontal
-  --   separation between sibling
-  --   nodes.  The default is 1.
-  , _slVSep :: n
-  -- ^ Vertical separation
-  --   between adjacent levels of
-  --   the tree.  The default is 1.
-  , _slWidth :: a -> (n, n)
-  -- ^ A function for measuring the horizontal extent (a pair
-  --   of x-coordinates) of an item in the tree.  The default
-  --   is @const (0,0)@, that is, the nodes are considered as
-  --   taking up no space, so the centers of the nodes will
-  --   be separated according to the @slHSep@ and @slVSep@.
-  --   However, this can be useful, /e.g./ if you have a tree
-  --   of diagrams of irregular size and want to make sure no
-  --   diagrams overlap.  In that case you could use
-  --   @fromMaybe (0,0) . extentX@.
-  , _slHeight :: a -> (n, n)
-  -- ^ A function for measuring the vertical extent of an
-  --   item in the tree.  The default is @const (0,0)@.  See
-  --   the documentation for 'slWidth' for more information.
+data TidyOpts n a = TidyOpts
+  { horizontalGap :: n
+  -- ^ The minimum horizontal space between nodes.
+  , verticalGap :: n
+  -- ^ The vertical space between a parent and its children.
+  , layering :: Layering
+  , symmetric :: Bool
+  -- ^ Whether to satisfy the last aesthetic criterion, i.e. mirror symmetry (Section 5).
+  -- This spreads smaller subtrees evenly between larger siblings, rather than piling them up against the left one.
+  , nodeSize :: a -> V2 n
+  -- ^ Width and height.
   }
 
-slHSep :: Lens' (SymmLayoutOpts n a) n
-slHSep = lens _slHSep (\o x -> o{_slHSep = x})
-slVSep :: Lens' (SymmLayoutOpts n a) n
-slVSep = lens _slVSep (\o x -> o{_slVSep = x})
-slWidth :: Lens' (SymmLayoutOpts n a) (a -> (n, n))
-slWidth = lens _slWidth (\o x -> o{_slWidth = x})
-slHeight :: Lens' (SymmLayoutOpts n a) (a -> (n, n))
-slHeight = lens _slHeight (\o x -> o{_slHeight = x})
+defaultTidyOpts :: Num n => (a -> V2 n) -> TidyOpts n a
+defaultTidyOpts nodeSize =
+  TidyOpts
+    { horizontalGap = 1
+    , verticalGap = 1
+    , layering = NonLayered
+    , symmetric = True
+    , nodeSize
+    }
 
-instance Num n => Default (SymmLayoutOpts n a) where
-  def =
-    SLOpts
-      { _slHSep = 1
-      , _slVSep = 1
-      , _slWidth = const (0, 0)
-      , _slHeight = const (0, 0)
-      }
+-- | Lay out a tree, annotating each node with the position of its centre.
+-- The root's top is at the origin, with the y-axis pointing down.
+tidyLayout :: (Fractional n, Ord n) => TidyOpts n a -> Tree a -> Tree (a, P2 n)
+tidyLayout opts = place 0 . (.tree) . walk opts.symmetric . boxes opts
 
--- | Actual recursive tree layout algorithm, which returns a tree
---   layout as well as an extent.
-symmLayoutR :: (Fractional n, Ord n) => SymmLayoutOpts n a -> Tree a -> (Rel Tree n a, Extent n)
-symmLayoutR opts (Node a ts) = (rt, ext)
+-- | A node, along with the box it occupies for the purposes of layout.
+-- Following Section 2, the box includes the gaps, so that the algorithm itself needn't worry about spacing.
+data Box n a = Box
+  { label :: a
+  , size :: V2 n
+  -- ^ The size of the node itself, as opposed to its box.
+  , top :: n
+  , width :: n
+  , height :: n
+  }
+
+boxes :: (Num n, Ord n) => TidyOpts n a -> Tree a -> Tree (Box n a)
+boxes opts t = go 0 layerHeights t
   where
-    (trees, extents) = unzip (map (symmLayoutR opts) ts)
-    positions = fitList (opts ^. slHSep) extents
-    pTrees = zipWith moveTree positions trees
-    pExtents = zipWith moveExtent positions extents
-    ext = (opts ^. slWidth) a `consExtent` mconcat pExtents
-    rt = Node (a, 0) pTrees
+    go top hs (Node label ts) =
+      let size@(V2 w h) = opts.nodeSize label
+          height =
+            opts.verticalGap + case (opts.layering, hs) of
+              (Layered, h' : _) -> h'
+              _ -> h
+       in Node Box{label, size, top, width = w + opts.horizontalGap, height} $
+            map (go (top + height) $ drop 1 hs) ts
+    -- In the layered case, all nodes at the same depth are considered to be equally tall (Section 2).
+    layerHeights = map (foldl' max 0 . map ((\(V2 _ h) -> h) . opts.nodeSize)) $ levels t
 
--- | Run the symmetric rose tree layout algorithm on a given tree,
---   resulting in the same tree annotated with node positions.
-symmLayout' :: (Fractional n, Ord n) => SymmLayoutOpts n a -> Tree a -> Tree (a, P2 n)
-symmLayout' opts t0 =
-  let t = unRelativize opts origin $ fst $ symmLayoutR opts t0
-      rootHeight = snd $ fst (rootLabel t) & opts ^. slHeight
-   in second (\(P (V2 x y)) -> P $ V2 x (rootHeight - y)) <$> t
+-- | One side of the outline of a subtree, from top to bottom (Section 3).
+-- Each element covers the vertical range from the bottom of the previous one (or the subtree's top) to its own bottom.
+type Contour n = [Extent n]
 
--- | Run the symmetric rose tree layout algorithm on a given tree
---   using default options, resulting in the same tree annotated with
---   node positions.
-symmLayout :: (Fractional n, Ord n) => Tree a -> Tree (a, P2 n)
-symmLayout = symmLayout' def
+data Extent n = Extent
+  { bottom :: n
+  , edge :: n
+  -- ^ The x-coordinate of this side of the outline, relative to the subtree's root.
+  }
 
--- | Given a fixed location for the root, turn a tree with
---   \"relative\" positioning into one with absolute locations
---   associated to all the nodes.
-unRelativize ::
-  (Num n, Ord n) =>
-  SymmLayoutOpts n a -> P2 n -> Rel Tree n a -> Tree (a, P2 n)
-unRelativize opts curPt (Node (a, hOffs) ts0) = Node (a, rootPt) $ case nonEmpty ts0 of
-  Nothing -> []
-  Just ts -> toList (fmap (unRelativize opts (rootPt .+^ (vOffs *^ unit_Y))) ts)
-    where
-      vOffs =
-        -fst ((opts ^. slHeight) a)
-          + (maximum . map (snd . (opts ^. slHeight) . fst . rootLabel) $ ts)
-          + (opts ^. slVSep)
+-- | A laid-out subtree, with each node's x-coordinate relative to its parent's.
+-- This is the result of the paper's @firstWalk@.
+data Laid n a = Laid
+  { tree :: Tree (Box n a, n)
+  , left :: Contour n
+  , right :: Contour n
+  , lowest :: n
+  -- ^ The bottom of the lowest node.
+  }
+
+walk :: (Fractional n, Ord n) => Bool -> Tree (Box n a) -> Laid n a
+walk symmetric (Node b ts) =
+  let self side = Extent{bottom = b.top + b.height, edge = side * b.width / 2}
+   in case nonEmpty $ map (walk symmetric) ts of
+        Nothing -> Laid{tree = Node (b, 0) [], left = [self (-1)], right = [self 1], lowest = b.top + b.height}
+        Just children ->
+          let siblings = foldl' (addSibling symmetric) (firstSibling $ NE.head children) (NE.tail children)
+              xs = spaceSiblings siblings
+              -- `positionRoot` (lines 105-109).
+              rootX = (NE.head xs + NE.last xs) / 2
+           in Laid
+                { tree = Node (b, 0) . toList $ NE.zipWith (\c x -> setX (x - rootX) c.tree) children xs
+                , left = self (-1) : move (-rootX) siblings.left
+                , right = self 1 : move (-rootX) siblings.right
+                , lowest = foldl' max (b.top + b.height) $ (.lowest) <$> children
+                }
   where
-    rootPt = curPt .+^ (hOffs *^ unitX)
+    setX x (Node (b', _) cs) = Node (b', x) cs
+
+-- | The siblings placed so far, with x-coordinates relative to the first.
+data Siblings n = Siblings
+  { count :: Int
+  , xs :: [n]
+  -- ^ In reverse order.
+  , left :: Contour n
+  , right :: Contour n
+  , owners :: [(n, Int)]
+  -- ^ Those siblings which have nodes in the right contour, along with their lowest bottoms, latest first.
+  -- This is the "IYL" of Section 6, used to find which sibling a node of the right contour belongs to.
+  , shift :: IntMap n
+  -- ^ The bookkeeping for moving intermediate siblings (Appendix B).
+  , change :: IntMap n
+  }
+
+firstSibling :: Num n => Laid n a -> Siblings n
+firstSibling c =
+  Siblings
+    { count = 1
+    , xs = [0]
+    , left = c.left
+    , right = c.right
+    , owners = [(c.lowest, 0)]
+    , shift = mempty
+    , change = mempty
+    }
+
+-- | Place a subtree to the right of its left siblings (lines 21-27).
+addSibling :: (Fractional n, Ord n) => Bool -> Siblings n -> Laid n a -> Siblings n
+addSibling symmetric ss c =
+  let i = ss.count
+      (x, moves) = separate ss.right c.left ss.owners
+      ss' = if symmetric then foldl' (distributeExtra i) ss moves else ss
+   in ss'
+        { count = i + 1
+        , xs = x : ss.xs
+        , left = ss.left `above` move x c.left
+        , right = move x c.right `above` ss.right
+        , owners = (c.lowest, i) : dropWhile ((c.lowest >=) . fst) ss.owners
+        }
+
+-- | Find how far right a subtree must move, from the position of the first sibling,
+-- in order to clear the right contour of its left siblings (lines 42-65).
+-- We also return each individual move, along with the sibling which caused it.
+separate :: (Num n, Ord n) => Contour n -> Contour n -> [(n, Int)] -> (n, [(Int, n)])
+separate = go 0 []
+  where
+    go x moves (sr : srs) (cl : cls) owners =
+      let owners' = dropWhile ((sr.bottom >) . fst) owners
+          dist = sr.edge - (cl.edge + x)
+          (x', moves') =
+            if dist > 0
+              then (x + dist, (maybe 0 snd $ listToMaybe owners', dist) : moves)
+              else (x, moves)
+       in go
+            x'
+            moves'
+            (if sr.bottom <= cl.bottom then srs else sr : srs)
+            (if sr.bottom >= cl.bottom then cls else cl : cls)
+            owners'
+    go x moves _ _ _ = (x, moves)
+
+-- | Having moved sibling @i@ right by @dist@ to clear sibling @si@,
+-- arrange for the siblings in between to share the space (lines 119-127).
+distributeExtra :: Fractional n => Int -> Siblings n -> (Int, n) -> Siblings n
+distributeExtra i ss (si, dist)
+  | si == i - 1 = ss
+  | otherwise =
+      let nr = fromIntegral $ i - si
+       in ss
+            { shift = IntMap.insertWith (+) (si + 1) (dist / nr) $ IntMap.insertWith (+) i (-dist / nr) ss.shift
+            , change = IntMap.insertWith (+) i (-(dist - dist / nr)) ss.change
+            }
+
+-- | Apply the moves recorded by 'distributeExtra' (lines 130-137).
+-- This never affects the first or last sibling, so it doesn't matter whether we do it before or after positioning the parent.
+spaceSiblings :: Num n => Siblings n -> NonEmpty n
+spaceSiblings ss =
+  fromMaybe (pure 0) . nonEmpty . snd $
+    mapAccumL
+      ( \(d, modsumdelta) (i, x) ->
+          let d' = d + IntMap.findWithDefault 0 i ss.shift
+              modsumdelta' = modsumdelta + d' + IntMap.findWithDefault 0 i ss.change
+           in ((d', modsumdelta'), x + modsumdelta')
+      )
+      (0, 0)
+      (zip [0 ..] $ reverse ss.xs)
+
+-- | Convert to absolute coordinates (the paper's @secondWalk@).
+place :: Fractional n => n -> Tree (Box n a, n) -> Tree (a, P2 n)
+place parentX (Node (b, relX) ts) =
+  let x = parentX + relX
+      V2 _ h = b.size
+   in Node (b.label, P $ V2 x $ b.top + h / 2) $ map (place x) ts
+
+move :: Num n => n -> Contour n -> Contour n
+move d = map (\e -> e{edge = e.edge + d})
+
+-- | Merge two contours, taking the first where they overlap.
+above :: Ord n => Contour n -> Contour n -> Contour n
+above = \cases
+  [] es -> es
+  [e] es -> e : dropWhile ((<= e.bottom) . (.bottom)) es
+  (e : es) es' -> e : above es es'

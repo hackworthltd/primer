@@ -17,7 +17,6 @@ import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrictText)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Data (Data (..))
-import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
 import Data.List.Extra (compareLength, partition)
 import Data.Map ((!?))
@@ -149,11 +148,9 @@ import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Miso.ActionName (actionName)
 import Primer.Miso.Layout (
-  slHSep,
-  slHeight,
-  slVSep,
-  slWidth,
-  symmLayout',
+  Layering (NonLayered),
+  TidyOpts (..),
+  tidyLayout,
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
@@ -1137,13 +1134,14 @@ viewTree t =
     maxs = map (\(v, p) -> p .+^ snd v / 2) nodes
     bottomRight = V2 (maximum $ map (.x) maxs) (maximum $ map (.y) maxs)
     nodes =
-      symmLayout' @Double
-        ( Default.def
-            & (slHSep .~ nodePadding)
-            & (slVSep .~ nodePadding)
-            & (slWidth .~ \(_, v) -> (-(v.x / 2), v.x / 2))
-            & (slHeight .~ \(_, v) -> (-(v.y / 2), v.y / 2))
-        )
+      tidyLayout @Double
+        TidyOpts
+          { horizontalGap = nodePadding
+          , verticalGap = nodePadding
+          , layering = NonLayered
+          , symmetric = True
+          , nodeSize = snd
+          }
         $ map (\opts -> (opts, getDimensions opts.opts)) t
     getDimensions = \case
       PatternBoxNode (Just (_, v)) -> v + pure boxPadding
