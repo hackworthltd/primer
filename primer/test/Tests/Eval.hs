@@ -31,13 +31,14 @@ import Primer.Builtins (
 import Primer.Core (
   Bind' (Bind),
   Expr,
+  Expr' (APP, Ann, LAM, Lam, Let, LetType),
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind' (KType),
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
   Type,
-  Type' (TCon, TEmptyHole, TFun, TVar),
+  Type' (TCon, TEmptyHole, TForall, TFun, TLet, TVar),
   getID,
   unsafeMkGlobalName,
   _id,
@@ -169,6 +170,10 @@ unit_tryReduce_beta_annotation = do
       detail.bodyID @?= body ^. _id
       l ~~= argType
       r ~~= resultType
+      -- The lambda's binding becomes the let's
+      case (expr, lambda) of
+        (Ann _ (Let _ b _ _) _, Lam _ b' _) -> getID b @?= getID b'
+        _ -> assertFailure "expected a let and a lambda"
     _ -> assertFailure $ show result
 
 -- We don't reduce @(λx. t : ?) a@, where the annotation
@@ -210,6 +215,12 @@ unit_tryReduce_BETA = do
       detail.argID @?= arg ^. _id
       detail.bodyID @?= body ^. _id
       detail.types @?= (k, ty)
+      -- The bindings of the Λ and the ∀ become those of the let type and type-level let
+      case (expr, input) of
+        (Ann _ (LetType _ b _ _) (TLet _ c _ _), APP _ (Ann _ (LAM _ b' _) (TForall _ c' _ _)) _) -> do
+          getID b @?= getID b'
+          getID c @?= getID c'
+        _ -> assertFailure "expected a let type, type-level let, Λ and ∀"
     _ -> assertFailure $ show result
 
 unit_tryReduce_local_term_var :: Assertion

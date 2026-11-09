@@ -100,7 +100,7 @@ unit_shadow_no_reused_binders =
               `ann` tEmptyHole
           )
             `ann` tEmptyHole
-        let z = "a110"
+        let z = "a108"
         e5 <-
           ( let_
               "g"

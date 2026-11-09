@@ -103,6 +103,7 @@ import Primer.Core (
   _bindName,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
+import Primer.Core.DSL.Meta qualified as DSL
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Type (Kind)
 import Primer.Core.Utils (
@@ -313,8 +314,8 @@ data Redex
       }
   | -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
     Beta
-      { var :: LVarName
-      -- ^ The lambda bound variable
+      { binder :: LVarBind
+      -- ^ The binding of the lambda, which becomes that of the let
       , body :: Expr
       -- ^ The body of the lambda
       , srcTy :: Type
@@ -330,12 +331,12 @@ data Redex
       }
   | -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
     BETA
-      { tyvar :: TyVarName
-      -- ^ The Λ bound variable
+      { tyBinder :: TyVarBind
+      -- ^ The binding of the Λ, which becomes that of the let type
       , body :: Expr
       -- ^ The body of the Λ
-      , forallVar :: TyVarName
-      -- ^ The annotation on the Λ must be a ∀, which binds this variable
+      , forallBinder :: TyVarBind
+      -- ^ The annotation on the Λ must be a ∀, whose binding becomes that of the type-level let
       , forallKind :: Kind
       -- ^ The kind of the ∀ bound variable (used for details)
       , tgtTy :: Type
@@ -767,10 +768,10 @@ viewRedex opts tydefs globals dir = \case
     if unLocalName (bindName v) `S.member` avoid
       then pure $ RenameBindingsLAM{tyBinder = v, meta, body, avoid, orig = l}
       else mzero
-  orig@(App _ (Ann _ (Lam m (Bind _ var) body) (TFun _ srcTy tgtTy)) app) ->
+  orig@(App _ (Ann _ (Lam m binder body) (TFun _ srcTy tgtTy)) app) ->
     pure $
       Beta
-        { var
+        { binder
         , body
         , srcTy
         , tgtTy
@@ -784,12 +785,12 @@ viewRedex opts tydefs globals dir = \case
         tryPrimFun (M.mapMaybe defPrim globals) e >>= \(primFun, args, result) ->
           pure ApplyPrimFun{result, primFun, args, orig = e}
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-  orig@(APP _ (Ann _ (LAM m (Bind _ a) body) (TForall _ (Bind _ forallVar) forallKind tgtTy)) argTy) ->
+  orig@(APP _ (Ann _ (LAM m tyBinder body) (TForall _ forallBinder forallKind tgtTy)) argTy) ->
     pure $
       BETA
-        { tyvar = a
+        { tyBinder
         , body
-        , forallVar
+        , forallBinder
         , forallKind
         , tgtTy
         , argTy
@@ -1032,13 +1033,14 @@ runRedex opts = \case
             }
     pure (expr, LetRemoval details)
   -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
-  Beta{var, body, srcTy, tgtTy, app, orig, lamID} -> do
-    expr' <- let_ var (pure app `ann` pure srcTy) (pure body) `ann` pure tgtTy
+  Beta{binder, body, srcTy, tgtTy, app, orig, lamID} -> do
+    -- We reuse the lambda's binding, so that it can be seen to become the let's.
+    expr' <- (Let <$> DSL.meta <*> pure binder <*> (pure app `ann` pure srcTy) <*> pure body) `ann` pure tgtTy
     let details =
           BetaReductionDetail
             { before = orig
             , after = expr'
-            , bindingName = var
+            , bindingName = bindName binder
             , lambdaID = lamID
             , letID = getID expr'
             , argID = getID app
@@ -1047,13 +1049,16 @@ runRedex opts = \case
             }
     pure (expr', BetaReduction details)
   -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
-  BETA{tyvar, body, forallVar, forallKind, tgtTy, argTy, orig, lamID} -> do
-    expr' <- letType tyvar (pure argTy) (pure body) `ann` tlet forallVar (regenerateTypeIDs argTy) (pure tgtTy)
+  BETA{tyBinder, body, forallBinder, forallKind, tgtTy, argTy, orig, lamID} -> do
+    -- As with 'Beta', we reuse the bindings of the Λ and the ∀.
+    expr' <-
+      (LetType <$> DSL.meta <*> pure tyBinder <*> pure argTy <*> pure body)
+        `ann` (TLet <$> DSL.meta <*> pure forallBinder <*> regenerateTypeIDs argTy <*> pure tgtTy)
     let details =
           BetaReductionDetail
             { before = orig
             , after = expr'
-            , bindingName = tyvar
+            , bindingName = bindName tyBinder
             , lambdaID = lamID
             , letID = getID expr'
             , argID = getID argTy
