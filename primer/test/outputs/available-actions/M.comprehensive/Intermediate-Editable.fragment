@@ -486,6 +486,12 @@ Output
                         , free = FreeChar
                         }
                     )
+                , Input MakeDouble
+                    ( Options
+                        { opts = []
+                        , free = FreeDouble
+                        }
+                    )
                 , Input MakeLet
                     ( Options
                         { opts =
@@ -716,6 +722,12 @@ Output
                     ( Options
                         { opts = []
                         , free = FreeChar
+                        }
+                    )
+                , Input MakeDouble
+                    ( Options
+                        { opts = []
+                        , free = FreeDouble
                         }
                     )
                 , Input MakeLet
@@ -1602,6 +1614,12 @@ Output
                         , free = FreeChar
                         }
                     )
+                , Input MakeDouble
+                    ( Options
+                        { opts = []
+                        , free = FreeDouble
+                        }
+                    )
                 , Input MakeLet
                     ( Options
                         { opts =
@@ -1906,6 +1924,12 @@ Output
                         , free = FreeChar
                         }
                     )
+                , Input MakeDouble
+                    ( Options
+                        { opts = []
+                        , free = FreeDouble
+                        }
+                    )
                 , Input MakeLet
                     ( Options
                         { opts =
@@ -2028,6 +2052,12 @@ Output
                                 }
                             , Option
                                 { option = "Char"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Double"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False
@@ -2324,6 +2354,12 @@ Output
                                 }
                             , Option
                                 { option = "Char"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Double"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False

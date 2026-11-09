@@ -21,6 +21,7 @@ module Primer.Gen.Core.Typed (
   genCxtExtendingLocal,
   genChar,
   genInt,
+  genDouble,
   genPrimCon,
   genTypeDefGroup,
   forAllT,
@@ -72,6 +73,7 @@ import Primer.Core.Utils (freeVarsTy, freshen)
 import Primer.Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Primer.Module (Module (..))
 import Primer.Name (Name, NameCounter, freshName)
+import Primer.Primitives (tDouble)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (
@@ -470,7 +472,8 @@ genChk ty = do
     distinct xs = length xs == S.size (S.fromList xs)
     casePrim :: WT (Maybe (GenT WT ExprG))
     casePrim = do
-      primGens <- genPrimCon
+      -- We exclude types which do not support pattern matching.
+      primGens <- filter ((/= tDouble) . snd) <$> genPrimCon
       pure $
         if null primGens
           then Nothing
@@ -482,7 +485,7 @@ genChk ty = do
             brs0 <- Gen.list (Range.linear 0 5) $ do
               p <- pg
               (p,) . CaseBranch (PatPrim p) [] <$> genChk ty
-            let brs = nubSortOn ((\case PrimInt n -> Left (Left n); PrimChar c -> Left (Right c); PrimAnimation b -> Right b) . fst) brs0
+            let brs = nubSortOn ((\case PrimInt n -> Left (Left n); PrimChar c -> Left (Right c); PrimDouble x -> Right (Left x); PrimAnimation b -> Right (Right b)) . fst) brs0
             fb <- genChk ty
             pure $ Case () e (snd <$> brs) (CaseFallback fb)
 
@@ -656,7 +659,7 @@ genCxtExtendingLocal = do
 -- We have to be careful to only generate primitive constructors which are
 -- in scope (i.e. their type is in scope)
 genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [(mg PrimCon, TyConName)]
-genPrimCon = catMaybes <$> sequence [whenInScope PrimChar 'a' genChar, whenInScope PrimInt 0 genInt]
+genPrimCon = catMaybes <$> sequence [whenInScope PrimChar 'a' genChar, whenInScope PrimInt 0 genInt, whenInScope PrimDouble 0 genDouble]
   where
     -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
     -- and does not affect the generator.
@@ -671,6 +674,7 @@ genPrimCon = catMaybes <$> sequence [whenInScope PrimChar 'a' genChar, whenInSco
     _ = \case
       PrimChar _ -> ()
       PrimInt _ -> ()
+      PrimDouble _ -> ()
       PrimAnimation _ -> ()
 
 -- We bias the distribution towards a small set, to make it more likely we
@@ -692,6 +696,15 @@ genInt =
     ]
   where
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
+
+genDouble :: MonadGen mg => mg Double
+genDouble =
+  Gen.choice
+    [ fromInteger <$> Gen.integral (Range.linear (-3) 3)
+    , Gen.double $ Range.linearFrac (-doubleBound) doubleBound
+    ]
+  where
+    doubleBound = 1e10 -- arbitrary
 
 hoist' :: Cxt -> WT a -> IO a
 hoist' cxt = evalTestT 0 . flip runReaderT cxt . unWT

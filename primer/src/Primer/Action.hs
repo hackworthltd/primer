@@ -91,7 +91,7 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName, unLocalName),
   Pattern (PatCon, PatPrim),
-  PrimCon (PrimChar, PrimInt),
+  PrimCon (PrimChar, PrimDouble, PrimInt),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -1315,6 +1315,9 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.MakeInt -> do
     n <- optInt
     toProg [ConstructPrim $ PrimInt n]
+  Available.MakeDouble -> do
+    x <- optDouble
+    toProg [ConstructPrim $ PrimDouble x]
   Available.MakeChar -> do
     c <- optChar
     toProg [ConstructPrim $ PrimChar c]
@@ -1445,6 +1448,9 @@ toProgActionInput def0 sel0 opt0 = \case
     optInt = do
       opt <- optNoCxt
       maybeToEither (NeedInt opt0) $ readMaybe opt
+    optDouble = do
+      opt <- optNoCxt
+      maybeToEither (NeedDouble opt0) $ mfilter (\x -> not $ isNaN x || isInfinite x) $ readMaybe opt
     optChar = do
       opt <- optNoCxt
       case T.uncons opt of

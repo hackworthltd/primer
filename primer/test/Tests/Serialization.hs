@@ -207,4 +207,5 @@ fixtures =
           )
       , mkFixture "prim_char" $ PrimCon @() @() @() () $ PrimChar 'a'
       , mkFixture "prim_int" $ PrimCon @() @() @() () $ PrimInt 42
+      , mkFixture "prim_double" $ PrimCon @() @() @() () $ PrimDouble 1.5
       ]

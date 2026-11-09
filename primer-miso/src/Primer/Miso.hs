@@ -976,6 +976,7 @@ viewNodeData showIDs position dimensions edges node = case node.opts of
                                PrimNode pc -> case pc of
                                  PrimChar c' -> showMs c'
                                  PrimInt n -> showMs n
+                                 PrimDouble x -> showMs x
                                ConNode{name} -> ms $ unName name
                                VarNode{name} -> ms $ unName name
                        ]

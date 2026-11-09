@@ -185,6 +185,7 @@ prettyExpr opts = \case
     prim = \case
       PrimChar c -> "Char" <+> pretty @Text (show c)
       PrimInt n -> "Int" <+> pretty @Text (show n)
+      PrimDouble x -> "Double" <+> pretty @Text (show x)
       PrimAnimation n -> pretty @Text (show n)
     typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
 

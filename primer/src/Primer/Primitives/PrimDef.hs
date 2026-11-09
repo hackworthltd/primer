@@ -34,6 +34,18 @@ data PrimDef
   | IntNeq
   | IntToNat
   | IntFromNat
+  | DoubleAdd
+  | DoubleMinus
+  | DoubleMul
+  | DoubleQuotient
+  | DoubleLT
+  | DoubleLTE
+  | DoubleGT
+  | DoubleGTE
+  | DoubleEq
+  | DoubleNeq
+  | DoubleFromInt
+  | DoubleFloor
   | Animate
   | -- | Only for testing
     PrimConst

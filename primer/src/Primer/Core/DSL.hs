@@ -24,6 +24,7 @@ module Primer.Core.DSL (
   prim,
   char,
   int,
+  double,
   tEmptyHole,
   thole,
   tcon,
@@ -191,6 +192,9 @@ char = prim . PrimChar
 
 int :: MonadFresh ID m => Integer -> m Expr
 int = prim . PrimInt
+
+double :: MonadFresh ID m => Double -> m Expr
+double = prim . PrimDouble
 
 con0' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con0' m n = con0 $ qualifyName (ModuleName m) n

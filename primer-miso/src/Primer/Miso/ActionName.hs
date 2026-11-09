@@ -36,6 +36,7 @@ actionName = \case
   Input a -> case a of
     MakeCon -> "V ? ?"
     MakeInt -> "1"
+    MakeDouble -> "1.0"
     MakeChar -> "\"c\""
     MakeVar -> "x"
     MakeVarSat -> "f $ ?"

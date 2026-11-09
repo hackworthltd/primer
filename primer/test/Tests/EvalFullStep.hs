@@ -74,6 +74,14 @@ import Primer.Module (
  )
 import Primer.Primitives (
   PrimDef (
+    DoubleAdd,
+    DoubleEq,
+    DoubleFloor,
+    DoubleFromInt,
+    DoubleLT,
+    DoubleMinus,
+    DoubleMul,
+    DoubleQuotient,
     EqChar,
     HexToNat,
     IntAdd,
@@ -96,6 +104,7 @@ import Primer.Primitives (
     ToUpper
   ),
   tChar,
+  tDouble,
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
@@ -1660,6 +1669,76 @@ unit_prim_int_fromNat =
     IntFromNat
     (nat 4)
     (int 4)
+
+unit_prim_double_add :: Assertion
+unit_prim_double_add =
+  binaryPrimTest
+    DoubleAdd
+    (double 1.5)
+    (double 2.25)
+    (double 3.75)
+
+unit_prim_double_sub :: Assertion
+unit_prim_double_sub =
+  binaryPrimTest
+    DoubleMinus
+    (double 1)
+    (double 2.5)
+    (double (-1.5))
+
+unit_prim_double_mul :: Assertion
+unit_prim_double_mul =
+  binaryPrimTest
+    DoubleMul
+    (double 1.5)
+    (double (-2))
+    (double (-3))
+
+unit_prim_double_quotient :: Assertion
+unit_prim_double_quotient =
+  binaryPrimTest
+    DoubleQuotient
+    (double 1)
+    (double 4)
+    (con cJust [double 0.25] `ann` (tcon tMaybe `tapp` tcon tDouble))
+
+unit_prim_double_quotient_zero :: Assertion
+unit_prim_double_quotient_zero =
+  binaryPrimTest
+    DoubleQuotient
+    (double 1)
+    (double 0)
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tDouble))
+
+unit_prim_double_less_than :: Assertion
+unit_prim_double_less_than =
+  binaryPrimTest
+    DoubleLT
+    (double 1.5)
+    (double 2)
+    (boolAnn True)
+
+unit_prim_double_eq :: Assertion
+unit_prim_double_eq =
+  binaryPrimTest
+    DoubleEq
+    (double 0.5)
+    (double 0.5)
+    (boolAnn True)
+
+unit_prim_double_fromInt :: Assertion
+unit_prim_double_fromInt =
+  unaryPrimTest
+    DoubleFromInt
+    (int (-3))
+    (double (-3))
+
+unit_prim_double_floor_negative :: Assertion
+unit_prim_double_floor_negative =
+  unaryPrimTest
+    DoubleFloor
+    (double (-1.5))
+    (int (-2))
 
 unit_prim_ann :: Assertion
 unit_prim_ann =

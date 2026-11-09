@@ -32,6 +32,7 @@ module Primer.Action.Priorities (
   makeLambda,
   useVar,
   makeInt,
+  makeDouble,
   makeChar,
   makeCase,
   addBranch,
@@ -103,6 +104,9 @@ makeInt _ = 15
 
 makeChar :: Level -> Int
 makeChar _ = 16
+
+makeDouble :: Level -> Int
+makeDouble _ = 17
 
 makeLet :: Level -> Int
 makeLet _ = 21

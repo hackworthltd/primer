@@ -7,6 +7,7 @@ module Primer.Primitives (
   allPrimTypeDefs,
   tInt,
   tChar,
+  tDouble,
   tAnimation,
   primitive,
   primitiveGVar,
@@ -51,7 +52,7 @@ import Primer.Core (
   GlobalName,
   ID,
   ModuleName,
-  PrimCon (PrimAnimation, PrimChar, PrimInt),
+  PrimCon (PrimAnimation, PrimChar, PrimDouble, PrimInt),
   TmVarRef (LocalVarRef),
   TyConName,
   Type' (..),
@@ -62,6 +63,7 @@ import Primer.Core (
 import Primer.Core.DSL (
   ann,
   char,
+  double,
   int,
   tcon,
  )
@@ -89,6 +91,7 @@ primConName :: PrimCon -> TyConName
 primConName = \case
   PrimChar _ -> tChar
   PrimInt _ -> tInt
+  PrimDouble _ -> tDouble
   PrimAnimation _ -> tAnimation
 
 primitive :: Name -> GlobalName k
@@ -99,6 +102,9 @@ tChar = primitive "Char"
 
 tInt :: TyConName
 tInt = primitive "Int"
+
+tDouble :: TyConName
+tDouble = primitive "Double"
 
 tAnimation :: TyConName
 tAnimation = primitive "Animation"
@@ -126,6 +132,13 @@ allPrimTypeDefs =
               , primTypeDefNameHints = ["i", "j", "k", "m", "n"]
               }
           )
+    , let name = tDouble
+       in ( name
+          , PrimTypeDef
+              { primTypeDefParameters = []
+              , primTypeDefNameHints = ["x", "y", "z"]
+              }
+          )
     , let name = tAnimation
        in ( name
           , PrimTypeDef
@@ -140,6 +153,7 @@ allPrimTypeDefs =
     _ = \case
       PrimChar _ -> ()
       PrimInt _ -> ()
+      PrimDouble _ -> ()
       PrimAnimation _ -> ()
 
 primDefName :: PrimDef -> Name
@@ -164,6 +178,18 @@ primDefName = \case
   IntNeq -> "Int.≠"
   IntToNat -> "Int.toNat"
   IntFromNat -> "Int.fromNat"
+  DoubleAdd -> "Double.+"
+  DoubleMinus -> "Double.-"
+  DoubleMul -> "Double.×"
+  DoubleQuotient -> "Double.quotient"
+  DoubleLT -> "Double.<"
+  DoubleLTE -> "Double.≤"
+  DoubleGT -> "Double.>"
+  DoubleGTE -> "Double.≥"
+  DoubleEq -> "Double.="
+  DoubleNeq -> "Double.≠"
+  DoubleFromInt -> "Double.fromInt"
+  DoubleFloor -> "Double.floor"
   Animate -> "animate"
   PrimConst -> "const"
 
@@ -192,6 +218,18 @@ primFunTypes = \case
   IntNeq -> ([c tInt, c tInt], c tBool)
   IntToNat -> ([c tInt], c tMaybe `a` c tNat)
   IntFromNat -> ([c tNat], c tInt)
+  DoubleAdd -> ([c tDouble, c tDouble], c tDouble)
+  DoubleMinus -> ([c tDouble, c tDouble], c tDouble)
+  DoubleMul -> ([c tDouble, c tDouble], c tDouble)
+  DoubleQuotient -> ([c tDouble, c tDouble], c tMaybe `a` c tDouble)
+  DoubleLT -> ([c tDouble, c tDouble], c tBool)
+  DoubleLTE -> ([c tDouble, c tDouble], c tBool)
+  DoubleGT -> ([c tDouble, c tDouble], c tBool)
+  DoubleGTE -> ([c tDouble, c tDouble], c tBool)
+  DoubleEq -> ([c tDouble, c tDouble], c tBool)
+  DoubleNeq -> ([c tDouble, c tDouble], c tBool)
+  DoubleFromInt -> ([c tInt], c tDouble)
+  DoubleFloor -> ([c tDouble], c tInt)
   Animate ->
     -- A loop time, in seconds, and a function from frame number to output.
     -- Note that the number of frames per second is currently hardcoded to 10, and that
@@ -316,6 +354,58 @@ primFunDef def args = case def of
   IntFromNat -> case args of
     [exprToNat -> Just n] ->
       Right $ int $ fromIntegral n
+    _ -> err
+  DoubleAdd -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ double $ x + y
+    _ -> err
+  DoubleMinus -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ double $ x - y
+    _ -> err
+  DoubleMul -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ double $ x * y
+    _ -> err
+  DoubleQuotient -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $
+        maybeAnn (tcon tDouble) double $
+          if y == 0
+            then Nothing
+            else Just $ x / y
+    _ -> err
+  DoubleLT -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ boolAnn $ x < y
+    _ -> err
+  DoubleLTE -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ boolAnn $ x <= y
+    _ -> err
+  DoubleGT -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ boolAnn $ x > y
+    _ -> err
+  DoubleGTE -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ boolAnn $ x >= y
+    _ -> err
+  DoubleEq -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ boolAnn $ x == y
+    _ -> err
+  DoubleNeq -> case args of
+    [PrimCon _ (PrimDouble x), PrimCon _ (PrimDouble y)] ->
+      Right $ boolAnn $ x /= y
+    _ -> err
+  DoubleFromInt -> case args of
+    [PrimCon _ (PrimInt x)] ->
+      Right $ double $ fromInteger x
+    _ -> err
+  DoubleFloor -> case args of
+    [PrimCon _ (PrimDouble x)] ->
+      Right $ int $ floor x
     _ -> err
   Animate -> case args of
     -- Since we only support translating a `Picture` expression to an image once it is in normal form,

@@ -160,14 +160,17 @@ genPrimCon =
   Gen.choice
     [ PrimChar <$> Gen.unicodeAll
     , PrimInt <$> Gen.integral (Range.linear (-intBound) intBound)
+    , PrimDouble <$> Gen.double (Range.linearFrac (-doubleBound) doubleBound)
     ]
   where
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
+    doubleBound = 1e10 -- arbitrary
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
     -- we are alerted that we need to update this generator.
     _ = \case
       PrimChar _ -> ()
       PrimInt _ -> ()
+      PrimDouble _ -> ()
       PrimAnimation _ -> ()
 
 genType :: ExprGen Type

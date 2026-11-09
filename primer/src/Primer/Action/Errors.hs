@@ -67,6 +67,7 @@ data ActionError
   | NeedGlobal Available.Option
   | NeedLocal Available.Option
   | NeedInt Available.Option
+  | NeedDouble Available.Option
   | NeedChar Available.Option
   | NeedTermDef
   | NeedTypeDef

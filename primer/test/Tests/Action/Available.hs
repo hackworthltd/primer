@@ -169,6 +169,7 @@ import Primer.Gen.Core.Typed (
   WT,
   forAllT,
   genChar,
+  genDouble,
   genInt,
   genSyn,
   genWTKind,
@@ -728,6 +729,7 @@ toProgAction l a (def, loc, action) = do
                 Available.FreeNone -> []
                 Available.FreeVarName -> [((OptGen,) . (\t -> Available.Option t Nothing False)) . unName <$> genName]
                 Available.FreeInt -> [((OptGen,) . (\t -> Available.Option t Nothing False)) . show <$> genInt]
+                Available.FreeDouble -> [((OptGen,) . (\t -> Available.Option t Nothing False)) . show <$> genDouble]
                 Available.FreeChar -> [(OptGen,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
         case opts'' of
           [] -> pure NoOfferedOpts

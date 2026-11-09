@@ -195,6 +195,9 @@ instance HasMetadata (Meta a) where
 data PrimCon
   = PrimChar Char
   | PrimInt Integer
+  | -- | Literals are always finite, and division by zero is ruled out by the types of our primitives,
+    -- so non-finite values (which do not play well with `Eq` or JSON) can only arise via overflow.
+    PrimDouble Double
   | -- | Contains a base-64 encoding of an animated GIF.
     PrimAnimation Text
   deriving stock (Eq, Show, Read, Data, Generic)

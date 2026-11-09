@@ -101,7 +101,7 @@ import Primer.Def (
 import Primer.Def.Utils (typeInUse)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (unName)
-import Primer.Primitives (tChar, tInt)
+import Primer.Primitives (tChar, tDouble, tInt)
 import Primer.Questions (
   generateNameExpr,
   generateNameTy,
@@ -175,6 +175,7 @@ data NoInputAction
 data InputAction
   = MakeCon
   | MakeInt
+  | MakeDouble
   | MakeChar
   | MakeVar
   | MakeVarSat
@@ -265,6 +266,7 @@ forExpr tydefs l expr =
            , Input MakeCon
            ]
         <> mwhen (Map.member tInt tydefs) [Input MakeInt]
+        <> mwhen (Map.member tDouble tydefs) [Input MakeDouble]
         <> mwhen (Map.member tChar tydefs) [Input MakeChar]
         <> mwhen
           (l /= Beginner)
@@ -483,6 +485,8 @@ data FreeInput
     FreeVarName
   | -- | A free-form string input is allowed, and represents a primitive integer
     FreeInt
+  | -- | A free-form string input is allowed, and represents a primitive floating-point number
+    FreeDouble
   | -- | A free-form string input is allowed, and represents a primitive character
     FreeChar
   deriving stock (Eq, Show, Read, Generic, Bounded, Enum)
@@ -514,6 +518,7 @@ options typeDefs defs cxt level def0 sel0 = \case
       . map fst
       . filter (not . (&& level == Beginner) . uncurry3 hasArgsCon . snd)
   MakeInt -> pure Options{opts = [], free = FreeInt}
+  MakeDouble -> pure Options{opts = [], free = FreeDouble}
   MakeChar -> pure Options{opts = [], free = FreeChar}
   MakeVar ->
     varOpts
@@ -748,6 +753,7 @@ sortByPriority l =
           Input a -> case a of
             MakeCon -> P.useSaturatedValueCon
             MakeInt -> P.makeInt
+            MakeDouble -> P.makeDouble
             MakeChar -> P.makeChar
             MakeVar -> P.useVar
             MakeVarSat -> P.useFunction
