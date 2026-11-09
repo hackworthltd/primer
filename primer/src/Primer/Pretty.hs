@@ -95,7 +95,7 @@ prettyExpr opts = \case
   Var _ v -> case v of
     GlobalVarRef n -> col Blue (gname opts n)
     LocalVarRef n -> lname n
-  Lam _ n e ->
+  Lam _ (Bind _ n) e ->
     (if inlineLambda opts then group else identity)
       ( col Magenta "λ"
           <> lname n
@@ -103,7 +103,7 @@ prettyExpr opts = \case
           <> line
           <> indent' 2 (pE e)
       )
-  LAM _ n e ->
+  LAM _ (Bind _ n) e ->
     (if inlineLambda opts then group else identity)
       ( col Magenta "Λ"
           <> lname n
@@ -154,7 +154,7 @@ prettyExpr opts = \case
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
-  Let _ v e e' ->
+  Let _ (Bind _ v) e e' ->
     col Yellow "let"
       <+> lname v
       <+> col Yellow "="
@@ -162,7 +162,7 @@ prettyExpr opts = \case
       <> col Yellow "in"
       <> line
       <> indent' 2 (pE e')
-  LetType _ v t e ->
+  LetType _ (Bind _ v) t e ->
     col Yellow "let type"
       <+> lname v
       <+> col Yellow "="
@@ -170,7 +170,7 @@ prettyExpr opts = \case
       <> col Yellow "in"
       <> line
       <> indent' 2 (pE e)
-  Letrec _ v e t e' ->
+  Letrec _ (Bind _ v) e t e' ->
     col Yellow "let rec"
       <+> lname v
       <+> col Yellow "="
@@ -243,7 +243,7 @@ prettyType opts typ = case typ of
     _ -> pT t1 <+> col Yellow "->" <+> pT t2
   TVar _ n -> lname n
   TApp _ t1 t2 -> brac Round White (pT t1) <> line <> brac Round White (pT t2)
-  TForall _ n _ t ->
+  TForall _ (Bind _ n) _ t ->
     (if inlineLambda opts then group else identity)
       ( col Yellow "∀"
           <+> lname n
@@ -251,7 +251,7 @@ prettyType opts typ = case typ of
           <> line
           <> indent' 2 (pT t)
       )
-  TLet _ v t b ->
+  TLet _ (Bind _ v) t b ->
     col Yellow "let"
       <+> lname v
       <+> col Yellow "="

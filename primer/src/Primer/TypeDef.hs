@@ -21,6 +21,7 @@ import Data.Generics.Product (HasParam (param), Param (StarParam))
 import Optics (set, traverseOf)
 import Primer.Core.DSL.Meta (kmeta, meta)
 import Primer.Core.Meta (
+  Bind' (Bind),
   ID,
   TyConName,
   TyVarName,
@@ -87,7 +88,7 @@ valConType :: TyConName -> ASTTypeDef () () -> ValCon () () -> Type' () ()
 valConType tc td vc =
   let ret = mkTAppCon tc (TVar () . fst <$> astTypeDefParameters td)
       args = foldr (TFun () . forgetTypeMetadata) ret (valConArgs vc)
-      foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
+      foralls = foldr (\(n, k) t -> TForall () (Bind () n) k t) args (astTypeDefParameters td)
    in foralls
 
 typeDefNameHints :: TypeDef b c -> [Name]

@@ -38,9 +38,6 @@ module Primer.Miso.Util (
   ASTDefT (..),
   ModuleT (..),
   kindsInType,
-  bindingsInExpr,
-  typeBindingsInExpr,
-  bindingsInType,
   nodeSelectionType,
   typeCacheType,
   realToClay,
@@ -120,7 +117,7 @@ import Primer.App (
  )
 import Primer.App qualified
 import Primer.Core (
-  Expr' (LAM, Lam, Let, LetType, Letrec),
+  Expr',
   ExprMeta,
   GVarName,
   GlobalName,
@@ -128,13 +125,11 @@ import Primer.Core (
   ID,
   Kind',
   KindMeta,
-  LVarName,
   LocalName,
   Meta,
   ModuleName,
   TyConName,
-  TyVarName,
-  Type' (TEmptyHole, TForall, THole, TLet),
+  Type' (TEmptyHole, TForall, THole),
   TypeCache (..),
   TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
   TypeMeta,
@@ -313,24 +308,6 @@ data ModuleT = ModuleT -- TODO include type defs and primitives
 kindsInType :: AffineTraversal' (Type' a b) (Kind' b)
 kindsInType = atraversalVL $ \point f -> \case
   TForall m a k t -> flip (TForall m a) t <$> f k
-  e -> point e
-
--- TODO if we had first-class bindings, we could probably implement all of these generically
-bindingsInExpr :: AffineTraversal' (Expr' a b c) LVarName
-bindingsInExpr = atraversalVL $ \point f -> \case
-  Lam m v e -> f v <&> \v' -> Lam m v' e
-  Let m v e1 e2 -> f v <&> \v' -> Let m v' e1 e2
-  Letrec m v e1 t e2 -> f v <&> \v' -> Letrec m v' e1 t e2
-  e -> point e
-typeBindingsInExpr :: AffineTraversal' (Expr' a b c) TyVarName
-typeBindingsInExpr = atraversalVL $ \point f -> \case
-  LAM m v e -> f v <&> \v' -> LAM m v' e
-  LetType m v t e -> f v <&> \v' -> LetType m v' t e
-  e -> point e
-bindingsInType :: AffineTraversal' (Type' a b) TyVarName
-bindingsInType = atraversalVL $ \point f -> \case
-  TForall m v k t -> f v <&> \v' -> TForall m v' k t
-  TLet m v t1 t2 -> f v <&> \v' -> TLet m v' t1 t2
   e -> point e
 
 -- TODO generalise to full selections and DRY with `getSelectionTypeOrKind` from `primer-api`

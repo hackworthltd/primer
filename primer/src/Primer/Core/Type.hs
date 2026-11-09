@@ -4,9 +4,11 @@ module Primer.Core.Type (
   Kind,
   Kind' (..),
   TypeMeta,
+  TyVarBind,
   _typeMeta,
   _typeMetaLens,
   _typeKindMeta,
+  _typeTyVarBind,
   KindMeta,
   _kindMeta,
   _kindMetaLens,
@@ -17,8 +19,10 @@ import Foreword
 import Data.Data (Data)
 import Data.Generics.Product
 import Optics (
+  AffineTraversal',
   Lens',
   Traversal,
+  atraversalVL,
   (%),
  )
 import Primer.Core.Meta (
@@ -26,6 +30,7 @@ import Primer.Core.Meta (
   HasMetadata (_metadata),
   Meta,
   TyConName,
+  TyVarBind',
   TyVarName,
   Value,
  )
@@ -49,14 +54,14 @@ data Type' a b
   | TFun a (Type' a b) (Type' a b)
   | TVar a TyVarName
   | TApp a (Type' a b) (Type' a b)
-  | TForall a TyVarName (Kind' b) (Type' a b)
+  | TForall a (TyVarBind' a) (Kind' b) (Type' a b)
   | -- | TLet is a let binding at the type level.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
     TLet
       a
       -- | bound variable
-      TyVarName
+      (TyVarBind' a)
       -- | type the variable is bound to; the variable itself is not in scope, this is a non-recursive let
       (Type' a b)
       -- | body of the let; binding scopes over this
@@ -64,6 +69,9 @@ data Type' a b
   deriving stock (Eq, Ord, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Type' a b)
   deriving anyclass (NFData)
+
+-- | A binding of a type variable, within a type or an expression.
+type TyVarBind = TyVarBind' TypeMeta
 
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a c) (Type' b c) a b
@@ -78,6 +86,13 @@ _typeMetaLens = position @1
 -- | A traversal over the kind metadata of an type
 _typeKindMeta :: forall a b c. Traversal (Type' a b) (Type' a c) b c
 _typeKindMeta = param @0
+
+-- | The binding of a type variable introduced by this node, i.e. by a ∀ or type-level let, if any.
+_typeTyVarBind :: AffineTraversal' (Type' a b) (TyVarBind' a)
+_typeTyVarBind = atraversalVL $ \point f -> \case
+  TForall m v k t -> f v <&> \v' -> TForall m v' k t
+  TLet m v t1 t2 -> f v <&> \v' -> TLet m v' t1 t2
+  e -> point e
 
 -- | Core kinds.
 type Kind = Kind' KindMeta

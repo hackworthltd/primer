@@ -31,7 +31,7 @@ Tree
                     [ RecordPair
                         { fst = ForallKind
                         , snd = Tree
-                            { nodeId = "3"
+                            { nodeId = "4"
                             , body = NoBody KType
                             , childTrees = []
                             , rightChild = Nothing
@@ -40,25 +40,25 @@ Tree
                     , RecordPair
                         { fst = Forall
                         , snd = Tree
-                            { nodeId = "4"
+                            { nodeId = "5"
                             , body = NoBody TApp
                             , childTrees =
                                 [ RecordPair
                                     { fst = AppFun
                                     , snd = Tree
-                                        { nodeId = "5"
+                                        { nodeId = "6"
                                         , body = NoBody THole
                                         , childTrees =
                                             [ RecordPair
                                                 { fst = Hole
                                                 , snd = Tree
-                                                    { nodeId = "6"
+                                                    { nodeId = "7"
                                                     , body = NoBody TApp
                                                     , childTrees =
                                                         [ RecordPair
                                                             { fst = AppFun
                                                             , snd = Tree
-                                                                { nodeId = "7"
+                                                                { nodeId = "8"
                                                                 , body = TextBody
                                                                     ( RecordPair
                                                                         { fst = TCon
@@ -78,7 +78,7 @@ Tree
                                                         , RecordPair
                                                             { fst = AppArg
                                                             , snd = Tree
-                                                                { nodeId = "8"
+                                                                { nodeId = "9"
                                                                 , body = NoBody TEmptyHole
                                                                 , childTrees = []
                                                                 , rightChild = Nothing
@@ -95,7 +95,7 @@ Tree
                                 , RecordPair
                                     { fst = AppArg
                                     , snd = Tree
-                                        { nodeId = "9"
+                                        { nodeId = "10"
                                         , body = TextBody
                                             ( RecordPair
                                                 { fst = TVar
@@ -118,7 +118,7 @@ Tree
                     ( RecordPair
                         { fst = Bind
                         , snd = Tree
-                            { nodeId = "2V"
+                            { nodeId = "3"
                             , body = TextBody
                                 ( RecordPair
                                     { fst = TVarBind

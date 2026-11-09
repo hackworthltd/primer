@@ -199,6 +199,7 @@ import Primer.Core (
   TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
   TypeMeta,
   ValConName,
+  bindName,
   getID,
   unLocalName,
   _bindMeta,
@@ -274,8 +275,8 @@ import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefKind, type
 import Primer.TypeDef qualified as TypeDef
 import Primer.Zipper (
   SomeNode (..),
+  findNodeInType,
   findNodeWithParent,
-  findTypeOrKind,
   focusOnKind,
   target,
  )
@@ -876,8 +877,8 @@ viewTreeExpr e0 = case e0 of
             RecordPair
               EdgeFlavor.Bind
               Tree
-                { nodeId = bindingNodeId
-                , body = TextBody $ RecordPair Flavor.VarBind $ localName s
+                { nodeId = bindingNodeId s
+                , body = TextBody $ RecordPair Flavor.VarBind $ localName $ bindName s
                 , childTrees = []
                 , rightChild = Nothing
                 }
@@ -892,8 +893,8 @@ viewTreeExpr e0 = case e0 of
             RecordPair
               EdgeFlavor.Bind
               Tree
-                { nodeId = bindingNodeId
-                , body = TextBody $ RecordPair Flavor.TVarBind $ localName s
+                { nodeId = bindingNodeId s
+                , body = TextBody $ RecordPair Flavor.TVarBind $ localName $ bindName s
                 , childTrees = []
                 , rightChild = Nothing
                 }
@@ -917,8 +918,8 @@ viewTreeExpr e0 = case e0 of
             RecordPair
               EdgeFlavor.Bind
               Tree
-                { nodeId = bindingNodeId
-                , body = TextBody $ RecordPair Flavor.VarBind $ localName s
+                { nodeId = bindingNodeId s
+                , body = TextBody $ RecordPair Flavor.VarBind $ localName $ bindName s
                 , childTrees = []
                 , rightChild = Nothing
                 }
@@ -933,8 +934,8 @@ viewTreeExpr e0 = case e0 of
             RecordPair
               EdgeFlavor.Bind
               Tree
-                { nodeId = bindingNodeId
-                , body = TextBody $ RecordPair Flavor.TVarBind $ localName s
+                { nodeId = bindingNodeId s
+                , body = TextBody $ RecordPair Flavor.TVarBind $ localName $ bindName s
                 , childTrees = []
                 , rightChild = Nothing
                 }
@@ -949,8 +950,8 @@ viewTreeExpr e0 = case e0 of
             RecordPair
               EdgeFlavor.Bind
               Tree
-                { nodeId = bindingNodeId
-                , body = TextBody $ RecordPair Flavor.VarBind $ localName s
+                { nodeId = bindingNodeId s
+                , body = TextBody $ RecordPair Flavor.VarBind $ localName $ bindName s
                 , childTrees = []
                 , rightChild = Nothing
                 }
@@ -1046,11 +1047,9 @@ viewTreeExpr e0 = case e0 of
       , rightChild = Nothing
       }
   where
-    bindingNodeId = nodeId <> "V"
-    -- this ID will not clash with any others in the tree,
-    -- since node IDs in the input expression are unique,
-    -- and don't contain non-numerical characters
     nodeId = show $ e0 ^. _id
+    bindingNodeId :: HasID b => Bind' k b -> Text
+    bindingNodeId = show . getID
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
@@ -1102,7 +1101,7 @@ viewTreeType' t0 = case t0 of
       , childTrees = [RecordPair EdgeFlavor.AppFun $ viewTreeType' t1, RecordPair EdgeFlavor.AppArg $ viewTreeType' t2]
       , rightChild = Nothing
       }
-  TForall _ n k t ->
+  TForall _ (Bind bindingNodeId n) k t ->
     Tree
       { nodeId
       , body = NoBody Flavor.TForall
@@ -1118,7 +1117,7 @@ viewTreeType' t0 = case t0 of
                 , rightChild = Nothing
                 }
       }
-  TLet _ n t b ->
+  TLet _ (Bind bindingNodeId n) t b ->
     Tree
       { nodeId
       , body = NoBody Flavor.TLet
@@ -1136,10 +1135,6 @@ viewTreeType' t0 = case t0 of
       }
   where
     nodeId = t0 ^. _typeMetaLens
-    -- this ID will not clash with any others in the tree,
-    -- since node IDs in the input expression are unique,
-    -- and don't contain non-numerical characters
-    bindingNodeId = nodeId <> "V"
 
 -- | Like 'viewTreeType', but for kinds.
 viewTreeKind :: Kind -> Tree
@@ -1649,12 +1644,11 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
               ExprNode e -> viewExprType e
               TypeNode t -> viewTypeKind t
               KindNode k -> viewKindOfKind k
-              CaseBindNode b -> Type $ Ok $ viewExprType' $ b ^. _bindMeta
+              LVarBindNode b -> Type $ Ok $ viewExprType' $ b ^. _bindMeta
+              TyVarBindNode b -> Kind $ Ok $ viewTypeKind' $ b ^. _bindMeta
           -- sig node selected - get kind from metadata
           SigNode ->
-            maybe (throw' $ NodeIDNotFound id) pure (findTypeOrKind id $ astDefType def) <&> \case
-              Left t -> viewTypeKind t
-              Right k -> viewKindOfKind k
+            maybe (throw' $ NodeIDNotFound id) pure (findNodeInType id $ astDefType def) <&> viewTypeNode
     SelectionTypeDef sel -> do
       def <- snd <$> findASTTypeDef allTypeDefs sel.def
       case sel.node of
@@ -1680,8 +1674,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
         -- field node selected - return its kind
         Just (TypeDefConsNodeSelection (TypeDefConsSelection c (Just s))) -> do
           t0 <- maybe (throw' $ TypeDefConFieldNotFound sel.def c s.index) pure $ getTypeDefConFieldType def c s.index
-          t <- maybe (throw' $ NodeIDNotFound s.meta) pure $ findTypeOrKind s.meta t0
-          pure $ either viewTypeKind viewKindOfKind t
+          viewTypeNode <$> maybe (throw' $ NodeIDNotFound s.meta) pure (findNodeInType s.meta t0)
   where
     trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
     viewExprType :: Expr -> TypeOrKind
@@ -1714,6 +1707,14 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     mkIds = over _typeKindMeta (show . view _id) . over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
     mkIdsK :: Kind' () -> Kind' Text
     mkIdsK = over _kindMeta (("selkind-" <>) . show . getID) . create' . generateKindIDs
+    -- Nodes within types, i.e. not expressions
+    viewTypeNode :: SomeNode -> TypeOrKind
+    viewTypeNode = \case
+      TypeNode t -> viewTypeKind t
+      KindNode k -> viewKindOfKind k
+      TyVarBindNode b -> Kind $ Ok $ viewTypeKind' $ b ^. _bindMeta
+      ExprNode e -> viewExprType e
+      LVarBindNode b -> Type $ Ok $ viewExprType' $ b ^. _bindMeta
     viewTypeKind :: Type -> TypeOrKind
     viewTypeKind =
       Kind . \case

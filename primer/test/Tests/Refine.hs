@@ -17,6 +17,7 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Primer.Builtins (tBool, tList, tNat)
 import Primer.Core (
+  Bind' (Bind),
   Expr' (APP, Ann, App, EmptyHole),
   ID,
   Kind' (KFun, KType),
@@ -171,7 +172,7 @@ unit_ill_kinded_fail_2 =
 -- refine [...] (∀a. List a) (∀b. List b) succeeds, trivially
 unit_alpha :: Assertion
 unit_alpha =
-  let t n = (TForall () n (KType ()) $ TApp () (TCon () tList) (TVar () n))
+  let t n = (TForall () (Bind () n) (KType ()) $ TApp () (TCon () tList) (TVar () n))
    in evalTestM 0 (refine' defaultCxt (t "a") (t "b")) @?= Just ([], t "b")
 
 -- refine cxt T T succeeds
@@ -231,7 +232,7 @@ tasty_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
   tgt <- forAllT $ genWTType (KType ())
   when (isHole tgt) discard
   src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType (KType ()), curry Right <$> freshTyVarNameForCxt <*> genWTKind]
-  let src = foldr (\case Left t -> TFun () t; Right (n, k) -> TForall () n k) tgt src'
+  let src = foldr (\case Left t -> TFun () t; Right (n, k) -> TForall () (Bind () n) k) tgt src'
   annotateShow src
   let inst = map (\case Left t -> InstApp t; Right (n, k) -> InstUnconstrainedAPP n k) src'
   cxt <- ask
@@ -270,8 +271,8 @@ tasty_matches = withDiscards 2000 $
       _ -> discard
   where
     inst1 (TFun _ s t) (InstApp s') | s == s' = pure (identity, t)
-    inst1 (TForall _ a k t) (InstUnconstrainedAPP b k') | k == k' = (extendLocalCxtTy (b, k),) <$> substTy a (TVar () b) t
-    inst1 (TForall _ a _ t) (InstAPP s) = (identity,) <$> substTy a s t
+    inst1 (TForall _ (Bind _ a) k t) (InstUnconstrainedAPP b k') | k == k' = (extendLocalCxtTy (b, k),) <$> substTy a (TVar () b) t
+    inst1 (TForall _ (Bind _ a) _ t) (InstAPP s) = (identity,) <$> substTy a s t
     inst1 _ _ = failure
 
 -- if refine cxt tgt s = Just (is,ty)   =>  (? : s) $ <stuff checking against is>  ∈ ty[instantiation vars substituted appropriately] ~ tgt

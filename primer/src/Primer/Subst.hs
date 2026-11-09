@@ -8,7 +8,7 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as M
 import Primer.Core.Fresh (freshLocalName)
-import Primer.Core.Meta (TyVarName)
+import Primer.Core.Meta (Bind' (Bind), TyVarName)
 import Primer.Core.Type (Type' (..))
 import Primer.Core.Type.Utils (freeVarsTy)
 import Primer.Name (NameCounter)
@@ -50,13 +50,13 @@ substTySimul sub
         | Just a <- M.lookup m sub -> pure a
         | otherwise -> pure t
       TApp _ s t -> TApp () <$> go s <*> go t
-      TForall _ m k s -> do
+      TForall _ (Bind _ m) k s -> do
         (m', s') <- subUnderBinder m s
-        pure $ TForall () m' k s'
-      TLet _ m s b -> do
+        pure $ TForall () (Bind () m') k s'
+      TLet _ (Bind _ m) s b -> do
         s' <- go s
         (m', b') <- subUnderBinder m b
-        pure $ TLet () m' s' b'
+        pure $ TLet () (Bind () m') s' b'
 
 -- | Simple and inefficient capture-avoiding substitution.
 -- @substTy n a t@  is @t[a/n]@

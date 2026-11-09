@@ -37,6 +37,7 @@ import Primer.Core (
   Kind,
   Kind' (..),
   KindMeta,
+  LVarBind',
   LVarName,
   LocalName (LocalName),
   Meta (..),
@@ -45,6 +46,7 @@ import Primer.Core (
   PrimCon (..),
   TmVarRef (..),
   TyConName,
+  TyVarBind',
   TyVarName,
   Type,
   Type' (..),
@@ -115,10 +117,10 @@ genCon =
     genCon' tms = Con <$> genMeta <*> genValConName <*> tms
 
 genLam :: ExprGen Expr
-genLam = Lam <$> genMeta <*> genLVarName <*> genExpr
+genLam = Lam <$> genMeta <*> genLVarBind <*> genExpr
 
 genLAM :: ExprGen Expr
-genLAM = LAM <$> genMeta <*> genTyVarName <*> genExpr
+genLAM = LAM <$> genMeta <*> genTyVarBind <*> genExpr
 
 genLocalVar :: ExprGen Expr
 genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
@@ -130,13 +132,13 @@ genGVarName :: MonadGen m => m GVarName
 genGVarName = qualifyName <$> genModuleName <*> genName
 
 genLet :: ExprGen Expr
-genLet = Let <$> genMeta <*> genLVarName <*> genExpr <*> genExpr
+genLet = Let <$> genMeta <*> genLVarBind <*> genExpr <*> genExpr
 
 genLetType :: ExprGen Expr
-genLetType = LetType <$> genMeta <*> genTyVarName <*> genType <*> genExpr
+genLetType = LetType <$> genMeta <*> genTyVarBind <*> genType <*> genExpr
 
 genLetrec :: ExprGen Expr
-genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genExpr
+genLetrec = Letrec <$> genMeta <*> genLVarBind <*> genExpr <*> genType <*> genExpr
 
 genCase :: ExprGen Expr
 genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive, CaseFallback <$> genExpr]
@@ -183,8 +185,8 @@ genType =
     [ THole <$> genMeta <*> genType
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
-    , TForall <$> genMeta <*> genTyVarName <*> genKind <*> genType
-    , TLet <$> genMeta <*> genTyVarName <*> genType <*> genType
+    , TForall <$> genMeta <*> genTyVarBind <*> genKind <*> genType
+    , TLet <$> genMeta <*> genTyVarBind <*> genType <*> genType
     ]
 
 genTyConName :: MonadGen m => m TyConName
@@ -199,6 +201,12 @@ genKind =
 
 genMeta :: ExprGen (Meta (Maybe a))
 genMeta = Meta <$> genID <*> pure Nothing <*> pure Nothing
+
+genLVarBind :: ExprGen (LVarBind' (Meta (Maybe a)))
+genLVarBind = Bind <$> genMeta <*> genLVarName
+
+genTyVarBind :: ExprGen (TyVarBind' (Meta (Maybe a)))
+genTyVarBind = Bind <$> genMeta <*> genTyVarName
 
 genKindMeta :: ExprGen KindMeta
 genKindMeta = Meta <$> genID <*> pure () <*> pure Nothing

@@ -43,33 +43,33 @@ import Primer.Core.Utils (_freeVars, _freeVarsTy)
 renameVar :: (Data a, Data b, Data c) => TmVarRef -> TmVarRef -> Expr' a b c -> Maybe (Expr' a b c)
 renameVar x y expr = case expr of
   Lam _ v _
-    | sameVarRef v x -> whenNotFreeIn y expr
-    | sameVarRef v y -> Nothing
+    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
+    | sameVarRef (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   LAM _ v _
     -- NB: local term and type variables are in the same namespace
-    | sameVarRef v x -> whenNotFreeIn y expr
-    | sameVarRef v y -> Nothing
+    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
+    | sameVarRef (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   Let m v e1 e2
     -- the binding only scopes over e2
-    | sameVarRef v x -> Let m v <$> renameVar x y e1 <*> whenNotFreeIn y e2
-    | sameVarRef v y -> Nothing
+    | sameVarRef (bindName v) x -> Let m v <$> renameVar x y e1 <*> whenNotFreeIn y e2
+    | sameVarRef (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   LetType _ v _ _
     -- the binding only scopes over _e, but due to assuming well-scoped-ness,
     -- we don't need to rename inside ty. However, we need to check y is
     -- not free in both the type and term, as type and term variables live
     -- in the same namespace, so can capture each other.
-    | sameVarRef v x -> whenNotFreeIn y expr
-    | sameVarRef v y -> Nothing
+    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
+    | sameVarRef (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   Letrec _ v _ _ _
     -- the binding scopes over both expressions, and we need not rename inside types
     -- however, we need to check y is not free in the type (since type and term
     -- variables live in the same namespace).
-    | sameVarRef v x -> whenNotFreeIn y expr
-    | sameVarRef v y -> Nothing
+    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
+    | sameVarRef (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   Case m scrut branches fallback -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches <*> traverseFallback (renameVar x y) fallback
     where
@@ -135,16 +135,16 @@ renameTyVar :: (Data a, Data b) => TyVarName -> TyVarName -> Type' a b -> Maybe 
 -- duplicate metadata. But for renaming, we know that will not happen.
 renameTyVar x y ty = case ty of
   TForall _ v _ _
-    | v == x -> whenNotFreeInTy y ty
-    | v == y -> Nothing
+    | bindName v == x -> whenNotFreeInTy y ty
+    | bindName v == y -> Nothing
     | otherwise -> substAllChildren
   TVar m v
     | v == x -> pure $ TVar m y
     | v == y -> Nothing
     | otherwise -> substAllChildren
   TLet m v t b
-    | v == x -> TLet m v <$> renameTyVar x y t <*> whenNotFreeInTy y b
-    | v == y -> Nothing
+    | bindName v == x -> TLet m v <$> renameTyVar x y t <*> whenNotFreeInTy y b
+    | bindName v == y -> Nothing
     | otherwise -> substAllChildren
   TEmptyHole{} -> substAllChildren
   THole{} -> substAllChildren
@@ -160,27 +160,27 @@ renameTyVar x y ty = case ty of
 renameTyVarExpr :: forall a b c. (Data a, Data b, Data c) => TyVarName -> TyVarName -> Expr' a b c -> Maybe (Expr' a b c)
 renameTyVarExpr x y expr = case expr of
   Lam _ v _
-    | sameVar v x -> pure expr
-    | sameVar v y -> Nothing
+    | sameVar (bindName v) x -> pure expr
+    | sameVar (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   LAM _ v _
-    | v == x -> pure expr
-    | v == y -> Nothing
+    | bindName v == x -> pure expr
+    | bindName v == y -> Nothing
     | otherwise -> substAllChildren
   Let m v e1 e2
     -- the binding only scopes over e2
-    | sameVar v x -> Let m v <$> renameTyVarExpr x y e1 <*> pure e2
-    | sameVar v y -> Nothing
+    | sameVar (bindName v) x -> Let m v <$> renameTyVarExpr x y e1 <*> pure e2
+    | sameVar (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   LetType m v ty e
     -- the binding only scopes over e
-    | sameVar v x -> LetType m v <$> renameTyVar x y ty <*> pure e
-    | sameVar v y -> Nothing
+    | sameVar (bindName v) x -> LetType m v <$> renameTyVar x y ty <*> pure e
+    | sameVar (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   Letrec m v e1 ty e2
     -- the binding only scopes over e1 and e2
-    | sameVar v x -> Letrec m v e1 <$> renameTyVar x y ty <*> pure e2
-    | sameVar v y -> Nothing
+    | sameVar (bindName v) x -> Letrec m v e1 <$> renameTyVar x y ty <*> pure e2
+    | sameVar (bindName v) y -> Nothing
     | otherwise -> substAllChildren
   Case m scrut branches fallback -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches <*> traverseFallback (renameTyVarExpr x y) fallback
     where

@@ -38,6 +38,7 @@ module Primer.Core.DSL (
   kfun,
   meta,
   meta',
+  bind,
   create,
   create',
   setMeta,
@@ -78,7 +79,7 @@ import Primer.Core (
   qualifyName,
   _metadata,
  )
-import Primer.Core.DSL.Meta (S, create, create', meta, meta')
+import Primer.Core.DSL.Meta (S, bind, create, create', meta, meta')
 import Primer.Core.DSL.Type (
   kfun,
   khole,
@@ -151,19 +152,19 @@ var :: MonadFresh ID m => TmVarRef -> m Expr
 var v = Var <$> meta <*> pure v
 
 lam :: MonadFresh ID m => LVarName -> m Expr -> m Expr
-lam v e = Lam <$> meta <*> pure v <*> e
+lam v e = Lam <$> meta <*> bind v <*> e
 
 lAM :: MonadFresh ID m => TyVarName -> m Expr -> m Expr
-lAM v e = LAM <$> meta <*> pure v <*> e
+lAM v e = LAM <$> meta <*> bind v <*> e
 
 let_ :: MonadFresh ID m => LVarName -> m Expr -> m Expr -> m Expr
-let_ v a b = Let <$> meta <*> pure v <*> a <*> b
+let_ v a b = Let <$> meta <*> bind v <*> a <*> b
 
 letrec :: MonadFresh ID m => LVarName -> m Expr -> m Type -> m Expr -> m Expr
-letrec v a tA b = Letrec <$> meta <*> pure v <*> a <*> tA <*> b
+letrec v a tA b = Letrec <$> meta <*> bind v <*> a <*> tA <*> b
 
 letType :: MonadFresh ID m => TyVarName -> m Type -> m Expr -> m Expr
-letType v t e = LetType <$> meta <*> pure v <*> t <*> e
+letType v t e = LetType <$> meta <*> bind v <*> t <*> e
 
 -- | An exhaustive case
 case_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr

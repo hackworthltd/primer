@@ -4,6 +4,7 @@ module Primer.Core.DSL.Meta (
   meta,
   kmeta,
   meta',
+  bind,
   create,
   create',
   S,
@@ -13,7 +14,9 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Primer.Core.Meta (
+  Bind' (..),
   ID,
+  LocalName,
   Meta (..),
  )
 import Primer.Core.Type (KindMeta)
@@ -44,3 +47,7 @@ kmeta = meta' ()
 
 meta' :: MonadFresh ID m => a -> m (Meta a)
 meta' a = Meta <$> fresh <*> pure a <*> pure Nothing
+
+-- | A binding of a variable, with no type or kind information.
+bind :: MonadFresh ID m => LocalName k -> m (Bind' k (Meta (Maybe a)))
+bind v = Bind <$> meta <*> pure v

@@ -13,6 +13,21 @@ module Primer.Zipper (
   unfocusCaseBind,
   caseBindZFocus,
   caseBindZMeta,
+  BindZ (..),
+  focusBind,
+  unfocusBind,
+  LVarBindZ',
+  LVarBindZ,
+  TyVarBindZ',
+  TyVarBindZ,
+  TyVarInTypeBindZ',
+  TyVarInTypeBindZ,
+  TyBindZ',
+  TyBindZ,
+  TypeLoc' (..),
+  TypeLoc,
+  unfocusTypeLoc,
+  focusOnlyTypeBind,
   IsZipper (asZipper),
   Loc,
   Loc' (..),
@@ -66,7 +81,7 @@ module Primer.Zipper (
   bindersBelowTy,
   SomeNode (..),
   findNodeWithParent,
-  findTypeOrKind,
+  findNodeInType,
   FoldAbove' (FA),
 ) where
 
@@ -102,8 +117,6 @@ import Optics (
  )
 import Optics.Lens (Lens', lens)
 import Primer.Core (
-  Bind,
-  Bind' (..),
   CaseBranch' (CaseBranch),
   Expr,
   Expr' (Case, Con, LAM, Lam, Let, LetType, Letrec),
@@ -111,10 +124,12 @@ import Primer.Core (
   HasID (..),
   ID,
   Kind,
-  Kind',
   KindMeta,
-  LVarName,
+  LVarBind,
+  LVarBind',
   LocalName (unLocalName),
+  TyVarBind,
+  TyVarBind',
   Type,
   Type' (TForall),
   TypeMeta,
@@ -122,14 +137,18 @@ import Primer.Core (
   getID,
   typesInExpr,
   _bindMeta,
+  _exprLVarBind,
+  _exprTyVarBind,
  )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
 import Primer.Zipper.Nested (
+  BindZ (..),
   IsZipper (..),
   ZipNest (ZipNest),
   down,
   focus,
+  focusBind,
   innerZipNest,
   left,
   mergeNest,
@@ -137,6 +156,7 @@ import Primer.Zipper.Nested (
   right,
   target,
   top,
+  unfocusBind,
   unfocusNest,
   up,
   _target,
@@ -147,6 +167,10 @@ import Primer.Zipper.Type (
   KindTZ,
   KindTZ',
   LetTypeBinding' (LetTypeBind),
+  TyBindZ,
+  TyBindZ',
+  TypeLoc,
+  TypeLoc' (..),
   TypeZip,
   TypeZip',
   bindersAboveTy,
@@ -162,6 +186,7 @@ import Primer.Zipper.Type (
   getBoundHereUpTy,
   search,
   unfocusKindT,
+  unfocusTypeLoc,
  )
 
 type ExprZ' a b c = Zipper (Expr' a b c) (Expr' a b c)
@@ -194,13 +219,13 @@ type KindZ = KindZ' ExprMeta TypeMeta KindMeta
 data CaseBindZ' a b c = CaseBindZ
   { caseBindZExpr :: ExprZ' a b c
   -- ^ a zipper focused on the case expression
-  , caseBindZFocus :: Bind' a
+  , caseBindZFocus :: LVarBind' a
   -- ^ the focused binding
   , caseBindZRhs :: Expr' a b c
   -- ^ the rhs of the branch
-  , caseBindAllBindings :: [Bind' a]
+  , caseBindAllBindings :: [LVarBind' a]
   -- ^ all other bindings in the case branch, i.e. all except the focused one
-  , caseBindZUpdate :: Bind' a -> Expr' a b c -> ExprZ' a b c -> ExprZ' a b c
+  , caseBindZUpdate :: LVarBind' a -> Expr' a b c -> ExprZ' a b c -> ExprZ' a b c
   -- ^ a function to update the focused binding and rhs simultaneously
   }
   deriving stock (Generic)
@@ -219,7 +244,7 @@ type CaseBindZ = CaseBindZ' ExprMeta TypeMeta KindMeta
 updateCaseBind ::
   Functor f =>
   CaseBindZ ->
-  (Bind' ExprMeta -> [Bind' ExprMeta] -> Expr -> f (Bind' ExprMeta, Expr)) ->
+  (LVarBind -> [LVarBind] -> Expr -> f (LVarBind, Expr)) ->
   f CaseBindZ
 updateCaseBind (CaseBindZ z bind rhs bindings update) f =
   f bind bindings rhs <&> \(bind', rhs') ->
@@ -241,7 +266,7 @@ data Loc' a b c
     InType (TypeZ' a b c)
   | -- | A kind
     InKind (KindZ' a b c)
-  | -- | A binding (currently just case bindings)
+  | -- | A binding
     InBind (BindLoc' a b c)
   deriving stock (Generic)
 
@@ -261,18 +286,48 @@ instance (HasID a, HasID b, HasID c) => HasID (Loc' a b c) where
         InKind k -> InKind $ set _id i k
         InBind t -> InBind $ set _id i t
 
--- | A location of a binding.
--- This only covers bindings in case branches for now.
+-- | A zipper for bindings of term variables by a λ, let or letrec.
+type LVarBindZ' a b c = BindZ (ExprZ' a b c) (LVarBind' a)
 
-{- HLINT ignore BindLoc' "Use newtype instead of data" -}
+type LVarBindZ = LVarBindZ' ExprMeta TypeMeta KindMeta
+
+-- | A zipper for bindings of type variables by a Λ or let type.
+type TyVarBindZ' a b c = BindZ (ExprZ' a b c) (TyVarBind' b)
+
+type TyVarBindZ = TyVarBindZ' ExprMeta TypeMeta KindMeta
+
+-- | A zipper for bindings of type variables by a ∀ or type-level let, in types embedded in expressions.
+type TyVarInTypeBindZ' a b c = BindZ (TypeZ' a b c) (TyVarBind' b)
+
+type TyVarInTypeBindZ = TyVarInTypeBindZ' ExprMeta TypeMeta KindMeta
+
+-- | A location of a binding.
 data BindLoc' a b c
-  = BindCase (CaseBindZ' a b c)
+  = -- | A binding in a case branch
+    BindCase (CaseBindZ' a b c)
+  | -- | A binding of a term variable by a λ, let or letrec
+    BindLVar (LVarBindZ' a b c)
+  | -- | A binding of a type variable by a Λ or let type
+    BindTyVar (TyVarBindZ' a b c)
+  | -- | A binding of a type variable by a ∀ or type-level let, in a type
+    BindTyVarInType (TyVarInTypeBindZ' a b c)
   deriving stock (Generic)
 
-type BindLoc = BindLoc' ExprMeta TypeMeta
+type BindLoc = BindLoc' ExprMeta TypeMeta KindMeta
 
-instance HasID a => HasID (BindLoc' a b c) where
-  _id = position @1 % _id
+instance (HasID a, HasID b) => HasID (BindLoc' a b c) where
+  _id = lens getter setter
+    where
+      getter = \case
+        BindCase z -> view _id z
+        BindLVar z -> view _id z
+        BindTyVar z -> view _id z
+        BindTyVarInType z -> view _id z
+      setter l i = case l of
+        BindCase z -> BindCase $ set _id i z
+        BindLVar z -> BindLVar $ set _id i z
+        BindTyVar z -> BindTyVar $ set _id i z
+        BindTyVarInType z -> BindTyVarInType $ set _id i z
 
 -- | Switch from an 'Expr' zipper to a 'Type' zipper, focusing on the type in
 -- the current target. This expects that the target is an @Ann@, @App@,
@@ -320,7 +375,7 @@ findInCaseBinds i z = do
   where
     branchesLens :: AffineTraversal' (ExprZ' a b c) [CaseBranch' a b c]
     branchesLens = _target % #_Case % _3
-    binds :: Lens' (CaseBranch' a b c) [Bind' a]
+    binds :: Lens' (CaseBranch' a b c) [LVarBind' a]
     binds = position @2
     branchRHS :: Lens' (CaseBranch' a b c) (Expr' a b c)
     branchRHS = position @3
@@ -337,6 +392,10 @@ unfocusKind = mergeNest
 focusOnlyType :: TypeZ' a b c -> TypeZip' b c
 focusOnlyType = innerZipNest
 
+-- | Forget the surrounding expression context of a binding in a type
+focusOnlyTypeBind :: TyVarInTypeBindZ' a b c -> TyBindZ' b c
+focusOnlyTypeBind (BindZ (ZipNest z f) b u) = BindZ z b $ \b' z' -> focusOnlyType $ u b' (ZipNest z' f)
+
 -- | Forget the surrounding expression context
 focusOnlyKind :: KindZ' a b c -> KindTZ' b c
 focusOnlyKind = innerZipNest
@@ -344,7 +403,7 @@ focusOnlyKind = innerZipNest
 -- 'CaseBindZ' is sort of a fake zipper which can only focus on one thing: the case binding.
 -- It's a bit fiddly to make it appear as a zipper like this, but it's convenient to have a
 -- consistent interface for 'ExprZ', 'TypeZ' and 'CaseBindZ'.
-instance IsZipper CaseBindZ (Bind' ExprMeta) where
+instance IsZipper CaseBindZ LVarBind where
   asZipper = #caseBindZFocus % iso zipper fromZipper
 
 -- | Convert an 'Expr' to a 'Loc' which focuses on the top of the expression.
@@ -365,6 +424,9 @@ unfocusLoc :: Loc -> ExprZ
 unfocusLoc (InExpr z) = z
 unfocusLoc (InType z) = unfocusType z
 unfocusLoc (InBind (BindCase z)) = unfocusCaseBind z
+unfocusLoc (InBind (BindLVar z)) = unfocusBind z
+unfocusLoc (InBind (BindTyVar z)) = unfocusBind z
+unfocusLoc (InBind (BindTyVarInType z)) = unfocusType $ unfocusBind z
 unfocusLoc (InKind k) = unfocusType $ unfocusKind k
 
 -- | Convert a 'Loc' to an 'Expr'.
@@ -383,16 +445,21 @@ focusOn' i = fmap snd . search matchesID
     matchesID z
       -- If the current target has the correct ID, return that
       | getID (target z) == i = Just $ InExpr z
+      -- If the target binds a variable with the correct ID, return that.
       -- If the target has an embedded type, search the type for a match.
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
-          let inType = do
+          let inBinds =
+                (InBind . BindLVar <$> mfilter ((== i) . getID) (focusBind _exprLVarBind z))
+                  <|> (InBind . BindTyVar <$> mfilter ((== i) . getID) (focusBind _exprTyVarBind z))
+              inType = do
                 ZipNest tz f <- focusType z
                 focusOnTy' i tz <&> \case
-                  Left tz' -> InType $ ZipNest tz' f
-                  Right kz -> InKind (ZipNest kz f)
+                  TInType tz' -> InType $ ZipNest tz' f
+                  TInKind kz -> InKind (ZipNest kz f)
+                  TInBind (BindZ tz' b u) -> InBind $ BindTyVarInType $ BindZ (ZipNest tz' f) b $ \b' (ZipNest t f') -> ZipNest (u b' t) f'
               inCaseBinds = findInCaseBinds i z
-           in inType <|> inCaseBinds
+           in inBinds <|> inType <|> inCaseBinds
 
 -- Gets all binders that scope over the focussed subtree
 bindersAbove :: ExprZ -> S.Set Name
@@ -446,22 +513,22 @@ getBoundHere :: (Eq a, Eq b, Eq c) => Expr' a b c -> Maybe (Expr' a b c) -> S.Se
 getBoundHere e prev = S.fromList $ either identity letBindingName <$> getBoundHere' e prev
 
 data LetBinding' a b c
-  = LetBind LVarName (Expr' a b c)
-  | LetrecBind LVarName (Expr' a b c) (Type' b c)
+  = LetBind (LVarBind' a) (Expr' a b c)
+  | LetrecBind (LVarBind' a) (Expr' a b c) (Type' b c)
   | LetTyBind (LetTypeBinding' b c)
   deriving stock (Eq, Show)
 type LetBinding = LetBinding' ExprMeta TypeMeta KindMeta
 
 letBindingName :: LetBinding' a b c -> Name
 letBindingName = \case
-  LetBind n _ -> unLocalName n
-  LetrecBind n _ _ -> unLocalName n
-  LetTyBind (LetTypeBind n _) -> unLocalName n
+  LetBind n _ -> unLocalName $ bindName n
+  LetrecBind n _ _ -> unLocalName $ bindName n
+  LetTyBind (LetTypeBind n _) -> unLocalName $ bindName n
 
 getBoundHere' :: (Eq a, Eq b, Eq c) => Expr' a b c -> Maybe (Expr' a b c) -> [Either Name (LetBinding' a b c)]
 getBoundHere' e prev = case e of
-  Lam _ v _ -> anon v
-  LAM _ tv _ -> anon tv
+  Lam _ v _ -> anon $ bindName v
+  LAM _ tv _ -> anon $ bindName tv
   Let _ v rhs b ->
     if maybe True (== b) prev
       then letBind $ LetBind v rhs
@@ -499,18 +566,27 @@ findNodeWithParent id x = do
       ( KindNode (target kz)
       , Just $ maybe (TypeNode $ target $ unfocusKind kz) (KindNode . target) $ up kz
       )
-    InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
+    InBind (BindCase bz) -> (LVarBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
+    InBind (BindLVar bz) -> (LVarBindNode $ bindZFocus bz, Just . ExprNode . target . unfocusBind $ bz)
+    InBind (BindTyVar bz) -> (TyVarBindNode $ bindZFocus bz, Just . ExprNode . target . unfocusBind $ bz)
+    InBind (BindTyVarInType bz) -> (TyVarBindNode $ bindZFocus bz, Just . TypeNode . target . unfocusBind $ bz)
 
--- | Find a sub-type or kind in a larger type by its ID.
-findTypeOrKind :: (Data a, HasID a, Data b, HasID b) => ID -> Type' a b -> Maybe (Either (Type' a b) (Kind' b))
-findTypeOrKind id ty = bimap target target <$> focusOnTy id ty
+-- | Find a sub-type, kind or binding in a larger type by its ID.
+findNodeInType :: ID -> Type -> Maybe SomeNode
+findNodeInType id ty =
+  focusOnTy id ty <&> \case
+    TInType t -> TypeNode $ target t
+    TInKind k -> KindNode $ target k
+    TInBind b -> TyVarBindNode $ bindZFocus b
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 data SomeNode
   = ExprNode Expr
   | TypeNode Type
   | KindNode Kind
-  | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
-    CaseBindNode Bind
+  | -- | A binding of a term variable, e.g. by a λ or in a case branch
+    LVarBindNode LVarBind
+  | -- | A binding of a type variable, e.g. by a Λ or ∀
+    TyVarBindNode TyVarBind
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON SomeNode

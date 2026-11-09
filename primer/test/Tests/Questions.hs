@@ -42,7 +42,7 @@ import Primer.Typecheck (
   exprTtoExpr,
   synth,
  )
-import Primer.Zipper (ExprZ, Loc' (InExpr), TypeZip, down, focus, right)
+import Primer.Zipper (ExprZ, Loc' (InExpr), TypeLoc' (TInType), TypeZip, down, focus, right)
 import Tasty (Property, property)
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
@@ -272,7 +272,7 @@ hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind' (
 hasVariablesType ty path expected = do
   let t = create' ty
   case path $ focus t of
-    Just z -> variablesInScopeTy (Left z) @?= expected
+    Just z -> variablesInScopeTy (TInType z) @?= expected
     Nothing -> assertFailure ""
 
 -- Test type-directed names
@@ -321,5 +321,5 @@ hasGeneratedNamesTy :: S Type -> Maybe (Kind' ()) -> (TypeZip -> Maybe TypeZip) 
 hasGeneratedNamesTy ty k path expected = do
   let t = create' ty
   case path $ focus t of
-    Just z -> runReader (generateNameTy (Right k) (Left z)) defCxt @?= expected
+    Just z -> runReader (generateNameTy (Right k) (TInType z)) defCxt @?= expected
     Nothing -> assertFailure ""

@@ -31,9 +31,10 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Hedgehog.Range qualified as Range
-import Optics (ix, toListOf, (%), (.~), (^..), _head)
+import Optics (ix, toListOf, (%), (.~), (^..), (^?), _head)
 import Primer.Action (
-  ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
+  Action (NoOp),
+  ActionError (CaseBindsClash, CaseBranchAlreadyExists, CustomFailure, NameCapture),
   Movement (Child1, Child2),
   ProgAction (AddTypeDef, CreateDef),
   enterType,
@@ -119,7 +120,10 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
+  _exprLVarBind,
+  _exprTyVarBind,
   _typeMeta,
+  _typeTyVarBind,
  )
 import Primer.Core.DSL (
   S,
@@ -209,7 +213,7 @@ import Primer.Typecheck (
   checkEverything,
   typeDefs,
  )
-import Primer.Zipper (focus)
+import Primer.Zipper (focus, _target)
 import System.FilePath ((</>))
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
@@ -855,6 +859,8 @@ unit_case_prim =
 data MovementListBody
   = InExpr [Movement]
   | InType [Movement] [Movement]
+  | -- | The binding introduced by the node at the given position
+    InBinding MovementListBody
 
 data MovementList
   = InBody MovementListBody
@@ -864,11 +870,18 @@ exprMoves :: MovementListBody -> [Movement]
 exprMoves = \case
   InExpr ms -> ms
   InType ms _ -> ms
+  InBinding p -> exprMoves p
 
 typeMoves :: MovementListBody -> Maybe [Movement]
 typeMoves = \case
   InExpr _ -> Nothing
   InType _ ms -> Just ms
+  InBinding p -> typeMoves p
+
+isBinding :: MovementListBody -> Bool
+isBinding = \case
+  InBinding _ -> True
+  _ -> False
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
@@ -966,11 +979,15 @@ offeredActionTest' sh l inputDef position action = do
               InBody pos' -> do
                 ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves pos'
                 case typeMoves pos' of
-                  Nothing -> pure $ getID ez
+                  Nothing
+                    | isBinding pos' -> maybe (throwError $ CustomFailure NoOp "no binding here") pure $ (getID <$> ez ^? _target % _exprLVarBind) <|> (getID <$> ez ^? _target % _exprTyVarBind)
+                    | otherwise -> pure $ getID ez
                   Just ms -> do
                     tz' <- enterType ez
                     tz <- foldlM (flip moveType) tz' ms
-                    pure $ getID tz
+                    if isBinding pos'
+                      then maybe (throwError $ CustomFailure NoOp "no binding here") (pure . getID) $ tz ^? _target % _typeTyVarBind
+                      else pure $ getID tz
               InSig moves -> getID <$> foldlM (flip move) (focus sig) moves
   id <- case id' of
     Left err -> assertFailure $ show err
@@ -1034,7 +1051,7 @@ unit_rename_lam_names :: Assertion
 unit_rename_lam_names =
   offeredNamesTest
     (lam "x" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
-    (InExpr [Child1])
+    (InBinding $ InExpr [Child1])
     RenameLam
     "i"
     (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
@@ -1058,13 +1075,13 @@ unit_rename_LAM_names :: Assertion
 unit_rename_LAM_names = do
   offeredNamesTest
     (lAM "x" emptyHole `ann` tforall "a" ktype (tcon tBool))
-    (InExpr [Child1])
+    (InBinding $ InExpr [Child1])
     RenameLAM
     "α"
     (lAM "α" emptyHole `ann` tforall "a" ktype (tcon tBool))
   offeredNamesTest
     (lAM "x" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
-    (InExpr [Child1])
+    (InBinding $ InExpr [Child1])
     RenameLAM
     "f"
     (lAM "f" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
@@ -1074,7 +1091,7 @@ unit_rename_let_names :: Assertion
 unit_rename_let_names =
   offeredNamesTest
     (let_ "x" (emptyHole `ann` tcon tBool) emptyHole)
-    (InExpr [])
+    (InBinding $ InExpr [])
     RenameLet
     "p"
     (let_ "p" (emptyHole `ann` tcon tBool) emptyHole)
@@ -1086,13 +1103,13 @@ unit_rename_let_names =
 --unit_rename_lettype_names = do
   offeredNamesTest
     (letType "x" (tcon tBool) emptyHole)
-    (InExpr [])
+    (InBinding $ InExpr [])
     RenameLet
     "p"
     (letType "p" (tcon tBool) emptyHole)
   offeredNamesTest
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
-    (InExpr [])
+    (InBinding $ InExpr [])
     RenameLet
     "p"
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
@@ -1102,7 +1119,7 @@ unit_rename_letrec_names :: Assertion
 unit_rename_letrec_names =
   offeredNamesTest
     (letrec "x" emptyHole (tcon tBool) emptyHole)
-    (InExpr [])
+    (InBinding $ InExpr [])
     RenameLet
     "p"
     (letrec "p" emptyHole (tcon tBool) emptyHole)
@@ -1113,13 +1130,13 @@ unit_rename_forall_names :: Assertion
 unit_rename_forall_names = do
   offeredNamesTest
     (emptyHole `ann` tforall "a" ktype (tcon tBool))
-    ([] `InType` [])
+    (InBinding $ [] `InType` [])
     RenameForall
     "α"
     (emptyHole `ann` tforall "α" ktype (tcon tBool))
   offeredNamesTest
     (emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
-    ([] `InType` [])
+    (InBinding $ [] `InType` [])
     RenameForall
     "f"
     (emptyHole `ann` tforall "f" (kfun ktype ktype) (tcon tBool))
@@ -1131,13 +1148,13 @@ unit_rename_forall_names = do
 --unit_rename_tlet_names = do
   offeredNamesTest
     (emptyHole `ann` tlet "a" (tcon tNat) tEmptyHole)
-    ([] `InType` [])
+    (InBinding $ [] `InType` [])
     RenameLet
     "α"
     (emptyHole `ann` tlet "α" (tcon tNat) tEmptyHole)
   offeredNamesTest
     (emptyHole `ann` tlet "a" (tcon tList) tEmptyHole)
-    ([] `InType` [])
+    (InBinding $ [] `InType` [])
     RenameLet
     "f"
     (emptyHole `ann` tlet "f" (tcon tList) tEmptyHole)

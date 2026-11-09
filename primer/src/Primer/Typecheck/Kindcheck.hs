@@ -19,9 +19,9 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.NestedError (MonadNestedError, throwError')
 import Data.Map qualified as Map
-import Optics ((%), (.~))
+import Optics (over, (%), (.~))
 import Primer.Core.DSL.Meta (meta')
-import Primer.Core.Meta (ID, LocalName (LocalName), Meta (Meta), TyVarName, unLocalName, _type)
+import Primer.Core.Meta (ID, LocalName (LocalName), Meta (Meta), TyVarName, bindName, unLocalName, _bindMeta, _type)
 import Primer.Core.Type (
   Kind' (KFun, KHole, KType),
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TLet, TVar),
@@ -129,8 +129,9 @@ synthKind = \case
         pure (KHole (), TApp (annotate (KHole ()) m) sWrap t')
       (Just (k1, k2), _) -> checkKind k1 t >>= \t' -> pure (k2, TApp (annotate k2 m) s' t')
   TForall m n k t -> do
-    t' <- local (extendLocalCxtTy (n, forgetKindMetadata k)) $ checkKind (KType ()) t
-    pure (KType (), TForall (annotate (KType ()) m) n (k & _kindMeta % _type .~ ()) t')
+    let k' = forgetKindMetadata k
+    t' <- local (extendLocalCxtTy (bindName n, k')) $ checkKind (KType ()) t
+    pure (KType (), TForall (annotate (KType ()) m) (over _bindMeta (annotate k') n) (k & _kindMeta % _type .~ ()) t')
   TLet{} -> throwError' TLetUnsupported
 
 checkKind :: KindM e m => Kind -> Type' (Meta a) (Meta b) -> m TypeT

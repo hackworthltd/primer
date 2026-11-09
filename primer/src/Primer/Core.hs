@@ -6,8 +6,7 @@
 module Primer.Core (
   Expr,
   Expr' (..),
-  Bind,
-  Bind' (..),
+  LVarBind,
   CaseBranch,
   CaseBranch' (..),
   CaseFallback,
@@ -27,9 +26,9 @@ module Primer.Core (
   _exprMetaLens,
   _exprTypeMeta,
   _exprKindMeta,
-  bindName,
-  _bindMeta,
   typesInExpr,
+  _exprLVarBind,
+  _exprTyVarBind,
 ) where
 
 import Foreword
@@ -41,7 +40,6 @@ import Data.Generics.Uniplate.Data ()
 import Optics (
   AffineFold,
   AffineTraversal',
-  Lens,
   Lens',
   Traversal,
   afailing,
@@ -49,12 +47,14 @@ import Optics (
   (%),
  )
 import Primer.Core.Meta (
+  Bind' (..),
   GVarName,
   GlobalName (baseName, qualifiedModule),
   GlobalNameKind (..),
   HasID (..),
   HasMetadata (_metadata),
   ID (ID),
+  LVarBind',
   LVarName,
   LocalName (LocalName, unLocalName),
   LocalNameKind (..),
@@ -64,9 +64,11 @@ import Primer.Core.Meta (
   PrimCon (..),
   TmVarRef (..),
   TyConName,
+  TyVarBind',
   TyVarName,
   ValConName,
   Value,
+  bindName,
   getID,
   globalNamePretty,
   mkSimpleModuleName,
@@ -76,12 +78,15 @@ import Primer.Core.Meta (
   trivialMetaUnit,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _bindMeta,
+  _bindName,
   _type,
  )
 import Primer.Core.Type (
   Kind,
   Kind' (..),
   KindMeta,
+  TyVarBind,
   Type,
   Type' (..),
   TypeMeta,
@@ -90,6 +95,7 @@ import Primer.Core.Type (
   _typeKindMeta,
   _typeMeta,
   _typeMetaLens,
+  _typeTyVarBind,
  )
 import Primer.JSON
 
@@ -159,13 +165,13 @@ data Expr' a b c
   | App a (Expr' a b c) (Expr' a b c)
   | APP a (Expr' a b c) (Type' b c)
   | Con a ValConName [Expr' a b c] -- See Note [Checkable constructors]
-  | Lam a LVarName (Expr' a b c)
-  | LAM a TyVarName (Expr' a b c)
+  | Lam a (LVarBind' a) (Expr' a b c)
+  | LAM a (TyVarBind' b) (Expr' a b c)
   | Var a TmVarRef
   | Let
       a
       -- | bound variable
-      LVarName
+      (LVarBind' a)
       -- | value the variable is bound to
       (Expr' a b c)
       -- | expression the binding scopes over
@@ -176,7 +182,7 @@ data Expr' a b c
     LetType
       a
       -- | bound variable
-      TyVarName
+      (TyVarBind' b)
       -- | value the variable is bound to
       (Type' b c)
       -- | expression the binding scopes over
@@ -184,7 +190,7 @@ data Expr' a b c
   | Letrec
       a
       -- | bound variable
-      LVarName
+      (LVarBind' a)
       -- | value the variable is bound to; the variable itself is in scope, as this is a recursive let
       (Expr' a b c)
       -- | type of the bound variable (variable is not in scope in this type)
@@ -322,10 +328,8 @@ data CaseBranch' a b c
   = CaseBranch
       -- | constructor
       Pattern
-      -- | constructor parameters.
-      -- Ideally this would be '[Bind' (Meta TypeCache)]' since we always know the types of branch
-      -- bindings. Unfortunately that breaks generic traversals like '_exprMeta'.
-      [Bind' a]
+      -- | constructor parameters
+      [LVarBind' a]
       -- | right hand side
       (Expr' a b c)
   deriving stock (Eq, Show, Read, Data, Generic)
@@ -352,22 +356,8 @@ traverseFallback f = \case
 mapFallback :: (Expr' a b c -> Expr' a' b' c') -> CaseFallback' a b c -> CaseFallback' a' b' c'
 mapFallback f = runIdentity . traverseFallback (Identity . f)
 
--- | Variable bindings
--- These are used in case branches to represent the binding of a variable.
--- They aren't currently used in lambdas or lets, but in the future that may change.
-type Bind = Bind' ExprMeta
-
-data Bind' a = Bind a LVarName
-  deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (Bind' a)
-  deriving anyclass (NFData)
-
-bindName :: Bind' a -> LVarName
-bindName (Bind _ n) = n
-
--- | A type-modifying lens for the metadata of a Bind.
-_bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
-_bindMeta = position @1
+-- | A binding of a term variable, within an expression.
+type LVarBind = LVarBind' ExprMeta
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
 typesInExpr :: AffineTraversal' (Expr' a b c) (Type' b c)
@@ -378,14 +368,24 @@ typesInExpr = atraversalVL $ \point f -> \case
   Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
   e -> point e
 
+-- | The binding of a term variable introduced by this node, i.e. by a λ, let or letrec, if any.
+-- Note that this does not include bindings in case branches, since there may be several of them.
+_exprLVarBind :: AffineTraversal' (Expr' a b c) (LVarBind' a)
+_exprLVarBind = atraversalVL $ \point f -> \case
+  Lam m v e -> f v <&> \v' -> Lam m v' e
+  Let m v e1 e2 -> f v <&> \v' -> Let m v' e1 e2
+  Letrec m v e1 t e2 -> f v <&> \v' -> Letrec m v' e1 t e2
+  e -> point e
+
+-- | The binding of a type variable introduced by this node, i.e. by a Λ or let type, if any.
+_exprTyVarBind :: AffineTraversal' (Expr' a b c) (TyVarBind' b)
+_exprTyVarBind = atraversalVL $ \point f -> \case
+  LAM m v e -> f v <&> \v' -> LAM m v' e
+  LetType m v t e -> f v <&> \v' -> LetType m v' t e
+  e -> point e
+
 instance HasID a => HasID (Expr' a b c) where
   _id = position @1 % _id
 
-instance HasID a => HasID (Bind' a) where
-  _id = position @1 % _id
-
 instance HasMetadata (Expr' ExprMeta b c) where
-  _metadata = position @1 % typed @(Maybe Value)
-
-instance HasMetadata (Bind' ExprMeta) where
   _metadata = position @1 % typed @(Maybe Value)

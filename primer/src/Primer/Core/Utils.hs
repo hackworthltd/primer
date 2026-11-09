@@ -144,7 +144,7 @@ _freeTmVars = traversalVL $ go mempty
       App m e s -> App m <$> go bound f e <*> go bound f s
       APP m e ty -> APP m <$> go bound f e <*> pure ty
       Con m c tms -> Con m c <$> traverse (go bound f) tms
-      Lam m v e -> Lam m v <$> go (S.insert v bound) f e
+      Lam m v e -> Lam m v <$> go (S.insert (bindName v) bound) f e
       LAM m tv e ->
         -- A well scoped term will not refer to tv as a term
         -- variable, so we do not need to add it to the bound set
@@ -154,8 +154,8 @@ _freeTmVars = traversalVL $ go mempty
         , not $ S.member n bound ->
             curry f m n
         | otherwise -> pure t
-      Let m v e b -> Let m v <$> go bound f e <*> go (S.insert v bound) f b
-      Letrec m v e t b -> Letrec m v <$> go (S.insert v bound) f e <*> pure t <*> go (S.insert v bound) f b
+      Let m v e b -> Let m v <$> go bound f e <*> go (S.insert (bindName v) bound) f b
+      Letrec m v e t b -> Letrec m v <$> go (S.insert (bindName v) bound) f e <*> pure t <*> go (S.insert (bindName v) bound) f b
       LetType m tv ty e ->
         -- A well scoped term will not refer to tv as a term
         -- variable, so we do not need to add it to the bound set
@@ -180,7 +180,7 @@ _freeTyVars = traversalVL $ go mempty
         -- A well scoped term will not refer to v as a type
         -- variable, so we do not need to add it to the bound set
         Lam m v <$> go bound f e
-      LAM m tv e -> LAM m tv <$> go (S.insert tv bound) f e
+      LAM m tv e -> LAM m tv <$> go (S.insert (bindName tv) bound) f e
       t@Var{} -> pure t -- These are always term variables, so not a target
       Let m v e b ->
         -- A well scoped term will not refer to v as a type
@@ -190,7 +190,7 @@ _freeTyVars = traversalVL $ go mempty
         -- A well scoped term will not refer to v as a type
         -- variable, so we do not need to add it to the bound set
         Letrec m v <$> go bound f e <*> traverseFreeVarsTy bound f ty <*> go bound f b
-      LetType m v ty e -> LetType m v <$> traverseFreeVarsTy bound f ty <*> go (S.insert v bound) f e
+      LetType m v ty e -> LetType m v <$> traverseFreeVarsTy bound f ty <*> go (S.insert (bindName v) bound) f e
       Case m e bs fb -> Case m <$> go bound f e <*> traverse freeVarsBr bs <*> traverseFallback (go bound f) fb
       t@PrimCon{} -> pure t
       where
@@ -220,16 +220,16 @@ alphaEq = go (0, mempty, mempty)
     go bs (App _ f1 t1) (App _ f2 t2) = go bs f1 f2 && go bs t1 t2
     go bs (APP _ e1 ty1) (APP _ e2 ty2) = go bs e1 e2 && alphaEqTy' (extractTypeEnv bs) ty1 ty2
     go bs (Con _ c1 as1) (Con _ c2 as2) = c1 == c2 && length as1 == length as2 && and (zipWith (go bs) as1 as2)
-    go bs (Lam _ v1 t1) (Lam _ v2 t2) = go (newTm bs v1 v2) t1 t2
-    go bs (LAM _ v1 t1) (LAM _ v2 t2) = go (newTy bs v1 v2) t1 t2
+    go bs (Lam _ v1 t1) (Lam _ v2 t2) = go (newTm bs (bindName v1) (bindName v2)) t1 t2
+    go bs (LAM _ v1 t1) (LAM _ v2 t2) = go (newTy bs (bindName v1) (bindName v2)) t1 t2
     go (_, bs1, bs2) (Var _ (LocalVarRef v1)) (Var _ (LocalVarRef v2)) = bs1 ! Left v1 == bs2 ! Left v2
     go _ (Var _ (GlobalVarRef v1)) (Var _ (GlobalVarRef v2)) = v1 == v2
-    go bs (Let _ v1 s1 t1) (Let _ v2 s2 t2) = go bs s1 s2 && go (newTm bs v1 v2) t1 t2
-    go bs (LetType _ v1 ty1 t1) (LetType _ v2 ty2 t2) = alphaEqTy' (extractTypeEnv bs) ty1 ty2 && go (newTy bs v1 v2) t1 t2
+    go bs (Let _ v1 s1 t1) (Let _ v2 s2 t2) = go bs s1 s2 && go (newTm bs (bindName v1) (bindName v2)) t1 t2
+    go bs (LetType _ v1 ty1 t1) (LetType _ v2 ty2 t2) = alphaEqTy' (extractTypeEnv bs) ty1 ty2 && go (newTy bs (bindName v1) (bindName v2)) t1 t2
     go bs (Letrec _ v1 t1 ty1 e1) (Letrec _ v2 t2 ty2 e2) =
-      go (newTm bs v1 v2) t1 t2
+      go (newTm bs (bindName v1) (bindName v2)) t1 t2
         && alphaEqTy' (extractTypeEnv bs) ty1 ty2
-        && go (newTm bs v1 v2) e1 e2
+        && go (newTm bs (bindName v1) (bindName v2)) e1 e2
     go bs (Case _ e1 brs1 fb1) (Case _ e2 brs2 fb2) =
       go bs e1 e2
         && and

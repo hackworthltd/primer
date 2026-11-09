@@ -113,6 +113,7 @@ import Primer.Core (
   ID,
   Kind' (..),
   KindMeta,
+  LVarBind',
   LVarName,
   LocalName (LocalName),
   Meta (..),
@@ -554,18 +555,18 @@ synth = \case
     -- Synthesise a type for the bound expression
     (aT, a') <- synth a
     -- Extend the context with the binding, and synthesise the body
-    (bT, b') <- local (extendLocalCxt (x, aT)) $ synth b
-    pure $ annSynth3 bT i Let x a' b'
+    (bT, b') <- local (extendLocalCxt (bindName x, aT)) $ synth b
+    pure $ annSynth3 bT i Let (over _bindMeta (annotate (TCSynthed aT)) x) a' b'
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
     tA' <- checkKind' (KType ()) tA
     let t = forgetTypeMetadata tA'
-        ctx' = extendLocalCxt (x, t)
+        ctx' = extendLocalCxt (bindName x, t)
     -- Check the bound expression against its annotation
     a' <- local ctx' $ check t a
     -- Extend the context with the binding, and synthesise the body
     (bT, b') <- local ctx' $ synth b
-    pure $ annSynth4 bT i Letrec x a' tA' b'
+    pure $ annSynth4 bT i Letrec (over _bindMeta (annotate (TCChkedAt t)) x) a' tA' b'
   PrimCon i pc -> do
     (inScope, tyCon) <- asks (primConInScope pc)
     -- We expect any frontend to avoid this situation, and thus we do not
@@ -675,8 +676,8 @@ check t = \case
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do
-        e' <- local (extendLocalCxt (x, t1)) $ check t2 e
-        pure (Lam (annotate (TCChkedAt t) i) x e')
+        e' <- local (extendLocalCxt (bindName x, t1)) $ check t2 e
+        pure (Lam (annotate (TCChkedAt t) i) (over _bindMeta (annotate (TCChkedAt t1)) x) e')
       Nothing ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ TypeDoesNotMatchArrow t
@@ -686,9 +687,9 @@ check t = \case
   lAM@(LAM i n e) -> do
     matchForallType t >>= \case
       Just (m, k, b) -> do
-        b' <- substTy m (TVar () n) b
-        e' <- local (extendLocalCxtTy (n, k)) $ check b' e
-        pure $ LAM (annotate (TCChkedAt t) i) n e'
+        b' <- substTy m (TVar () (bindName n)) b
+        e' <- local (extendLocalCxtTy (bindName n, k)) $ check b' e
+        pure $ LAM (annotate (TCChkedAt t) i) (over _bindMeta (annotate k) n) e'
       Nothing ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ TypeDoesNotMatchForall t
@@ -699,22 +700,22 @@ check t = \case
     -- Synthesise a type for the bound expression
     (aT, a') <- synth a
     -- Extend the context with the binding, and check the body against the type
-    b' <- local (extendLocalCxt (x, aT)) $ check t b
+    b' <- local (extendLocalCxt (bindName x, aT)) $ check t b
     -- NB here: if b were synthesisable, we bubble that information up to the
     -- let, saying @typeOf b'@ rather than @TCChkedAt t@
     -- TODO: why do we do this?
-    pure $ Let (annotate (typeOf b') i) x a' b'
+    pure $ Let (annotate (typeOf b') i) (over _bindMeta (annotate (TCSynthed aT)) x) a' b'
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
     tA' <- checkKind' (KType ()) tA
-    let ctx' = extendLocalCxt (x, forgetTypeMetadata tA')
+    let ctx' = extendLocalCxt (bindName x, forgetTypeMetadata tA')
     -- Check the bound expression against its annotation
     a' <- local ctx' $ check (forgetTypeMetadata tA') a
     -- Extend the context with the binding, and synthesise the body
     b' <- local ctx' $ check t b
     -- NB here: if b were synthesisable, we bubble that information up to the
     -- let, saying @typeOf b'@ rather than @TCChkedAt t@ (consistently with Let)
-    pure $ Letrec (annotate (typeOf b') i) x a' tA' b'
+    pure $ Letrec (annotate (typeOf b') i) (over _bindMeta (annotate (TCChkedAt $ forgetTypeMetadata tA')) x) a' tA' b'
   Case i e brs fb -> do
     (eT, e') <- synth e
     let caseMeta = annotate (TCChkedAt t) i
@@ -938,7 +939,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
     rhs' <- local (extendLocalCxts (map (first bindName) fixedPats)) $ check t fixedRHS
     pure $ CaseBranch nb (map fst fixedPats) rhs'
   where
-    createBinding :: S.Set Name -> Type' () () -> m (Bind' (Meta TypeCache), Type' () ())
+    createBinding :: S.Set Name -> Type' () () -> m (LVarBind' (Meta TypeCache), Type' () ())
     createBinding namesInScope ty = do
       -- Avoid automatically generated names shadowing anything
       name <- freshLocalName' namesInScope
@@ -966,7 +967,7 @@ matchForallType :: MonadFresh NameCounter m => Type -> m (Maybe (TyVarName, Kind
 -- These names will never enter the program, so we don't need to avoid shadowing
 matchForallType (TEmptyHole _) = (\n -> Just (n, KHole (), TEmptyHole ())) <$> freshLocalName mempty
 matchForallType (THole _ _) = (\n -> Just (n, KHole (), TEmptyHole ())) <$> freshLocalName mempty
-matchForallType (TForall _ a k t) = pure $ Just (a, k, t)
+matchForallType (TForall _ (Bind _ a) k t) = pure $ Just (a, k, t)
 matchForallType _ = pure Nothing
 
 -- | Two types are consistent if they are equal (up to IDs and alpha) when we

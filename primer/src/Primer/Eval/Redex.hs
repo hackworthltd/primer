@@ -44,6 +44,7 @@ import Optics (
   ifiltered,
   isnd,
   preview,
+  set,
   summing,
   to,
   traverseOf,
@@ -53,7 +54,6 @@ import Optics (
   _2,
  )
 import Primer.Core (
-  Bind,
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
@@ -77,12 +77,14 @@ import Primer.Core (
   ExprMeta,
   GVarName,
   ID,
+  LVarBind,
   LVarName,
   LocalName (unLocalName),
   Pattern (PatCon, PatPrim),
   PrimCon,
   TmVarRef (..),
   TyConName,
+  TyVarBind,
   TyVarName,
   Type,
   Type' (
@@ -98,6 +100,7 @@ import Primer.Core (
   caseBranchName,
   getID,
   typesInExpr,
+  _bindName,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (decomposeTAppCon)
@@ -368,7 +371,7 @@ data Redex
       , params :: [(TyVarName, Type' () ())]
       -- ^ The parameters of the constructor's datatype, and their
       -- instantiations from inspecting the type annotation on the scrutinee.
-      , binders :: Maybe [Bind]
+      , binders :: Maybe [LVarBind]
       -- ^ The binders of the matching branch. 'Nothing' denotes the matching branch was the fallback branch.
       , rhs :: Expr
       -- ^ The rhs of the matching branch
@@ -397,8 +400,8 @@ data Redex
     -- under a binder and avoid variable capture.
     -- We only record what names to avoid, and do the renaming in runRedex
     RenameBindingsLam
-      { var :: LVarName
-      -- ^ The (original) variable this lambda binds
+      { binder :: LVarBind
+      -- ^ The (original) binding of this lambda
       , meta :: ExprMeta
       -- ^ The metadata attached to the lambda
       , body :: Expr
@@ -409,8 +412,8 @@ data Redex
       -- ^ The original redex (used for details)
       }
   | RenameBindingsLAM
-      { tyvar :: TyVarName
-      -- ^ The (original) variable this Λ binds
+      { tyBinder :: TyVarBind
+      -- ^ The (original) binding of this Λ
       , meta :: ExprMeta
       -- ^ The metadata attached to the Λ
       , body :: Expr
@@ -482,7 +485,7 @@ data RedexType
     RenameForall
       { meta :: TypeMeta
       -- ^ metadata on forall (used for reduction)
-      , origBinder :: TyVarName
+      , origBinder :: TyVarBind
       -- ^ original name, which we want to freshen (used for reduction, and finding normal-order redex)
       , kind :: Kind
       -- ^ kind of bound var (used for reduction)
@@ -495,16 +498,16 @@ data RedexType
       }
 
 _LetBind :: AffineFold LetBinding (LVarName, Expr)
-_LetBind = afolding $ \case LetBind n e -> pure (n, e); _ -> Nothing
+_LetBind = afolding $ \case LetBind n e -> pure (bindName n, e); _ -> Nothing
 
 _LetrecBind :: AffineFold LetBinding (LVarName, Expr, Type)
-_LetrecBind = afolding $ \case LetrecBind n e t -> pure (n, e, t); _ -> Nothing
+_LetrecBind = afolding $ \case LetrecBind n e t -> pure (bindName n, e, t); _ -> Nothing
 
 _LetTyBind :: AffineFold LetBinding LetTypeBinding
 _LetTyBind = afolding $ \case LetTyBind b -> pure b; _ -> Nothing
 
 _LetTypeBind :: AffineFold LetTypeBinding (TyVarName, Type)
-_LetTypeBind = afolding $ \case LetTypeBind n t -> pure (n, t)
+_LetTypeBind = afolding $ \case LetTypeBind n t -> pure (bindName n, t)
 
 _freeVars' :: Fold (Expr' a b c) Name
 _freeVars' = _freeVars % to (either (unLocalName . snd) (unLocalName . snd))
@@ -650,7 +653,7 @@ viewCaseRedex opts tydefs = \case
       [Type' () ()] ->
       [(TyVarName, Type' () ())] ->
       [Expr] ->
-      Maybe [Bind] ->
+      Maybe [LVarBind] ->
       Expr ->
       (Expr, Expr, ID) ->
       Redex
@@ -686,7 +689,7 @@ viewRedex opts tydefs globals dir = \case
     | Just (DefAST def) <- gvar `M.lookup` globals ->
         pure $
           InlineGlobal{gvar, def, orig}
-  Let mLet var rhs (Var mVar (LocalVarRef var'))
+  Let mLet (Bind _ var) rhs (Var mVar (LocalVarRef var'))
     | var == var' ->
         pure $
           InlineLet
@@ -695,7 +698,7 @@ viewRedex opts tydefs globals dir = \case
             , letID = getID mLet
             , varID = getID mVar
             }
-  Letrec mLet var rhs ty (Var mVar (LocalVarRef var'))
+  Letrec mLet (Bind _ var) rhs ty (Var mVar (LocalVarRef var'))
     | var == var' ->
         pure $
           InlineLetrec
@@ -756,15 +759,15 @@ viewRedex opts tydefs globals dir = \case
             }
   l@(Lam meta var body) -> do
     avoid <- liftA2 (<>) cxtToAvoid $ when' opts.avoidShadowing cxtToAvoidShadow
-    if unLocalName var `S.member` avoid
-      then pure $ RenameBindingsLam{var, meta, body, avoid, orig = l}
+    if unLocalName (bindName var) `S.member` avoid
+      then pure $ RenameBindingsLam{binder = var, meta, body, avoid, orig = l}
       else mzero
   l@(LAM meta v body) -> do
     avoid <- liftA2 (<>) cxtToAvoid $ when' opts.avoidShadowing cxtToAvoidShadow
-    if unLocalName v `S.member` avoid
-      then pure $ RenameBindingsLAM{tyvar = v, meta, body, avoid, orig = l}
+    if unLocalName (bindName v) `S.member` avoid
+      then pure $ RenameBindingsLAM{tyBinder = v, meta, body, avoid, orig = l}
       else mzero
-  orig@(App _ (Ann _ (Lam m var body) (TFun _ srcTy tgtTy)) app) ->
+  orig@(App _ (Ann _ (Lam m (Bind _ var) body) (TFun _ srcTy tgtTy)) app) ->
     pure $
       Beta
         { var
@@ -781,7 +784,7 @@ viewRedex opts tydefs globals dir = \case
         tryPrimFun (M.mapMaybe defPrim globals) e >>= \(primFun, args, result) ->
           pure ApplyPrimFun{result, primFun, args, orig = e}
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-  orig@(APP _ (Ann _ (LAM m a body) (TForall _ forallVar forallKind tgtTy)) argTy) ->
+  orig@(APP _ (Ann _ (LAM m (Bind _ a) body) (TForall _ (Bind _ forallVar) forallKind tgtTy)) argTy) ->
     pure $
       BETA
         { tyvar = a
@@ -869,7 +872,7 @@ foldLetBindingsTy ls t =
 
 viewRedexType :: ViewRedexOptions -> Type -> Reader Cxt (Maybe RedexType)
 viewRedexType opts = \case
-  TLet mLet v s (TVar mVar var)
+  TLet mLet (Bind _ v) s (TVar mVar var)
     | v == var ->
         purer $
           InlineLetInType
@@ -926,7 +929,7 @@ viewRedexType opts = \case
   orig@(TForall meta origBinder kind body) -> do
     avoid <- liftA2 (<>) cxtToAvoidTy $ when' opts.avoidShadowing cxtToAvoidTyShadow
     pure $
-      if origBinder `S.member` avoid
+      if bindName origBinder `S.member` avoid
         then
           pure $
             -- If anything we may substitute would cause capture, we should rename this binder
@@ -942,7 +945,7 @@ viewRedexType opts = \case
   _ -> pure Nothing
   where
     isLeaf = null . children
-    letTypeBindingName' (LetTypeBind n _) = n
+    letTypeBindingName' (LetTypeBind n _) = bindName n
 
 lookupEnclosingLet :: Name -> Cxt -> Maybe LetBinding
 lookupEnclosingLet n (Cxt cxt) = find ((== n) . letBindingName) cxt
@@ -1148,35 +1151,35 @@ runRedex opts = \case
             }
     pure (expr, RemoveAnn details)
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
-  RenameBindingsLam{var, meta, body, avoid, orig} -> do
+  RenameBindingsLam{binder = var, meta, body, avoid, orig} -> do
     y <- freshLocalName' (avoid <> freeVars body)
-    l <- let_ var (lvar y) (pure body)
-    let expr' = Lam meta y l
+    l <- let_ (bindName var) (lvar y) (pure body)
+    let expr' = Lam meta (set _bindName y var) l
     let details =
           BindRenameDetail
             { before = orig
             , after = expr'
-            , bindingNamesOld = [unLocalName var]
+            , bindingNamesOld = [unLocalName $ bindName var]
             , bindingNamesNew = [unLocalName y]
-            , bindersOld = [getID orig]
-            , bindersNew = [getID expr']
+            , bindersOld = [getID var]
+            , bindersNew = [getID var]
             , bindingOccurrences = []
             , renamingLets = [getID l]
             , bodyID = getID body
             }
     pure (expr', BindRename details)
-  RenameBindingsLAM{tyvar, meta, body, avoid, orig} -> do
+  RenameBindingsLAM{tyBinder = tyvar, meta, body, avoid, orig} -> do
     y <- freshLocalName' (avoid <> freeVars body)
-    l <- letType tyvar (tvar y) (pure body)
-    let expr' = LAM meta y l
+    l <- letType (bindName tyvar) (tvar y) (pure body)
+    let expr' = LAM meta (set _bindName y tyvar) l
     let details =
           BindRenameDetail
             { before = orig
             , after = expr'
-            , bindingNamesOld = [unLocalName tyvar]
+            , bindingNamesOld = [unLocalName $ bindName tyvar]
             , bindingNamesNew = [unLocalName y]
-            , bindersOld = [getID orig]
-            , bindersNew = [getID expr']
+            , bindersOld = [getID tyvar]
+            , bindersNew = [getID tyvar]
             , bindingOccurrences = []
             , renamingLets = [getID l]
             , bodyID = getID body
@@ -1230,16 +1233,16 @@ addLets :: MonadFresh ID m => RunRedexOptions -> NonEmpty LetBinding -> Expr -> 
 addLets opts ls expr = foldrM addLet expr $ if opts.pushAndElide then filterLets ls expr else toList ls
   where
     addLet :: MonadFresh ID m => LetBinding -> Expr -> m Expr
-    addLet (LetBind v e) b = let_ v (regenerateExprIDs e) (pure b)
-    addLet (LetrecBind v t ty) b = letrec v (regenerateExprIDs t) (regenerateTypeIDs ty) (pure b)
-    addLet (LetTyBind (LetTypeBind v ty)) b = letType v (regenerateTypeIDs ty) (pure b)
+    addLet (LetBind v e) b = let_ (bindName v) (regenerateExprIDs e) (pure b)
+    addLet (LetrecBind v t ty) b = letrec (bindName v) (regenerateExprIDs t) (regenerateTypeIDs ty) (pure b)
+    addLet (LetTyBind (LetTypeBind v ty)) b = letType (bindName v) (regenerateTypeIDs ty) (pure b)
 
 addTLets :: MonadFresh ID m => RunRedexOptions -> NonEmpty LetBinding -> Type -> m Type
 addTLets opts ls t = foldrM addTLet t $ if opts.pushAndElide then filterLetsTy ls t else toList ls
   where
     addTLet :: MonadFresh ID m => LetBinding -> Type -> m Type
     -- drop let bindings of term variables
-    addTLet (LetTyBind (LetTypeBind v ty)) b = tlet v (regenerateTypeIDs ty) (pure b)
+    addTLet (LetTyBind (LetTypeBind v ty)) b = tlet (bindName v) (regenerateTypeIDs ty) (pure b)
     addTLet _ b = pure b
 
 filterLets :: NonEmpty LetBinding -> Expr -> [LetBinding]
@@ -1283,8 +1286,8 @@ partitionLetsTy ls t =
   fst $
     foldr
       ( \l@(_, LetTypeBind n l') ((used, unused), fvs') ->
-          if n `S.member` fvs'
-            then ((l : used, unused), S.delete n fvs' `S.union` freeVarsTy l')
+          if bindName n `S.member` fvs'
+            then ((l : used, unused), S.delete (bindName n) fvs' `S.union` freeVarsTy l')
             else ((used, l : unused), fvs')
       )
       (([], []), freeVarsTy t)
@@ -1328,16 +1331,16 @@ runRedexTy _opts (ElideLetInType{body, orig, letBindingsKeep, letBindingsDrop}) 
 -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
 runRedexTy _opts (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
   newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
-  insertedLet <- tlet origBinder (tvar newBinder) (pure body)
-  let result = TForall meta newBinder kind insertedLet
+  insertedLet <- tlet (bindName origBinder) (tvar newBinder) (pure body)
+  let result = TForall meta (set _bindName newBinder origBinder) kind insertedLet
   let details =
         BindRenameDetail
           { before = orig
           , after = result
-          , bindingNamesOld = [unLocalName origBinder]
+          , bindingNamesOld = [unLocalName $ bindName origBinder]
           , bindingNamesNew = [unLocalName newBinder]
-          , bindersOld = [getID orig]
-          , bindersNew = [getID result]
+          , bindersOld = [getID origBinder]
+          , bindersNew = [getID origBinder]
           , bindingOccurrences = []
           , renamingLets = [getID insertedLet]
           , bodyID = getID body

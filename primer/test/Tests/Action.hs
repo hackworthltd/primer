@@ -21,6 +21,7 @@ import Primer.Action (
 import Primer.Builtins
 import Primer.Builtins.DSL (listOf)
 import Primer.Core (
+  Bind' (Bind),
   Expr,
   Expr' (..),
   ID (..),
@@ -71,9 +72,9 @@ unit_maxID =
       m i = Meta i Nothing Nothing
       m' i = Meta i () Nothing
       h = EmptyHole . m
-      expr a b c d e f g = App (m a) (h b) (APP (m c) (h d) $ TForall (m e) "a" (KType (m' f)) (TEmptyHole $ m g))
-   in for_ (permutations [0 .. 6]) $ \case
-        [a, b, c, d, e, f, g] -> maxID (expr a b c d e f g) @?= 6
+      expr a b c d e f g i = App (m a) (h b) (APP (m c) (h d) $ TForall (m e) (Bind (m i) "a") (KType (m' f)) (TEmptyHole $ m g))
+   in for_ (permutations [0 .. 7]) $ \case
+        [a, b, c, d, e, f, g, i] -> maxID (expr a b c d e f g i) @?= 7
         _ -> error "impossible"
 
 tasty_ConstructVar_succeeds_on_hole_when_in_scope :: Property
@@ -205,7 +206,7 @@ unit_6 =
     )
     [Move Child1, Move Child1, Move Child2, ConstructLam Nothing]
     ( ann
-        (lam "f" (app (lvar "f") (lam "a11" emptyHole)))
+        (lam "f" (app (lvar "f") (lam "a12" emptyHole)))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
 
@@ -722,7 +723,7 @@ unit_case_on_hole =
         ( lam "x" $
             case_
               (ann emptyHole $ tcon tNat)
-              [branch cZero [] emptyHole, branch cSucc [("a13", Nothing)] emptyHole] -- NB: fragile names here
+              [branch cZero [] emptyHole, branch cSucc [("a14", Nothing)] emptyHole] -- NB: fragile names here
         )
         (tfun (tcon tNat) (tcon tNat))
     )

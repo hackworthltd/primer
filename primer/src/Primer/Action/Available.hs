@@ -63,6 +63,7 @@ import Primer.App.Base (
   getTypeDefConFieldType,
  )
 import Primer.Core (
+  Bind' (Bind),
   CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (..),
@@ -90,10 +91,9 @@ import Primer.Core (
   _exprMetaLens,
   _synthed,
   _type,
-  _typeMetaLens,
  )
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, freeVars, _freeVarsTy)
+import Primer.Core.Utils (forgetKindMetadata, freeVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   DefMap,
@@ -125,9 +125,11 @@ import Primer.Typecheck (
   instantiateValCons',
  )
 import Primer.Zipper (
+  BindZ (bindZFocus),
   SomeNode (..),
+  TypeLoc' (..),
+  findNodeInType,
   findNodeWithParent,
-  findTypeOrKind,
   focusOn,
   focusOnKind,
   focusOnTy,
@@ -240,8 +242,24 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
           _ -> [NoInput Raise]
      in forType l t <> raiseAction
   Just (KindNode k, _) -> forKind l k
-  Just (CaseBindNode _, _) ->
-    [Input RenamePattern]
+  Just (LVarBindNode _, p) -> maybe mempty (forBinding l) p
+  Just (TyVarBindNode _, p) -> maybe mempty (forBinding l) p
+
+-- | Actions for a variable binding, given the node which introduces it.
+forBinding :: Level -> SomeNode -> [Action]
+forBinding l = \case
+  ExprNode e -> case e of
+    Lam{} -> [Input RenameLam]
+    LAM{} -> mwhen (l == Expert) [Input RenameLAM]
+    Let{} -> [Input RenameLet]
+    Letrec{} -> [Input RenameLet]
+    LetType{} -> [Input RenameLet]
+    Case{} -> [Input RenamePattern]
+    _ -> mempty
+  TypeNode t -> case t of
+    TForall{} -> mwhen (l == Expert) [Input RenameForall]
+    _ -> mempty
+  _ -> mempty
 
 forSig ::
   Level ->
@@ -250,12 +268,14 @@ forSig ::
   ID ->
   [Action]
 forSig _ NonEditable _ _ = mempty
-forSig l Editable ty id = sortByPriority l $ case findTypeOrKind id ty of
+forSig l Editable ty id = sortByPriority l $ case findNodeInType id ty of
   Nothing -> mempty
-  Just (Left t) ->
+  Just (TypeNode t) ->
     forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
-  Just (Right k) -> forKind l k
+  Just (KindNode k) -> forKind l k
+  Just (TyVarBindNode _) -> mwhen (l == Expert) [Input RenameForall]
+  Just _ -> mempty
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
 forExpr tydefs l expr =
@@ -282,23 +302,10 @@ forExpr tydefs l expr =
     Ann{} ->
       delete
         <> mwhen (l == Expert) [NoInput RemoveAnn]
-    Lam{} ->
+    Let _ (Bind _ v) e _ ->
       delete
         <> annotate
-        <> [Input RenameLam]
-    LAM{} ->
-      delete
-        <> annotate
-        <> mwhen (l == Expert) [Input RenameLAM]
-    Let _ v e _ ->
-      delete
-        <> annotate
-        <> [Input RenameLet]
         <> munless (unLocalName v `Set.member` freeVars e) [NoInput LetToRec]
-    Letrec{} ->
-      delete
-        <> annotate
-        <> [Input RenameLet]
     Case _ scrut brs fb ->
       let (addBranch, deleteBranch) = case scrut ^? _exprMetaLens % _type % _Just % _synthed of
             Just (TCon () t) | t == tInt -> (AddBranchInt, DeleteBranchInt)
@@ -342,7 +349,7 @@ forType l type_ =
     TEmptyHole{} ->
       [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
     TForall{} ->
-      delete <> mwhen (l == Expert) [Input RenameForall]
+      delete
     TFun{} ->
       delete <> [NoInput AddInput]
     _ ->
@@ -461,10 +468,11 @@ forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable _ _ _ td =
   sortByPriority l $
     mwhen ((view _id <$> fieldType) == Just id) [NoInput DeleteConField]
-      <> case findTypeOrKind id =<< fieldType of
-        Nothing -> mempty
-        Just (Left t) -> forType l t
-        Just (Right k) -> forKind l k
+      <> case findNodeInType id =<< fieldType of
+        Just (TypeNode t) -> forType l t
+        Just (KindNode k) -> forKind l k
+        Just (TyVarBindNode _) -> mwhen (l == Expert) [Input RenameForall]
+        _ -> mempty
   where
     fieldType = getTypeDefConFieldType td con index
 
@@ -570,32 +578,17 @@ options typeDefs defs cxt level def0 sel0 = \case
         let exist = mapMaybe ((\case (PatPrim (PrimChar c)) -> Just c; _ -> Nothing) . caseBranchName) brs
          in pure $ noFree $ (\c -> Option (T.singleton c) Nothing False) <$> exist
       _ -> Nothing
-  RenamePattern -> do
-    CaseBindNode b <- findNode
-    freeVar <$> genNames (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
-  RenameLet ->
-    findNode >>= \case
-      ExprNode (Let _ _ e _) ->
-        freeVar <$> genNames (Left $ e ^? _exprMetaLens % _type % _Just % _synthed)
-      ExprNode (Letrec _ _ _ t _) -> freeVar <$> genNames (Left $ Just $ forgetTypeMetadata t)
-      ExprNode (LetType _ _ t _) -> freeVar <$> genNames (Right $ t ^. _typeMetaLens % _type)
-      TypeNode (TLet _ _ t _) -> freeVar <$> genNames (Right $ t ^. _typeMetaLens % _type)
-      _ -> Nothing
-  RenameLam -> do
-    ExprNode e <- findNode
-    freeVar <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
-  RenameLAM -> do
-    ExprNode e <- findNode
-    freeVar <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
+  RenamePattern -> renameBinding
+  RenameLet -> renameBinding
+  RenameLam -> renameBinding
+  RenameLAM -> renameBinding
   MakeTCon ->
     pure $ noFree $ globalOpt . fst <$> Map.toList typeDefs
   MakeTVar ->
     noFree . map (localOpt . unLocalName . fst) . fst3 <$> varsInScope
   MakeForall ->
     freeVar <$> genNames (Right Nothing)
-  RenameForall -> do
-    TypeNode (TForall _ _ k _) <- findNode
-    freeVar <$> genNames (Right $ Just $ forgetKindMetadata k)
+  RenameForall -> renameBinding
   RenameDef ->
     pure $ freeVar []
   RenameType ->
@@ -655,18 +648,25 @@ options typeDefs defs cxt level def0 sel0 = \case
               _ ->
                 pure $ vcs <&> \vc@(vc', _, _) -> (globalOpt . valConName $ vc', vc)
     exprType e = e ^? _exprMetaLens % _type % _Just % (_chkedAt `afailing` _synthed)
+    -- Suggest names based on the type or kind of the variable, which is cached in its binding
+    renameBinding =
+      findNode >>= \case
+        LVarBindNode b -> freeVar <$> genNames (Left $ b ^? _bindMeta % _type % _Just % (_chkedAt `afailing` _synthed))
+        TyVarBindNode b -> freeVar <$> genNames (Right $ b ^. _bindMeta % _type)
+        _ -> Nothing
     findNode = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
         def <- eitherToMaybe def0
         case nodeSel.nodeType of
           BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
-          SigNode -> either TypeNode KindNode <$> findTypeOrKind nodeSel.meta (astDefType def)
+          SigNode -> findNodeInType nodeSel.meta (astDefType def)
       SelectionTypeDef sel -> do
         (_, z) <- conField sel
         pure $ case z of
-          Left zT -> TypeNode $ target zT
-          Right zK -> KindNode (target zK)
+          TInType zT -> TypeNode $ target zT
+          TInKind zK -> KindNode $ target zK
+          TInBind zB -> TyVarBindNode $ bindZFocus zB
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do

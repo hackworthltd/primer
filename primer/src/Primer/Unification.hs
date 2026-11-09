@@ -9,6 +9,7 @@ import Optics (anyOf, getting, over, set)
 import Primer.Core.Meta (
   ID,
   TyVarName,
+  bindName,
   trivialMeta,
  )
 import Primer.Core.Type (
@@ -180,7 +181,7 @@ unify' (TFun _ s1 t1) (TFun _ s2 t2) = unify' s1 s2 >> unify' t1 t2
 -- Doing first-order unification, as applications are only constructor-like
 -- (we don't have any bona fide functions at the type level)
 unify' (TApp _ s1 t1) (TApp _ s2 t2) = unify' s1 s2 >> unify' t1 t2
-unify' (TForall _ n1 k1 t1) (TForall _ n2 k2 t2) | consistentKinds k1 k2 = local (bind n1 n2) $ unify' t1 t2
+unify' (TForall _ n1 k1 t1) (TForall _ n2 k2 t2) | consistentKinds k1 k2 = local (bind (bindName n1) (bindName n2)) $ unify' t1 t2
 unify' s t = throwError $ NotUnify s t
 
 -- We delay substitution till unifyVar case, so the monadic (>>) can be trivial

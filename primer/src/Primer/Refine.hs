@@ -6,7 +6,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Primer.Core.Fresh (freshLocalName)
-import Primer.Core.Meta (ID, TyVarName)
+import Primer.Core.Meta (Bind' (Bind), ID, TyVarName)
 import Primer.Core.Type (Type' (TForall, TFun, TVar))
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTySimul)
@@ -61,7 +61,7 @@ refine cxt tgtTy srcTy = go [] srcTy
                   curry Just <$> traverse f (reverse instantiation) <*> substTySimul sub tmTy
             Nothing -> case tmTy of
               TFun _ s t -> go (Left s : instantiation) t
-              TForall _ a k t -> do
+              TForall _ (Bind _ a) k t -> do
                 uv <- freshLocalName avoidNames
                 t' <- substTy a (TVar () uv) t
                 go (Right (uv, k) : instantiation) t'

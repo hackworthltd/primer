@@ -76,7 +76,7 @@ import Miso.Navigator (copyClipboard)
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric (readHex, showFFloat, showHex)
 import Numeric.Natural (Natural)
-import Optics (at, ix, lensVL, to, use, (%), (%~), (.~), (^.), (^..))
+import Optics (at, ix, lensVL, use, (%), (%~), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
 import Primer.Action (ProgAction (BodyAction, MoveToDef), toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
@@ -139,10 +139,13 @@ import Primer.Core (
   qualifyName,
   trivialMeta,
   typesInExpr,
+  _exprLVarBind,
   _exprMetaLens,
+  _exprTyVarBind,
   _kindMetaLens,
   _type,
   _typeMetaLens,
+  _typeTyVarBind,
  )
 import Primer.Core qualified as Primer
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata, generateIDs)
@@ -180,8 +183,6 @@ import Primer.Miso.Util (
   astDefTtoAstDef,
   astTypeDefTtoAstTypeDef,
   availableForSelection,
-  bindingsInExpr,
-  bindingsInType,
   clayToMiso,
   defaultProjections,
   findASTTypeOrTermDef,
@@ -198,7 +199,6 @@ import Primer.Miso.Util (
   showMs,
   stringToOpt,
   syncDefs,
-  typeBindingsInExpr,
   typeCacheType,
  )
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
@@ -1265,13 +1265,14 @@ viewTreeExpr knownType setProjection' edit mkMeta e =
             )
       _ ->
         mconcat
-          [ map (viewTreeBinding Type) (e ^.. typeBindingsInExpr)
-          , map (viewTreeBinding Expr) (e ^.. bindingsInExpr)
+          [ map (viewTreeBinding (mkMeta . Right . Left) Type) (e ^.. _exprTyVarBind)
+          , map (viewTreeBinding (mkMeta . Left) Expr) (e ^.. _exprLVarBind)
           , map (viewTreeType (mkMeta . Right)) (e ^.. typesInExpr)
           , map viewTreeExpr' (children e)
           ]
         where
-          viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside l VarNode{name = unLocalName name, mscope = Nothing}) []
+          viewTreeBinding mkMeta' l (Bind m name) =
+            Tree.Node (uncurry3 NodeViewData (mkMeta' m) Nothing Beside l VarNode{name = unLocalName name, mscope = Nothing}) []
     viewTreeExpr' = viewTreeExpr knownType setProjection' edit mkMeta
 
 viewTreeType ::
@@ -1295,8 +1296,8 @@ viewTreeType mkMeta t =
       TLet{} -> SyntaxNode False "type-let" "let"
     childViews =
       map
-        (\name -> Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside Type VarNode{name, mscope = Nothing}) [])
-        (t ^.. bindingsInType % to unLocalName)
+        (\(Bind m name) -> Tree.Node (uncurry3 NodeViewData (mkMeta $ Left m) Nothing Beside Type VarNode{name = unLocalName name, mscope = Nothing}) [])
+        (t ^.. _typeTyVarBind)
         <> map (viewTreeKind (mkMeta . Right)) (t ^.. kindsInType)
         <> map (viewTreeType mkMeta) (children t)
 

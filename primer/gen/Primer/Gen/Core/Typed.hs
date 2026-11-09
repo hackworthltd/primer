@@ -259,7 +259,7 @@ genSyns ty = do
     genAPP = justT $ do
       k <- genWTKind
       n <- genTyVarName
-      (s, sTy) <- genSyns $ TForall () n k $ TEmptyHole ()
+      (s, sTy) <- genSyns $ TForall () (Bind () n) k $ TEmptyHole ()
       cxt <- ask
       runExceptT (refine cxt ty sTy) >>= \case
         Right (Just ([InstAPP aTy], instTy)) -> pure $ Just (APP () s aTy, instTy)
@@ -281,14 +281,14 @@ genSyns ty = do
             (e, eTy) <- genSyn
             x <- genLVarNameAvoiding [ty, eTy]
             (f, fTy) <- local (extendLocalCxt (x, eTy)) $ genSyns ty
-            pure (Let () x e f, fTy)
+            pure (Let () (Bind () x) e f, fTy)
         , -- letrec
           do
             eTy <- genWTType $ KType ()
             x <- genLVarNameAvoiding [ty, eTy]
             (e, (f, fTy)) <- local (extendLocalCxt (x, eTy)) $ do
               (,) <$> genChk eTy <*> genSyns ty
-            pure (Letrec () x e eTy f, fTy)
+            pure (Letrec () (Bind () x) e eTy f, fTy)
             -- lettype
             {- TODO: reinstate once the TC handles them! and then be careful to do
                interesting things where we need to expand the synonym
@@ -406,7 +406,7 @@ genChk ty = do
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
         n <- genLVarNameAvoiding [tTy, sTy]
-        Lam () n <$> local (extendLocalCxt (n, sTy)) (genChk tTy)
+        Lam () (Bind () n) <$> local (extendLocalCxt (n, sTy)) (genChk tTy)
     abst = do
       mfa <- matchForallType ty
       pure $
@@ -414,20 +414,20 @@ genChk ty = do
           <&> \(n, k, t) -> do
             m <- genTyVarNameAvoiding ty
             ty' <- substTy n (TVar () m) t
-            LAM () m <$> local (extendLocalCxtTy (m, k)) (genChk ty')
+            LAM () (Bind () m) <$> local (extendLocalCxtTy (m, k)) (genChk ty')
     genLet =
       Gen.choice
         [ -- let
           do
             (e, eTy) <- genSyn
             x <- genLVarNameAvoiding [ty, eTy]
-            Let () x e <$> local (extendLocalCxt (x, eTy)) (genChk ty)
+            Let () (Bind () x) e <$> local (extendLocalCxt (x, eTy)) (genChk ty)
         , -- letrec
           do
             eTy <- genWTType $ KType ()
             x <- genLVarNameAvoiding [ty, eTy]
             (e, f) <- local (extendLocalCxt (x, eTy)) $ (,) <$> genChk eTy <*> genChk ty
-            pure $ Letrec () x e eTy f
+            pure $ Letrec () (Bind () x) e eTy f
             -- lettype
             {- TODO: reinstate once the TC handles them! and then be careful to do
                interesting things where we need to expand the synonym
@@ -548,7 +548,7 @@ genWTType k = do
         then Just $ do
           k' <- genWTKind
           n <- genTyVarName
-          TForall () n k' <$> local (extendLocalCxtTy (n, k')) (genWTType $ KType ())
+          TForall () (Bind () n) k' <$> local (extendLocalCxtTy (n, k')) (genWTType $ KType ())
         else Nothing
 
 -- | Generates an arbitary kind. Note that all kinds are well-formed.

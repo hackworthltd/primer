@@ -22,6 +22,12 @@ module Primer.Core.Meta (
   unsafeMkLocalName,
   LVarName,
   TyVarName,
+  Bind' (..),
+  LVarBind',
+  TyVarBind',
+  bindName,
+  _bindMeta,
+  _bindName,
   Value,
   Meta (Meta),
   trivialMeta,
@@ -38,6 +44,7 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
+import Data.String (IsString (fromString))
 import Optics (
   Lens,
   Lens',
@@ -45,6 +52,7 @@ import Optics (
   lens,
   set,
   view,
+  (%),
  )
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
@@ -142,6 +150,37 @@ unsafeMkLocalName = LocalName . unsafeMkName
 type LVarName = LocalName 'ATmVar
 type TyVarName = LocalName 'ATyVar
 
+-- | A binding occurrence of a local variable, such as the @x@ in @λx. e@, or in a case branch @C x -> e@.
+-- Bindings have their own metadata, and in particular their own IDs,
+-- so that they can be referred to (e.g. selected) independently of the construct which introduces them.
+-- The metadata of a term variable's binding is that of an expression, and holds the variable's type,
+-- whereas that of a type variable's binding is that of a type, and holds the variable's kind.
+data Bind' (k :: LocalNameKind) a = Bind a (LocalName k)
+  deriving stock (Eq, Ord, Show, Read, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Bind' k a)
+  deriving anyclass (NFData)
+
+-- | For conveniently writing bindings with no metadata, e.g. in types such as @Type' () ()@.
+instance a ~ () => IsString (Bind' k a) where
+  fromString = Bind () . fromString
+
+-- | A binding of a term variable.
+type LVarBind' = Bind' 'ATmVar
+
+-- | A binding of a type variable.
+type TyVarBind' = Bind' 'ATyVar
+
+bindName :: Bind' k a -> LocalName k
+bindName (Bind _ n) = n
+
+-- | A type-modifying lens for the metadata of a binding.
+_bindMeta :: Lens (Bind' k a) (Bind' k b) a b
+_bindMeta = position @1
+
+-- | A lens for the name of a binding.
+_bindName :: Lens' (Bind' k a) (LocalName k)
+_bindName = position @2
+
 -- | A reference to a variable.
 data TmVarRef
   = GlobalVarRef GVarName
@@ -190,6 +229,12 @@ class HasMetadata a where
 
 instance HasMetadata (Meta a) where
   _metadata = position @3
+
+instance HasID a => HasID (Bind' k a) where
+  _id = position @1 % _id
+
+instance HasMetadata a => HasMetadata (Bind' k a) where
+  _metadata = position @1 % _metadata
 
 -- PrimCon is not really "Meta", but is placed here to keep the module graph shallower
 data PrimCon

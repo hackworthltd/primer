@@ -151,6 +151,7 @@ import Primer.Core (
   CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (Case, Con, EmptyHole, Var),
+  ExprMeta,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
@@ -177,6 +178,7 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _bindMeta,
   _chkedAt,
   _exprMeta,
   _exprMetaLens,
@@ -264,12 +266,15 @@ import Primer.Typecheck (
  )
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
-  BindLoc' (BindCase),
+  BindLoc' (..),
+  BindZ (bindZFocus),
   ExprZ,
   KindTZ,
   KindZ,
   Loc,
   Loc' (InBind, InExpr, InKind, InType),
+  TypeLoc,
+  TypeLoc' (..),
   TypeZ,
   TypeZip,
   caseBindZMeta,
@@ -618,15 +623,33 @@ handleQuestion = \case
       prog <- asks appProg
       focusNode prog defname nodeid
 
+-- | The metadata of the node at a location, as stored in a selection.
+locMeta :: Loc -> Either ExprMeta (Either TypeMeta KindMeta)
+locMeta = \case
+  InExpr ze -> Left $ ze ^. _target % _exprMetaLens
+  InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
+  InKind zk -> Right $ Right $ zk ^. _target % _kindMetaLens
+  InBind (BindCase zb) -> Left $ zb ^. caseBindZMeta
+  InBind (BindLVar zb) -> Left $ bindZFocus zb ^. _bindMeta
+  InBind (BindTyVar zb) -> Right $ Left $ bindZFocus zb ^. _bindMeta
+  InBind (BindTyVarInType zb) -> Right $ Left $ bindZFocus zb ^. _bindMeta
+
+-- | As 'locMeta', but for locations in types.
+typeLocMeta :: TypeLoc -> Either TypeMeta KindMeta
+typeLocMeta = \case
+  TInType zt -> Left $ zt ^. _target % _typeMetaLens
+  TInKind zk -> Right $ zk ^. _target % _kindMetaLens
+  TInBind zb -> Left $ bindZFocus zb ^. _bindMeta
+
 -- This only looks in the editable modules, not in any imports
-focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeLoc)
 focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeLoc)
 focusNodeImports prog = focusNodeDefs $ progDefMap prog
 
-focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc (Either TypeZip KindTZ))
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either Loc TypeLoc)
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
@@ -1199,11 +1222,7 @@ applyProgAction prog = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (def', z) -> do
-        let meta = case z of
-              InExpr ze -> Left $ ze ^. _target % _exprMetaLens
-              InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
-              InKind zk -> Right $ Right $ zk ^. _target % _kindMetaLens
-              InBind (BindCase zb) -> Left $ zb ^. caseBindZMeta
+        let meta = locMeta z
         pure
           ( insertDef m defName (DefAST def')
           , Just
@@ -1221,8 +1240,7 @@ applyProgAction prog = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (mod', zt) -> do
-        let node = bimap target target zt
-            meta = bimap (view _typeMetaLens) (view _kindMetaLens) node
+        let meta = typeLocMeta zt
          in pure
               ( mod'
               , Just
@@ -1750,8 +1768,9 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     Left (InType zt) -> pure $ Left $ Left zt
     Left (InKind zk) -> pure $ Right $ Left zk
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
-    Right (Left zt) -> pure $ Left $ Right zt
-    Right (Right zk) -> pure $ Right $ Right zk
+    Right (TInType zt) -> pure $ Left $ Right zt
+    Right (TInKind zk) -> pure $ Right $ Right zk
+    Right (TInBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
   let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
@@ -1764,7 +1783,9 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     doneSetup <- applyActionsToTypeSig smartHoles (progImports p) (mod, otherModules) (toDefBaseName, oldDef) setup
     tgt <- case doneSetup of
       Left err -> throwError $ ActionError err
-      Right (_, tgt) -> pure tgt
+      Right (_, TInType tgt) -> pure $ Left tgt
+      Right (_, TInKind tgt) -> pure $ Right tgt
+      Right (_, TInBind _) -> throwError $ CopyPasteError "tried to paste into a binder"
     let sharedScope =
           if fromDefName == toDefName
             then -- We rely here on the fact that there are no binders in kinds
@@ -1871,13 +1892,8 @@ tcWholeProg p = do
         Just sel@NodeSelection{nodeType} -> do
           n <- runExceptT $ focusNode p' defName_ $ getID sel
           case (nodeType, n) of
-            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ case x of
-              InExpr ze -> Left $ view _exprMetaLens $ target ze
-              InType zt -> Right $ Left $ view _typeMetaLens $ target zt
-              InKind zk -> Right $ Right $ view _kindMetaLens $ target zk
-              InBind (BindCase zb) -> Left $ view caseBindZMeta zb
-            (SigNode, Right (Right (Left x))) -> pure $ Just $ NodeSelection SigNode $ Right $ Left $ x ^. _target % _typeMetaLens
-            (SigNode, Right (Right (Right zk))) -> pure $ Just $ NodeSelection SigNode $ Right $ Right $ zk ^. _target % _kindMetaLens
+            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ locMeta x
+            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ Right $ typeLocMeta x
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just . SelectionDef $
@@ -1918,7 +1934,7 @@ tcWholeProg p = do
                             id <- case fieldSel.meta of
                               Left _ -> Nothing -- Any selection in a typedef should have TypeMeta or KindMeta, not ExprMeta
                               Right m -> pure $ getID m
-                            bimap (view $ _target % _typeMetaLens) (view $ _target % _kindMetaLens) <$> focusOnTy id ty
+                            typeLocMeta <$> focusOnTy id ty
       pure $
         Just $
           SelectionTypeDef $
@@ -1972,8 +1988,9 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
     Left (InType t) -> pure $ Type (TypeInBody t)
     Left (InKind k) -> pure $ Kind (KindInBody k)
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
-    Right (Left t) -> pure $ Type (TypeInSig t)
-    Right (Right k) -> pure $ Kind (KindInSig k)
+    Right (TInType t) -> pure $ Type (TypeInSig t)
+    Right (TInKind k) -> pure $ Kind (KindInSig k)
+    Right (TInBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
     -- We manually use the low-level applyAction', as we do not want to
     -- typecheck intermediate states. There are two reasons for this, both

@@ -35,16 +35,16 @@ import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
-  KindTZ,
+  TypeLoc,
+  TypeLoc' (TInType),
   TypeZ,
-  TypeZip,
   asZipper,
   current,
   foldAbove,
   prior,
   unfocusType,
+  unfocusTypeLoc,
  )
-import Primer.Zipper.Nested (unfocusNest)
 
 -- Helper for variablesInScopeExpr: collect variables, most local first,
 -- eliding shadowed variables
@@ -90,7 +90,7 @@ localVariablesInScopeExpr exprOrTy =
 
 extractLocalsTypeZ :: TypeZ -> ShadowedVarsExpr
 extractLocalsTypeZ z =
-  let x = variablesInScopeTy $ Left $ z ^. asZipper
+  let x = variablesInScopeTy $ TInType $ z ^. asZipper
       y = unfocusType z
    in -- walkUpExpr will extract binders strictly containing y
       -- (i.e. if y=λs.t, then 's' won't be reported). Since no
@@ -103,21 +103,21 @@ extractLocalsExprZ = foldAbove getBoundHere
   where
     getBoundHere :: FoldAbove Expr -> ShadowedVarsExpr
     getBoundHere e = case current e of
-      Lam m x _ ->
+      Lam m (Bind _ x) _ ->
         let tx = case typeOrHole m of
               TFun _ a _ -> a
               _ -> TEmptyHole ()
          in M [] [(x, tx)] []
-      LAM m n _ ->
+      LAM m (Bind _ n) _ ->
         let k = case typeOrHole m of
               TForall _ _ a _ -> a
               _ -> KHole ()
          in M [(n, k)] [] []
-      Let _ x e1 _
+      Let _ (Bind _ x) e1 _
         | prior e == e1 -> mempty
         | otherwise -> M [] [(x, typeOrHole' $ maybeTypeOf e1)] []
-      Letrec _ x _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
-      LetType _ x ty _ -> M [(x, kindOrHoleOf ty)] [] []
+      Letrec _ (Bind _ x) _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
+      LetType _ (Bind _ x) ty _ -> M [(x, kindOrHoleOf ty)] [] []
       Case _ _ branches _ ->
         let fromBinding (Bind m n) = (n, typeOrHole m)
             binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches
@@ -158,15 +158,15 @@ instance Monoid ShadowedVarsTy where
 -- | As for 'variablesInScopeExpr', but when you are focussed somewhere inside
 -- a type, rather than somewhere inside an expr
 -- Note that kind information is extracted from the cached kind (for 'TLet')
-variablesInScopeTy :: Either TypeZip KindTZ -> [(TyVarName, Kind' ())]
+variablesInScopeTy :: TypeLoc -> [(TyVarName, Kind' ())]
 variablesInScopeTy z =
-  let N vs = foldAbove getBoundHere $ either identity unfocusNest z -- no bindings in kinds
+  let N vs = foldAbove getBoundHere $ unfocusTypeLoc z -- no bindings in kinds
    in reverse vs -- keep most-global first
   where
     getBoundHere :: FoldAbove Type -> ShadowedVarsTy
     getBoundHere t = case current t of
-      TForall _ v k _ -> N [(v, forgetKindMetadata k)]
-      TLet _ v t' b
+      TForall _ (Bind _ v) k _ -> N [(v, forgetKindMetadata k)]
+      TLet _ (Bind _ v) t' b
         | prior t == b -> N [(v, kindOrHoleOf t')]
         | otherwise -> mempty
       _ -> mempty

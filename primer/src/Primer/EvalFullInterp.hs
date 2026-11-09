@@ -234,7 +234,7 @@ interp' tydefs env@(envTm, envTy) dir = \case
     , Just r <- getFirst $ foldMap' (First . tryPrimFun' name envTm.prims) (evalPrefixes tydefs env args) ->
         interp' tydefs env dir r
   App _ f s -> case interp' tydefs env Syn f of
-    Ann _ (Lam _ v t) (TFun _ src tgt) ->
+    Ann _ (Lam _ (Bind _ v) t) (TFun _ src tgt) ->
       -- NB: the free variables we record come from the raw argument @s@, not
       -- its normal form. The normal form can be infinite (when @s@ reduces to
       -- a recursive function, since we evaluate under binders), so forcing its
@@ -251,7 +251,7 @@ interp' tydefs env@(envTm, envTy) dir = \case
         tgt
     f' -> App () f' $ interp' tydefs env Chk s
   APP _ f s -> case interp' tydefs env Syn f of
-    Ann _ (LAM _ a t) (TForall _ b _ ty) ->
+    Ann _ (LAM _ (Bind _ a) t) (TForall _ (Bind _ b) _ ty) ->
       let s' = interpTy envTy s
        in ann
             dir
@@ -259,21 +259,21 @@ interp' tydefs env@(envTm, envTy) dir = \case
             (interpTy (extendTyEnv' b s' envTy) ty)
     f' -> APP () f' (interpTy envTy s)
   Con m c ts -> Con m c $ map (interp' tydefs env Chk) ts
-  Lam _ v t -> let v' = freshLike v env in Lam () v' $ interp' tydefs (renameTmEnv v v' env) Chk t
+  Lam _ (Bind _ v) t -> let v' = freshLike v env in Lam () (Bind () v') $ interp' tydefs (renameTmEnv v v' env) Chk t
   -- NB: we must evaluate under lambdas (given the rest of our interpretation strategy).
   -- Consider  @(λx.(λy.x) : A -> B -> A) s t@ we will
   --   interp' @λy.x@ in context where @x:->t@, and this is the only time we have @x@ in the context!
-  LAM _ v t -> let v' = freshLike v env in LAM () v' $ interp' tydefs (extendTyEnv v (TVar () v') env) Chk t
+  LAM _ (Bind _ v) t -> let v' = freshLike v env in LAM () (Bind () v') $ interp' tydefs (extendTyEnv v (TVar () v') env) Chk t
   Var _ (LocalVarRef v) -> upsilon dir $ envTm.env ! Right v -- recall the environment is in normal form
   Var _ (GlobalVarRef v) -> upsilon dir $ envTm.env ! Left v -- recall the environment is in normal form
   -- NB: as with App (above) and Letrec (below), we record the bound variable's
   -- free variables from the raw definition @e@, not from its normal form, which
   -- may be infinite when @e@ reduces to a recursive function.
-  Let _ v e b -> interp' tydefs (extendTmEnvWithFVs (Right v) (interp' tydefs env Syn e) (freeVars e) env) dir b
-  LetType _ v t b -> interp' tydefs (extendTyEnv v (interpTy envTy t) env) dir b
+  Let _ (Bind _ v) e b -> interp' tydefs (extendTmEnvWithFVs (Right v) (interp' tydefs env Syn e) (freeVars e) env) dir b
+  LetType _ (Bind _ v) t b -> interp' tydefs (extendTyEnv v (interpTy envTy t) env) dir b
   -- this interpretation af letrec can easily cause deadlocked or infinite-size programs
   -- and can't be detected but has advantage of being lazy and having sharing
-  Letrec _ v e t b ->
+  Letrec _ (Bind _ v) e t b ->
     let e' = interp' tydefs env' Chk e
         env' =
           extendTmEnvWithFVs
@@ -377,14 +377,14 @@ interpTy env = \case
   TFun _ s t -> TFun () (interpTy env s) (interpTy env t)
   TVar _ v -> env.env !! v
   TApp _ s t -> TApp () (interpTy env s) (interpTy env t)
-  TForall _ v k t ->
+  TForall _ (Bind _ v) k t ->
     let v' = freshLikeTy v env
-     in TForall () v' k (interpTy (extendTyEnv' v (TVar () v') env) t)
+     in TForall () (Bind () v') k (interpTy (extendTyEnv' v (TVar () v') env) t)
   -- We must reduce the RHS before binding it, just as every other binding site
   -- does: the 'TVar' case returns stored values verbatim, relying on the
   -- environment holding normal forms. (Type evaluation always terminates, so
   -- this cannot loop.)
-  TLet _ v s t -> interpTy (extendTyEnv' v (interpTy env s) env) t
+  TLet _ (Bind _ v) s t -> interpTy (extendTyEnv' v (interpTy env s) env) t
 
 extendTmEnv ::
   Either GVarName LVarName ->

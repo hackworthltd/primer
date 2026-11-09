@@ -165,14 +165,14 @@ unit_2 =
 
 unit_3 :: Assertion
 unit_3 =
-  let ((expr, expected), maxID) = create $ EvalTest.noTypeShadowing "a46" -- NB: fragile name
+  let ((expr, expected), maxID) = create $ EvalTest.noTypeShadowing "a56" -- NB: fragile name
    in do
         s <- evalFullTestExactSteps maxID mempty mempty 12 Syn expr
         s ~== expected
 
 unit_4 :: Assertion
 unit_4 =
-  let ((expr, expected), maxID) = create $ EvalTest.noTermShadowing "a22" -- NB: fragile name
+  let ((expr, expected), maxID) = create $ EvalTest.noTermShadowing "a29" -- NB: fragile name
    in do
         s <- evalFullTestExactSteps maxID mempty mempty 8 Syn expr
         s ~== expected
@@ -364,7 +364,7 @@ unit_15 =
         let l = let_ "x" (lvar "y")
         let c a b = con' ["M"] "C" [a, b]
         e0 <- l $ lam "y" $ c (lvar "x") (lvar "y")
-        let y' = "a40"
+        let y' = "a54"
         let rny = let_ "y" (lvar y')
         e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
         e2 <- lam y' $ l $ rny $ c (lvar "x") (lvar "y")
@@ -407,8 +407,8 @@ unit_case_let_capture :: Assertion
 unit_case_let_capture =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let w = "a66"
-        let z = "a69"
+        let w = "a78"
+        let z = "a82"
         let rnx = let_ "x" (lvar w)
         let rny = let_ "y" (lvar z)
         e0 <-
@@ -870,7 +870,7 @@ unit_type_preservation_rename_LAM_regression :: Assertion
 unit_type_preservation_rename_LAM_regression =
   let ((expr, expected), maxID) = create $ do
         e <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" $ lvar "b"))
-        expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a14" (letType "a" (tvar "a14") $ lvar "b"))) -- NB: fragile name a14
+        expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a21" (letType "a" (tvar "a21") $ lvar "b"))) -- NB: fragile name a21
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 1 Chk expr
@@ -892,7 +892,7 @@ unit_type_preservation_case_regression_tm =
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a46" -- NB fragile name
+        let x' = "a55" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
@@ -932,7 +932,7 @@ unit_type_preservation_case_regression_ty =
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a46" -- NB fragile name
+        let x' = "a55" -- NB fragile name
         expect1 <-
           lAM "x" $
             case_

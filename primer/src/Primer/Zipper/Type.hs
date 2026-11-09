@@ -10,6 +10,11 @@ module Primer.Zipper.Type (
   KindTZ,
   unfocusKindT,
   focusOnlyKindT,
+  TypeLoc' (..),
+  TypeLoc,
+  TyBindZ',
+  TyBindZ,
+  unfocusTypeLoc,
   focusOnTy,
   focusOnTy',
   farthest,
@@ -37,10 +42,13 @@ import Data.Generics.Uniplate.Zipper (
   Zipper,
  )
 import Data.Set qualified as S
+import Optics (lens, set, view)
 import Primer.Core.Meta (
   HasID (..),
   ID,
+  TyVarBind',
   TyVarName,
+  bindName,
   getID,
   unLocalName,
  )
@@ -49,18 +57,22 @@ import Primer.Core.Type (
   KindMeta,
   Type' (TForall, TLet),
   TypeMeta,
+  _typeTyVarBind,
  )
 import Primer.Name (Name)
 import Primer.Zipper.Nested (
+  BindZ,
   IsZipper,
   ZipNest (ZipNest),
   down,
   focus,
+  focusBind,
   innerZipNest,
   left,
   replace,
   right,
   target,
+  unfocusBind,
   unfocusNest,
   up,
  )
@@ -79,6 +91,42 @@ type TypeZip = TypeZip' TypeMeta KindMeta
 type KindTZ' b c = ZipNest (TypeZip' b c) (KindZip' c) (Kind' c)
 
 type KindTZ = KindTZ' TypeMeta KindMeta
+
+-- | A zipper for bindings of type variables, by a ∀ or type-level let, in types
+type TyBindZ' b c = BindZ (TypeZip' b c) (TyVarBind' b)
+
+type TyBindZ = TyBindZ' TypeMeta KindMeta
+
+-- | A specific location in a type (not embedded in an expression).
+data TypeLoc' b c
+  = -- | A type
+    TInType (TypeZip' b c)
+  | -- | A kind (inside a ∀)
+    TInKind (KindTZ' b c)
+  | -- | A binding of a type variable
+    TInBind (TyBindZ' b c)
+  deriving stock (Generic)
+
+type TypeLoc = TypeLoc' TypeMeta KindMeta
+
+instance (HasID b, HasID c) => HasID (TypeLoc' b c) where
+  _id = lens getter setter
+    where
+      getter = \case
+        TInType t -> view _id t
+        TInKind k -> view _id k
+        TInBind b -> view _id b
+      setter l i = case l of
+        TInType t -> TInType $ set _id i t
+        TInKind k -> TInKind $ set _id i k
+        TInBind b -> TInBind $ set _id i b
+
+-- | Shift focus up to the nearest enclosing type.
+unfocusTypeLoc :: Data c => TypeLoc' b c -> TypeZip' b c
+unfocusTypeLoc = \case
+  TInType t -> t
+  TInKind k -> unfocusKindT k
+  TInBind b -> unfocusBind b
 
 -- | Switch from a 'Kind'-in-'Type' zipper back to an 'Type' zipper.
 unfocusKindT :: Data c => KindTZ' b c -> TypeZip' b c
@@ -114,25 +162,26 @@ focusOnTy ::
   (Data b, HasID b, Data c, HasID c) =>
   ID ->
   Type' b c ->
-  Maybe (Either (TypeZip' b c) (KindTZ' b c))
+  Maybe (TypeLoc' b c)
 focusOnTy i = focusOnTy' i . focus
 
 -- | Focus on the node with the given 'ID', if it exists in the focussed type
--- Note that this may be (@Left@) a type or (@Right@) a kind (inside a 'TForall')
 focusOnTy' ::
   (Data b, HasID b, Data c, HasID c) =>
   ID ->
   TypeZip' b c ->
-  Maybe (Either (TypeZip' b c) (KindTZ' b c))
+  Maybe (TypeLoc' b c)
 focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z
       -- If the current target has the correct ID, return that
-      | getID (target z) == i = Just $ Left z
+      | getID (target z) == i = Just $ TInType z
+      -- If the current target binds a variable with the correct ID, return that
+      | Just b <- focusBind _typeTyVarBind z, getID b == i = Just $ TInBind b
       -- If the current target has a nested kind, search that
       | TForall m a k t <- target z = do
           (zk, _) <- search (guarded (== i) . getID) (focus k)
-          pure $ Right $ ZipNest zk $ \k' -> replace (TForall m a k' t) z
+          pure $ TInKind $ ZipNest zk $ \k' -> replace (TForall m a k' t) z
       | otherwise = Nothing
 
 -- | Search for a node for which @f@ returns @Just@ something.
@@ -195,18 +244,18 @@ getBoundHereDnTy :: (Eq a, Eq b) => Type' a b -> S.Set TyVarName
 getBoundHereDnTy e = getBoundHereTy e Nothing
 
 getBoundHereTy :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> S.Set TyVarName
-getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> n) <$> getBoundHereTy' t prev
+getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> bindName n) <$> getBoundHereTy' t prev
 
-data LetTypeBinding' a b = LetTypeBind TyVarName (Type' a b)
+data LetTypeBinding' a b = LetTypeBind (TyVarBind' a) (Type' a b)
   deriving stock (Eq, Show)
 type LetTypeBinding = LetTypeBinding' TypeMeta KindMeta
 
 letTypeBindingName :: LetTypeBinding' a b -> Name
-letTypeBindingName (LetTypeBind n _) = unLocalName n
+letTypeBindingName (LetTypeBind n _) = unLocalName $ bindName n
 
 getBoundHereTy' :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> [Either TyVarName (LetTypeBinding' a b)]
 getBoundHereTy' t prev = case t of
-  TForall _ v _ _ -> [Left v]
+  TForall _ v _ _ -> [Left $ bindName v]
   TLet _ v rhs b ->
     if maybe True (== b) prev
       then [Right $ LetTypeBind v rhs]
