@@ -10,10 +10,10 @@ import Hedgehog hiding (
   Var,
   property,
  )
-import Optics (maximumOf)
+import Optics (maximumOf, set)
 import Primer.Action (
   Action (..),
-  ActionError (CaseBindsClash, NameCapture),
+  ActionError (CaseBindsClash, CustomFailure, NameCapture),
   BranchMove (..),
   Movement (..),
   applyActionsToExpr,
@@ -32,6 +32,7 @@ import Primer.Core (
   TmVarRef (LocalVarRef),
   Type' (TEmptyHole, TForall),
   getID,
+  _metadata,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (exprIDs)
@@ -698,6 +699,42 @@ unit_bad_case_3 =
         (tfun (tcon tBool) (tcon tNat))
     )
     [Move Child1, Move Child1, Move Child1, Move Child1, Move Child2]
+
+-- Bindings can be focused on, and we can move from them to the construct which introduces them
+unit_binding_move_parent :: Assertion
+unit_binding_move_parent =
+  -- IDs: the annotation is 0, the λ is 1, and its binding is 2
+  actionTest
+    NoSmartHoles
+    (lam "x" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [SetCursor 2, Move Parent, Delete]
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+
+-- From the binding of a ∀ inside an annotation, we move to the ∀, rather than out of the type
+unit_binding_move_parent_type :: Assertion
+unit_binding_move_parent_type =
+  -- IDs: the annotation is 0, the hole is 1, the ∀ is 2, and its binding is 3
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` tforall "a" ktype (tcon tBool))
+    [SetCursor 3, Move Parent, Delete]
+    (emptyHole `ann` tEmptyHole)
+
+unit_binding_delete :: Assertion
+unit_binding_delete =
+  actionTestExpectFail
+    (\case CustomFailure Delete _ -> True; _ -> False)
+    NoSmartHoles
+    (lam "x" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [SetCursor 2, Delete]
+
+unit_binding_set_metadata :: Assertion
+unit_binding_set_metadata =
+  actionTest
+    NoSmartHoles
+    (lam "x" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [SetCursor 2, SetMetadata "meta"]
+    ((Lam <$> meta <*> (set _metadata (Just "meta") <$> bind "x") <*> emptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 -- You can also do a case on a hole of known type, if you don't want to write
 -- the scrutinee first. However this does not help with the annoying dance to

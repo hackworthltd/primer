@@ -25,6 +25,7 @@ import Primer.Action (
     EnterType,
     Move,
     RemoveAnn,
+    RenameLam,
     SetCursor
   ),
   ActionError (CustomFailure, IDNotFound, ImportNameClash),
@@ -80,6 +81,7 @@ import Primer.Builtins (
   tPair,
  )
 import Primer.Core (
+  Bind' (Bind),
   Expr,
   Expr' (..),
   GVarName,
@@ -1559,6 +1561,37 @@ unit_cross_module_actions =
         runAppTestM a test <&> fst >>= \case
           Left err -> assertFailure $ show err
           Right _ -> pure ()
+
+-- Renaming a binding via the binding itself keeps both the binding's ID and the selection
+unit_rename_binding_selection :: Assertion
+unit_rename_binding_selection =
+  progActionTest
+    prog
+    [MoveToDef foo, BodyAction [SetCursor binderID, RenameLam "y"]]
+    $ expectSuccess
+    $ \_ prog' ->
+      case astDefExpr <$> (defAST =<< findGlobalByName prog' foo) of
+        Just (Lam _ (Bind m "y") _) -> do
+          getID m @?= binderID
+          case progSelection prog' of
+            Just (SelectionDef DefSelection{def = selectedDef, node = Just sel}) -> do
+              selectedDef @?= foo
+              getID sel @?= binderID
+            _ -> assertFailure "expected the selection to point at some node"
+        e -> assertFailure $ "expected foo to be a lambda binding y, but found " <> show e
+  where
+    n = ModuleName ["Module2"]
+    foo = qualifyName n "foo"
+    prog = do
+      p <- defaultEmptyProg
+      e <- lam "x" emptyHole
+      t <- tEmptyHole `tfun` tEmptyHole
+      let m = Module n mempty $ Map.singleton "foo" $ DefAST $ ASTDef e t
+      pure $ p & #progModules %~ (m :)
+    binderID = case create' prog of
+      p -> case astDefExpr <$> (defAST =<< findGlobalByName p foo) of
+        Just (Lam _ b _) -> getID b
+        _ -> error "expected foo to be a lambda"
 
 -- Consider
 --   foo :: ? ?

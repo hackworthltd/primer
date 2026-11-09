@@ -31,7 +31,7 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Hedgehog.Range qualified as Range
-import Optics (ix, toListOf, (%), (.~), (^..), (^?), _head)
+import Optics (ix, preview, toListOf, (%), (.~), (^..), (^?), _head)
 import Primer.Action (
   Action (NoOp),
   ActionError (CaseBindsClash, CaseBranchAlreadyExists, CustomFailure, NameCapture),
@@ -865,6 +865,8 @@ data MovementListBody
 data MovementList
   = InBody MovementListBody
   | InSig [Movement]
+  | -- | The binding introduced by the node at the given position in the signature
+    InSigBinding [Movement]
 
 exprMoves :: MovementListBody -> [Movement]
 exprMoves = \case
@@ -989,6 +991,9 @@ offeredActionTest' sh l inputDef position action = do
                       then maybe (throwError $ CustomFailure NoOp "no binding here") (pure . getID) $ tz ^? _target % _typeTyVarBind
                       else pure $ getID tz
               InSig moves -> getID <$> foldlM (flip move) (focus sig) moves
+              InSigBinding moves ->
+                foldlM (flip move) (focus sig) moves
+                  >>= maybe (throwError $ CustomFailure NoOp "no binding here") (pure . getID) . preview (_target % _typeTyVarBind)
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
@@ -997,12 +1002,16 @@ offeredActionTest' sh l inputDef position action = do
   let offered = case position of
         InBody _ -> Available.forBody cxt.typeDefs l Editable expr id
         InSig _ -> Available.forSig l Editable sig id
-  let options = Available.options cxt.typeDefs defs cxt l (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id)
+        InSigBinding _ -> Available.forSig l Editable sig id
+  let nodeType = case position of
+        InBody _ -> BodyNode
+        _ -> SigNode
+  let options = Available.options cxt.typeDefs defs cxt l (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection nodeType id)
   action' <- case action of
     Left a ->
       pure $
         if Available.NoInput a `elem` offered
-          then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id) a
+          then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection nodeType id) a
           else Left $ ActionNotOffered (Available.NoInput a) offered
     Right (a, o) -> do
       if Available.Input a `elem` offered
@@ -1011,7 +1020,7 @@ offeredActionTest' sh l inputDef position action = do
           Just os ->
             pure $
               if o `elem` os.opts
-                then Right $ toProgActionInput (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id) o a
+                then Right $ toProgActionInput (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection nodeType id) o a
                 else Left $ OptionNotOffered o os.opts
         else pure $ Left $ ActionNotOffered (Available.Input a) offered
   action'' <- for action' $ \case
@@ -1140,6 +1149,19 @@ unit_rename_forall_names = do
     RenameForall
     "f"
     (emptyHole `ann` tforall "f" (kfun ktype ktype) (tcon tBool))
+
+-- Bindings in signatures can be renamed too
+unit_rename_forall_sig_names :: Assertion
+unit_rename_forall_sig_names = do
+  offeredActionTest'
+    NoSmartHoles
+    Expert
+    (ASTDef <$> emptyHole <*> tforall "a" ktype (tcon tBool))
+    (InSigBinding [])
+    (Right (RenameForall, Option "α" Nothing False))
+    >>= \case
+      Left err -> assertFailure $ show err
+      Right (ASTDef _ t) -> clearTypeMeta t @?= clearTypeMeta (create' $ tforall "α" ktype (tcon tBool))
 
 {-
 -- TODO: reinstate once the TC handles let type!

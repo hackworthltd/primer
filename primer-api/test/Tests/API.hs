@@ -48,8 +48,11 @@ import Primer.API.Test.Util (runAPI)
 import Primer.Action (
   Action (
     ConstructApp,
+    ConstructArrowL,
+    ConstructLam,
     ConstructPrim,
     ConstructTApp,
+    ConstructTForall,
     ConstructVar,
     EnterHole,
     InsertSaturatedVar,
@@ -1026,6 +1029,55 @@ test_selectioninfo =
                   expected = viewTreeKind $ create' khole
                 }
           )
+
+      step "bnd1 :: Bool -> Bool = λx. ?"
+      mkType
+        "bnd1"
+        [ ConstructArrowL
+        , Move Child1
+        , constructTCon tBool
+        , Move Parent
+        , Move Child2
+        , constructTCon tBool
+        ]
+      hbnd1 <-
+        getExpr "bnd1" >>= \case
+          Just e@EmptyHole{} -> pure $ getID e
+          e -> assertFailure' $ "unexpected form of bnd1: " <> show e
+      _ <-
+        expectSuccess $
+          edit sid $
+            Edit
+              [ MoveToDef $ qualifyName scope "bnd1"
+              , BodyAction [SetCursor hbnd1, ConstructLam $ Just "x"]
+              ]
+      hx <-
+        getExpr "bnd1" >>= \case
+          Just (Lam _ b _) -> pure $ getID b
+          e -> assertFailure' $ "unexpected form of bnd1: " <> show e
+      step "bnd1 binding info"
+      xtk <-
+        getSelectionTypeOrKind sid $
+          SelectionDef $
+            DefSelection (qualifyName scope "bnd1") $
+              Just $
+                NodeSelection BodyNode hx
+      zeroTKIds xtk @?= zeroTKIds (Type $ Ok $ viewTreeType $ create' $ tcon tBool)
+
+      step "bnd2 :: ∀a. ? = ?"
+      mkType "bnd2" [ConstructTForall $ Just "a"]
+      ha <-
+        getType "bnd2" >>= \case
+          Just (TForall _ b _ _) -> pure $ getID b
+          e -> assertFailure' $ "unexpected form of bnd2: " <> show e
+      step "bnd2 binding info"
+      atk <-
+        getSelectionTypeOrKind sid $
+          SelectionDef $
+            DefSelection (qualifyName scope "bnd2") $
+              Just $
+                NodeSelection SigNode ha
+      zeroTKIds atk @?= zeroTKIds (Kind $ Ok $ viewTreeKind $ create' ktype)
 
 zTIds :: Tree -> Tree
 zTIds = treeIds .~ "0"

@@ -6,9 +6,9 @@ import Foreword
 import Data.Set qualified as Set
 import Hedgehog hiding (Property, property)
 import Hedgehog.Gen qualified as Gen
-import Optics ((^..))
+import Optics ((^.), (^..))
 import Primer.Core
-import Primer.Core.DSL (aPP, ann, branch', case_, create', emptyHole, hole, ktype, lAM, lam, tEmptyHole, tapp, tforall, thole)
+import Primer.Core.DSL (aPP, ann, branch', case_, create', emptyHole, hole, ktype, lAM, lam, tEmptyHole, tapp, tforall, thole, tvar)
 import Primer.Core.Utils (exprIDs)
 import Primer.Gen.Core.Raw (
   evalExprGen,
@@ -17,7 +17,7 @@ import Primer.Gen.Core.Raw (
  )
 import Primer.Zipper
 import Tasty (Property, property)
-import Test.Tasty.HUnit (Assertion, (@?=))
+import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 
 -- | @unfocus . focus == id@
 tasty_focus_unfocus_roundtrip :: Property
@@ -64,3 +64,19 @@ unit_binders_below =
             )
             (thole $ tforall "c" ktype tEmptyHole)
    in bindersBelow (focus e) @?= Set.fromList ["x", "y", "z", "w", "v", "a", "b", "c"]
+
+-- | We can focus on the binding of a type variable in a standalone type,
+-- and modifying it updates the type which contains it.
+unit_focusOnTy_binding :: Assertion
+unit_focusOnTy_binding = do
+  -- IDs: the ∀ is 0, and its binding is 1
+  let t = create' $ tforall "a" ktype (tvar "a")
+  case focusOnTy 1 t of
+    Just (TInBind b) -> do
+      getID b @?= 1
+      bindName (target b) @?= "a"
+      getID (target $ unfocusTypeLoc $ TInBind b) @?= 0
+      case target $ unfocusTypeLoc $ TInBind $ replace (Bind (bindZFocus b ^. _bindMeta) "b") b of
+        TForall _ (Bind m "b") _ _ -> getID m @?= 1
+        t' -> assertFailure $ "expected the binding to have been renamed, but got " <> show t'
+    _ -> assertFailure "expected to focus on the binding"
