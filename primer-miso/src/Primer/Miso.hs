@@ -49,6 +49,7 @@ import Miso.Html (
   button_,
   div_,
   form_,
+  img_,
   input_,
   onChange,
   onChecked,
@@ -64,6 +65,7 @@ import Miso.Html.Property (
   min_,
   placeholder_,
   required_,
+  src_,
   type_,
  )
 import Miso.Navigator (copyClipboard)
@@ -154,7 +156,8 @@ import Primer.Miso.Layout (
   TidyOpts (..),
   tidyLayout,
  )
-import Primer.Miso.Projection (Projection (StringProjection), projectString)
+import Primer.Miso.Picture (renderPicture)
+import Primer.Miso.Projection (Projection (..), ProjectionView (..), availableProjection)
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
   EvalExprT,
@@ -915,6 +918,7 @@ data NodeViewOpts action
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
   | StringNode Text -- See `projectString`.
+  | PictureNode MisoString (V2 Double) -- An image URL, and the size at which to display it. See `renderPicture`.
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
   | PatternBoxNode (Maybe (View () () Model action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
@@ -943,6 +947,7 @@ viewNodeData showIDs position dimensions edges node =
                 HoleNode{} -> "hole"
                 PrimNode{} -> "prim"
                 StringNode{} -> "string"
+                PictureNode{} -> "picture"
                 ConNode{} -> "con"
                 VarNode{} -> "var"
                 PatternBoxNode{} -> "pattern-box"
@@ -974,43 +979,45 @@ viewNodeData showIDs position dimensions edges node =
                  Clay.justifyContent Clay.center
                  Clay.alignItems Clay.center
              ]
-             case node.opts of
-               PatternBoxNode (Just p) -> [fst p]
-               PatternBoxNode Nothing ->
-                 [ div_
-                     [class_ "fallback-pattern"]
-                     -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
-                     [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
-                 ]
-               _ ->
-                 [ div_
-                     [ class_ "node-text"
+             $ ( case node.opts of
+                   PatternBoxNode (Just p) -> [fst p]
+                   PatternBoxNode Nothing ->
+                     [ div_
+                         [class_ "fallback-pattern"]
+                         -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
+                         [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
                      ]
-                     [ text
-                         if showIDs
-                           then maybe "" (ms @Text . show) node.id
-                           else case node.opts of
-                             SyntaxNode{text = t} -> t
-                             HoleNode{empty = e} -> if e then "?" else "⚠️"
-                             PrimNode pc -> case pc of
-                               PrimChar c' -> showMs c'
-                               PrimInt n -> showMs n
-                               PrimDouble x -> showMs x
-                             StringNode s -> showStringLiteral s
-                             ConNode{name} -> ms $ unName name
-                             VarNode{name} -> ms $ unName name
-                     ]
-                 ]
-                   <> foldMap'
-                     ( \(label, action) ->
-                         [ button_
-                             [ class_ "projection-toggle"
-                             , onClickWithOptions stopPropagation action
-                             ]
-                             [text label]
+                   PictureNode url _ -> [img_ [src_ url]]
+                   _ ->
+                     [ div_
+                         [ class_ "node-text"
                          ]
-                     )
-                     node.projectionToggle
+                         [ text
+                             if showIDs
+                               then maybe "" (ms @Text . show) node.id
+                               else case node.opts of
+                                 SyntaxNode{text = t} -> t
+                                 HoleNode{empty = e} -> if e then "?" else "⚠️"
+                                 PrimNode pc -> case pc of
+                                   PrimChar c' -> showMs c'
+                                   PrimInt n -> showMs n
+                                   PrimDouble x -> showMs x
+                                 StringNode s -> showStringLiteral s
+                                 ConNode{name} -> ms $ unName name
+                                 VarNode{name} -> ms $ unName name
+                         ]
+                     ]
+               )
+               <> foldMap'
+                 ( \(label, action) ->
+                     [ button_
+                         [ class_ "projection-toggle"
+                         , onClickWithOptions stopPropagation action
+                         ]
+                         [text label]
+                     ]
+                 )
+                 node.projectionToggle
          ]
 
 -- | Show a string literal, with quotes, but escaping only those characters which would otherwise be confusing.
@@ -1037,18 +1044,26 @@ viewTreeExpr setProjection' mkMeta e =
     childViews
   where
     meta = e ^. _exprMetaLens
-    string = projectString e
+    available = availableProjection e
     -- We check that the term actually has the projection, rather than just trusting the metadata,
     -- since the latter may have been carried over from before an edit (see `syncDefs`).
-    projected = isJust string && (meta ^. _type).projection == Just StringProjection
+    projected = case available of
+      Just (p, v) | (meta ^. _type).projection == Just p -> Just v
+      _ -> Nothing
     projectionToggle =
-      string
-        $> if projected
+      available <&> \(p, _) ->
+        if isJust projected
           then ("🌲", setProjection' (getID meta) Nothing)
-          else ("\"…\"", setProjection' (getID meta) (Just StringProjection))
-    nodeView = case string of
-      Just s | projected -> StringNode s
-      _ -> nodeViewTree
+          else
+            ( case p of
+                StringProjection -> "\"…\""
+                PictureProjection -> "🖼"
+            , setProjection' (getID meta) (Just p)
+            )
+    nodeView = case projected of
+      Just (StringView s) -> StringNode s
+      Just (PictureView pic) -> uncurry PictureNode $ renderPicture pic
+      Nothing -> nodeViewTree
     nodeViewTree = case e of
       Hole{} -> HoleNode{empty = False}
       EmptyHole{} -> HoleNode{empty = True}
@@ -1065,7 +1080,7 @@ viewTreeExpr setProjection' mkMeta e =
       Letrec{} -> SyntaxNode False "letrec" "let rec"
       PrimCon _ c -> PrimNode c
       Case{} -> SyntaxNode True "match" "match"
-    childViews = if projected then [] else childViewsTree
+    childViews = if isJust projected then [] else childViewsTree
     childViewsTree = case e of
       -- The scrutinee goes below, and the branches form a chain off to the right.
       Case _ scrut branches fb ->
@@ -1219,6 +1234,7 @@ viewTree t =
       StringNode s ->
         -- A rough estimate, assuming an average character width. Text which overflows is truncated with an ellipsis anyway.
         basicDims & lensVL _x %~ max (fromIntegral (T.length s + 2) * 10 + 30)
+      PictureNode _ v -> v
       _ -> basicDims
       where
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y

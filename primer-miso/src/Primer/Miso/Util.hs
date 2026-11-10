@@ -152,7 +152,7 @@ import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr, defAST)
 import Primer.Eval (AvoidShadowing (..), ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
-import Primer.Miso.Projection (Projection (StringProjection), projectString)
+import Primer.Miso.Projection (Projection, availableProjection)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), TypeDefMap, ValCon (..))
 import Primer.Typecheck (exprTtoExpr, typeTtoType)
@@ -277,8 +277,8 @@ setProjection id p = over _exprMeta \m -> if getID m == id then m & _type % #pro
 -- We don't set projections for the subterms of those, so that e.g. switching a string literal back to a tree
 -- shows a list of characters, rather than a character followed by a shorter string literal.
 defaultProjections :: (Data t, Data b, Data c) => Expr' (Meta (ExprInfo t)) b c -> Expr' (Meta (ExprInfo t)) b c
-defaultProjections e = case projectString e of
-  Just _ -> e & _exprMetaLens % _type % #projection ?~ StringProjection
+defaultProjections e = case availableProjection e of
+  Just (p, _) -> e & _exprMetaLens % _type % #projection ?~ p
   Nothing -> descend defaultProjections e
 
 -- | Recompute the frontend versions of all definitions after a change to the program,

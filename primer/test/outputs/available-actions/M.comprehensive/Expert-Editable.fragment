@@ -613,6 +613,108 @@ Output
                                     ( "Builtins" :| [] )
                                 , matchesType = False
                                 }
+                            , Option
+                                { option = "RGB"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Polyline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Join"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Circle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rectangle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Line"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Shape"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Fill"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "LineColour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Translate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rotate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Scale"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Over"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spin"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MoveAlong"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MakePoint"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
                             ]
                         , free = FreeNone
                         }
@@ -837,6 +939,108 @@ Output
                                 { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "RGB"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Polyline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Join"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Circle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rectangle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Line"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Shape"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Fill"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "LineColour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Translate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rotate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Scale"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Over"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spin"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MoveAlong"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MakePoint"
+                                , context = Just
+                                    ( "Primitives" :| [] )
                                 , matchesType = False
                                 }
                             ]
@@ -2169,6 +2373,108 @@ Output
                                     ( "Builtins" :| [] )
                                 , matchesType = False
                                 }
+                            , Option
+                                { option = "RGB"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Polyline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Join"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Circle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rectangle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Line"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Shape"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Fill"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "LineColour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Translate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rotate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Scale"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Over"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spin"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MoveAlong"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MakePoint"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
                             ]
                         , free = FreeNone
                         }
@@ -2515,6 +2821,108 @@ Output
                                     ( "Builtins" :| [] )
                                 , matchesType = False
                                 }
+                            , Option
+                                { option = "RGB"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Polyline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spline"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Join"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Circle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rectangle"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Line"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Shape"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Fill"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "LineColour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Translate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Rotate"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Scale"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Over"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Spin"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MoveAlong"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "MakePoint"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
                             ]
                         , free = FreeNone
                         }
@@ -2770,6 +3178,12 @@ Output
                                 , matchesType = False
                                 }
                             , Option
+                                { option = "Colour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
                                 { option = "Double"
                                 , context = Just
                                     ( "Primitives" :| [] )
@@ -2777,6 +3191,24 @@ Output
                                 }
                             , Option
                                 { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Path"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Picture"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Point"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False
@@ -3759,6 +4191,12 @@ Output
                                 , matchesType = False
                                 }
                             , Option
+                                { option = "Colour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
                                 { option = "Double"
                                 , context = Just
                                     ( "Primitives" :| [] )
@@ -3766,6 +4204,24 @@ Output
                                 }
                             , Option
                                 { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Path"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Picture"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Point"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False

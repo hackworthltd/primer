@@ -1428,6 +1428,12 @@ Output
                                 , matchesType = False
                                 }
                             , Option
+                                { option = "Colour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
                                 { option = "Double"
                                 , context = Just
                                     ( "Primitives" :| [] )
@@ -1435,6 +1441,24 @@ Output
                                 }
                             , Option
                                 { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Path"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Picture"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Point"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False
@@ -1718,6 +1742,12 @@ Output
                                 , matchesType = False
                                 }
                             , Option
+                                { option = "Colour"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
                                 { option = "Double"
                                 , context = Just
                                     ( "Primitives" :| [] )
@@ -1725,6 +1755,24 @@ Output
                                 }
                             , Option
                                 { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Path"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Picture"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                , matchesType = False
+                                }
+                            , Option
+                                { option = "Point"
                                 , context = Just
                                     ( "Primitives" :| [] )
                                 , matchesType = False

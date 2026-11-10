@@ -340,6 +340,9 @@ body {
 .node.string {
   --node-color: var(--green-primary);
 }
+.node.picture {
+  --node-color: var(--green-primary);
+}
 .node.hole {
   --node-color: var(--red-tertiary);
   color: var(--red-tertiary);

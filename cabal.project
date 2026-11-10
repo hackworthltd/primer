@@ -49,3 +49,18 @@ package primer-api
 
 package miso
   flags: +aeson
+
+-- PROTOTYPE: we use `georgefst`'s branch of `diagrams-svg`, with animation support
+-- (https://github.com/diagrams/diagrams-svg/pull/127).
+-- The branch predates the bounds relaxations of the 1.5.1 release, hence the `allow-newer`.
+source-repository-package
+  type: git
+  location: https://github.com/georgefst/diagrams-svg
+  tag: 0d8517ac3713444a1e42a6a68c616dfa8e524b6d
+  --sha256: sha256-vwJ/oIaIBeM0EobUezjTJOaqrj/8YFiChkc0Bzn5Uno=
+allow-newer: diagrams-svg:base, diagrams-svg:containers, diagrams-svg:diagrams-lib
+
+-- PROTOTYPE: `diagrams` depends on `zlib` (via `JuicyPixels`), and our native dev shell doesn't provide its C library.
+-- The Wasm build always uses the bundled C sources anyway.
+package zlib
+  flags: +bundled-c-zlib

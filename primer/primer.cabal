@@ -119,6 +119,9 @@ library
     base64-bytestring ^>=1.2.1,
     containers >=0.6.0.1 && <0.9.0,
     deriving-aeson >=0.2 && <0.3.0,
+    -- PROTOTYPE: only needed for the `arcLength` primitive, so that it agrees exactly with the curves the frontend draws.
+    -- Ideally, the core wouldn't depend on a graphics library, but we have no way to extend the set of primitives from elsewhere.
+    diagrams-lib >=1.5 && <1.7,
     exceptions >=0.10.4 && <0.11.0,
     extra >=1.7.10 && <1.9.0,
     generic-optics >=2.0 && <2.4.0,

@@ -74,6 +74,7 @@ import Primer.Module (
  )
 import Primer.Primitives (
   PrimDef (
+    ArcLength,
     DoubleAdd,
     DoubleEq,
     DoubleFloor,
@@ -103,6 +104,8 @@ import Primer.Primitives (
     NatToHex,
     ToUpper
   ),
+  cMakePoint,
+  cPolyline,
   tChar,
   tDouble,
   tInt,
@@ -1739,6 +1742,13 @@ unit_prim_double_floor_negative =
     DoubleFloor
     (double (-1.5))
     (int (-2))
+
+unit_prim_arcLength :: Assertion
+unit_prim_arcLength =
+  unaryPrimTest
+    ArcLength
+    (con cPolyline [list_ [con cMakePoint [double 0, double 0], con cMakePoint [double 3, double 4]]])
+    (double 5)
 
 unit_prim_ann :: Assertion
 unit_prim_ann =
