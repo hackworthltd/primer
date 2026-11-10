@@ -6,6 +6,10 @@ packages:
   primer-miso
   primer-benchmark
 
+-- For fast local iteration. This only affects our own packages, since dependencies come pre-built from Nix.
+-- Nix builds (for CI and deployment) ignore this, and use `-O2` for everything: see `configureFlags` in `flake.nix`.
+optimization: 0
+
 if arch(wasm32)
   -- Required for TemplateHaskell support on Wasm targets.
   shared: True
@@ -18,11 +22,7 @@ if arch(wasm32)
   haddock-quickjump: False
   haddock-hyperlink-source: False
   haddock-internal: False
-
-  package *
-    optimization: 2
 else
-  optimization: 0
   haddock-hoogle: True
   haddock-html: True
   haddock-quickjump: True

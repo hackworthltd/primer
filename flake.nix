@@ -383,7 +383,9 @@
                           };
                       }
                       {
-                        # Build everything with -O2.
+                        # Build everything with -O2. This comes last on the `Setup configure`
+                        # command line, so it takes precedence over any `optimization` setting
+                        # in `cabal.project`, which is only for local development.
                         configureFlags = [ "-O2" ];
 
                         # Generate HIE files for everything.
