@@ -28,6 +28,7 @@ executable primer-miso
   other-modules:
     Primer.Miso
     Primer.Miso.ActionName
+    Primer.Miso.Demo
     Primer.Miso.Edit
     Primer.Miso.Layout
     Primer.Miso.PathEditor

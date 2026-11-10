@@ -97,7 +97,6 @@ import Primer.App (
   appNameCounter,
   appProg,
   checkAppWellFormed,
-  newApp,
   progAllDefs,
   progAllTypeDefs,
   progAllTypeDefsMeta,
@@ -155,6 +154,7 @@ import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Miso.ActionName (actionName)
+import Primer.Miso.Demo (demoApp)
 import Primer.Miso.Edit (Literal (LitPrim), colourLiteral, editActions, stringLiteral)
 import Primer.Miso.Layout (
   Layering (NonLayered),
@@ -270,7 +270,7 @@ component =
     }
 
 initialApp :: Primer.App.App
-initialApp = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
+initialApp = fromRight (error "initial app is not well-formed") $ checkAppWellFormed demoApp
 
 data Model = Model
   { app :: Primer.App.App
