@@ -42,6 +42,7 @@ module Primer.Miso.Util (
   typeBindingsInExpr,
   bindingsInType,
   nodeSelectionType,
+  typeCacheType,
   realToClay,
   availableForSelection,
   setSelectionAction,
@@ -336,27 +337,28 @@ bindingsInType = atraversalVL $ \point f -> \case
 nodeSelectionType :: TermMeta' ExprMetaT TypeMetaT KindMetaT -> Either (Type' () ()) (Either (Kind' ()) ())
 nodeSelectionType =
   bimap
-    (getAPIType . (.typeInfo) . (^. _type))
+    (typeCacheType . (.typeInfo) . (^. _type))
     (bimap (^. _type) (^. _type))
+
+-- | The type of a node, from its type cache.
+-- Copied directly from innards of `getSelectionTypeOrKind`.
+typeCacheType :: TypeCache -> Type' () ()
+typeCacheType = \case
+  TCSynthed t -> t
+  TCChkedAt t -> t
+  TCEmb (TCBoth{tcSynthed, tcChkedAt})
+    -- If this node is an embedding, we have a choice of two types to report.
+    -- We choose the one that is not a hole;
+    | isHole tcSynthed -> tcChkedAt
+    | isHole tcChkedAt -> tcSynthed
+    -- if neither is a hole (in which case the two are consistent), we choose the synthed type
+    | otherwise -> tcSynthed
   where
-    -- copied directly from innards of `getSelectionTypeOrKind`
-    getAPIType :: TypeCache -> Type' () ()
-    getAPIType = \case
-      TCSynthed t -> t
-      TCChkedAt t -> t
-      TCEmb (TCBoth{tcSynthed, tcChkedAt})
-        -- If this node is an embedding, we have a choice of two types to report.
-        -- We choose the one that is not a hole;
-        | isHole tcSynthed -> tcChkedAt
-        | isHole tcChkedAt -> tcSynthed
-        -- if neither is a hole (in which case the two are consistent), we choose the synthed type
-        | otherwise -> tcSynthed
-      where
-        isHole :: Type' a b -> Bool
-        isHole = \case
-          THole{} -> True
-          TEmptyHole{} -> True
-          _ -> False
+    isHole :: Type' a b -> Bool
+    isHole = \case
+      THole{} -> True
+      TEmptyHole{} -> True
+      _ -> False
 
 -- TODO keep an eye out for whether these ever return `Nothing` in practice
 -- the current hypothesis is that, because we already typecheck on initialisation and on performing each action,
