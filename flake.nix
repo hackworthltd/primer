@@ -255,10 +255,12 @@
                 type = "app";
                 program = "${pkg}/bin/${script}";
               };
+              extraApps = (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
+                inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend primer-miso-serve;
+              });
             in
-            (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend primer-miso-serve;
-            })
+            extraApps
+            // { default = extraApps.primer-miso-serve; }
             // primerFlake.apps;
 
           treefmt.config =

@@ -27,5 +27,5 @@ dev:
 dev-multi:
 	http-server frontend --cors -c-1 --silent -p 8002 & trap 'kill $$!' EXIT; \
 	GHCI_BROWSER=1 GHCI_BROWSER_PORT=8001 GHCI_BROWSER_REDIRECT_WASI_CONSOLE=1 \
-	ghcid -T :main --setup ':module + *MyMain' --reload ../primer/src --reload ../primer-api/src --command \
+	ghcid -Wr --setup ':module + *MyMain' --reload ../primer/src --reload ../primer-api/src --command \
 		"wasm32-unknown-wasip1-cabal repl --enable-multi-repl exe:primer-miso lib:primer lib:primer-api -finteractive"
