@@ -11,7 +11,7 @@ import Primer.Miso (component)
 
 main :: IO ()
 #ifdef INTERACTIVE
-main = Miso.reload Miso.defaultEvents component
+main = Miso.reload Miso.defaultEvents component{Miso.styles = [Miso.Href "http://127.0.0.1:8002/style.css" True]}
 #else
 main = Miso.startApp Miso.defaultEvents component
 foreign export javascript "hs_start" main :: IO ()

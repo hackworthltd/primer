@@ -29,7 +29,7 @@ build-wasm:
 test-wasm:
 	wasm32-unknown-wasip1-cabal test all --test-wrapper=wasm32-test-runner
 
-frontend-targets = frontend frontend-prod serve
+frontend-targets = frontend frontend-prod serve dev dev-multi
 
 $(frontend-targets):
 	$(MAKE) -C primer-miso $@
