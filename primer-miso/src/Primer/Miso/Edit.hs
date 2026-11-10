@@ -10,9 +10,11 @@ module Primer.Miso.Edit (
 
 import Foreword
 
+import Data.Aeson (FromJSON, ToJSON)
 import Primer.Action (Action (ConstructPrim, ConstructSaturatedCon, Delete, Move, SetCursor), Movement (ConChild, Parent))
 import Primer.Builtins (cCons, cNil)
 import Primer.Core (Expr' (Con, PrimCon), GlobalName (baseName, qualifiedModule), HasID, ModuleName (unModuleName), PrimCon (PrimChar, PrimDouble), ValConName, getID)
+import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (unName)
 import Primer.Primitives (Colour (RGB), cRGB)
 
@@ -20,7 +22,8 @@ import Primer.Primitives (Colour (RGB), cRGB)
 data Literal
   = LitCon ValConName [Literal]
   | LitPrim PrimCon
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Literal
 
 stringLiteral :: Text -> Literal
 stringLiteral = foldr (\c l -> LitCon cCons [LitPrim $ PrimChar c, l]) (LitCon cNil []) . toS @Text @[Char]

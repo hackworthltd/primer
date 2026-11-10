@@ -6,6 +6,8 @@ module Primer.Miso.Projection (
   availableProjection,
   sameKind,
   shownByDefault,
+  pathBounds,
+  pathPoints,
   projectString,
 ) where
 
@@ -14,10 +16,11 @@ import Foreword
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Data (Data, toConstr)
 import Data.Text qualified as T
+import Linear (V2 (V2))
 import Primer.Builtins (tList)
 import Primer.Core (Expr' (PrimCon), PrimCon (PrimChar), Type' (TApp, TCon))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Primitives (Colour, Picture, exprToColour, exprToDouble, exprToList, exprToPicture, tChar)
+import Primer.Primitives (Colour, Path (..), Picture, Point (MakePoint), exprToColour, exprToDouble, exprToList, exprToPath, exprToPicture, tChar)
 
 data Projection
   = -- | Show a non-empty list of character literals, e.g. @'a' : 'b' : 'c' : []@, as a string literal, e.g. @"abc"@.
@@ -29,6 +32,9 @@ data Projection
     SliderProjection Double Double
   | -- | Show a literal of our `Colour` type as a swatch, with a colour picker.
     ColourProjection
+  | -- | Show a literal of our `Path` type as a curve whose points can be dragged around.
+    -- We store the region of the plane to show (left, bottom, right and top), so that it doesn't change while dragging.
+    PathProjection Double Double Double Double
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Projection
 
@@ -38,6 +44,7 @@ data ProjectionView
   | PictureView Picture
   | NumberView Double
   | ColourView Colour
+  | PathView Path
 
 -- | The projection which a term has, if any (with default parameters), along with how it looks under that projection.
 -- No term has more than one kind of projection.
@@ -49,6 +56,7 @@ availableProjection ty e =
     , (PictureProjection,) . PictureView <$> exprToPicture e
     , exprToDouble e <&> \x -> (uncurry SliderProjection $ defaultRange x, NumberView x)
     , (ColourProjection,) . ColourView <$> exprToColour e
+    , exprToPath e <&> \p -> let (V2 l b, V2 r t) = pathBounds p in (PathProjection l b r t, PathView p)
     ]
   where
     defaultRange x = if x == 0 then (-10, 10) else (min 0 $ 2 * x, max 0 $ 2 * x)
@@ -65,6 +73,7 @@ shownByDefault = \case
   PictureProjection -> True
   SliderProjection{} -> False
   ColourProjection -> False
+  PathProjection{} -> False
 
 -- | View a term as a string literal, if it's a list of character literals.
 -- We only consider the empty list to be a string if we're given its type, and that type is @List Char@.
@@ -86,3 +95,24 @@ projectString ty e = do
     exprToChar = \case
       PrimCon _ (PrimChar x) -> Just x
       _ -> Nothing
+
+-- | A region of the plane containing the given path's points, with some margin, for a path editor to show.
+-- The result is the bottom left and top right corners.
+pathBounds :: Path -> (V2 Double, V2 Double)
+pathBounds path = case nonEmpty $ pathPoints path of
+  Nothing -> (V2 0 0, V2 1 1)
+  Just ps ->
+    let lo = foldr1 (liftA2 min) ps
+        hi = foldr1 (liftA2 max) ps
+        -- We avoid an empty region, e.g. for a single point or a horizontal line.
+        margin = max 1 . (* 0.15) <$> (hi - lo)
+     in (lo - margin, hi + margin)
+
+-- | The points of a path, in order.
+pathPoints :: Path -> [V2 Double]
+pathPoints = \case
+  Polyline ps -> map fromPoint ps
+  Spline ps -> map fromPoint ps
+  Join ps -> foldMap' pathPoints ps
+  where
+    fromPoint (MakePoint x y) = V2 x y

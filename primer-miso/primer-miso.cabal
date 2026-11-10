@@ -30,6 +30,7 @@ executable primer-miso
     Primer.Miso.ActionName
     Primer.Miso.Edit
     Primer.Miso.Layout
+    Primer.Miso.PathEditor
     Primer.Miso.Picture
     Primer.Miso.Projection
     Primer.Miso.Util

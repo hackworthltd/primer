@@ -162,6 +162,7 @@ import Primer.Miso.Layout (
   TidyOpts (..),
   tidyLayout,
  )
+import Primer.Miso.PathEditor (EditPath (..), PathEditorOpts (..), pathEditorSize, pathLiteral, viewPathEditor)
 import Primer.Miso.Picture (renderPicture)
 import Primer.Miso.Projection (Projection (..), ProjectionView (..), availableProjection, sameKind)
 import Primer.Miso.Util (
@@ -201,7 +202,7 @@ import Primer.Miso.Util (
   typeCacheType,
  )
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
-import Primer.Primitives (Colour (RGB))
+import Primer.Primitives (Colour (RGB), Path)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (TypeDefAST), ValCon (..), forgetTypeDefMetadata, typeDefAST, typeDefKind)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
@@ -213,6 +214,8 @@ component =
           { app = initialApp
           , defsT = syncDefs (snd <$> progAllDefs (appProg initialApp)) mempty
           , replacedNodes = mempty
+          , pointDrag = Nothing
+          , projectionEdits = ProjectionEditsIdle
           , readOnlySelection = Nothing
           , components =
               ComponentModels
@@ -278,10 +281,21 @@ data Model = Model
   , replacedNodes :: Map ID ID
   -- ^ Nodes which have been replaced by edits through projections, e.g. a number literal edited with a slider.
   -- This lets us apply further edits from the same projection, which may have been rendered before the replacement.
+  , pointDrag :: Maybe (ID, Int)
+  -- ^ The point being dragged in a path editor, if any: the path's node ID, and the index of the point.
+  , projectionEdits :: ProjectionEdits
   , components :: ComponentModels
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
+
+-- | The state of edits through projections. See `ApplyProjectionEdit`.
+data ProjectionEdits
+  = ProjectionEditsIdle
+  | -- | An edit is being applied. We also store the latest edit to apply next, if any.
+    ProjectionEditInProgress (Maybe (GVarName, ID, Literal, Projection))
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON ProjectionEdits
 
 -- TODO When Miso 1.9/2.0 is released, we should take advantage of its component support
 -- we can then simplify some code, removing unnecessary error handling etc.
@@ -348,6 +362,7 @@ data Action
   | -- | Replace the node with the given ID with a literal, through the given projection.
     ApplyProjectionEdit GVarName ID Literal Projection
   | SetAppProjecting GVarName ID (Maybe Projection) Primer.App.App
+  | DragPathPoint (Maybe (ID, Int))
   | ChooseRedex ID
   | StepBackEval
   | SetInterpResult (Either InterpError (Expr' () () ()))
@@ -428,19 +443,13 @@ updateModel = \case
   CancelActionInput ->
     resetActionPanel
   SetApp a -> setApp a
-  ApplyProjectionEdit def target0 literal projection -> do
-    -- We work out the actions here, rather than when rendering, since edits can arrive faster than we re-render,
-    -- e.g. while dragging a slider, in which case the rendered term may be out of date.
-    target <- flip resolveReplaced target0 <$> use #replacedNodes
-    use (#defsT % at def) >>= \case
-      Nothing -> io_ $ consoleLog $ "projection edit: definition not found: " <> showMs def
-      Just d -> case find ((== target) . getID) $ universe d.expr of
-        Nothing -> io_ $ consoleLog $ "projection edit: node not found: " <> showMs target
-        Just e -> do
-          let (actions, rootReplaced) = editActions e literal
-          unless (null actions) $
-            runMutation' (SetAppProjecting def target $ guard rootReplaced $> projection) $
-              Edit [MoveToDef def, BodyAction actions]
+  ApplyProjectionEdit def target literal projection ->
+    -- Edits can arrive much faster than we can apply them and re-evaluate, e.g. while dragging a slider.
+    -- So while one is in progress, we just remember the latest, and apply that once the current one is done.
+    use #projectionEdits >>= \case
+      ProjectionEditsIdle -> startProjectionEdit def target literal projection
+      ProjectionEditInProgress _ -> #projectionEdits .= ProjectionEditInProgress (Just (def, target, literal, projection))
+  DragPathPoint d -> #pointDrag .= d
   SetAppProjecting def target projection a -> do
     setApp a
     -- If we replaced the root node, the actions leave the cursor, and thus the selection, on its replacement.
@@ -449,6 +458,9 @@ updateModel = \case
         #defsT % ix def % #expr %= setProjection (getID n) (Just p)
         #replacedNodes %= Map.insert target (getID n)
       _ -> pure ()
+    use #projectionEdits >>= \case
+      ProjectionEditInProgress (Just (def', target', literal, projection')) -> startProjectionEdit def' target' literal projection'
+      _ -> #projectionEdits .= ProjectionEditsIdle
   SetEvalOpts f -> do
     #components % #eval % #opts %= f
     setEval
@@ -506,6 +518,21 @@ updateModel = \case
         (logs, res) <- liftIO $ runMutationWithNullDb mr app
         logAllToConsole logs
         pure $ k res
+    -- We work out the actions here, rather than when rendering, since the rendered term may be out of date,
+    -- if edits arrive faster than we re-render.
+    startProjectionEdit def target0 literal projection = do
+      #projectionEdits .= ProjectionEditsIdle
+      target <- flip resolveReplaced target0 <$> use #replacedNodes
+      use (#defsT % at def) >>= \case
+        Nothing -> io_ $ consoleLog $ "projection edit: definition not found: " <> showMs def
+        Just d -> case find ((== target) . getID) $ universe d.expr of
+          Nothing -> io_ $ consoleLog $ "projection edit: node not found: " <> showMs target
+          Just e -> do
+            let (actions, rootReplaced) = editActions e literal
+            unless (null actions) do
+              #projectionEdits .= ProjectionEditInProgress Nothing
+              runMutation' (SetAppProjecting def target $ guard rootReplaced $> projection) $
+                Edit [MoveToDef def, BodyAction actions]
     -- Follow the chain of replacements of a node, in case it has been replaced by edits we haven't yet rendered.
     resolveReplaced replaced i = maybe i (resolveReplaced replaced) $ Map.lookup i replaced
     setApp a = do
@@ -740,7 +767,13 @@ viewModel Model{..} =
                       $ viewTreeExpr
                         (Just . typeCacheType)
                         (SetDefProjection sel'.def)
-                        (guard (editable == Editable) $> ApplyProjectionEdit sel'.def)
+                        ( guard (editable == Editable)
+                            $> ProjectionEditing
+                              { replace = ApplyProjectionEdit sel'.def
+                              , dragging = pointDrag
+                              , drag = DragPathPoint
+                              }
+                        )
                         ( mkMetaSelectable $
                             SelectionDef
                               . DefSelection sel'.def
@@ -963,6 +996,7 @@ data NodeViewOpts action
   | StringNode Text (Maybe (Text -> action)) -- See `projectString`. The function is for editing, if possible.
   | SliderNode Double Double Double (Maybe (Double -> action)) -- Bounds and value, and a function for editing, if possible.
   | ColourNode Colour (Maybe (Colour -> action)) -- The function is for editing, if possible.
+  | PathNode (PathEditorOpts action) Path
   | PictureNode MisoString (V2 Double) -- An image URL, and the size at which to display it. See `renderPicture`.
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
@@ -994,6 +1028,7 @@ viewNodeData showIDs position dimensions edges node =
                 StringNode{} -> "string"
                 SliderNode{} -> "slider"
                 ColourNode{} -> "colour"
+                PathNode{} -> "path"
                 PictureNode{} -> "picture"
                 ConNode{} -> "con"
                 VarNode{} -> "var"
@@ -1043,6 +1078,7 @@ viewNodeData showIDs position dimensions edges node =
                            <> maybe [disabled_] (\f' -> [onInput $ f' . fromMaybe x . readMs]) f
                      , div_ [class_ "slider-value"] [text $ ms $ showFFloat (Just 2) x ""]
                      ]
+                   PathNode o path -> [viewPathEditor o path]
                    ColourNode c f ->
                      [ input_ $
                          [type_ "color", value_ $ colourHex c]
@@ -1109,15 +1145,24 @@ colourFromHex t = case T.unpack t of
       [(n, "")] -> Just $ fromInteger n / 255
       _ -> Nothing
 
+-- | What we need for editing through projections.
+data ProjectionEditing action = ProjectionEditing
+  { replace :: ID -> Literal -> Projection -> action
+  -- ^ Replace the node with the given ID with a literal, through the given projection.
+  , dragging :: Maybe (ID, Int)
+  -- ^ The point being dragged in a path editor, if any.
+  , drag :: Maybe (ID, Int) -> action
+  -- ^ Start (or with `Nothing`, stop) dragging a point in a path editor.
+  }
+
 viewTreeExpr ::
   (Data t, Data b, Data c) =>
   -- | The type of a node, if it is known reliably, i.e. not from a possibly-stale type cache.
   (t -> Maybe (Type' () ())) ->
   -- | Set the projection of the node with the given ID.
   (ID -> Maybe Projection -> action) ->
-  -- | Replace the node with the given ID with a literal, through the given projection.
-  -- `Nothing` if editing isn't possible, e.g. for a non-editable definition.
-  Maybe (ID -> Literal -> Projection -> action) ->
+  -- | `Nothing` if editing isn't possible, e.g. for a non-editable definition.
+  Maybe (ProjectionEditing action) ->
   (TermMeta' (Meta (ExprInfo t)) b c -> (Maybe ID, Maybe action, NodeHighlight)) ->
   Expr' (Meta (ExprInfo t)) b c ->
   Tree.Tree (NodeViewData action)
@@ -1143,15 +1188,32 @@ viewTreeExpr knownType setProjection' edit mkMeta e =
               PictureProjection -> "🖼"
               SliderProjection{} -> "🎚"
               ColourProjection -> "🎨"
+              PathProjection{} -> "✎"
           , setProjection' (getID meta) (Just p)
           )
     -- Replace the term with the literal produced from some input.
-    editor p toLiteral = edit <&> \f -> \x -> f (getID meta) (toLiteral x) p
+    editor p toLiteral = edit <&> \ed -> \x -> ed.replace (getID meta) (toLiteral x) p
     nodeView = case projected of
       Just (p, StringView s) -> StringNode s $ editor p stringLiteral
       Just (_, PictureView pic) -> uncurry PictureNode $ renderPicture pic
       Just (p@(SliderProjection lo hi), NumberView x) -> SliderNode lo hi x $ editor p $ LitPrim . PrimDouble
       Just (p, ColourView c) -> ColourNode c $ editor p colourLiteral
+      Just (p@(PathProjection l b r t), PathView path) ->
+        flip
+          PathNode
+          path
+          PathEditorOpts
+            { bounds = (V2 l b, V2 r t)
+            , edit =
+                edit <&> \ed ->
+                  EditPath
+                    { dragging = do
+                        (i, k) <- ed.dragging
+                        guard (i == getID meta) $> k
+                    , drag = ed.drag . fmap (getID meta,)
+                    , setPath = \path' -> ed.replace (getID meta) (pathLiteral path') p
+                    }
+            }
       _ -> nodeViewTree
     nodeViewTree = case e of
       Hole{} -> HoleNode{empty = False}
@@ -1325,6 +1387,7 @@ viewTree t =
         basicDims & lensVL _x %~ max (fromIntegral (T.length s + 2) * 10 + 30)
       PictureNode _ v -> v
       SliderNode{} -> V2 200 50
+      PathNode{} -> pathEditorSize + 20
       _ -> basicDims
       where
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y
