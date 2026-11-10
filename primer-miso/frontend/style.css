@@ -195,6 +195,20 @@ body {
       font-size: large;
     }
   }
+  > textarea {
+    font-size: medium;
+    width: 100%;
+    height: 8rem;
+    padding: 0.5rem;
+    box-sizing: border-box;
+    resize: vertical;
+  }
+  > .load-error {
+    font-size: small;
+    padding: 0.5rem;
+    color: var(--red-primary);
+    overflow-wrap: anywhere;
+  }
 }
 
 #params,

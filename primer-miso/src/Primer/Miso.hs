@@ -14,13 +14,15 @@ import Clay qualified
 import Control.Monad.Except (liftEither)
 import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Control.Monad.Trans.Maybe (runMaybeT)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrictText)
+import Data.Aeson.Text (encodeToLazyText)
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
 import Data.List.Extra (compareLength, partition)
 import Data.Map ((!?))
 import Data.Map qualified as Map
+import Data.Text qualified as T
 import Data.Tree (Tree)
 import Data.Tree qualified as Tree
 import Data.Tuple.Extra (uncurry3)
@@ -30,15 +32,19 @@ import Linear.Affine ((.+^), (.-.), (.-^))
 import Miso (
   Checked (Checked),
   Component (..),
+  DOMRef,
   Effect,
   LogLevel (Off),
   View,
   consoleLog,
   io,
   io_,
+  onCreatedWith,
   text,
  )
 import Miso.CSS (style_)
+import Miso.DSL ((#))
+import Miso.FFI (alert)
 import Miso.Html (
   button_,
   div_,
@@ -48,16 +54,20 @@ import Miso.Html (
   onChange,
   onChecked,
   onClick,
+  onInput,
   onSubmit,
+  textarea_,
  )
 import Miso.Html.Property (
   class_,
   id_,
   min_,
+  placeholder_,
   required_,
   src_,
   type_,
  )
+import Miso.Navigator (copyClipboard)
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
@@ -213,6 +223,7 @@ component =
                       , fullscreen = False
                       , history = []
                       }
+                , load = Nothing
                 }
           }
     , update = updateModel
@@ -246,6 +257,8 @@ data Model = Model
 data ComponentModels = ComponentModels
   { actionPanel :: ActionPanelModel
   , eval :: EvalModel
+  , load :: Maybe (Maybe Text)
+  -- ^ Whether the box for loading a saved program is open, and if so, why the last attempt failed (if it did).
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ComponentModels
@@ -287,6 +300,12 @@ data Action
   | CancelActionInput
   | RunUndo
   | RunRedo
+  | SaveApp
+  | OpenLoadBox
+  | CloseLoadBox
+  | LoadApp MisoString
+  | Focus DOMRef
+  | Alert MisoString
   | SetApp Primer.App.App
   | SetEvalOpts (EvalOpts -> EvalOpts)
   | ToggleFullscreenEval
@@ -345,6 +364,26 @@ updateModel = \case
   RunRedo -> do
     runMutation Redo
     resetActionPanel
+  SaveApp -> do
+    app <- use #app
+    copyClipboard
+      (ms $ encodeToLazyText app)
+      (Alert "Program copied to clipboard")
+      (const $ Alert "Failed to copy program to clipboard")
+  OpenLoadBox -> #components % #load ?= Nothing
+  CloseLoadBox -> #components % #load .= Nothing
+  LoadApp t
+    | T.null $ T.strip t' -> #components % #load ?= Nothing
+    | otherwise ->
+        case first toS (eitherDecodeStrictText t') >>= first show . checkAppWellFormed of
+          Left e -> #components % #load ?= Just e
+          Right app -> do
+            #components % #load .= Nothing
+            replaceApp app
+    where
+      t' = fromMisoString t
+  Focus e -> io_ $ void $ e # "focus" $ ()
+  Alert t -> io_ $ alert t
   CancelActionInput ->
     resetActionPanel
   SetApp a -> do
@@ -395,6 +434,11 @@ updateModel = \case
         (logs, res) <- liftIO $ runMutationWithNullDb mr app
         logAllToConsole logs
         pure $ SetApp res
+    -- TODO this replaces the whole app, including its undo history, so it can't itself be undone
+    replaceApp app = do
+      #readOnlySelection .= Nothing
+      resetActionPanel
+      updateModel $ SetApp app
     -- TODO find a more principled way to decide when to do this, or just run it all the time
     -- this may become simpler when we make the panel a Miso component
     resetActionPanel = #components % #actionPanel % #optionsMode .= Nothing
@@ -686,11 +730,23 @@ viewModel Model{..} =
                           ]
                       , button_ [] [text "↩"]
                       ]
-          , div_
-              [id_ "undo-redo-panel"]
-              [ button_ [onClick RunUndo] [text "Undo"]
-              , button_ [onClick RunRedo] [text "Redo"]
-              ]
+          , div_ [id_ "undo-redo-panel"] case components.load of
+              Nothing ->
+                [ button_ [onClick RunUndo] [text "Undo"]
+                , button_ [onClick RunRedo] [text "Redo"]
+                , button_ [onClick SaveApp] [text "Save"]
+                , button_ [onClick OpenLoadBox] [text "Load"]
+                ]
+              Just err ->
+                [ textarea_
+                    [ id_ "load-box"
+                    , placeholder_ "Paste a saved program here"
+                    , onInput LoadApp
+                    , onCreatedWith Focus
+                    ]
+                ]
+                  <> maybe [] (\e -> [div_ [class_ "load-error"] [text $ ms e]]) err
+                  <> [button_ [class_ "cancel", onClick CloseLoadBox] [text "Cancel"]]
           , div_ [id_ "eval"] $
               [ let checkBox t f =
                       div_
