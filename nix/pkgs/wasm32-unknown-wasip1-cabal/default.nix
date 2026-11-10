@@ -9,6 +9,7 @@ let
   wasm-dummy-liblibdl = runCommand "liblibdl"
     {
       nativeBuildInputs = [ pkgsCross.wasi32.buildPackages.llvmPackages.clang ];
+      NIX_NO_SELF_RPATH = true;
     }
     ''
       mkdir -p $out/lib
