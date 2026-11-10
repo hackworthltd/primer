@@ -25,5 +25,6 @@ writeShellScriptBin "wasm32-unknown-wasip1-cabal" ''
     --with-hc-pkg=wasm32-unknown-wasip1-ghc-pkg \
     --with-hsc2hs=wasm32-unknown-wasip1-hsc2hs \
     $(builtin type -P "wasm32-unknown-wasip1-pkg-config" &> /dev/null && echo "--with-pkg-config=wasm32-unknown-wasip1-pkg-config") \
+    --builddir=dist-newstyle-wasm \
     "$@"
 ''
