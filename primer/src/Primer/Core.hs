@@ -30,6 +30,8 @@ module Primer.Core (
   _exprLVarBind,
   _exprLVarBinds,
   _exprTyVarBind,
+  SomeBind',
+  scopedChildren,
 ) where
 
 import Foreword
@@ -94,6 +96,7 @@ import Primer.Core.Type (
   Type,
   Type' (..),
   TypeMeta,
+  scopedChildrenTy,
   _kindMeta,
   _kindMetaLens,
   _typeKindMeta,
@@ -380,6 +383,39 @@ _exprLVarBind = atraversalVL $ \point f -> \case
   Let m v e1 e2 -> f v <&> \v' -> Let m v' e1 e2
   Letrec m v e1 t e2 -> f v <&> \v' -> Letrec m v' e1 t e2
   e -> point e
+
+-- | A binding of either a term or a type variable.
+type SomeBind' a b = Either (LVarBind' a) (TyVarBind' b)
+
+-- | Traverse the immediate subexpressions and subtypes of an expression,
+-- passing each along with the bindings introduced by this node which scope over it.
+-- This is the single source of truth for which bindings scope over what, in expressions.
+-- (Note that no bindings scope over the types embedded directly in an expression.)
+scopedChildren ::
+  Applicative f =>
+  ([SomeBind' a b] -> Expr' a b c -> f (Expr' a b c)) ->
+  ([SomeBind' a b] -> Type' b c -> f (Type' b c)) ->
+  Expr' a b c ->
+  f (Expr' a b c)
+scopedChildren fe ft = \case
+  Hole m e -> Hole m <$> fe [] e
+  e@EmptyHole{} -> pure e
+  Ann m e t -> Ann m <$> fe [] e <*> ft [] t
+  App m e s -> App m <$> fe [] e <*> fe [] s
+  APP m e t -> APP m <$> fe [] e <*> ft [] t
+  Con m c es -> Con m c <$> traverse (fe []) es
+  Lam m x e -> Lam m x <$> fe [Left x] e
+  LAM m a e -> LAM m a <$> fe [Right a] e
+  e@Var{} -> pure e
+  Let m x e1 e2 -> Let m x <$> fe [] e1 <*> fe [Left x] e2
+  Letrec m x e1 t e2 -> Letrec m x <$> fe [Left x] e1 <*> ft [] t <*> fe [Left x] e2
+  LetType m a t e -> LetType m a <$> ft [] t <*> fe [Right a] e
+  Case m e bs fb ->
+    Case m
+      <$> fe [] e
+      <*> traverse (\(CaseBranch p xs rhs) -> CaseBranch p xs <$> fe (Left <$> xs) rhs) bs
+      <*> traverseFallback (fe []) fb
+  e@PrimCon{} -> pure e
 
 -- | All the bindings of term variables introduced by this node,
 -- i.e. that of a λ, let or letrec, or those of each branch of a case.

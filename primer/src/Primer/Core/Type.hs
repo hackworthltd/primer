@@ -9,6 +9,7 @@ module Primer.Core.Type (
   _typeMetaLens,
   _typeKindMeta,
   _typeTyVarBind,
+  scopedChildrenTy,
   KindMeta,
   _kindMeta,
   _kindMetaLens,
@@ -86,6 +87,20 @@ _typeMetaLens = position @1
 -- | A traversal over the kind metadata of an type
 _typeKindMeta :: forall a b c. Traversal (Type' a b) (Type' a c) b c
 _typeKindMeta = param @0
+
+-- | Traverse the immediate subtypes of a type,
+-- passing each along with the bindings introduced by this node which scope over it.
+-- This is the single source of truth for which bindings scope over what, in types.
+scopedChildrenTy :: Applicative f => ([TyVarBind' a] -> Type' a b -> f (Type' a b)) -> Type' a b -> f (Type' a b)
+scopedChildrenTy f = \case
+  t@TEmptyHole{} -> pure t
+  THole m t -> THole m <$> f [] t
+  t@TCon{} -> pure t
+  TFun m s t -> TFun m <$> f [] s <*> f [] t
+  t@TVar{} -> pure t
+  TApp m s t -> TApp m <$> f [] s <*> f [] t
+  TForall m a k t -> TForall m a k <$> f [a] t
+  TLet m a s t -> TLet m a <$> f [] s <*> f [a] t
 
 -- | The binding of a type variable introduced by this node, i.e. by a ∀ or type-level let, if any.
 _typeTyVarBind :: AffineTraversal' (Type' a b) (TyVarBind' a)

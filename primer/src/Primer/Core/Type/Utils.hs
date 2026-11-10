@@ -53,6 +53,7 @@ import Primer.Core.Type (
   Kind' (KHole),
   Type,
   Type' (..),
+  scopedChildrenTy,
   _kindMeta,
   _typeKindMeta,
   _typeMeta,
@@ -109,16 +110,10 @@ traverseFreeVarsTy :: Applicative f => Set TyVarName -> ((a, TyVarName) -> f (Ty
 traverseFreeVarsTy = go
   where
     go bound f = \case
-      t@TEmptyHole{} -> pure t
-      THole m t -> THole m <$> go bound f t
-      t@TCon{} -> pure t
-      TFun m s t -> TFun m <$> go bound f s <*> go bound f t
       v@(TVar m a)
         | S.member a bound -> pure v
         | otherwise -> curry f m a
-      TApp m s t -> TApp m <$> go bound f s <*> go bound f t
-      TForall m a k s -> TForall m a k <$> go (S.insert (bindName a) bound) f s
-      TLet m a t b -> TLet m a <$> go bound f t <*> go (S.insert (bindName a) bound) f b
+      t -> scopedChildrenTy (\bs -> go (bound <> S.fromList (bindName <$> bs)) f) t
 
 -- | The names bound anywhere within a type.
 boundVarsTy :: forall a b. (Data a, Data b) => Type' a b -> Set TyVarName

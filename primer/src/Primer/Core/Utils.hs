@@ -69,7 +69,7 @@ import Primer.Core (
   TyVarName,
   Type' (..),
   bindName,
-  traverseFallback,
+  scopedChildren,
   trivialMeta,
   trivialMetaUnit,
   _exprKindMeta,
@@ -138,63 +138,25 @@ _freeTmVars = traversalVL $ go mempty
   where
     go :: Applicative f => Set LVarName -> ((a, LVarName) -> f (Expr' a b c)) -> Expr' a b c -> f (Expr' a b c)
     go bound f = \case
-      Hole m e -> Hole m <$> go bound f e
-      t@EmptyHole{} -> pure t
-      Ann m e ty -> Ann m <$> go bound f e <*> pure ty
-      App m e s -> App m <$> go bound f e <*> go bound f s
-      APP m e ty -> APP m <$> go bound f e <*> pure ty
-      Con m c tms -> Con m c <$> traverse (go bound f) tms
-      Lam m v e -> Lam m v <$> go (S.insert (bindName v) bound) f e
-      LAM m tv e ->
-        -- A well scoped term will not refer to tv as a term
-        -- variable, so we do not need to add it to the bound set
-        LAM m tv <$> go bound f e
       t@(Var m v)
         | LocalVarRef n <- v
         , not $ S.member n bound ->
             curry f m n
         | otherwise -> pure t
-      Let m v e b -> Let m v <$> go bound f e <*> go (S.insert (bindName v) bound) f b
-      Letrec m v e t b -> Letrec m v <$> go (S.insert (bindName v) bound) f e <*> pure t <*> go (S.insert (bindName v) bound) f b
-      LetType m tv ty e ->
-        -- A well scoped term will not refer to tv as a term
-        -- variable, so we do not need to add it to the bound set
-        LetType m tv ty <$> go bound f e
-      Case m e bs fb -> Case m <$> go bound f e <*> traverse freeVarsBr bs <*> traverseFallback (go bound f) fb
-      t@PrimCon{} -> pure t
-      where
-        freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go (S.union bound $ S.fromList $ map bindName binds) f e
+      -- A well scoped term will not refer to a type variable as a term variable,
+      -- so we need only add the bindings of term variables to the bound set.
+      e -> scopedChildren (\bs -> go (bound <> S.fromList (bindName <$> lefts bs)) f) (const pure) e
 
 _freeTyVars :: Traversal (Expr' a b c) (Expr' a b c) (b, TyVarName) (Type' b c)
 _freeTyVars = traversalVL $ go mempty
   where
     go :: Applicative f => Set TyVarName -> ((b, TyVarName) -> f (Type' b c)) -> Expr' a b c -> f (Expr' a b c)
-    go bound f = \case
-      Hole m e -> Hole m <$> go bound f e
-      t@EmptyHole{} -> pure t
-      Ann m e ty -> Ann m <$> go bound f e <*> traverseFreeVarsTy bound f ty
-      App m e s -> App m <$> go bound f e <*> go bound f s
-      APP m e ty -> APP m <$> go bound f e <*> traverseFreeVarsTy bound f ty
-      Con m c tms -> Con m c <$> traverse (go bound f) tms
-      Lam m v e ->
-        -- A well scoped term will not refer to v as a type
-        -- variable, so we do not need to add it to the bound set
-        Lam m v <$> go bound f e
-      LAM m tv e -> LAM m tv <$> go (S.insert (bindName tv) bound) f e
-      t@Var{} -> pure t -- These are always term variables, so not a target
-      Let m v e b ->
-        -- A well scoped term will not refer to v as a type
-        -- variable, so we do not need to add it to the bound set
-        Let m v <$> go bound f e <*> go bound f b
-      Letrec m v e ty b ->
-        -- A well scoped term will not refer to v as a type
-        -- variable, so we do not need to add it to the bound set
-        Letrec m v <$> go bound f e <*> traverseFreeVarsTy bound f ty <*> go bound f b
-      LetType m v ty e -> LetType m v <$> traverseFreeVarsTy bound f ty <*> go (S.insert (bindName v) bound) f e
-      Case m e bs fb -> Case m <$> go bound f e <*> traverse freeVarsBr bs <*> traverseFallback (go bound f) fb
-      t@PrimCon{} -> pure t
+    -- A well scoped term will not refer to a term variable as a type variable,
+    -- so we need only add the bindings of type variables to the bound set.
+    -- Variables are always term variables, so are never targets.
+    go bound f = scopedChildren (\bs -> go (bound' bs) f) (\bs -> traverseFreeVarsTy (bound' bs) f)
       where
-        freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go bound f e -- case branches only bind term variables
+        bound' bs = bound <> S.fromList (bindName <$> rights bs)
 
 freeGlobalVars :: (Data a, Data b, Data c) => Expr' a b c -> Set GVarName
 freeGlobalVars e = S.fromList [v | Var _ (GlobalVarRef v) <- universe e]
