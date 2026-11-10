@@ -13,20 +13,25 @@ import Data.Set qualified as Set
 import Optics ((%), (^.))
 import Primer.Core (
   Bind' (..),
-  CaseBranch' (..),
   Expr,
   Expr' (..),
+  ExprMeta,
   GVarName,
   GlobalName (baseName),
   Kind' (KHole),
   LVarName,
   LocalName (unLocalName),
   Meta (Meta),
+  SomeBind',
   TyVarName,
   Type,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  TypeMeta,
+  bindName,
+  scopedChildrenOf,
+  scopedChildrenOfTy,
   _type,
   _typeMetaLens,
  )
@@ -101,21 +106,14 @@ extractLocalsExprZ :: ExprZ -> ShadowedVarsExpr
 extractLocalsExprZ = foldAbove getBoundHere
   where
     getBoundHere :: FoldAbove Expr -> ShadowedVarsExpr
-    getBoundHere e = case current e of
-      -- The types and kinds of variables bound by lambdas and lets are cached in their bindings.
-      -- For letrecs and let types, we instead use the annotation and bound type respectively, which are the source of truth.
-      Lam _ (Bind m x) _ -> M [] [(x, typeOrHole m)] []
-      LAM _ (Bind m n) _ -> M [(n, fromMaybe (KHole ()) $ m ^. _type)] [] []
-      Let _ (Bind m x) e1 _
-        | prior e == e1 -> mempty
-        | otherwise -> M [] [(x, typeOrHole m)] []
-      Letrec _ (Bind _ x) _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
-      LetType _ (Bind _ x) ty _ -> M [(x, kindOrHoleOf ty)] [] []
-      Case _ _ branches _ ->
-        let fromBinding (Bind m n) = (n, typeOrHole m)
-            binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches
-         in mconcat $ map (\(b, binders) -> if b == prior e then M [] binders [] else mempty) binderss
-      _ -> mempty
+    getBoundHere e = mconcat [fromBinding (current e) b | (c, bs) <- scopedChildrenOf (current e), c == Left (prior e), b <- bs]
+
+    -- The types and kinds of bound variables are cached in their bindings.
+    -- For letrecs and let types, we instead use the annotation and bound type respectively, which are the source of truth.
+    fromBinding :: Expr -> SomeBind' ExprMeta TypeMeta -> ShadowedVarsExpr
+    fromBinding parent = \case
+      Left (Bind m x) -> M [] [(x, case parent of { Letrec _ _ _ ty _ -> forgetTypeMetadata ty; _ -> typeOrHole m })] []
+      Right (Bind m a) -> M [(a, case parent of { LetType _ _ ty _ -> kindOrHoleOf ty; _ -> fromMaybe (KHole ()) $ m ^. _type })] [] []
 
     -- If a node has no type annotation we assign it type TEmptyHole
     typeOrHole :: Meta (Maybe TypeCache) -> Type' () ()
@@ -157,9 +155,9 @@ variablesInScopeTy z =
    in reverse vs -- keep most-global first
   where
     getBoundHere :: FoldAbove Type -> ShadowedVarsTy
-    getBoundHere t = case current t of
-      TForall _ (Bind _ v) k _ -> N [(v, forgetKindMetadata k)]
-      TLet _ (Bind _ v) t' b
-        | prior t == b -> N [(v, kindOrHoleOf t')]
-        | otherwise -> mempty
-      _ -> mempty
+    getBoundHere t = N [(bindName b, kindHere (current t)) | (c, bs) <- scopedChildrenOfTy (current t), c == prior t, b <- bs]
+    -- The kind of the variable bound by a type.
+    kindHere = \case
+      TForall _ _ k _ -> forgetKindMetadata k
+      TLet _ _ t' _ -> kindOrHoleOf t'
+      _ -> KHole ()

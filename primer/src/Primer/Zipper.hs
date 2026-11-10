@@ -66,7 +66,6 @@ module Primer.Zipper (
   LetBinding,
   letBindingName,
   LetTypeBinding' (..),
-  getBoundHere',
   getBoundHere,
   getBoundHereUp,
   getBoundHereDn,
@@ -103,9 +102,8 @@ import Optics (
  )
 import Optics.Lens (lens)
 import Primer.Core (
-  CaseBranch' (CaseBranch),
   Expr,
-  Expr' (Case, Con, LAM, Lam, Let, LetType, Letrec),
+  Expr' (Con),
   ExprMeta,
   HasID (..),
   ID,
@@ -121,6 +119,7 @@ import Primer.Core (
   TypeMeta,
   bindName,
   getID,
+  scopedChildrenOf,
   typesInExpr,
   _exprLVarBinds,
   _exprTyVarBind,
@@ -422,7 +421,13 @@ getBoundHereDn e = getBoundHere e Nothing
 -- need to extract binders based on which case branch etc), and Nothing if
 -- traversing down (and want to get all binders regardless of branch).
 getBoundHere :: (Eq a, Eq b, Eq c) => Expr' a b c -> Maybe (Expr' a b c) -> S.Set Name
-getBoundHere e prev = S.fromList $ either identity letBindingName <$> getBoundHere' e prev
+getBoundHere e prev =
+  S.fromList
+    [ either (unLocalName . bindName) (unLocalName . bindName) b
+    | (c, bs) <- scopedChildrenOf e
+    , maybe True ((== c) . Left) prev
+    , b <- bs
+    ]
 
 data LetBinding' a b c
   = LetBind (LVarBind' a) (Expr' a b c)
@@ -436,26 +441,6 @@ letBindingName = \case
   LetBind n _ -> unLocalName $ bindName n
   LetrecBind n _ _ -> unLocalName $ bindName n
   LetTyBind (LetTypeBind n _) -> unLocalName $ bindName n
-
-getBoundHere' :: (Eq a, Eq b, Eq c) => Expr' a b c -> Maybe (Expr' a b c) -> [Either Name (LetBinding' a b c)]
-getBoundHere' e prev = case e of
-  Lam _ v _ -> anon $ bindName v
-  LAM _ tv _ -> anon $ bindName tv
-  Let _ v rhs b ->
-    if maybe True (== b) prev
-      then letBind $ LetBind v rhs
-      else mempty
-  Letrec _ v rhs t _ -> letBind $ LetrecBind v rhs t
-  LetType _ v t _ -> letBind $ LetTyBind $ LetTypeBind v t
-  Case _ _ bs _ ->
-    let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map (unLocalName . bindName) ns)) bs
-     in case prev of
-          Nothing -> concatMap (fmap Left . snd) binderss
-          Just p -> concatMap (\(b, binders) -> if b == p then Left <$> binders else mempty) binderss
-  _ -> mempty
-  where
-    anon x = [Left $ unLocalName x]
-    letBind l = [Right l]
 
 -- | Find a node in the AST by its ID, and also return its parent
 findNodeWithParent ::

@@ -26,7 +26,6 @@ module Primer.Zipper.Type (
   LetTypeBinding' (LetTypeBind),
   LetTypeBinding,
   letTypeBindingName,
-  getBoundHereTy',
   getBoundHereTy,
   getBoundHereUpTy,
   getBoundHereDnTy,
@@ -54,8 +53,9 @@ import Primer.Core.Meta (
 import Primer.Core.Type (
   Kind',
   KindMeta,
-  Type' (TForall, TLet),
+  Type' (TForall),
   TypeMeta,
+  scopedChildrenOfTy,
   _typeTyVarBind,
  )
 import Primer.Core.Type.Utils (boundVarsTy)
@@ -230,7 +230,7 @@ getBoundHereDnTy :: (Eq a, Eq b) => Type' a b -> S.Set TyVarName
 getBoundHereDnTy e = getBoundHereTy e Nothing
 
 getBoundHereTy :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> S.Set TyVarName
-getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> bindName n) <$> getBoundHereTy' t prev
+getBoundHereTy t prev = S.fromList [bindName b | (c, bs) <- scopedChildrenOfTy t, maybe True (== c) prev, b <- bs]
 
 data LetTypeBinding' a b = LetTypeBind (TyVarBind' a) (Type' a b)
   deriving stock (Eq, Show)
@@ -238,12 +238,3 @@ type LetTypeBinding = LetTypeBinding' TypeMeta KindMeta
 
 letTypeBindingName :: LetTypeBinding' a b -> Name
 letTypeBindingName (LetTypeBind n _) = unLocalName $ bindName n
-
-getBoundHereTy' :: (Eq a, Eq b) => Type' a b -> Maybe (Type' a b) -> [Either TyVarName (LetTypeBinding' a b)]
-getBoundHereTy' t prev = case t of
-  TForall _ v _ _ -> [Left $ bindName v]
-  TLet _ v rhs b ->
-    if maybe True (== b) prev
-      then [Right $ LetTypeBind v rhs]
-      else mempty
-  _ -> mempty

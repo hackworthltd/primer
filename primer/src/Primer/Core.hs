@@ -32,6 +32,7 @@ module Primer.Core (
   _exprTyVarBind,
   SomeBind',
   scopedChildren,
+  scopedChildrenOf,
 ) where
 
 import Foreword
@@ -96,6 +97,7 @@ import Primer.Core.Type (
   Type,
   Type' (..),
   TypeMeta,
+  scopedChildrenOfTy,
   scopedChildrenTy,
   _kindMeta,
   _kindMetaLens,
@@ -416,6 +418,11 @@ scopedChildren fe ft = \case
       <*> traverse (\(CaseBranch p xs rhs) -> CaseBranch p xs <$> fe (Left <$> xs) rhs) bs
       <*> traverseFallback (fe []) fb
   e@PrimCon{} -> pure e
+
+-- | The immediate subexpressions and subtypes of an expression, each along with the bindings
+-- introduced by this node which scope over it (see 'scopedChildren').
+scopedChildrenOf :: Expr' a b c -> [(Either (Expr' a b c) (Type' b c), [SomeBind' a b])]
+scopedChildrenOf = getConst . scopedChildren (\bs e -> Const [(Left e, bs)]) (\bs t -> Const [(Right t, bs)])
 
 -- | All the bindings of term variables introduced by this node,
 -- i.e. that of a λ, let or letrec, or those of each branch of a case.

@@ -10,6 +10,7 @@ module Primer.Core.Type (
   _typeKindMeta,
   _typeTyVarBind,
   scopedChildrenTy,
+  scopedChildrenOfTy,
   KindMeta,
   _kindMeta,
   _kindMetaLens,
@@ -101,6 +102,11 @@ scopedChildrenTy f = \case
   TApp m s t -> TApp m <$> f [] s <*> f [] t
   TForall m a k t -> TForall m a k <$> f [a] t
   TLet m a s t -> TLet m a <$> f [] s <*> f [a] t
+
+-- | The immediate subtypes of a type, each along with the bindings
+-- introduced by this node which scope over it (see 'scopedChildrenTy').
+scopedChildrenOfTy :: Type' a b -> [(Type' a b, [TyVarBind' a])]
+scopedChildrenOfTy = getConst . scopedChildrenTy (\bs t -> Const [(t, bs)])
 
 -- | The binding of a type variable introduced by this node, i.e. by a ∀ or type-level let, if any.
 _typeTyVarBind :: AffineTraversal' (Type' a b) (TyVarBind' a)
