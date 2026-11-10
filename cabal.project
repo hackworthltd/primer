@@ -44,3 +44,6 @@ package primer
 
 package primer-api
   test-options: "--size-cutoff=32768"
+
+package miso
+  flags: +aeson
