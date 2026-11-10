@@ -33,6 +33,7 @@ module Primer.Core (
   SomeBind',
   scopedChildren,
   scopedChildrenOf,
+  _caseBranchMetas,
 ) where
 
 import Foreword
@@ -335,6 +336,8 @@ type CaseBranch = CaseBranch' ExprMeta TypeMeta KindMeta
 
 data CaseBranch' a b c
   = CaseBranch
+      -- | metadata for the branch, which (for a typechecked branch) holds the type of the values it matches
+      a
       -- | constructor
       Pattern
       -- | constructor parameters
@@ -346,23 +349,24 @@ data CaseBranch' a b c
   deriving anyclass (NFData)
 
 caseBranchName :: CaseBranch' a b c -> Pattern
-caseBranchName (CaseBranch n _ _) = n
+caseBranchName (CaseBranch _ n _ _) = n
 
 type CaseFallback = CaseFallback' ExprMeta TypeMeta KindMeta
 
 data CaseFallback' a b c
   = CaseExhaustive
-  | CaseFallback (Expr' a b c)
+  | -- | A wildcard branch, with metadata as for 'CaseBranch'
+    CaseFallback a (Expr' a b c)
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseFallback' a b c)
   deriving anyclass (NFData)
 
-traverseFallback :: Applicative f => (Expr' a b c -> f (Expr' a' b' c')) -> CaseFallback' a b c -> f (CaseFallback' a' b' c')
+traverseFallback :: Applicative f => (Expr' a b c -> f (Expr' a b' c')) -> CaseFallback' a b c -> f (CaseFallback' a b' c')
 traverseFallback f = \case
   CaseExhaustive -> pure CaseExhaustive
-  CaseFallback e -> CaseFallback <$> f e
+  CaseFallback m e -> CaseFallback m <$> f e
 
-mapFallback :: (Expr' a b c -> Expr' a' b' c') -> CaseFallback' a b c -> CaseFallback' a' b' c'
+mapFallback :: (Expr' a b c -> Expr' a b' c') -> CaseFallback' a b c -> CaseFallback' a b' c'
 mapFallback f = runIdentity . traverseFallback (Identity . f)
 
 -- | A binding of a term variable, within an expression.
@@ -415,7 +419,7 @@ scopedChildren fe ft = \case
   Case m e bs fb ->
     Case m
       <$> fe [] e
-      <*> traverse (\(CaseBranch p xs rhs) -> CaseBranch p xs <$> fe (Left <$> xs) rhs) bs
+      <*> traverse (\(CaseBranch m' p xs rhs) -> CaseBranch m' p xs <$> fe (Left <$> xs) rhs) bs
       <*> traverseFallback (fe []) fb
   e@PrimCon{} -> pure e
 
@@ -424,11 +428,22 @@ scopedChildren fe ft = \case
 scopedChildrenOf :: Expr' a b c -> [(Either (Expr' a b c) (Type' b c), [SomeBind' a b])]
 scopedChildrenOf = getConst . scopedChildren (\bs e -> Const [(Left e, bs)]) (\bs t -> Const [(Right t, bs)])
 
+-- | The metadata of the branches of a case expression, including any fallback branch.
+_caseBranchMetas :: Traversal' (Expr' a b c) a
+_caseBranchMetas = traversalVL $ \f -> \case
+  Case m e bs fb ->
+    Case m e
+      <$> traverse (\(CaseBranch m' p xs rhs) -> (\m'' -> CaseBranch m'' p xs rhs) <$> f m') bs
+      <*> case fb of
+        CaseExhaustive -> pure CaseExhaustive
+        CaseFallback m' rhs -> (`CaseFallback` rhs) <$> f m'
+  e -> pure e
+
 -- | All the bindings of term variables introduced by this node,
 -- i.e. that of a λ, let or letrec, or those of each branch of a case.
 _exprLVarBinds :: Traversal' (Expr' a b c) (LVarBind' a)
 _exprLVarBinds = traversalVL $ \f -> \case
-  Case m e bs fb -> Case m e <$> traverse (\(CaseBranch p vs rhs) -> CaseBranch p <$> traverse f vs <*> pure rhs) bs <*> pure fb
+  Case m e bs fb -> Case m e <$> traverse (\(CaseBranch m' p vs rhs) -> CaseBranch m' p <$> traverse f vs <*> pure rhs) bs <*> pure fb
   e -> traverseOf _exprLVarBind f e
 
 -- | The binding of a type variable introduced by this node, i.e. by a Λ or let type, if any.

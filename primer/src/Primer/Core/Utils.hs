@@ -196,8 +196,8 @@ alphaEq = go (0, mempty, mempty)
       go bs e1 e2
         && and
           ( zipWith
-              ( \(CaseBranch c1 (fmap bindName -> vs1) t1)
-                 (CaseBranch c2 (fmap bindName -> vs2) t2) ->
+              ( \(CaseBranch _ c1 (fmap bindName -> vs1) t1)
+                 (CaseBranch _ c2 (fmap bindName -> vs2) t2) ->
                     c1 == c2
                       && length vs1 == length vs2
                       && go (foldl' (uncurry . newTm) bs $ zip vs1 vs2) t1 t2
@@ -207,7 +207,7 @@ alphaEq = go (0, mempty, mempty)
           )
         && case (fb1, fb2) of
           (CaseExhaustive, CaseExhaustive) -> True
-          (CaseFallback f1, CaseFallback f2) -> go bs f1 f2
+          (CaseFallback _ f1, CaseFallback _ f2) -> go bs f1 f2
           _ -> False
     go _ (PrimCon _ c1) (PrimCon _ c2) = c1 == c2
     go _ _ _ = False

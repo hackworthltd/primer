@@ -240,6 +240,7 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
   Just (KindNode k, _) -> forKind l k
   Just (LVarBindNode _, p) -> maybe mempty (forBinding l) p
   Just (TyVarBindNode _, p) -> maybe mempty (forBinding l) p
+  Just (BranchNode _ _, _) -> mempty
 
 -- | Actions for a variable binding, given the node which introduces it.
 -- Bindings of type variables by Λs and ∀s may only be renamed by experts.

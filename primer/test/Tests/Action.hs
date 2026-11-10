@@ -784,7 +784,7 @@ unit_case_on_hole =
         ( lam "x" $
             case_
               (ann emptyHole $ tcon tNat)
-              [branch cZero [] emptyHole, branch cSucc [("a14", Nothing)] emptyHole] -- NB: fragile names here
+              [branch cZero [] emptyHole, branch cSucc [("a15", Nothing)] emptyHole] -- NB: fragile names here
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -914,7 +914,7 @@ unit_rename_case_binding =
         ]
         `ann` tcon tNat
     )
-    [SetCursor 8, RenameBinding "c"]
+    [SetCursor 10, RenameBinding "c"]
     ( case_
         (emptyHole `ann` (tcon tList `tapp` tcon tBool))
         [ branch cNil [] emptyHole
@@ -934,7 +934,7 @@ unit_same_rename_case_binding =
         ]
         `ann` tcon tNat
     )
-    [SetCursor 8, RenameBinding "a"]
+    [SetCursor 10, RenameBinding "a"]
     ( case_
         (emptyHole `ann` (tcon tList `tapp` tcon tBool))
         [ branch cNil [] emptyHole
@@ -955,12 +955,12 @@ unit_rename_case_bind_clash =
         ]
         `ann` tcon tNat
     )
-    [SetCursor 8, RenameBinding "b"]
+    [SetCursor 10, RenameBinding "b"]
 
 unit_case_branches :: Assertion
 unit_case_branches =
   let e cse = ann cse (tcon tBool)
-      n = "a8"
+      n = "a10"
       e0 =
         e $
           caseFB_

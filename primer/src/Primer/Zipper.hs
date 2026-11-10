@@ -14,6 +14,9 @@ module Primer.Zipper (
   focusLVarBind,
   focusTyVarBind,
   focusTyVarBindInType,
+  focusBranch,
+  BranchZ',
+  BranchZ,
   LVarBindZ',
   LVarBindZ,
   TyVarBindZ',
@@ -102,8 +105,9 @@ import Optics (
  )
 import Optics.Lens (lens)
 import Primer.Core (
+  CaseBranch' (CaseBranch),
   Expr,
-  Expr' (Con),
+  Expr' (Case, Con),
   ExprMeta,
   HasID (..),
   ID,
@@ -112,15 +116,18 @@ import Primer.Core (
   LVarBind,
   LVarBind',
   LocalName (unLocalName),
+  Pattern,
   TyVarBind,
   TyVarBind',
   Type,
   Type' (TForall),
   TypeMeta,
   bindName,
+  caseBranchName,
   getID,
   scopedChildrenOf,
   typesInExpr,
+  _caseBranchMetas,
   _exprLVarBinds,
   _exprTyVarBind,
   _typeTyVarBind,
@@ -203,6 +210,8 @@ data Loc' a b c
     InKind (KindZ' a b c)
   | -- | A binding
     InBind (BindLoc' a b c)
+  | -- | A branch of a case expression, including a fallback branch
+    InBranch (BranchZ' a b c)
   deriving stock (Generic)
 
 type Loc = Loc' ExprMeta TypeMeta KindMeta
@@ -215,11 +224,13 @@ instance (HasID a, HasID b, HasID c) => HasID (Loc' a b c) where
         InType l -> view _id l
         InKind k -> view _id k
         InBind l -> view _id l
+        InBranch b -> view _id b
       setter l i = case l of
         InExpr e -> InExpr $ set _id i e
         InType t -> InType $ set _id i t
         InKind k -> InKind $ set _id i k
         InBind t -> InBind $ set _id i t
+        InBranch b -> InBranch $ set _id i b
 
 -- | A zipper for bindings of term variables by a λ, let, letrec or case branch.
 type LVarBindZ' a b c = PartZ (ExprZ' a b c) (LVarBind' a)
@@ -235,6 +246,13 @@ type TyVarBindZ = TyVarBindZ' ExprMeta TypeMeta KindMeta
 type TyVarInTypeBindZ' a b c = PartZ (TypeZ' a b c) (TyVarBind' b)
 
 type TyVarInTypeBindZ = TyVarInTypeBindZ' ExprMeta TypeMeta KindMeta
+
+-- | A zipper for the branches of case expressions, including fallback branches.
+-- Since a branch is not a node of the tree in its own right, we focus on its metadata,
+-- along with a zipper focused on the case expression.
+type BranchZ' a b c = PartZ (ExprZ' a b c) a
+
+type BranchZ = BranchZ' ExprMeta TypeMeta KindMeta
 
 -- | A location of a binding.
 data BindLoc' a b c
@@ -299,6 +317,10 @@ focusLVarBind i = focusPart $ singular $ _exprLVarBinds % unsafeFiltered ((== i)
 focusTyVarBind :: (Data a, Data b, Data c, HasID b) => ID -> ExprZ' a b c -> Maybe (TyVarBindZ' a b c)
 focusTyVarBind i = focusPart $ singular $ _exprTyVarBind % unsafeFiltered ((== i) . getID)
 
+-- | Focus on the branch with the given ID, if the target of the zipper is a case expression with such a branch.
+focusBranch :: (Data a, Data b, Data c, HasID a) => ID -> ExprZ' a b c -> Maybe (BranchZ' a b c)
+focusBranch i = focusPart $ singular $ _caseBranchMetas % unsafeFiltered ((== i) . getID)
+
 -- | As 'focusTyVarBind', but in a type inside an expression.
 focusTyVarBindInType :: (Data b, Data c, HasID b) => ID -> TypeZ' a b c -> Maybe (TyVarInTypeBindZ' a b c)
 focusTyVarBindInType i = focusPart $ singular $ _typeTyVarBind % unsafeFiltered ((== i) . getID)
@@ -337,6 +359,7 @@ unfocusLoc :: Loc -> ExprZ
 unfocusLoc (InExpr z) = z
 unfocusLoc (InType z) = unfocusType z
 unfocusLoc (InBind (BindLVar z)) = unfocusPart z
+unfocusLoc (InBranch z) = unfocusPart z
 unfocusLoc (InBind (BindTyVar z)) = unfocusPart z
 unfocusLoc (InBind (BindTyVarInType z)) = unfocusType $ unfocusPart z
 unfocusLoc (InKind k) = unfocusType $ unfocusKind k
@@ -363,6 +386,7 @@ focusOn' i = fmap snd . search matchesID
           let inBinds =
                 (InBind . BindLVar <$> focusLVarBind i z)
                   <|> (InBind . BindTyVar <$> focusTyVarBind i z)
+                  <|> (InBranch <$> focusBranch i z)
               inType = do
                 ZipNest tz f <- focusType z
                 focusOnTy' i tz <&> \case
@@ -466,6 +490,14 @@ findNodeWithParent id x = do
     InBind (BindLVar bz) -> (LVarBindNode $ partZFocus bz, Just . ExprNode . target . unfocusPart $ bz)
     InBind (BindTyVar bz) -> (TyVarBindNode $ partZFocus bz, Just . ExprNode . target . unfocusPart $ bz)
     InBind (BindTyVarInType bz) -> (TyVarBindNode $ partZFocus bz, Just . TypeNode . target . unfocusPart $ bz)
+    InBranch bz ->
+      let parent = target $ unfocusPart bz
+       in (BranchNode (partZFocus bz) $ branchPattern (getID bz) parent, Just $ ExprNode parent)
+  where
+    -- The pattern of the branch with the given ID, or @Nothing@ for a fallback branch.
+    branchPattern i = \case
+      Case _ _ bs _ -> caseBranchName <$> find ((== i) . getID . (\(CaseBranch m _ _ _) -> m)) bs
+      _ -> Nothing
 
 -- | Find a sub-type, kind or binding in a larger type by its ID.
 findNodeInType :: ID -> Type -> Maybe SomeNode
@@ -484,5 +516,7 @@ data SomeNode
     LVarBindNode LVarBind
   | -- | A binding of a type variable, e.g. by a Λ or ∀
     TyVarBindNode TyVarBind
+  | -- | A branch of a case expression, along with its pattern (or @Nothing@ for a fallback branch)
+    BranchNode ExprMeta (Maybe Pattern)
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON SomeNode

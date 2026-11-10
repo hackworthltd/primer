@@ -1048,7 +1048,8 @@ viewNodeData showIDs position dimensions edges node =
               (Clay.px $ realToClay position.x)
               (Clay.px $ realToClay position.y)
       ]
-        <> foldMap' (pure . onClick) node.clickAction
+        -- We stop click events from propagating, since nodes (such as those of patterns) may be nested inside others.
+        <> foldMap' (pure . onClickWithOptions stopPropagation) node.clickAction
     )
     $ edges -- Edges come first so that they appear behind contents.
       <> [ div_
@@ -1238,17 +1239,19 @@ viewTreeExpr knownType setProjection' edit mkMeta e =
         viewTreeExpr' scrut
           : maybeToList
             ( foldr
-                ( \(pat, r) next ->
+                ( \(bm, pat, r) next ->
                     Just
-                      . Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside Expr $ PatternBoxNode pat)
+                      . Tree.Node (uncurry3 NodeViewData (mkMeta $ Left bm) Nothing Beside Expr $ PatternBoxNode pat)
                       $ viewTreeExpr' r : maybeToList next
                 )
                 Nothing
-                $ ( branches <&> \(CaseBranch p bindings r) ->
-                      ( Just
+                $ ( branches <&> \(CaseBranch bm p bindings r) ->
+                      ( bm
+                      , Just
                           . viewTree
                           . Tree.Node
-                            ( NodeViewData Nothing Nothing NoHighlight Nothing Below Expr case p of
+                            -- Clicking the constructor is the same as clicking its branch.
+                            ( uncurry3 NodeViewData (mkMeta $ Left bm) Nothing Below Expr case p of
                                 PatCon c -> ConNode{name = baseName c, scope = qualifiedModule c}
                                 PatPrim c -> PrimNode c
                             )
@@ -1261,7 +1264,7 @@ viewTreeExpr knownType setProjection' edit mkMeta e =
                   )
                   <> case fb of
                     CaseExhaustive -> []
-                    CaseFallback r -> [(Nothing, r)]
+                    CaseFallback bm r -> [(bm, Nothing, r)]
             )
       _ ->
         mconcat

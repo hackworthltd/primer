@@ -145,6 +145,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
+import Primer.Core.DSL.Meta qualified as DSL
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
 import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
 import Primer.Def (
@@ -405,6 +406,7 @@ refocus Refocus{pre, post} = do
           InType t -> candidateIDsType t
           InKind k -> [getID k]
           InBind b -> [getID b]
+          InBranch b -> [getID b]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
     candidateIDsExpr e =
@@ -513,11 +515,16 @@ applyAction' a = case a of
         BindTyVar z -> InExpr $ unfocusPart z
         BindTyVarInType z -> InType $ unfocusPart z
       _ -> throwError $ CustomFailure (Move m) "Can only move up from a binding"
+    InBranch b -> case m of
+      -- If we're moving up from a branch, then shift focus to the case expression.
+      Parent -> pure $ InExpr $ unfocusPart b
+      _ -> throwError $ CustomFailure (Move m) "Can only move up from a branch"
   Delete -> \case
     InExpr ze -> InExpr . flip replace ze <$> emptyHole
     InType zt -> InType . flip replace zt <$> tEmptyHole
     InKind zk -> InKind . flip replace zk <$> khole
     InBind _ -> throwError $ CustomFailure Delete "Cannot delete a binding"
+    InBranch _ -> throwError $ CustomFailure Delete "Cannot delete a case branch with this action"
   SetMetadata d -> \case
     InExpr ze -> pure $ InExpr $ setMetadata d ze
     InType zt -> pure $ InType $ setMetadata d zt
@@ -525,6 +532,7 @@ applyAction' a = case a of
     InBind (BindLVar zb) -> pure $ InBind $ BindLVar $ setMetadata d zb
     InBind (BindTyVar zb) -> pure $ InBind $ BindTyVar $ setMetadata d zb
     InBind (BindTyVarInType zb) -> pure $ InBind $ BindTyVarInType $ setMetadata d zb
+    InBranch zb -> pure $ InBranch $ setMetadata d zb
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
   ConstructVar x -> termAction (constructVar x) "cannot construct var in type"
@@ -602,7 +610,7 @@ moveExpr m@(Branch b) z | Case _ _ brs fb <- target z =
       CaseExhaustive -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no fallback branch"
       -- 'down' moves into the scrutinee, 'right' then steps through branch
       -- rhss, and then finally into the fallback branch
-      CaseFallback _ -> case foldr (\_ z' -> right =<< z') (down z) [0 .. length brs] of
+      CaseFallback _ _ -> case foldr (\_ z' -> right =<< z') (down z) [0 .. length brs] of
         Just z' -> pure z'
         Nothing -> throwError $ CustomFailure (Move m) "internal error: movement to fallback branch failed, even though branch exists"
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
@@ -901,6 +909,7 @@ getFocusType ze = case maybeTypeOf $ target ze of
           Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
           Just (InKind _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a kind after typechecking"
           Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
+          Just (InBranch _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a case branch after synthesis"
           Just (InExpr ze') -> case maybeTypeOf $ target ze' of
             Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
             Just t -> pure t
@@ -943,9 +952,9 @@ constructCase ze = do
 addCaseBranch :: ActionM m => Either QualifiedText PrimCon -> ExprZ -> m ExprZ
 addCaseBranch rawCon ze = case target ze of
   Case _ _ _ CaseExhaustive -> throwError CaseAlreadyExhaustive
-  Case m scrut branches (CaseFallback fallbackBranch) -> do
+  Case m scrut branches (CaseFallback fm fallbackBranch) -> do
     let newCon = either (PatCon . unsafeMkGlobalName) PatPrim rawCon
-        branchName (CaseBranch n _ _) = n
+        branchName (CaseBranch _ n _ _) = n
         branchNames = branchName <$> branches
     when (newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
     ty <-
@@ -965,14 +974,14 @@ addCaseBranch rawCon ze = case target ze of
             -- make a temporary approximation to the final result, from which we
             -- calculate some names for the new binders
             tmpBranch <- branch c [] $ pure fallbackBranch
-            let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
+            let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fm fallbackBranch)
             binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern newCon) (replace tmpCase ze)
             branch c ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
         -- If we are adding the last constructor, we delete the fallback branch
         let fb =
               if length allowedBranches == length branchNames + 1
                 then CaseExhaustive
-                else CaseFallback fallbackBranch
+                else CaseFallback fm fallbackBranch
         let branches' = insertSubseqBy branchName newBranch (PatCon . valConName <$> allowedBranches) branches
         pure $ replace (Case m scrut branches' fb) ze
       PatPrim c -> do
@@ -984,7 +993,7 @@ addCaseBranch rawCon ze = case target ze of
             -- form, and this last case cannot happen
             cmp _ _ = EQ
             branches' = insertBy (cmp `on` caseBranchName) newBranch branches
-        pure $ replace (Case m scrut branches' $ CaseFallback fallbackBranch) ze
+        pure $ replace (Case m scrut branches' $ CaseFallback fm fallbackBranch) ze
   _ ->
     throwError $ CustomFailure act "the focused expression is not a case"
   where
@@ -1001,7 +1010,7 @@ deleteCaseBranch c ze = case target ze of
   Case m scrut branches fallbackBranch ->
     case find ((c' ==) . caseBranchName) branches of
       Nothing -> throwError $ CaseBranchNotExist c'
-      Just br@(CaseBranch _ binds rhs) ->
+      Just br@(CaseBranch _ _ binds rhs) ->
         let newBranches = delete br branches
             -- If there was no fallback branch, we create a new one whose RHS is
             -- the RHS of the deleted branch, with the now unbound variables
@@ -1013,8 +1022,8 @@ deleteCaseBranch c ze = case target ze of
                 else pure $ Var m' $ LocalVarRef n
          in do
               newFallback <- case fallbackBranch of
-                CaseExhaustive -> CaseFallback <$> traverseOf _freeTmVars removeBound rhs
-                CaseFallback _ -> pure fallbackBranch
+                CaseExhaustive -> CaseFallback <$> DSL.meta <*> traverseOf _freeTmVars removeBound rhs
+                CaseFallback _ _ -> pure fallbackBranch
               pure $ replace (Case m scrut newBranches newFallback) ze
   _ ->
     throwError $ CustomFailure act "the focused expression is not a case"
@@ -1122,7 +1131,7 @@ renameCaseBinding y i ze = case target ze of
   _ -> throwError $ CustomFailure (RenameBinding y) "the focused expression is not a case"
   where
     y' = unsafeMkLocalName y
-    renameInBranch br@(CaseBranch p binds rhs) = case break ((== i) . getID) binds of
+    renameInBranch br@(CaseBranch bm p binds rhs) = case break ((== i) . getID) binds of
       (_, []) -> pure br
       (before, bind : after) -> do
         -- Check that 'y' doesn't clash with any of the other branch bindings
@@ -1130,7 +1139,7 @@ renameCaseBinding y i ze = case target ze of
         when (y' `elem` otherBindingNames) $ throwError $ CaseBindsClash y' otherBindingNames
         -- Apply the rename to the rhs
         rhs' <- maybe (throwError NameCapture) pure $ renameLocalVar (bindName bind) y' rhs
-        pure $ CaseBranch p (before <> (set _bindName y' bind : after)) rhs'
+        pure $ CaseBranch bm p (before <> (set _bindName y' bind : after)) rhs'
 
 enterType :: MonadError ActionError m => ExprZ -> m TypeZ
 enterType z = case focusType z of

@@ -283,13 +283,13 @@ interp' tydefs env@(envTm, envTy) dir = \case
             env
      in interp' tydefs env' dir b
   -- In step interpreter, case which does not discriminate is lazy. Same here for consistency.
-  Case _ _ [] (CaseFallback e) -> interp' tydefs env Chk e
+  Case _ _ [] (CaseFallback _ e) -> interp' tydefs env Chk e
   Case _ e brs fb ->
     -- recall @case C as : T A of ... ; C xs -> e ; ...@ steps to
     --  @let xs=as:(lettype p=A in S) in e@ for @data T p = C S@
     case interp' tydefs env Syn e of
       Ann _ (Con _ c as) (decomposeTAppCon -> Just (tycon, tyargs))
-        | Just (CaseBranch _ xs t) <- find ((PatCon c ==) . caseBranchName) brs ->
+        | Just (CaseBranch _ _ xs t) <- find ((PatCon c ==) . caseBranchName) brs ->
             let envTy' = extendTysEnv' (tyParamEnvExt tycon tyargs) envTy
                 -- NB: as with App/Let/Letrec, the bound variables' free
                 -- variables come from the raw scrutinee @e@, not the (possibly
@@ -304,29 +304,29 @@ interp' tydefs env@(envTm, envTy) dir = \case
                   (extendTmsEnvWithFVs (zipWith mkBind xs (zip as (ctorArgTys tycon c))) env)
                   Chk
                   t
-        | CaseFallback t <- fb -> interp' tydefs env Chk t
+        | CaseFallback _ t <- fb -> interp' tydefs env Chk t
         | otherwise -> throw $ NoBranch (Left c) $ caseBranchName <$> brs
       -- Note that primitives never have Expr arguments
       -- i.e. are always atomic
       Ann _ (PrimCon _ c) (TCon _ ((== primConName c) -> True))
-        | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' tydefs env Chk t
-        | CaseFallback t <- fb -> interp' tydefs env Chk t
+        | Just (CaseBranch _ _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' tydefs env Chk t
+        | CaseFallback _ t <- fb -> interp' tydefs env Chk t
         | otherwise -> throw $ NoBranch (Right c) $ caseBranchName <$> brs
       -- literals (primitive constructors) are actually synthesisable, so may come
       -- without annotations
       PrimCon _ c
-        | Just (CaseBranch _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' tydefs env Chk t
-        | CaseFallback t <- fb -> interp' tydefs env Chk t
+        | Just (CaseBranch _ _ [] t) <- find ((PatPrim c ==) . caseBranchName) brs -> interp' tydefs env Chk t
+        | CaseFallback _ t <- fb -> interp' tydefs env Chk t
         | otherwise -> throw $ NoBranch (Right c) $ caseBranchName <$> brs
       e' ->
         let f = \case
-              CaseBranch pat binds rhs ->
+              CaseBranch m pat binds rhs ->
                 let (env', binds') =
                       mapAccumL
                         (\env'' (bindName -> b) -> let b' = freshLike b env'' in (renameTmEnv b b' env'', Bind () b'))
                         env
                         binds
-                 in CaseBranch pat binds' $ interp' tydefs env' Chk rhs
+                 in CaseBranch m pat binds' $ interp' tydefs env' Chk rhs
          in Case () e' (f <$> brs) (mapFallback (interp' tydefs env Chk) fb)
   e@PrimCon{} -> e
   where

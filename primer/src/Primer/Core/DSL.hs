@@ -172,10 +172,10 @@ case_ e brs = Case <$> meta <*> e <*> sequence brs <*> pure CaseExhaustive
 
 -- | A non-exhaustive case
 caseFB_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr -> m Expr
-caseFB_ e brs fb = Case <$> meta <*> e <*> sequence brs <*> (CaseFallback <$> fb)
+caseFB_ e brs fb = Case <$> meta <*> e <*> sequence brs <*> (CaseFallback <$> meta <*> fb)
 
 branchPat :: MonadFresh ID m => Pattern -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
-branchPat c vs e = CaseBranch c <$> mapM binding vs <*> e
+branchPat c vs e = CaseBranch <$> meta <*> pure c <*> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
 

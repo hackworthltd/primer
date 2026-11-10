@@ -111,7 +111,6 @@ import Data.Tuple.Extra (curry3)
 import Optics (
   Traversal',
   adjoin,
-  ifoldr,
   over,
   preview,
   to,
@@ -969,18 +968,19 @@ viewTreeExpr e0 = case e0 of
         , -- seeing as the inner function always returns a `Just`,
           -- this would only be `Nothing` if the list of branches were empty,
           --  which should only happen when matching on `Void`
-          ifoldr
-            (\i b next -> Just $ RecordPair EdgeFlavor.Pattern $ (viewCaseBranch i b){rightChild = next})
+          foldr
+            (\b next -> Just $ RecordPair EdgeFlavor.Pattern $ (viewCaseBranch b){rightChild = next})
             viewFallback
             bs
         )
-      viewCaseBranch i (CaseBranch p binds rhs) =
+      viewCaseBranch (CaseBranch bm p binds rhs) =
         let
-          -- these IDs will not clash with any others in the tree,
+          boxId = show $ getID bm
+          -- The pattern itself has no metadata, being identified with its branch.
+          -- This ID will not clash with any others in the tree,
           -- since node IDs in the input expression are unique,
-          -- and don't contain non-numerical characters
-          boxId = nodeId <> "P" <> show i
-          patternRootId = boxId <> "B"
+          -- and don't contain non-numerical characters.
+          patternRootId = boxId <> "P"
          in
           Tree
             { nodeId = boxId
@@ -1011,13 +1011,11 @@ viewTreeExpr e0 = case e0 of
             }
       viewFallback = case fb of
         CaseExhaustive -> Nothing
-        CaseFallback rhs ->
+        CaseFallback bm rhs ->
           let
-            -- these IDs will not clash with any others in the tree,
-            -- since node IDs in the input expression are unique,
-            -- and don't contain non-numerical characters
-            boxId = nodeId <> "Pwild"
-            patternRootId = boxId <> "B"
+            boxId = show $ getID bm
+            -- As for other branches
+            patternRootId = boxId <> "P"
            in
             Just
               . RecordPair EdgeFlavor.Pattern
@@ -1646,6 +1644,8 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
               KindNode k -> viewKindOfKind k
               LVarBindNode b -> Type $ Ok $ viewExprType' $ b ^. _bindMeta
               TyVarBindNode b -> Kind $ Ok $ viewTypeKind' $ b ^. _bindMeta
+              -- A branch's metadata holds the type of the values it matches
+              BranchNode m _ -> Type $ Ok $ viewExprType' m
           -- sig node selected - get kind from metadata
           SigNode ->
             maybe (throw' $ NodeIDNotFound id) pure (findNodeInType id $ astDefType def) <&> viewTypeNode
@@ -1715,6 +1715,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
       TyVarBindNode b -> Kind $ Ok $ viewTypeKind' $ b ^. _bindMeta
       ExprNode e -> viewExprType e
       LVarBindNode b -> Type $ Ok $ viewExprType' $ b ^. _bindMeta
+      BranchNode m _ -> Type $ Ok $ viewExprType' m
     viewTypeKind :: Type -> TypeOrKind
     viewTypeKind =
       Kind . \case

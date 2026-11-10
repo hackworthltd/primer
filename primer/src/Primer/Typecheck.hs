@@ -719,6 +719,9 @@ check t = \case
   Case i e brs fb -> do
     (eT, e') <- synth e
     let caseMeta = annotate (TCChkedAt t) i
+        -- A branch is annotated with the type of the values it matches, i.e. that of the scrutinee.
+        branchMeta = annotate (TCChkedAt eT)
+        newFallback = CaseFallback <$> meta' (TCChkedAt eT) <*> (check t =<< emptyHole)
     instantiateValCons eT >>= \case
       -- we allow 'case' on a thing of type TEmptyHole iff we have zero branches
       Left TDIHoleType ->
@@ -764,17 +767,17 @@ check t = \case
               NoSmartHoles -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
               SmartHoles -> pure []
         -- no params, check the rhs
-        brs'' <- for brs' $ \(CaseBranch c ps rhs) -> do
+        brs'' <- for brs' $ \(CaseBranch m c ps rhs) -> do
           case (ps, sh) of
-            ([], _) -> CaseBranch c [] <$> check t rhs
+            ([], _) -> CaseBranch (branchMeta m) c [] <$> check t rhs
             (_ : _, NoSmartHoles) -> throwError' CaseBranchWrongNumberPatterns
             -- if the branch is nonsense, replace it with a sensible pattern and an empty hole
-            (_ : _, SmartHoles) -> fmap (CaseBranch c []) . check t =<< emptyHole
+            (_ : _, SmartHoles) -> fmap (CaseBranch (branchMeta m) c []) . check t =<< emptyHole
         -- has fb
         fb' <- case (fb, sh) of
           (CaseExhaustive, NoSmartHoles) -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
-          (CaseExhaustive, SmartHoles) -> fmap CaseFallback . check t =<< emptyHole
-          (CaseFallback rhs, _) -> CaseFallback <$> check t rhs
+          (CaseExhaustive, SmartHoles) -> newFallback
+          (CaseFallback m rhs, _) -> CaseFallback (branchMeta m) <$> check t rhs
         pure $ Case caseMeta e' brs'' fb'
       Right (tc, _, expected) -> do
         let branchNames = map caseBranchName brs
@@ -786,15 +789,15 @@ check t = \case
           -- they will be fixed up in checkBranch later
           (Nothing, SmartHoles) -> traverse (\(c, ct) -> ((c, ct),) <$> branch c [] emptyHole) expected
           (Just ctys, _) -> pure $ zip ctys brs
-        brs'' <- mapM (uncurry $ checkBranch t) brs'
+        brs'' <- mapM (uncurry $ checkBranch t eT) brs'
         let branchNames' = map caseBranchName brs''
         fb' <- case (branchNames' == map PatCon conNames, fb, sh) of
           (True, CaseExhaustive, _) -> pure CaseExhaustive
-          (True, CaseFallback _, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames True
-          (True, CaseFallback _, SmartHoles) -> pure CaseExhaustive
+          (True, CaseFallback _ _, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames True
+          (True, CaseFallback _ _, SmartHoles) -> pure CaseExhaustive
           (False, CaseExhaustive, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames False
-          (False, CaseExhaustive, SmartHoles) -> fmap CaseFallback . check t =<< emptyHole
-          (False, CaseFallback r, _) -> CaseFallback <$> check t r
+          (False, CaseExhaustive, SmartHoles) -> newFallback
+          (False, CaseFallback m r, _) -> CaseFallback (branchMeta m) <$> check t r
         pure $ Case caseMeta e' brs'' fb'
   e -> do
     sh <- asks smartHoles
@@ -914,10 +917,12 @@ checkBranch ::
   forall e m.
   TypeM e m =>
   Type ->
+  -- | The type of the scrutinee
+  Type ->
   (ValConName, [Type' () ()]) -> -- The constructor and its instantiated parameter types
   CaseBranch' ExprMeta TypeMeta KindMeta ->
   m (CaseBranch' (Meta TypeCache) (Meta (Kind' ())) (Meta ()))
-checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
+checkBranch t eT (vc, args) (CaseBranch m nb patterns rhs) =
   do
     -- We check an invariant due to paranoia
     assertCorrectCon
@@ -937,7 +942,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
         let args' = zipWith (\ty bind -> (over _bindMeta (annotate (TCChkedAt ty)) bind, ty)) args patterns
          in pure (args', rhs)
     rhs' <- local (extendLocalCxts (map (first bindName) fixedPats)) $ check t fixedRHS
-    pure $ CaseBranch nb (map fst fixedPats) rhs'
+    pure $ CaseBranch (annotate (TCChkedAt eT) m) nb (map fst fixedPats) rhs'
   where
     createBinding :: S.Set Name -> Type' () () -> m (LVarBind' (Meta TypeCache), Type' () ())
     createBinding namesInScope ty = do

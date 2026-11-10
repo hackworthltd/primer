@@ -118,7 +118,7 @@ prettyExpr opts = \case
       caseParts :: [(Doc AnsiStyle, Doc AnsiStyle)]
       caseParts =
         map
-          ( \(CaseBranch n bs' e') ->
+          ( \(CaseBranch _ n bs' e') ->
               ( col Green (pat n)
                   <> mconcat
                     ( intersperse'
@@ -135,7 +135,7 @@ prettyExpr opts = \case
           bs
           <> case fallback of
             CaseExhaustive -> []
-            CaseFallback e' -> [("_", col Yellow "→" <+> pE e')]
+            CaseFallback _ e' -> [("_", col Yellow "→" <+> pE e')]
       intersperse' x = foldr (\y z -> x : y : z) [x]
 
       printCases = mconcat . intersperse hardline $ casesAligned

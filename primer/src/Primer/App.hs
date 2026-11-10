@@ -271,7 +271,7 @@ import Primer.Zipper (
   KindTZ,
   KindZ,
   Loc,
-  Loc' (InBind, InExpr, InKind, InType),
+  Loc' (InBind, InBranch, InExpr, InKind, InType),
   PartZ (partZFocus),
   TypeLoc,
   TypeLoc' (..),
@@ -631,6 +631,7 @@ locMeta = \case
   InBind (BindLVar zb) -> Left $ partZFocus zb ^. _bindMeta
   InBind (BindTyVar zb) -> Right $ Left $ partZFocus zb ^. _bindMeta
   InBind (BindTyVarInType zb) -> Right $ Left $ partZFocus zb ^. _bindMeta
+  InBranch zb -> Left $ partZFocus zb
 
 -- | As 'locMeta', but for locations in types.
 typeLocMeta :: TypeLoc -> Either TypeMeta KindMeta
@@ -982,7 +983,7 @@ applyProgAction prog = \case
         over (traversed % #_DefAST % #astDefExpr) $
           transform $
             over (#_Con % _2) updateName
-              . over (#_Case % _3 % traversed % #_CaseBranch % _1 % #_PatCon) updateName
+              . over (#_Case % _3 % traversed % #_CaseBranch % _2 % #_PatCon) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModule (qualifiedModule type_) prog $ \m -> do
@@ -1030,8 +1031,9 @@ applyProgAction prog = \case
         )
     where
       updateDefs allCons = transformNamedCaseBranches type_ $ \t' bs -> do
+        bm <- DSL.meta
         m' <- DSL.meta' $ (\t'' -> TCEmb $ TCBoth{tcChkedAt = t'', tcSynthed = TEmptyHole ()}) <$> t'
-        pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
+        pure $ insertSubseqBy caseBranchName (CaseBranch bm (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
       updateTypeDef =
         alterTypeDef
           ( \td -> do
@@ -1063,7 +1065,7 @@ applyProgAction prog = \case
                   let bs' =
                         bs
                           & filter \case
-                            CaseBranch (PatCon vcName') _ _ | vcName' == vcName -> False
+                            CaseBranch _ (PatCon vcName') _ _ | vcName' == vcName -> False
                             _ -> True
                    in pure
                         ( bs'
@@ -1124,11 +1126,11 @@ applyProgAction prog = \case
         e -> pure e
       updateDecons = transformNamedCaseBranch type_ con
         . const
-        $ \(CaseBranch vc binds e) -> do
+        $ \(CaseBranch bm vc binds e) -> do
           m' <- DSL.meta' $ Just (TCChkedAt (TEmptyHole ()))
           newName <- LocalName <$> freshName (freeVars e)
           binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
-          pure $ CaseBranch vc binds' e
+          pure $ CaseBranch bm vc binds' e
   DeleteConField tdName vcName index -> editModuleOfCrossType (Just tdName) prog $ \(m, ms) defName def -> do
     def' <-
       traverseOf
@@ -1146,9 +1148,9 @@ applyProgAction prog = \case
           ( transformNamedCaseBranch
               tdName
               vcName
-              ( \_ (CaseBranch vc binds e) -> do
+              ( \_ (CaseBranch bm vc binds e) -> do
                   (binds', Bind _ var) <- deleteIndex binds
-                  CaseBranch vc binds'
+                  CaseBranch bm vc binds'
                     <$> ( e & traverseOf _freeTmVars \case
                             (_, v) | v == var -> emptyHole
                             (meta, v) -> pure $ Var meta $ LocalVarRef v
@@ -1766,6 +1768,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     Left (InType zt) -> pure $ Left $ Left zt
     Left (InKind zk) -> pure $ Right $ Left zk
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
+    Left (InBranch _) -> throwError $ CopyPasteError "tried to paste a case branch into a signature"
     Right (TInType zt) -> pure $ Left $ Right zt
     Right (TInKind zk) -> pure $ Right $ Right zk
     Right (TInBind _) -> throwError $ CopyPasteError "tried to paste a binder into a signature"
@@ -1986,6 +1989,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
     Left (InType t) -> pure $ Type (TypeInBody t)
     Left (InKind k) -> pure $ Kind (KindInBody k)
     Left (InBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
+    Left (InBranch _) -> throwError $ CopyPasteError "tried to paste a case branch into an expression"
     Right (TInType t) -> pure $ Type (TypeInSig t)
     Right (TInKind k) -> pure $ Kind (KindInSig k)
     Right (TInBind _) -> throwError $ CopyPasteError "tried to paste a binder into an expression"
@@ -2018,6 +2022,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         & flip runReaderT (buildTypingContextFromModules (progAllModules p) NoSmartHoles)
     case (src, tgt) of
       (_, InBind _) -> throwError $ CopyPasteError "tried to paste into a binder"
+      (_, InBranch _) -> throwError $ CopyPasteError "tried to paste into a case branch"
       (ExprInBody _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
       (ExprInBody _, InKind _) -> throwError $ CopyPasteError "tried to paste an expression into a kind"
       (Type _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"

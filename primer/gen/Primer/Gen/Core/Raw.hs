@@ -141,9 +141,9 @@ genLetrec :: ExprGen Expr
 genLetrec = Letrec <$> genMeta <*> genLVarBind <*> genExpr <*> genType <*> genExpr
 
 genCase :: ExprGen Expr
-genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive, CaseFallback <$> genExpr]
+genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive, CaseFallback <$> genMeta <*> genExpr]
   where
-    genBranch = CaseBranch <$> genScrut <*> genBinds (Range.linear 0 5) <*> genExpr
+    genBranch = CaseBranch <$> genMeta <*> genScrut <*> genBinds (Range.linear 0 5) <*> genExpr
     genScrut =
       Gen.choice
         [ PatCon <$> genValConName

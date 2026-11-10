@@ -29,16 +29,16 @@ genAST example = fst $ create $ example <&> snd
 -- particular next 'ID', only that 'nextID' returns whatever
 -- 'Examples.map''s next 'ID' happens to be.
 unit_nextID_exampleMap :: Assertion
-unit_nextID_exampleMap = nextID (genAST $ Examples.map modName) @?= ID 43
+unit_nextID_exampleMap = nextID (genAST $ Examples.map modName) @?= ID 45
 
 -- See note for 'unit_nextID_exampleMap'.
 unit_nextID_exampleEven :: Assertion
-unit_nextID_exampleEven = nextID (genAST $ Examples.even modName) @?= ID 12
+unit_nextID_exampleEven = nextID (genAST $ Examples.even modName) @?= ID 14
 
 -- See note for 'unit_nextID_exampleMap'.
 unit_nextID_exampleOdd :: Assertion
-unit_nextID_exampleOdd = nextID (genAST $ Examples.odd modName) @?= ID 12
+unit_nextID_exampleOdd = nextID (genAST $ Examples.odd modName) @?= ID 14
 
 -- See note for 'unit_nextID_exampleMap'.
 unit_nextID_exampleComprehensive :: Assertion
-unit_nextID_exampleComprehensive = nextID (genAST $ Examples.comprehensive modName) @?= ID 64
+unit_nextID_exampleComprehensive = nextID (genAST $ Examples.comprehensive modName) @?= ID 68

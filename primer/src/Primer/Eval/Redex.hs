@@ -562,7 +562,7 @@ viewCaseRedex ::
   Expr ->
   MaybeT m Redex
 viewCaseRedex opts tydefs = \case
-  orig@(Case _ scrut [] (CaseFallback rhs)) -> do
+  orig@(Case _ scrut [] (CaseFallback _ rhs)) -> do
     -- If we have @case e of _ -> t@, then this reduces to @t@ without inspecting @e@
     -- i.e. a @case@ which does not actually discriminate is lazy
     pure $ CaseRedexTrivial rhs orig (getID scrut)
@@ -620,8 +620,8 @@ viewCaseRedex opts tydefs = \case
         (Nothing, CaseExhaustive) -> do
           logWarning $ CaseRedexMissingBranch c
           mzero
-        (Nothing, CaseFallback e) -> pure (Nothing, e)
-        (Just (CaseBranch _ xs e), _) -> pure (Just xs, e)
+        (Nothing, CaseFallback _ e) -> pure (Nothing, e)
+        (Just (CaseBranch _ _ xs e), _) -> pure (Just xs, e)
 
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
@@ -1204,7 +1204,7 @@ runRedex opts = \case
             }
     pure (expr', BindRename details)
   RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
-    | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) branches ->
+    | (brs0, CaseBranch bm ctor binds rhs : brs1) <- break (\(CaseBranch _ _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) branches ->
         let bns = map bindName binds
             avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
          in do
@@ -1219,7 +1219,7 @@ runRedex opts = \case
                   )
                   ([], rhs)
                   $ rights rn
-              let expr' = Case meta scrutinee (brs0 ++ CaseBranch ctor binds' rhs' : brs1) fallbackBranch
+              let expr' = Case meta scrutinee (brs0 ++ CaseBranch bm ctor binds' rhs' : brs1) fallbackBranch
               let details =
                     BindRenameDetail
                       { before = orig

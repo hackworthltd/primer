@@ -407,8 +407,8 @@ unit_case_let_capture :: Assertion
 unit_case_let_capture =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let w = "a78"
-        let z = "a82"
+        let w = "a92"
+        let z = "a96"
         let rnx = let_ "x" (lvar w)
         let rny = let_ "y" (lvar z)
         e0 <-
@@ -892,7 +892,7 @@ unit_type_preservation_case_regression_tm =
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a55" -- NB fragile name
+        let x' = "a57" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
@@ -932,7 +932,7 @@ unit_type_preservation_case_regression_ty =
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a55" -- NB fragile name
+        let x' = "a57" -- NB fragile name
         expect1 <-
           lAM "x" $
             case_

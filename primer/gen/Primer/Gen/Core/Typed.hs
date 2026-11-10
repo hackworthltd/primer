@@ -461,13 +461,13 @@ genChk ty = do
                     (vcs, fb) <-
                       Gen.frequency
                         [ (3, pure (allVcs, CaseExhaustive))
-                        , (1, (,) <$> genStrictSubsequence allVcs' <*> fmap CaseFallback (genChk ty))
+                        , (1, (,) <$> genStrictSubsequence allVcs' <*> fmap (CaseFallback ()) (genChk ty))
                         ]
                     fmap (Just . (,fb)) . for vcs $ \(c, params) -> do
                       ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
                       unless (distinct $ map fst ns) Gen.discard
                       let binds = map (Bind () . fst) ns
-                      CaseBranch (PatCon c) binds <$> local (extendLocalCxts ns) (genChk ty)
+                      CaseBranch () (PatCon c) binds <$> local (extendLocalCxts ns) (genChk ty)
             pure $ Case () e brs fb
     distinct xs = length xs == S.size (S.fromList xs)
     casePrim :: WT (Maybe (GenT WT ExprG))
@@ -484,10 +484,10 @@ genChk ty = do
             let e = if scrutTy == scrutTy' then e0 else Ann () e0 scrutTy
             brs0 <- Gen.list (Range.linear 0 5) $ do
               p <- pg
-              (p,) . CaseBranch (PatPrim p) [] <$> genChk ty
+              (p,) . CaseBranch () (PatPrim p) [] <$> genChk ty
             let brs = nubSortOn ((\case PrimInt n -> Left (Left n); PrimChar c -> Left (Right c); PrimDouble x -> Right x) . fst) brs0
             fb <- genChk ty
-            pure $ Case () e (snd <$> brs) (CaseFallback fb)
+            pure $ Case () e (snd <$> brs) (CaseFallback () fb)
 
 genStrictSubsequence :: MonadGen m => NonEmpty a -> m [a]
 genStrictSubsequence xs = Gen.justT $ do

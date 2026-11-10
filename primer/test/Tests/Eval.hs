@@ -441,9 +441,9 @@ unit_tryReduce_case_2 = do
       detail.targetCtorID @?= 2
       detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3, 6, 7]
-      detail.branchBindingIDs @?= [11, 12, 13]
-      detail.branchRhsID @?= 14
-      detail.letIDs @?= [24, 20, 16]
+      detail.branchBindingIDs @?= [13, 14, 15]
+      detail.branchRhsID @?= 16
+      detail.letIDs @?= [26, 22, 18]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -480,9 +480,9 @@ unit_tryReduce_case_3 = do
       detail.targetCtorID @?= 2
       detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3]
-      detail.branchBindingIDs @?= [9]
-      detail.branchRhsID @?= 10
-      detail.letIDs @?= [17]
+      detail.branchBindingIDs @?= [11]
+      detail.branchRhsID @?= 12
+      detail.letIDs @?= [19]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_fallback_1 :: Assertion
@@ -519,7 +519,7 @@ unit_tryReduce_case_fallback_1 = do
       detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3]
       detail.branchBindingIDs @?= []
-      detail.branchRhsID @?= 9
+      detail.branchRhsID @?= 11
       detail.letIDs @?= []
     _ -> assertFailure $ show result
 
@@ -556,9 +556,9 @@ unit_tryReduce_case_fallback_2 = do
       detail.targetCtorID @?= 2
       detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3]
-      detail.branchBindingIDs @?= [7]
-      detail.branchRhsID @?= 8
-      detail.letIDs @?= [16]
+      detail.branchBindingIDs @?= [8]
+      detail.branchRhsID @?= 9
+      detail.letIDs @?= [18]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_fallback_3 :: Assertion
@@ -591,7 +591,7 @@ unit_tryReduce_case_fallback_3 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.branchRhsID @?= 7
+      detail.branchRhsID @?= 8
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
@@ -613,7 +613,7 @@ unit_tryReduce_case_name_clash = do
         create' $
           case_
             (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
-            [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
+            [branch' (["M"], "C") [("a10", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a10") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', BindRename detail) -> do
@@ -622,12 +622,12 @@ unit_tryReduce_case_name_clash = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.bindingNamesOld @?= ["x", "y"]
-      detail.bindingNamesNew @?= ["a9", "y"]
-      detail.bindersOld @?= [6, 7]
-      detail.bindersNew @?= [6, 7]
+      detail.bindingNamesNew @?= ["a10", "y"]
+      detail.bindersOld @?= [7, 8]
+      detail.bindersNew @?= [7, 8]
       detail.bindingOccurrences @?= []
-      detail.renamingLets @?= [10]
-      detail.bodyID @?= 8
+      detail.renamingLets @?= [11]
+      detail.bodyID @?= 9
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
@@ -668,7 +668,7 @@ unit_tryReduce_case_prim_1 = do
       detail.ctorName @?= PatPrim (PrimChar 'b')
       detail.targetArgIDs @?= []
       detail.branchBindingIDs @?= []
-      detail.branchRhsID @?= 2
+      detail.branchRhsID @?= 3
       detail.letIDs @?= []
     _ -> assertFailure $ show result
 
@@ -704,7 +704,7 @@ unit_tryReduce_case_prim_2 = do
       detail.ctorName @?= PatPrim (PrimChar 'b')
       detail.targetArgIDs @?= []
       detail.branchBindingIDs @?= []
-      detail.branchRhsID @?= 3
+      detail.branchRhsID @?= 5
       detail.letIDs @?= []
     _ -> assertFailure $ show result
 
@@ -1322,14 +1322,14 @@ unit_redexes_case_fallback_2 =
 unit_redexes_case_fallback_3 :: Assertion
 unit_redexes_case_fallback_3 =
   redexesOf (caseFB_ (ann (con0' ["M"] "C") (tcon' ["M"] "C")) [] (let_ "x" emptyHole emptyHole))
-    <@?=> Set.fromList [0, 4]
+    <@?=> Set.fromList [0, 5]
 
 unit_redexes_case_prim :: Assertion
 unit_redexes_case_prim = do
   redexesOf (caseFB_ (char 'b') [branchPrim (PrimChar 'b') emptyHole] (let_ "x" emptyHole emptyHole))
-    <@?=> Set.fromList [0, 3]
+    <@?=> Set.fromList [0, 5]
   redexesOf (caseFB_ (char 'b') [] (let_ "x" emptyHole emptyHole))
-    <@?=> Set.fromList [0, 2]
+    <@?=> Set.fromList [0, 3]
 
 -- The body of a let has the same directionality as the let itself
 unit_redexes_let_upsilon :: Assertion

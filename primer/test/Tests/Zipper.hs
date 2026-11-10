@@ -44,6 +44,7 @@ tasty_focusOn_succeeds_on_valid_ids = property $ do
       Just (InExpr e') -> getID (target e') === i
       Just (InType t) -> getID (target t) === i
       Just (InBind b) -> getID b === i
+      Just (InBranch b) -> getID b === i
       Just (InKind k) -> getID (target k) === i
       _ -> annotateShow i >> failure
 
