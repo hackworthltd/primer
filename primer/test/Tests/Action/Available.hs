@@ -46,7 +46,7 @@ import Primer.Action (
  )
 import Primer.Action.Available (
   InputAction (MakeCon, MakeLAM, MakeLam, RenameBinding),
-  NoInputAction (MakeCase, Raise, RaiseType),
+  NoInputAction (DeleteBranch, MakeCase, Raise, RaiseType),
   Option (Option),
  )
 import Primer.Action.Available qualified as Available
@@ -113,6 +113,7 @@ import Primer.Core (
   KindMeta,
   ModuleName (unModuleName),
   Pattern (PatPrim),
+  PrimCon (PrimChar),
   TyConName,
   Type,
   TypeMeta,
@@ -120,6 +121,7 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
+  _caseBranchMetas,
   _exprLVarBind,
   _exprTyVarBind,
   _typeMeta,
@@ -130,6 +132,7 @@ import Primer.Core.DSL (
   ann,
   app,
   branch,
+  branchPrim,
   caseFB_,
   case_,
   char,
@@ -856,11 +859,44 @@ unit_case_prim =
     (Left MakeCase)
     (caseFB_ (char 'a') [] emptyHole)
 
+-- Deleting an exhaustive match's branch creates a fallback branch, with the deleted branch's RHS.
+unit_delete_branch :: Assertion
+unit_delete_branch =
+  offeredActionTest
+    SmartHoles
+    Beginner
+    (lam "x" (case_ (lvar "x") [branch cTrue [] (lvar "x"), branch cFalse [] emptyHole]) `ann` (tcon tBool `tfun` tcon tBool))
+    (InCaseBranch 0 $ InExpr [Child1, Child1])
+    (Left DeleteBranch)
+    (lam "x" (caseFB_ (lvar "x") [branch cFalse [] emptyHole] (lvar "x")) `ann` (tcon tBool `tfun` tcon tBool))
+
+unit_delete_branch_prim :: Assertion
+unit_delete_branch_prim =
+  offeredActionTest
+    SmartHoles
+    Beginner
+    (caseFB_ (char 'a') [branchPrim (PrimChar 'b') emptyHole] emptyHole)
+    (InCaseBranch 0 $ InExpr [])
+    (Left DeleteBranch)
+    (caseFB_ (char 'a') [] emptyHole)
+
+-- We don't offer to delete the fallback branch, since that may make the match non-exhaustive.
+unit_delete_branch_fallback :: Assertion
+unit_delete_branch_fallback =
+  offeredActionTestNotOffered
+    SmartHoles
+    Beginner
+    (caseFB_ (char 'a') [branchPrim (PrimChar 'b') emptyHole] emptyHole)
+    (InCaseBranch 1 $ InExpr [])
+    DeleteBranch
+
 data MovementListBody
   = InExpr [Movement]
   | InType [Movement] [Movement]
   | -- | The binding introduced by the node at the given position
     InBinding MovementListBody
+  | -- | The branch with the given index (where any fallback branch comes last) of the match at the given position
+    InCaseBranch Int MovementListBody
 
 data MovementList
   = InBody MovementListBody
@@ -873,17 +909,24 @@ exprMoves = \case
   InExpr ms -> ms
   InType ms _ -> ms
   InBinding p -> exprMoves p
+  InCaseBranch _ p -> exprMoves p
 
 typeMoves :: MovementListBody -> Maybe [Movement]
 typeMoves = \case
   InExpr _ -> Nothing
   InType _ ms -> Just ms
   InBinding p -> typeMoves p
+  InCaseBranch _ p -> typeMoves p
 
 isBinding :: MovementListBody -> Bool
 isBinding = \case
   InBinding _ -> True
   _ -> False
+
+caseBranchIndex :: MovementListBody -> Maybe Int
+caseBranchIndex = \case
+  InCaseBranch i _ -> Just i
+  _ -> Nothing
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
@@ -982,6 +1025,8 @@ offeredActionTest' sh l inputDef position action = do
                 ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves pos'
                 case typeMoves pos' of
                   Nothing
+                    | Just i <- caseBranchIndex pos' ->
+                        maybe (throwError $ CustomFailure NoOp "no branch here") pure $ getID <$> toListOf (_target % _caseBranchMetas) ez `atMay` i
                     | isBinding pos' -> maybe (throwError $ CustomFailure NoOp "no binding here") pure $ (getID <$> ez ^? _target % _exprLVarBind) <|> (getID <$> ez ^? _target % _exprTyVarBind)
                     | otherwise -> pure $ getID ez
                   Just ms -> do

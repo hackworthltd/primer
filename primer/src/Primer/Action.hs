@@ -90,6 +90,7 @@ import Primer.Core (
   KindMeta,
   LVarName,
   LocalName (LocalName, unLocalName),
+  ModuleName (unModuleName),
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimDouble, PrimInt),
   TmVarRef (..),
@@ -1225,6 +1226,19 @@ toProgActionNoInput defs def0 sel0 = \case
     toProgAction [FinishHole]
   Available.DeleteExpr ->
     toProgAction [Delete]
+  Available.DeleteBranch -> do
+    id <- nodeID
+    def <- termDef
+    case fst <$> findNodeWithParent id (astDefExpr def) of
+      Just (BranchNode _ (Just pat)) ->
+        toProgAction
+          [ Move Parent
+          , case pat of
+              PatCon c -> DeleteCaseBranch (map unName $ unModuleName $ qualifiedModule c, unName $ baseName c)
+              PatPrim c -> DeleteCaseBranchPrim c
+          ]
+      Just n -> Left $ NeedBranch n
+      Nothing -> Left $ IDNotFound id
   Available.MakeFun ->
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
@@ -1397,15 +1411,6 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.AddBranchChar -> do
     c <- optChar
     toProg [AddCaseBranchPrim $ PrimChar c]
-  Available.DeleteBranch -> do
-    opt <- optGlobal
-    toProg [DeleteCaseBranch opt]
-  Available.DeleteBranchInt -> do
-    n <- optInt
-    toProg [DeleteCaseBranchPrim $ PrimInt n]
-  Available.DeleteBranchChar -> do
-    c <- optChar
-    toProg [DeleteCaseBranchPrim $ PrimChar c]
   Available.RenameBinding -> do
     opt <- optNoCxt
     toProg [RenameBinding opt]

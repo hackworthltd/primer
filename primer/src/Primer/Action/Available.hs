@@ -29,7 +29,6 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.List ((\\))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as T
 import Data.Tuple.Extra (
   fst3,
   uncurry3,
@@ -75,8 +74,7 @@ import Primer.Core (
   Kind' (..),
   KindMeta,
   ModuleName (unModuleName),
-  Pattern (PatCon, PatPrim),
-  PrimCon (PrimChar, PrimInt),
+  Pattern (PatCon),
   TyConName,
   TyVarName,
   Type,
@@ -155,6 +153,7 @@ data NoInputAction
   | EnterHole
   | RemoveHole
   | DeleteExpr
+  | DeleteBranch
   | MakeFun
   | AddInput
   | MakeTApp
@@ -188,9 +187,6 @@ data InputAction
   | AddBranch
   | AddBranchInt
   | AddBranchChar
-  | DeleteBranch
-  | DeleteBranchInt
-  | DeleteBranchChar
   | RenameBinding
   | MakeTCon
   | MakeTVar
@@ -240,7 +236,8 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
   Just (KindNode k, _) -> forKind l k
   Just (LVarBindNode _, p) -> maybe mempty (forBinding l) p
   Just (TyVarBindNode _, p) -> maybe mempty (forBinding l) p
-  Just (BranchNode _ _, _) -> mempty
+  -- The fallback branch can't be deleted, since that may make the match non-exhaustive.
+  Just (BranchNode _ pat, _) -> mwhen (isJust pat) [NoInput DeleteBranch]
 
 -- | Actions for a variable binding, given the node which introduces it.
 -- Bindings of type variables by Λs and ∀s may only be renamed by experts.
@@ -304,15 +301,14 @@ forExpr tydefs l expr =
       delete
         <> annotate
         <> munless (unLocalName v `Set.member` freeVars e) [NoInput LetToRec]
-    Case _ scrut brs fb ->
-      let (addBranch, deleteBranch) = case scrut ^? _exprMetaLens % _type % _Just % _synthed of
-            Just (TCon () t) | t == tInt -> (AddBranchInt, DeleteBranchInt)
-            Just (TCon () t) | t == tChar -> (AddBranchChar, DeleteBranchChar)
-            _ -> (AddBranch, DeleteBranch)
+    Case _ scrut _ fb ->
+      let addBranch = case scrut ^? _exprMetaLens % _type % _Just % _synthed of
+            Just (TCon () t) | t == tInt -> AddBranchInt
+            Just (TCon () t) | t == tChar -> AddBranchChar
+            _ -> AddBranch
        in delete
             <> annotate
             <> munless (fb == CaseExhaustive) [Input addBranch]
-            <> munless (null brs) [Input deleteBranch]
     _ ->
       delete
         <> annotate
@@ -558,24 +554,6 @@ options typeDefs defs cxt level def0 sel0 = \case
       _ -> Nothing
   AddBranchInt -> pure Options{opts = [], free = FreeInt}
   AddBranchChar -> pure Options{opts = [], free = FreeChar}
-  DeleteBranch ->
-    findNode >>= \case
-      ExprNode (Case _ _ brs _) ->
-        let exist = mapMaybe ((\case (PatCon c) -> Just c; _ -> Nothing) . caseBranchName) brs
-         in pure $ noFree $ globalOpt <$> exist
-      _ -> Nothing
-  DeleteBranchInt ->
-    findNode >>= \case
-      ExprNode (Case _ _ brs _) ->
-        let exist = mapMaybe ((\case (PatPrim (PrimInt i)) -> Just i; _ -> Nothing) . caseBranchName) brs
-         in pure $ noFree $ (\i -> Option (show i) Nothing False) <$> exist
-      _ -> Nothing
-  DeleteBranchChar ->
-    findNode >>= \case
-      ExprNode (Case _ _ brs _) ->
-        let exist = mapMaybe ((\case (PatPrim (PrimChar c)) -> Just c; _ -> Nothing) . caseBranchName) brs
-         in pure $ noFree $ (\c -> Option (T.singleton c) Nothing False) <$> exist
-      _ -> Nothing
   RenameBinding -> renameBinding
   MakeTCon ->
     pure $ noFree $ globalOpt . fst <$> Map.toList typeDefs
@@ -729,6 +707,7 @@ sortByPriority l =
             EnterHole -> P.enterHole
             RemoveHole -> P.finishHole
             DeleteExpr -> P.delete
+            DeleteBranch -> P.deleteBranch
             MakeFun -> P.constructFunction
             AddInput -> P.addInput
             MakeTApp -> P.constructTypeApp
@@ -758,9 +737,6 @@ sortByPriority l =
             AddBranch -> P.addBranch
             AddBranchInt -> P.addBranch
             AddBranchChar -> P.addBranch
-            DeleteBranch -> P.deleteBranch
-            DeleteBranchInt -> P.deleteBranch
-            DeleteBranchChar -> P.deleteBranch
             RenameBinding -> P.rename
             MakeTCon -> P.useTypeCon
             MakeTVar -> P.useTypeVar

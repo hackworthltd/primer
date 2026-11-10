@@ -64,6 +64,8 @@ data ActionError
     ImportFailed () TypeError
   | NeedTFun (Type' () ())
   | NeedType SomeNode
+  | -- | Need a case branch, other than the fallback
+    NeedBranch SomeNode
   | NeedGlobal Available.Option
   | NeedLocal Available.Option
   | NeedInt Available.Option
