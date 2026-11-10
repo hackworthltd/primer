@@ -492,6 +492,10 @@
                       shellHook = ''
                         export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
                         export NODE_PATH="${primer-miso-node-modules}''${NODE_PATH:+:$NODE_PATH}"
+                        export PRIMER_WASM_NIX_LDFLAGS="''${PRIMER_WASM_NIX_LDFLAGS-$NIX_LDFLAGS}"
+                        export PRIMER_WASM_NIX_LDFLAGS_FOR_TARGET="''${PRIMER_WASM_NIX_LDFLAGS_FOR_TARGET-$NIX_LDFLAGS_FOR_TARGET}"
+                        NIX_LDFLAGS=$(echo "$NIX_LDFLAGS" | tr ' ' '\n' | grep -v -e wasm32-unknown-wasip1 -e libffi-wasm | tr '\n' ' ')
+                        NIX_LDFLAGS_FOR_TARGET=$(echo "$NIX_LDFLAGS_FOR_TARGET" | tr ' ' '\n' | grep -v -e wasm32-unknown-wasip1 -e libffi-wasm | tr '\n' ' ')
                       '';
                     };
                   };
