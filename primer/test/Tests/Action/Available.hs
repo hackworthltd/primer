@@ -45,7 +45,7 @@ import Primer.Action (
   toProgActionNoInput,
  )
 import Primer.Action.Available (
-  InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
+  InputAction (MakeCon, MakeLAM, MakeLam, RenameBinding),
   NoInputAction (MakeCase, Raise, RaiseType),
   Option (Option),
  )
@@ -1061,7 +1061,7 @@ unit_rename_lam_names =
   offeredNamesTest
     (lam "x" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
     (InBinding $ InExpr [Child1])
-    RenameLam
+    RenameBinding
     "i"
     (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
 
@@ -1085,13 +1085,13 @@ unit_rename_LAM_names = do
   offeredNamesTest
     (lAM "x" emptyHole `ann` tforall "a" ktype (tcon tBool))
     (InBinding $ InExpr [Child1])
-    RenameLAM
+    RenameBinding
     "α"
     (lAM "α" emptyHole `ann` tforall "a" ktype (tcon tBool))
   offeredNamesTest
     (lAM "x" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
     (InBinding $ InExpr [Child1])
-    RenameLAM
+    RenameBinding
     "f"
     (lAM "f" emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
 
@@ -1101,7 +1101,7 @@ unit_rename_let_names =
   offeredNamesTest
     (let_ "x" (emptyHole `ann` tcon tBool) emptyHole)
     (InBinding $ InExpr [])
-    RenameLet
+    RenameBinding
     "p"
     (let_ "p" (emptyHole `ann` tcon tBool) emptyHole)
 
@@ -1113,13 +1113,13 @@ unit_rename_let_names =
   offeredNamesTest
     (letType "x" (tcon tBool) emptyHole)
     (InBinding $ InExpr [])
-    RenameLet
+    RenameBinding
     "p"
     (letType "p" (tcon tBool) emptyHole)
   offeredNamesTest
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
     (InBinding $ InExpr [])
-    RenameLet
+    RenameBinding
     "p"
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
 -}
@@ -1129,7 +1129,7 @@ unit_rename_letrec_names =
   offeredNamesTest
     (letrec "x" emptyHole (tcon tBool) emptyHole)
     (InBinding $ InExpr [])
-    RenameLet
+    RenameBinding
     "p"
     (letrec "p" emptyHole (tcon tBool) emptyHole)
 
@@ -1140,13 +1140,13 @@ unit_rename_forall_names = do
   offeredNamesTest
     (emptyHole `ann` tforall "a" ktype (tcon tBool))
     (InBinding $ [] `InType` [])
-    RenameForall
+    RenameBinding
     "α"
     (emptyHole `ann` tforall "α" ktype (tcon tBool))
   offeredNamesTest
     (emptyHole `ann` tforall "a" (kfun ktype ktype) (tcon tBool))
     (InBinding $ [] `InType` [])
-    RenameForall
+    RenameBinding
     "f"
     (emptyHole `ann` tforall "f" (kfun ktype ktype) (tcon tBool))
 
@@ -1158,7 +1158,7 @@ unit_rename_forall_sig_names = do
     Expert
     (ASTDef <$> emptyHole <*> tforall "a" ktype (tcon tBool))
     (InSigBinding [])
-    (Right (RenameForall, Option "α" Nothing False))
+    (Right (RenameBinding, Option "α" Nothing False))
     >>= \case
       Left err -> assertFailure $ show err
       Right (ASTDef _ t) -> clearTypeMeta t @?= clearTypeMeta (create' $ tforall "α" ktype (tcon tBool))
@@ -1171,13 +1171,13 @@ unit_rename_forall_sig_names = do
   offeredNamesTest
     (emptyHole `ann` tlet "a" (tcon tNat) tEmptyHole)
     (InBinding $ [] `InType` [])
-    RenameLet
+    RenameBinding
     "α"
     (emptyHole `ann` tlet "α" (tcon tNat) tEmptyHole)
   offeredNamesTest
     (emptyHole `ann` tlet "a" (tcon tList) tEmptyHole)
     (InBinding $ [] `InType` [])
-    RenameLet
+    RenameBinding
     "f"
     (emptyHole `ann` tlet "f" (tcon tList) tEmptyHole)
 -}

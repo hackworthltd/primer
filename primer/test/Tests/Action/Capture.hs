@@ -52,7 +52,7 @@ unit_RenameLam_noop =
   actionTest
     NoSmartHoles
     (ann (lam "x" $ lvar "x") tEmptyHole)
-    [Move Child1, RenameLam "x"]
+    [Move Child1, Move Binding, RenameBinding "x"]
     (ann (lam "x" $ lvar "x") tEmptyHole)
 
 unit_RenameLam_no_capture :: Assertion
@@ -61,14 +61,14 @@ unit_RenameLam_no_capture =
     isNameCapture
     NoSmartHoles
     (ann (lam "x" $ lam "y" $ lvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLam "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_RenameLAM_noop :: Assertion
 unit_RenameLAM_noop =
   actionTest
     NoSmartHoles
     (ann (lAM "x" $ ann emptyHole $ tvar "x") tEmptyHole)
-    [Move Child1, RenameLAM "x"]
+    [Move Child1, Move Binding, RenameBinding "x"]
     (ann (lAM "x" $ ann emptyHole $ tvar "x") tEmptyHole)
 
 unit_RenameLAM_no_capture :: Assertion
@@ -77,14 +77,14 @@ unit_RenameLAM_no_capture =
     isNameCapture
     NoSmartHoles
     (ann (lAM "x" $ lAM "y" $ ann emptyHole $ tvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLAM "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_RenameLet_noop :: Assertion
 unit_RenameLet_noop =
   actionTest
     NoSmartHoles
     (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "y"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "y"]
     (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
 
 unit_RenameLet_no_capture_1 :: Assertion
@@ -93,14 +93,14 @@ unit_RenameLet_no_capture_1 =
     isNameCapture
     NoSmartHoles
     (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_RenameLetrec_noop :: Assertion
 unit_RenameLetrec_noop =
   actionTest
     NoSmartHoles
     (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "y"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "y"]
     (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
 
 unit_RenameLetrec_no_capture_1 :: Assertion
@@ -109,7 +109,7 @@ unit_RenameLetrec_no_capture_1 =
     isNameCapture
     NoSmartHoles
     (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_RenameLetrec_no_capture_2 :: Assertion
 unit_RenameLetrec_no_capture_2 =
@@ -117,7 +117,7 @@ unit_RenameLetrec_no_capture_2 =
     isNameCapture
     NoSmartHoles
     (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_convert_let_to_letrec_no_capture :: Assertion
 unit_convert_let_to_letrec_no_capture =
@@ -140,7 +140,7 @@ unit_RenameForall_noop =
   actionTest
     NoSmartHoles
     (ann emptyHole $ tforall "x" ktype $ tforall "y" ktype $ tvar "x")
-    [EnterType, Move Child1, RenameForall "y"]
+    [EnterType, Move Child1, Move Binding, RenameBinding "y"]
     (ann emptyHole $ tforall "x" ktype $ tforall "y" ktype $ tvar "x")
 
 unit_RenameForall_no_capture :: Assertion
@@ -149,7 +149,7 @@ unit_RenameForall_no_capture =
     isNameCapture
     NoSmartHoles
     (ann emptyHole $ tforall "x" ktype $ tforall "y" ktype $ tvar "x")
-    [EnterType, Move Child1, RenameForall "x"]
+    [EnterType, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_ty_tm_same_namespace :: Assertion
 unit_ty_tm_same_namespace =

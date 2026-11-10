@@ -546,9 +546,15 @@ applyAction' a = case a of
   AddCaseBranchPrim c -> termAction (addCaseBranch $ Right c) "cannot add a case branch in type"
   DeleteCaseBranch c -> termAction (deleteCaseBranch $ Left c) "cannot delete a case branch in type"
   DeleteCaseBranchPrim c -> termAction (deleteCaseBranch $ Right c) "cannot delete a case branch in type"
-  RenameLam x -> bindingAction (renameLam x) "cannot rename lam in type"
-  RenameLAM x -> bindingAction (renameLAM x) "cannot rename LAM in type"
-  RenameLet x -> bindingAction (renameLet x) "cannot rename let in type"
+  -- We rename a binding by renaming it in the construct which introduces it, after which we refocus on the binding.
+  RenameBinding x -> \case
+    InBind (BindLVar zb) ->
+      InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< renameTmBinding x (getID zb) (unfocusBind zb))
+    InBind (BindTyVar zb) ->
+      InBind . BindTyVar <$> (refocusBind (focusTyVarBind $ getID zb) =<< renameTyBinding x (unfocusBind zb))
+    InBind (BindTyVarInType zb) ->
+      InBind . BindTyVarInType <$> (refocusBind (focusTyVarBindInType $ getID zb) =<< renameForall x (unfocusBind zb))
+    _ -> throwError $ CustomFailure a "cannot rename this node - not a binding"
   EnterType -> \case
     InExpr ze -> InType <$> enterType ze
     _ -> throwError $ CustomFailure EnterType "cannot enter type - already in type"
@@ -561,10 +567,6 @@ applyAction' a = case a of
   ConstructTVar v -> typeAction (constructTVar v) "cannot construct tvar in expr"
   ConstructTForall n -> typeAction (constructTForall n) "cannot construct forall in expr"
   ConstructTApp -> typeAction constructTApp "cannot construct type-level application in expr"
-  RenameForall x -> typeBindingAction (renameForall x) "cannot rename forall in expr"
-  RenameCaseBinding x -> \case
-    InBind (BindLVar zb) -> InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< renameCaseBinding x (getID zb) (unfocusBind zb))
-    _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
   ConstructKType -> kindAction constructKType "cannot construct the kind 'Type' - not in kind"
   ConstructKFun -> kindAction constructKFun "cannot construct the arrow kind - not in kind"
   where
@@ -573,17 +575,6 @@ applyAction' a = case a of
       _ -> throwError $ CustomFailure a s
     typeAction f s = \case
       InType zt -> InType <$> f zt
-      _ -> throwError $ CustomFailure a s
-    -- An action which modifies a binding, and which may be applied either to the binding itself,
-    -- or to the construct which introduces it. In the former case, we remain focused on the binding.
-    bindingAction f s = \case
-      InExpr ze -> InExpr <$> f ze
-      InBind (BindLVar zb) -> InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< f (unfocusBind zb))
-      InBind (BindTyVar zb) -> InBind . BindTyVar <$> (refocusBind (focusTyVarBind $ getID zb) =<< f (unfocusBind zb))
-      _ -> throwError $ CustomFailure a s
-    typeBindingAction f s = \case
-      InType zt -> InType <$> f zt
-      InBind (BindTyVarInType zb) -> InBind . BindTyVarInType <$> (refocusBind (focusTyVarBindInType $ getID zb) =<< f (unfocusBind zb))
       _ -> throwError $ CustomFailure a s
     refocusBind g = maybe (throwError $ InternalFailure "binding disappeared") pure . g
     kindAction f s = \case
@@ -1059,7 +1050,7 @@ renameLam y ze = case target ze of
           Nothing ->
             throwError NameCapture
   _ ->
-    throwError $ CustomFailure (RenameLam y) "the focused expression is not a lambda"
+    throwError $ CustomFailure (RenameBinding y) "the focused expression is not a lambda"
 
 -- | Replace @a@ with @b@ in @Λa. e@
 renameLAM :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
@@ -1073,7 +1064,7 @@ renameLAM b ze = case target ze of
           Nothing ->
             throwError NameCapture
   _ ->
-    throwError $ CustomFailure (RenameLAM b) "the focused expression is not a type abstraction"
+    throwError $ CustomFailure (RenameBinding b) "the focused expression is not a type abstraction"
 
 -- | Replace @x@ with @y@ in @let x = e1 in e2@ or @letrec x : t = e1 in e2@
 renameLet :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
@@ -1098,12 +1089,28 @@ renameLet y ze = case target ze of
         e2' <- rename x y' e2
         pure $ replace (Letrec m (Bind bm y') e1' t1 e2') ze
   _ ->
-    throwError $ CustomFailure (RenameLet y) "the focused expression is not a let"
+    throwError $ CustomFailure (RenameBinding y) "the focused expression is not a let"
   where
     rename :: MonadError ActionError m => LVarName -> LVarName -> Expr -> m Expr
     rename fromName toName e = maybe (throwError NameCapture) pure $ renameLocalVar fromName toName e
     rename' :: MonadError ActionError m => TyVarName -> TyVarName -> Expr -> m Expr
     rename' fromName toName e = maybe (throwError NameCapture) pure $ renameTyVarExpr fromName toName e
+
+-- | Rename the binding of a term variable with the given ID, which is introduced by the focused λ, let, letrec or case.
+renameTmBinding :: MonadError ActionError m => Text -> ID -> ExprZ -> m ExprZ
+renameTmBinding y i ze = case target ze of
+  Lam{} -> renameLam y ze
+  Let{} -> renameLet y ze
+  Letrec{} -> renameLet y ze
+  Case{} -> renameCaseBinding y i ze
+  _ -> throwError $ CustomFailure (RenameBinding y) "the focused expression does not bind a term variable"
+
+-- | Rename the binding of a type variable which is introduced by the focused Λ or let type.
+renameTyBinding :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
+renameTyBinding y ze = case target ze of
+  LAM{} -> renameLAM y ze
+  LetType{} -> renameLet y ze
+  _ -> throwError $ CustomFailure (RenameBinding y) "the focused expression does not bind a type variable"
 
 -- | Rename the binding with the given ID in one of the branches of the focused case expression,
 -- along with its occurrences in the right hand side of that branch.
@@ -1112,7 +1119,7 @@ renameCaseBinding y i ze = case target ze of
   Case m scrut branches fb -> do
     branches' <- traverse renameInBranch branches
     pure $ replace (Case m scrut branches' fb) ze
-  _ -> throwError $ CustomFailure (RenameCaseBinding y) "the focused expression is not a case"
+  _ -> throwError $ CustomFailure (RenameBinding y) "the focused expression is not a case"
   where
     y' = unsafeMkLocalName y
     renameInBranch br@(CaseBranch p binds rhs) = case break ((== i) . getID) binds of
@@ -1169,7 +1176,7 @@ renameForall b zt = case target zt of
           Nothing ->
             throwError NameCapture
   _ ->
-    throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
+    throwError $ CustomFailure (RenameBinding b) "the focused expression is not a forall type"
 
 constructKType :: (MonadFresh ID m, MonadError ActionError m) => KindZ -> m KindZ
 constructKType zk = case target zk of
@@ -1390,18 +1397,9 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.DeleteBranchChar -> do
     c <- optChar
     toProg [DeleteCaseBranchPrim $ PrimChar c]
-  Available.RenamePattern -> do
+  Available.RenameBinding -> do
     opt <- optNoCxt
-    toProg [RenameCaseBinding opt]
-  Available.RenameLet -> do
-    opt <- optNoCxt
-    toProg [RenameLet opt]
-  Available.RenameLam -> do
-    opt <- optNoCxt
-    toProg [RenameLam opt]
-  Available.RenameLAM -> do
-    opt <- optNoCxt
-    toProg [RenameLAM opt]
+    toProg [RenameBinding opt]
   Available.MakeTCon -> do
     opt <- optGlobal
     toProg [ConstructTCon opt]
@@ -1411,9 +1409,6 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.MakeForall -> do
     opt <- optNoCxt
     toProg [ConstructTForall $ Just opt, Move Child1]
-  Available.RenameForall -> do
-    opt <- optNoCxt
-    toProg [RenameForall opt]
   Available.RenameDef -> do
     opt <- optNoCxt
     sel <- termSel

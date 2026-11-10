@@ -25,7 +25,7 @@ import Primer.Action (
     EnterType,
     Move,
     RemoveAnn,
-    RenameLam,
+    RenameBinding,
     SetCursor
   ),
   ActionError (CustomFailure, IDNotFound, ImportNameClash),
@@ -1567,7 +1567,7 @@ unit_rename_binding_selection :: Assertion
 unit_rename_binding_selection =
   progActionTest
     prog
-    [MoveToDef foo, BodyAction [SetCursor binderID, RenameLam "y"]]
+    [MoveToDef foo, BodyAction [SetCursor binderID, RenameBinding "y"]]
     $ expectSuccess
     $ \_ prog' ->
       case astDefExpr <$> (defAST =<< findGlobalByName prog' foo) of

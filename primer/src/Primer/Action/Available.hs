@@ -191,14 +191,10 @@ data InputAction
   | DeleteBranch
   | DeleteBranchInt
   | DeleteBranchChar
-  | RenamePattern
-  | RenameLet
-  | RenameLam
-  | RenameLAM
+  | RenameBinding
   | MakeTCon
   | MakeTVar
   | MakeForall
-  | RenameForall
   | RenameDef
   | RenameType
   | RenameCon
@@ -246,20 +242,21 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
   Just (TyVarBindNode _, p) -> maybe mempty (forBinding l) p
 
 -- | Actions for a variable binding, given the node which introduces it.
+-- Bindings of type variables by Λs and ∀s may only be renamed by experts.
 forBinding :: Level -> SomeNode -> [Action]
 forBinding l = \case
   ExprNode e -> case e of
-    Lam{} -> [Input RenameLam]
-    LAM{} -> mwhen (l == Expert) [Input RenameLAM]
-    Let{} -> [Input RenameLet]
-    Letrec{} -> [Input RenameLet]
-    LetType{} -> [Input RenameLet]
-    Case{} -> [Input RenamePattern]
+    LAM{} -> mwhen (l == Expert) rename
+    Lam{} -> rename
+    Let{} -> rename
+    Letrec{} -> rename
+    LetType{} -> rename
+    Case{} -> rename
     _ -> mempty
-  TypeNode t -> case t of
-    TForall{} -> mwhen (l == Expert) [Input RenameForall]
-    _ -> mempty
+  TypeNode TForall{} -> mwhen (l == Expert) rename
   _ -> mempty
+  where
+    rename = [Input RenameBinding]
 
 forSig ::
   Level ->
@@ -274,7 +271,7 @@ forSig l Editable ty id = sortByPriority l $ case findNodeInType id ty of
     forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
   Just (KindNode k) -> forKind l k
-  Just (TyVarBindNode _) -> mwhen (l == Expert) [Input RenameForall]
+  Just (TyVarBindNode _) -> mwhen (l == Expert) [Input RenameBinding]
   Just _ -> mempty
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
@@ -471,7 +468,7 @@ forTypeDefConsFieldNode con index id l Editable _ _ _ td =
       <> case findNodeInType id =<< fieldType of
         Just (TypeNode t) -> forType l t
         Just (KindNode k) -> forKind l k
-        Just (TyVarBindNode _) -> mwhen (l == Expert) [Input RenameForall]
+        Just (TyVarBindNode _) -> mwhen (l == Expert) [Input RenameBinding]
         _ -> mempty
   where
     fieldType = getTypeDefConFieldType td con index
@@ -578,17 +575,13 @@ options typeDefs defs cxt level def0 sel0 = \case
         let exist = mapMaybe ((\case (PatPrim (PrimChar c)) -> Just c; _ -> Nothing) . caseBranchName) brs
          in pure $ noFree $ (\c -> Option (T.singleton c) Nothing False) <$> exist
       _ -> Nothing
-  RenamePattern -> renameBinding
-  RenameLet -> renameBinding
-  RenameLam -> renameBinding
-  RenameLAM -> renameBinding
+  RenameBinding -> renameBinding
   MakeTCon ->
     pure $ noFree $ globalOpt . fst <$> Map.toList typeDefs
   MakeTVar ->
     noFree . map (localOpt . unLocalName . fst) . fst3 <$> varsInScope
   MakeForall ->
     freeVar <$> genNames (Right Nothing)
-  RenameForall -> renameBinding
   RenameDef ->
     pure $ freeVar []
   RenameType ->
@@ -767,14 +760,10 @@ sortByPriority l =
             DeleteBranch -> P.deleteBranch
             DeleteBranchInt -> P.deleteBranch
             DeleteBranchChar -> P.deleteBranch
-            RenamePattern -> P.rename
-            RenameLet -> P.rename
-            RenameLam -> P.rename
-            RenameLAM -> P.rename
+            RenameBinding -> P.rename
             MakeTCon -> P.useTypeCon
             MakeTVar -> P.useTypeVar
             MakeForall -> P.constructForall
-            RenameForall -> P.rename
             RenameDef -> P.rename
             RenameType -> P.rename
             AddCon -> P.addCon

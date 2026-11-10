@@ -79,12 +79,9 @@ data Action
     DeleteCaseBranch QualifiedText
   | -- | Remove a primitive branch from a case expression
     DeleteCaseBranchPrim PrimCon
-  | -- | Rename a lambda binding
-    RenameLam Text
-  | -- | Rename a big lambda binding
-    RenameLAM Text
-  | -- | Rename a let or letrec binding
-    RenameLet Text
+  | -- | Rename the focused binding (of a λ, Λ, let, letrec, let type, ∀ or case branch),
+    -- along with the references to it.
+    RenameBinding Text
   | -- | Move from an annotation to its type
     EnterType
   | -- | Move from a type up into the surrounding annotation
@@ -103,10 +100,6 @@ data Action
     ConstructTForall (Maybe Text)
   | -- | Construct an application in types
     ConstructTApp
-  | -- | Rename a forall binding
-    RenameForall Text
-  | -- | Rename a case binding
-    RenameCaseBinding Text
   | -- | Construct the kind KType
     ConstructKType
   | -- | Construct a function kind

@@ -320,7 +320,7 @@ unit_rename_let =
   actionTest
     NoSmartHoles
     (let_ "x" (con0 cTrue `ann` tEmptyHole) (lvar "x"))
-    [RenameLet "y"]
+    [Move Binding, RenameBinding "y"]
     (let_ "y" (con0 cTrue `ann` tEmptyHole) (lvar "y"))
 
 unit_rename_letrec :: Assertion
@@ -328,7 +328,7 @@ unit_rename_letrec =
   actionTest
     NoSmartHoles
     (letrec "x" (lvar "x") (tcon tBool) (lvar "x"))
-    [RenameLet "y"]
+    [Move Binding, RenameBinding "y"]
     (letrec "y" (lvar "y") (tcon tBool) (lvar "y"))
 
 -- If the let is shadowing an outer binder, we can rename to un-shadow it
@@ -337,7 +337,7 @@ unit_rename_let_shadowed =
   actionTest
     NoSmartHoles
     (let_ "x" emptyHole $ let_ "x" (lvar "x") (lvar "x"))
-    [Move Child2, RenameLet "y"]
+    [Move Child2, Move Binding, RenameBinding "y"]
     (let_ "x" emptyHole $ let_ "y" (lvar "x") (lvar "y"))
 
 -- Renaming a let can cause shadowing, but this is ok
@@ -346,7 +346,7 @@ unit_rename_let_shadows =
   actionTest
     NoSmartHoles
     (ann (lam "x" $ let_ "y" (lvar "x") emptyHole) tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
     (ann (lam "x" $ let_ "x" (lvar "x") emptyHole) tEmptyHole)
 
 unit_rename_lam :: Assertion
@@ -354,32 +354,32 @@ unit_rename_lam =
   actionTest
     NoSmartHoles
     (ann (lam "x" (app (lvar "x") (con0 cFalse))) tEmptyHole)
-    [Move Child1, RenameLam "y"]
+    [Move Child1, Move Binding, RenameBinding "y"]
     (ann (lam "y" (app (lvar "y") (con0 cFalse))) tEmptyHole)
 
 unit_rename_lam_2 :: Assertion
 unit_rename_lam_2 =
   actionTestExpectFail
-    (const True)
+    (\case NameCapture -> True; _ -> False)
     NoSmartHoles
     (ann (lam "y" (lam "x" (app (lvar "x") (lvar "y")))) tEmptyHole)
-    [Move Child1, Move Child1, RenameLam "y"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "y"]
 
 unit_rename_LAM :: Assertion
 unit_rename_LAM =
   actionTest
     NoSmartHoles
     (ann (lAM "a" (emptyHole `aPP` tvar "a")) (tforall "b" ktype $ listOf (tvar "b")))
-    [Move Child1, RenameLAM "b"]
+    [Move Child1, Move Binding, RenameBinding "b"]
     (ann (lAM "b" (emptyHole `aPP` tvar "b")) (tforall "b" ktype $ listOf (tvar "b")))
 
 unit_rename_LAM_2 :: Assertion
 unit_rename_LAM_2 =
   actionTestExpectFail
-    (const True)
+    (\case NameCapture -> True; _ -> False)
     NoSmartHoles
     (ann (lAM "b" (lAM "a" (emptyHole `aPP` tvar "b"))) tEmptyHole)
-    [Move Child1, Move Child1, RenameLAM "b"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "b"]
 
 unit_rename_LAM_3 :: Assertion
 unit_rename_LAM_3 =
@@ -390,7 +390,7 @@ unit_rename_LAM_3 =
     )
     NoSmartHoles
     (lam "x" (lAM "y" $ lvar "x") `ann` tEmptyHole)
-    [Move Child1, Move Child1, RenameLAM "x"]
+    [Move Child1, Move Child1, Move Binding, RenameBinding "x"]
 
 unit_convert_let_to_letrec :: Assertion
 unit_convert_let_to_letrec =
@@ -725,7 +725,7 @@ unit_move_binding =
   actionTest
     NoSmartHoles
     (lam "x" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
-    [Move Child1, Move Binding, RenameLam "y"]
+    [Move Child1, Move Binding, RenameBinding "y"]
     (lam "y" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_move_binding_type :: Assertion
@@ -733,7 +733,7 @@ unit_move_binding_type =
   actionTest
     NoSmartHoles
     (emptyHole `ann` tforall "a" ktype (tcon tBool))
-    [EnterType, Move Binding, RenameForall "b"]
+    [EnterType, Move Binding, RenameBinding "b"]
     (emptyHole `ann` tforall "b" ktype (tcon tBool))
 
 unit_move_binding_none :: Assertion
@@ -914,7 +914,7 @@ unit_rename_case_binding =
         ]
         `ann` tcon tNat
     )
-    [SetCursor 8, RenameCaseBinding "c"]
+    [SetCursor 8, RenameBinding "c"]
     ( case_
         (emptyHole `ann` (tcon tList `tapp` tcon tBool))
         [ branch cNil [] emptyHole
@@ -934,7 +934,7 @@ unit_same_rename_case_binding =
         ]
         `ann` tcon tNat
     )
-    [SetCursor 8, RenameCaseBinding "a"]
+    [SetCursor 8, RenameBinding "a"]
     ( case_
         (emptyHole `ann` (tcon tList `tapp` tcon tBool))
         [ branch cNil [] emptyHole
@@ -955,7 +955,7 @@ unit_rename_case_bind_clash =
         ]
         `ann` tcon tNat
     )
-    [SetCursor 8, RenameCaseBinding "b"]
+    [SetCursor 8, RenameBinding "b"]
 
 unit_case_branches :: Assertion
 unit_case_branches =
@@ -1142,16 +1142,16 @@ unit_rename_TForall =
   actionTest
     NoSmartHoles
     (emptyHole `ann` tforall "a" ktype (listOf (tvar "a")))
-    [EnterType, RenameForall "b"]
+    [EnterType, Move Binding, RenameBinding "b"]
     (emptyHole `ann` tforall "b" ktype (listOf (tvar "b")))
 
 unit_rename_TForall_2 :: Assertion
 unit_rename_TForall_2 =
   actionTestExpectFail
-    (const True)
+    (\case NameCapture -> True; _ -> False)
     NoSmartHoles
     (emptyHole `ann` tforall "b" ktype (tforall "a" ktype $ listOf (tvar "b")))
-    [EnterType, Move Child1, RenameLAM "b"]
+    [EnterType, Move Child1, Move Binding, RenameBinding "b"]
 
 unit_construct_TForall_TVar :: Assertion
 unit_construct_TForall_TVar =
