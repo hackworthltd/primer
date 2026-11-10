@@ -17,7 +17,7 @@ import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrictText)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Data (Data (..))
-import Data.Generics.Uniplate.Data (children)
+import Data.Generics.Uniplate.Data (children, universe)
 import Data.List.Extra (compareLength, partition)
 import Data.Map ((!?))
 import Data.Map qualified as Map
@@ -61,19 +61,24 @@ import Miso.Html (
  )
 import Miso.Html.Property (
   class_,
+  disabled_,
   id_,
+  max_,
   min_,
   placeholder_,
   required_,
   src_,
+  step_,
   type_,
+  value_,
  )
 import Miso.Navigator (copyClipboard)
 import Miso.String (MisoString, fromMisoString, ms)
+import Numeric (readHex, showFFloat, showHex)
 import Numeric.Natural (Natural)
-import Optics (ix, lensVL, to, use, (%), (%~), (.~), (^.), (^..))
+import Optics (at, ix, lensVL, to, use, (%), (%~), (.~), (^.), (^..))
 import Optics.State.Operators ((%=), (.=), (?=))
-import Primer.Action (toProgActionInput, toProgActionNoInput)
+import Primer.Action (ProgAction (BodyAction, MoveToDef), toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
   DefSelection (..),
@@ -150,6 +155,7 @@ import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Miso.ActionName (actionName)
+import Primer.Miso.Edit (Literal (LitPrim), colourLiteral, editActions, stringLiteral)
 import Primer.Miso.Layout (
   Layering (NonLayered),
   Placement (Below, Beside),
@@ -157,11 +163,11 @@ import Primer.Miso.Layout (
   tidyLayout,
  )
 import Primer.Miso.Picture (renderPicture)
-import Primer.Miso.Projection (Projection (..), ProjectionView (..), availableProjection)
+import Primer.Miso.Projection (Projection (..), ProjectionView (..), availableProjection, sameKind)
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
   EvalExprT,
-  ExprInfo (projection),
+  ExprInfo (projection, typeInfo),
   P2,
   SelectionT,
   TermMeta',
@@ -192,8 +198,10 @@ import Primer.Miso.Util (
   stringToOpt,
   syncDefs,
   typeBindingsInExpr,
+  typeCacheType,
  )
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
+import Primer.Primitives (Colour (RGB))
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (TypeDefAST), ValCon (..), forgetTypeDefMetadata, typeDefAST, typeDefKind)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
@@ -204,6 +212,7 @@ component =
         Model
           { app = initialApp
           , defsT = syncDefs (snd <$> progAllDefs (appProg initialApp)) mempty
+          , replacedNodes = mempty
           , readOnlySelection = Nothing
           , components =
               ComponentModels
@@ -266,6 +275,9 @@ data Model = Model
   -- ^ A non-editable def is being viewed (e.g. from an imported module), rather than the selection in `app`.
   , defsT :: Map GVarName ASTDefT
   -- ^ The frontend versions of the definitions in `app`. See `syncDefs`.
+  , replacedNodes :: Map ID ID
+  -- ^ Nodes which have been replaced by edits through projections, e.g. a number literal edited with a slider.
+  -- This lets us apply further edits from the same projection, which may have been rendered before the replacement.
   , components :: ComponentModels
   }
   deriving stock (Eq, Show, Generic)
@@ -333,6 +345,9 @@ data Action
   | ToggleFullscreenEval
   | SetDefProjection GVarName ID (Maybe Projection)
   | SetEvalProjection ID (Maybe Projection)
+  | -- | Replace the node with the given ID with a literal, through the given projection.
+    ApplyProjectionEdit GVarName ID Literal Projection
+  | SetAppProjecting GVarName ID (Maybe Projection) Primer.App.App
   | ChooseRedex ID
   | StepBackEval
   | SetInterpResult (Either InterpError (Expr' () () ()))
@@ -412,10 +427,28 @@ updateModel = \case
   Alert t -> io_ $ alert t
   CancelActionInput ->
     resetActionPanel
-  SetApp a -> do
-    #app .= a
-    #defsT %= syncDefs (snd <$> progAllDefs (appProg a))
-    setEval
+  SetApp a -> setApp a
+  ApplyProjectionEdit def target0 literal projection -> do
+    -- We work out the actions here, rather than when rendering, since edits can arrive faster than we re-render,
+    -- e.g. while dragging a slider, in which case the rendered term may be out of date.
+    target <- flip resolveReplaced target0 <$> use #replacedNodes
+    use (#defsT % at def) >>= \case
+      Nothing -> io_ $ consoleLog $ "projection edit: definition not found: " <> showMs def
+      Just d -> case find ((== target) . getID) $ universe d.expr of
+        Nothing -> io_ $ consoleLog $ "projection edit: node not found: " <> showMs target
+        Just e -> do
+          let (actions, rootReplaced) = editActions e literal
+          unless (null actions) $
+            runMutation' (SetAppProjecting def target $ guard rootReplaced $> projection) $
+              Edit [MoveToDef def, BodyAction actions]
+  SetAppProjecting def target projection a -> do
+    setApp a
+    -- If we replaced the root node, the actions leave the cursor, and thus the selection, on its replacement.
+    for_ projection \p -> case progSelection $ appProg a of
+      Just (SelectionDef DefSelection{def = def', node = Just n}) | def' == def -> do
+        #defsT % ix def % #expr %= setProjection (getID n) (Just p)
+        #replacedNodes %= Map.insert target (getID n)
+      _ -> pure ()
   SetEvalOpts f -> do
     #components % #eval % #opts %= f
     setEval
@@ -466,16 +499,24 @@ updateModel = \case
     -- (currently we use `NullDb` anyway but this will change)
     -- if we could modify the frontend model purely, and fork off the DB writing,
     -- and we could drop the `SetApp` action and make this a lot simpler
-    runMutation mr = do
+    runMutation = runMutation' SetApp
+    runMutation' k mr = do
       app <- use #app
       io do
         (logs, res) <- liftIO $ runMutationWithNullDb mr app
         logAllToConsole logs
-        pure $ SetApp res
+        pure $ k res
+    -- Follow the chain of replacements of a node, in case it has been replaced by edits we haven't yet rendered.
+    resolveReplaced replaced i = maybe i (resolveReplaced replaced) $ Map.lookup i replaced
+    setApp a = do
+      #app .= a
+      #defsT %= syncDefs (snd <$> progAllDefs (appProg a))
+      setEval
     -- TODO this replaces the whole app, including its undo history, so it can't itself be undone
     replaceApp app = do
       #readOnlySelection .= Nothing
       #defsT .= mempty
+      #replacedNodes .= mempty
       resetActionPanel
       updateModel $ SetApp app
     -- TODO find a more principled way to decide when to do this, or just run it all the time
@@ -697,7 +738,9 @@ viewModel Model{..} =
                   [ fst
                       . viewTree
                       $ viewTreeExpr
+                        (Just . typeCacheType)
                         (SetDefProjection sel'.def)
+                        (guard (editable == Editable) $> ApplyProjectionEdit sel'.def)
                         ( mkMetaSelectable $
                             SelectionDef
                               . DefSelection sel'.def
@@ -849,7 +892,7 @@ viewModel Model{..} =
                 <> case components.eval.history of
                   [] -> [text "No definition selected for evaluation"]
                   (expr, rxs, _) : _ ->
-                    [fst . viewTree $ viewTreeExpr SetEvalProjection (mkMeta' . getID) expr]
+                    [fst . viewTree $ viewTreeExpr (const Nothing) SetEvalProjection Nothing (mkMeta' . getID) expr]
                     where
                       mkMeta' id =
                         if id `notElem` fst rxs
@@ -917,7 +960,9 @@ data NodeViewOpts action
   = SyntaxNode {wide :: Bool, flavor :: MisoString, text :: MisoString}
   | HoleNode {empty :: Bool}
   | PrimNode PrimCon
-  | StringNode Text -- See `projectString`.
+  | StringNode Text (Maybe (Text -> action)) -- See `projectString`. The function is for editing, if possible.
+  | SliderNode Double Double Double (Maybe (Double -> action)) -- Bounds and value, and a function for editing, if possible.
+  | ColourNode Colour (Maybe (Colour -> action)) -- The function is for editing, if possible.
   | PictureNode MisoString (V2 Double) -- An image URL, and the size at which to display it. See `renderPicture`.
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
@@ -947,6 +992,8 @@ viewNodeData showIDs position dimensions edges node =
                 HoleNode{} -> "hole"
                 PrimNode{} -> "prim"
                 StringNode{} -> "string"
+                SliderNode{} -> "slider"
+                ColourNode{} -> "colour"
                 PictureNode{} -> "picture"
                 ConNode{} -> "con"
                 VarNode{} -> "var"
@@ -988,6 +1035,19 @@ viewNodeData showIDs position dimensions edges node =
                          [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
                      ]
                    PictureNode url _ -> [img_ [src_ url]]
+                   StringNode s (Just f) ->
+                     [text "\"", input_ [type_ "text", class_ "string-input", value_ $ ms s, onChange $ f . fromMisoString], text "\""]
+                   SliderNode lo hi x f ->
+                     [ input_ $
+                         [type_ "range", min_ $ showMs lo, max_ $ showMs hi, step_ "any", value_ $ showMs x]
+                           <> maybe [disabled_] (\f' -> [onInput $ f' . fromMaybe x . readMs]) f
+                     , div_ [class_ "slider-value"] [text $ ms $ showFFloat (Just 2) x ""]
+                     ]
+                   ColourNode c f ->
+                     [ input_ $
+                         [type_ "color", value_ $ colourHex c]
+                           <> maybe [disabled_] (\f' -> [onInput $ f' . fromMaybe c . colourFromHex . fromMisoString]) f
+                     ]
                    _ ->
                      [ div_
                          [ class_ "node-text"
@@ -1002,7 +1062,7 @@ viewNodeData showIDs position dimensions edges node =
                                    PrimChar c' -> showMs c'
                                    PrimInt n -> showMs n
                                    PrimDouble x -> showMs x
-                                 StringNode s -> showStringLiteral s
+                                 StringNode s _ -> showStringLiteral s
                                  ConNode{name} -> ms $ unName name
                                  VarNode{name} -> ms $ unName name
                          ]
@@ -1031,39 +1091,68 @@ showStringLiteral s = ms $ "\"" <> T.concatMap escape s <> "\""
       '\t' -> "\\t"
       c -> T.singleton c
 
+-- | Show a colour in the form used by HTML colour inputs, e.g. @#ff8000@. Components are clamped to the range 0 to 1.
+colourHex :: Colour -> MisoString
+colourHex (RGB r g b) = ms $ '#' : foldMap' hexComponent ([r, g, b] :: [Double])
+  where
+    hexComponent x =
+      let s = showHex @Int (round $ 255 * max 0 (min 1 x)) ""
+       in replicate (2 - length s) '0' <> s
+
+-- | Parse a colour from the form used by HTML colour inputs, e.g. @#ff8000@.
+colourFromHex :: Text -> Maybe Colour
+colourFromHex t = case T.unpack t of
+  ['#', r1, r2, g1, g2, b1, b2] -> RGB <$> hexComponent [r1, r2] <*> hexComponent [g1, g2] <*> hexComponent [b1, b2]
+  _ -> Nothing
+  where
+    hexComponent s = case readHex s of
+      [(n, "")] -> Just $ fromInteger n / 255
+      _ -> Nothing
+
 viewTreeExpr ::
   (Data t, Data b, Data c) =>
+  -- | The type of a node, if it is known reliably, i.e. not from a possibly-stale type cache.
+  (t -> Maybe (Type' () ())) ->
   -- | Set the projection of the node with the given ID.
   (ID -> Maybe Projection -> action) ->
+  -- | Replace the node with the given ID with a literal, through the given projection.
+  -- `Nothing` if editing isn't possible, e.g. for a non-editable definition.
+  Maybe (ID -> Literal -> Projection -> action) ->
   (TermMeta' (Meta (ExprInfo t)) b c -> (Maybe ID, Maybe action, NodeHighlight)) ->
   Expr' (Meta (ExprInfo t)) b c ->
   Tree.Tree (NodeViewData action)
-viewTreeExpr setProjection' mkMeta e =
+viewTreeExpr knownType setProjection' edit mkMeta e =
   Tree.Node
     (uncurry3 NodeViewData (mkMeta $ Left meta) projectionToggle Below Expr nodeView)
     childViews
   where
     meta = e ^. _exprMetaLens
-    available = availableProjection e
+    available = availableProjection (knownType (meta ^. _type).typeInfo) e
     -- We check that the term actually has the projection, rather than just trusting the metadata,
     -- since the latter may have been carried over from before an edit (see `syncDefs`).
-    projected = case available of
-      Just (p, v) | (meta ^. _type).projection == Just p -> Just v
+    -- We use the projection from the metadata, since it may have parameters, e.g. the range of a slider.
+    projected = case (available, (meta ^. _type).projection) of
+      (Just (p, v), Just p') | sameKind p p' -> Just (p', v)
       _ -> Nothing
     projectionToggle =
-      available <&> \(p, _) ->
-        if isJust projected
-          then ("🌲", setProjection' (getID meta) Nothing)
-          else
-            ( case p of
-                StringProjection -> "\"…\""
-                PictureProjection -> "🖼"
-            , setProjection' (getID meta) (Just p)
-            )
+      available <&> \(p, _) -> case projected of
+        Just _ -> ("🌲", setProjection' (getID meta) Nothing)
+        Nothing ->
+          ( case p of
+              StringProjection -> "\"…\""
+              PictureProjection -> "🖼"
+              SliderProjection{} -> "🎚"
+              ColourProjection -> "🎨"
+          , setProjection' (getID meta) (Just p)
+          )
+    -- Replace the term with the literal produced from some input.
+    editor p toLiteral = edit <&> \f -> \x -> f (getID meta) (toLiteral x) p
     nodeView = case projected of
-      Just (StringView s) -> StringNode s
-      Just (PictureView pic) -> uncurry PictureNode $ renderPicture pic
-      Nothing -> nodeViewTree
+      Just (p, StringView s) -> StringNode s $ editor p stringLiteral
+      Just (_, PictureView pic) -> uncurry PictureNode $ renderPicture pic
+      Just (p@(SliderProjection lo hi), NumberView x) -> SliderNode lo hi x $ editor p $ LitPrim . PrimDouble
+      Just (p, ColourView c) -> ColourNode c $ editor p colourLiteral
+      _ -> nodeViewTree
     nodeViewTree = case e of
       Hole{} -> HoleNode{empty = False}
       EmptyHole{} -> HoleNode{empty = True}
@@ -1121,7 +1210,7 @@ viewTreeExpr setProjection' mkMeta e =
           ]
         where
           viewTreeBinding l name = Tree.Node (NodeViewData Nothing Nothing NoHighlight Nothing Beside l VarNode{name = unLocalName name, mscope = Nothing}) []
-    viewTreeExpr' = viewTreeExpr setProjection' mkMeta
+    viewTreeExpr' = viewTreeExpr knownType setProjection' edit mkMeta
 
 viewTreeType ::
   (Data b, Data c) =>
@@ -1231,10 +1320,11 @@ viewTree t =
       PatternBoxNode Nothing -> basicDimsSquare + pure boxPadding
       SyntaxNode{wide = False} -> basicDimsSquare
       HoleNode{} -> basicDimsSquare
-      StringNode s ->
+      StringNode s _ ->
         -- A rough estimate, assuming an average character width. Text which overflows is truncated with an ellipsis anyway.
         basicDims & lensVL _x %~ max (fromIntegral (T.length s + 2) * 10 + 30)
       PictureNode _ v -> v
+      SliderNode{} -> V2 200 50
       _ -> basicDims
       where
         basicDimsSquare = basicDims & lensVL _x .~ basicDims.y

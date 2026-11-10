@@ -4,54 +4,85 @@ module Primer.Miso.Projection (
   Projection (..),
   ProjectionView (..),
   availableProjection,
+  sameKind,
+  shownByDefault,
   projectString,
 ) where
 
 import Foreword
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Data (Data)
+import Data.Data (Data, toConstr)
 import Data.Text qualified as T
-import Primer.Core (Expr' (PrimCon), PrimCon (PrimChar))
+import Primer.Builtins (tList)
+import Primer.Core (Expr' (PrimCon), PrimCon (PrimChar), Type' (TApp, TCon))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Primitives (Picture, exprToList, exprToPicture)
+import Primer.Primitives (Colour, Picture, exprToColour, exprToDouble, exprToList, exprToPicture, tChar)
 
 data Projection
   = -- | Show a non-empty list of character literals, e.g. @'a' : 'b' : 'c' : []@, as a string literal, e.g. @"abc"@.
     StringProjection
   | -- | Draw a value of our `Picture` type.
     PictureProjection
-  deriving stock (Eq, Show, Read, Data, Generic, Enum, Bounded)
+  | -- | Show a number literal as a slider, ranging between the given bounds.
+    -- We store the bounds, rather than computing them from the number, so that they don't change while dragging.
+    SliderProjection Double Double
+  | -- | Show a literal of our `Colour` type as a swatch, with a colour picker.
+    ColourProjection
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Projection
 
 -- | What a term looks like under a projection.
 data ProjectionView
   = StringView Text
   | PictureView Picture
+  | NumberView Double
+  | ColourView Colour
 
--- | The projection which a term has, if any, along with how it looks under that projection.
--- No term has more than one projection.
-availableProjection :: Expr' a b c -> Maybe (Projection, ProjectionView)
-availableProjection e = asum $ [minBound .. maxBound] <&> \p -> (p,) <$> project p
+-- | The projection which a term has, if any (with default parameters), along with how it looks under that projection.
+-- No term has more than one kind of projection.
+-- The term's type should be given where it is known reliably, i.e. not for evaluation results (see `projectString`).
+availableProjection :: Maybe (Type' () ()) -> Expr' a b c -> Maybe (Projection, ProjectionView)
+availableProjection ty e =
+  asum
+    [ (StringProjection,) . StringView <$> projectString ty e
+    , (PictureProjection,) . PictureView <$> exprToPicture e
+    , exprToDouble e <&> \x -> (uncurry SliderProjection $ defaultRange x, NumberView x)
+    , (ColourProjection,) . ColourView <$> exprToColour e
+    ]
   where
-    project = \case
-      StringProjection -> StringView <$> projectString e
-      PictureProjection -> PictureView <$> exprToPicture e
+    defaultRange x = if x == 0 then (-10, 10) else (min 0 $ 2 * x, max 0 $ 2 * x)
 
--- | View a term as a string literal, if it's a non-empty list of character literals.
--- We don't consider the empty list, since we can't tell whether it's a list of characters without type information.
+-- | Whether two projections are of the same kind, ignoring any parameters.
+sameKind :: Projection -> Projection -> Bool
+sameKind = (==) `on` toConstr
+
+-- | Whether to show terms with this kind of projection as such by default, where we do so (i.e. evaluation results).
+-- Projections which are mainly for editing aren't much use there.
+shownByDefault :: Projection -> Bool
+shownByDefault = \case
+  StringProjection -> True
+  PictureProjection -> True
+  SliderProjection{} -> False
+  ColourProjection -> False
+
+-- | View a term as a string literal, if it's a list of character literals.
+-- We only consider the empty list to be a string if we're given its type, and that type is @List Char@.
 --
--- It would be cleaner to first check that the term's type is @List Char@, before looking for a literal.
--- But we can't rely on the type caches, since those of evaluation results may be stale.
+-- Otherwise, we don't look at types: it would be cleaner to first check that a term's type is @List Char@, before looking
+-- for a literal, but we can't rely on the type caches of evaluation results, which may be stale.
 --
 -- We reuse `exprToList` from "Primer.Primitives", but other code there for recognising literals (e.g. `exprToNat`)
 -- is local to the definitions of particular primitives. We may want to factor more of it out as we add projections.
-projectString :: Expr' a b c -> Maybe Text
-projectString e = do
+projectString :: Maybe (Type' () ()) -> Expr' a b c -> Maybe Text
+projectString ty e = do
   s <- traverse exprToChar =<< exprToList e
-  guard $ not $ null s
+  guard $ not (null s) || isStringType
   pure $ T.pack s
   where
+    isStringType = case ty of
+      Just (TApp _ (TCon _ l) (TCon _ c)) -> l == tList && c == tChar
+      _ -> False
     exprToChar = \case
       PrimCon _ (PrimChar x) -> Just x
       _ -> Nothing

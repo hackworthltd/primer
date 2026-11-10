@@ -386,3 +386,37 @@ body {
     box-shadow: 0 0 0 4px var(--node-color), 0 0 0 8px var(--node-color);
   }
 }
+
+/* Projections which can be edited directly. */
+.node.slider,
+.node.colour {
+  --node-color: var(--green-primary);
+}
+.string-input {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  text-align: center;
+  min-width: 0;
+  flex: 1;
+}
+.node.slider > .node-contents {
+  flex-direction: column;
+  > input {
+    width: 90%;
+    accent-color: var(--node-color);
+  }
+  > .slider-value {
+    font-size: small;
+  }
+}
+.node.colour > .node-contents > input {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
