@@ -85,6 +85,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName),
   ID,
+  Kind,
   Kind' (..),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
@@ -125,7 +126,7 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, moduleTypesQualifiedMeta, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
 import Primer.Test.App (
@@ -1299,9 +1300,9 @@ unit_ConFieldAction =
 
 unit_ParamKindAction_1 :: Assertion
 unit_ParamKindAction_1 =
-  progActionTest
+  progActionTest'
     (defaultProgEditableTypeDefs (pure []))
-    [ParamKindAction tT pB [SetCursor 45, ConstructKFun]]
+    [\p -> ParamKindAction tT pB [SetCursor $ paramKindID tT pB p, ConstructKFun]]
     $ expectSuccess
     $ \_ prog' -> do
       td <- findTypeDef tT prog'
@@ -1312,19 +1313,19 @@ unit_ParamKindAction_1 =
 
 unit_ParamKindAction_2 :: Assertion
 unit_ParamKindAction_2 =
-  progActionTest
+  progActionTest'
     (defaultProgEditableTypeDefs (pure []))
-    [ ParamKindAction tT pB [SetCursor 45, ConstructKFun]
-    , ParamKindAction tT pB [SetCursor 51, ConstructKType]
+    [ \p -> ParamKindAction tT pB [SetCursor $ paramKindID tT pB p, ConstructKFun]
+    , \p -> ParamKindAction tT pB [SetCursor $ paramKindDomainID tT pB p, ConstructKType]
     ]
     $ expectError (@?= ActionError (CustomFailure ConstructKType "can only construct the kind 'Type' in hole"))
 
 unit_ParamKindAction_2b :: Assertion
 unit_ParamKindAction_2b =
-  progActionTest
+  progActionTest'
     (defaultProgEditableTypeDefs (pure []))
-    [ ParamKindAction tT pB [SetCursor 45, ConstructKFun]
-    , ParamKindAction tT pB [SetCursor 51, Delete]
+    [ \p -> ParamKindAction tT pB [SetCursor $ paramKindID tT pB p, ConstructKFun]
+    , \p -> ParamKindAction tT pB [SetCursor $ paramKindDomainID tT pB p, Delete]
     ]
     $ expectSuccess
     $ \_ prog' -> do
@@ -1336,9 +1337,9 @@ unit_ParamKindAction_2b =
 
 unit_ParamKindAction_3 :: Assertion
 unit_ParamKindAction_3 =
-  progActionTest
+  progActionTest'
     (defaultProgEditableTypeDefs (pure []))
-    [ ParamKindAction tT pA [SetCursor 44, Delete]
+    [ \p -> ParamKindAction tT pA [SetCursor $ paramKindID tT pA p, Delete]
     ]
     $ expectSuccess
     $ \_ prog' -> do
@@ -1350,10 +1351,10 @@ unit_ParamKindAction_3 =
 
 unit_ParamKindAction_bad_id :: Assertion
 unit_ParamKindAction_bad_id =
-  progActionTest
+  progActionTest'
     (defaultProgEditableTypeDefs (pure []))
-    [ ParamKindAction tT pB [SetCursor 45, ConstructKFun]
-    , ParamKindAction tT pB [SetCursor 0, ConstructKType]
+    [ \p -> ParamKindAction tT pB [SetCursor $ paramKindID tT pB p, ConstructKFun]
+    , const $ ParamKindAction tT pB [SetCursor 0, ConstructKType]
     ]
     $ expectError (@?= ActionError (IDNotFound 0))
 
@@ -1801,3 +1802,32 @@ tcWholeProg = App.liftError ActionError . App.tcWholeProg
 
 readerToState :: MonadState r m => ReaderT r m a -> m a
 readerToState m = runReaderT m =<< get
+
+-- | Like 'progActionTest', but each action is computed from the program just before it is applied.
+-- This lets actions refer to nodes by ID without hardcoding the IDs, which would make the tests fragile,
+-- e.g. depending on the contents of the primitive module, and allows referring to nodes created by earlier actions.
+-- Note that each action is applied as a separate edit.
+progActionTest' :: S Prog -> [Prog -> ProgAction] -> (Prog -> Either ProgError Prog -> Assertion) -> Assertion
+progActionTest' inputProg actions testOutput = do
+  let prog = create' inputProg
+  let a = mkEmptyTestApp prog
+  a' <- case checkAppWellFormed a of
+    Left err -> assertFailure $ "checkAppWellFormed failed: " <> show err
+    Right a' -> pure a'
+  (r, _) <- runAppTestM a' $ foldlM (\p f -> handleEditRequest [f p]) (appProg a') actions
+  testOutput (appProg a') r
+
+-- | The ID of the kind of the given parameter of the given type definition.
+paramKindID :: TyConName -> TyVarName -> Prog -> ID
+paramKindID d p = getID . paramKind d p
+
+-- | The ID of the domain of the kind of the given parameter of the given type definition, which must be a function kind.
+paramKindDomainID :: TyConName -> TyVarName -> Prog -> ID
+paramKindDomainID d p prog = case paramKind d p prog of
+  KFun _ k _ -> getID k
+  k -> error $ "not a function kind: " <> show k
+
+paramKind :: TyConName -> TyVarName -> Prog -> Kind
+paramKind d p prog =
+  fromMaybe (error "couldn't find type parameter") $
+    fmap snd . find ((== p) . fst) . astTypeDefParameters =<< typeDefAST =<< Map.lookup d (foldMap' moduleTypesQualifiedMeta $ progModules prog)
