@@ -110,8 +110,11 @@ import Primer.Core (
   unsafeMkLocalName,
   _bindName,
   _chkedAt,
+  _exprLVarBind,
   _exprMetaLens,
+  _exprTyVarBind,
   _type,
+  _typeTyVarBind,
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -192,6 +195,7 @@ import Primer.Zipper (
   findNodeInType,
   findNodeWithParent,
   focus,
+  focusBind,
   focusKind,
   focusLVarBind,
   focusLoc,
@@ -491,6 +495,13 @@ applyAction' :: ActionM m => Action -> Loc -> m Loc
 applyAction' a = case a of
   NoOp -> pure
   SetCursor i -> setCursor i . unfocusLoc
+  Move Binding -> \case
+    InExpr z
+      | Just b <- focusBind _exprLVarBind z -> pure $ InBind $ BindLVar b
+      | Just b <- focusBind _exprTyVarBind z -> pure $ InBind $ BindTyVar b
+    InType z
+      | Just b <- focusBind _typeTyVarBind z -> pure $ InBind $ BindTyVarInType b
+    _ -> throwError $ CustomFailure (Move Binding) "this node does not introduce a (single) binding"
   Move m -> \case
     InExpr z -> InExpr <$> moveExpr m z
     InType z -> InType <$> moveType m z
@@ -642,6 +653,7 @@ move m z = do
     move' Child2 = pure . (down >=> right)
     move' (Branch _) = const $ throwError $ InternalFailure "move does not support Branch moves"
     move' (ConChild _) = const $ throwError $ InternalFailure "move does not support Constructor argument moves"
+    move' Binding = const $ throwError $ InternalFailure "move does not support Binding moves"
 
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d

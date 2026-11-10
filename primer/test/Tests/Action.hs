@@ -720,6 +720,30 @@ unit_binding_move_parent_type =
     [SetCursor 3, Move Parent, Delete]
     (emptyHole `ann` tEmptyHole)
 
+unit_move_binding :: Assertion
+unit_move_binding =
+  actionTest
+    NoSmartHoles
+    (lam "x" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Move Child1, Move Binding, RenameLam "y"]
+    (lam "y" emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+
+unit_move_binding_type :: Assertion
+unit_move_binding_type =
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` tforall "a" ktype (tcon tBool))
+    [EnterType, Move Binding, RenameForall "b"]
+    (emptyHole `ann` tforall "b" ktype (tcon tBool))
+
+unit_move_binding_none :: Assertion
+unit_move_binding_none =
+  actionTestExpectFail
+    (\case CustomFailure (Move Binding) _ -> True; _ -> False)
+    NoSmartHoles
+    (emptyHole `ann` tEmptyHole)
+    [Move Binding]
+
 unit_binding_delete :: Assertion
 unit_binding_delete =
   actionTestExpectFail
