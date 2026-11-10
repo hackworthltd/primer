@@ -194,6 +194,7 @@
               primer-benchmark
               primer-miso-build-frontend
               primer-miso-dist
+              primer-miso-serve
               primer-miso-frontend-tools
               primer-miso-node-modules
               wasm32-test-runner
@@ -256,7 +257,7 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend;
+              inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend primer-miso-serve;
             })
             // primerFlake.apps;
 
@@ -515,6 +516,10 @@
                     primer-miso-wasm = primerFlake.packages."wasm32-unknown-wasip1:primer-miso:exe:primer-miso";
                   };
 
+                  primer-miso-serve = final.callPackage ./nix/pkgs/primer-miso-serve {
+                    inherit primer-miso-dist;
+                  };
+
                   deploy-to-cloudflare = final.callPackage ./nix/pkgs/deploy-to-cloudflare { };
 
                   # Note: these benchmarks should only be run (in CI) on a
@@ -559,6 +564,7 @@
                     deploy-to-cloudflare
                     primer-miso-build-frontend
                     primer-miso-dist
+                    primer-miso-serve
                     primer-miso-frontend-tools
                     primer-miso-node-modules
                     wasm32-test-runner
