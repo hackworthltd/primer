@@ -195,7 +195,6 @@ import Primer.Zipper (
   findNodeInType,
   findNodeWithParent,
   focus,
-  focusBind,
   focusKind,
   focusLVarBind,
   focusLoc,
@@ -203,6 +202,7 @@ import Primer.Zipper (
   focusOnlyKind,
   focusOnlyType,
   focusOnlyTypeBind,
+  focusPart,
   focusTyVarBind,
   focusTyVarBindInType,
   focusType,
@@ -211,9 +211,9 @@ import Primer.Zipper (
   target,
   top,
   unfocus,
-  unfocusBind,
   unfocusExpr,
   unfocusLoc,
+  unfocusPart,
   unfocusType,
   unfocusTypeLoc,
   up,
@@ -497,10 +497,10 @@ applyAction' a = case a of
   SetCursor i -> setCursor i . unfocusLoc
   Move Binding -> \case
     InExpr z
-      | Just b <- focusBind _exprLVarBind z -> pure $ InBind $ BindLVar b
-      | Just b <- focusBind _exprTyVarBind z -> pure $ InBind $ BindTyVar b
+      | Just b <- focusPart _exprLVarBind z -> pure $ InBind $ BindLVar b
+      | Just b <- focusPart _exprTyVarBind z -> pure $ InBind $ BindTyVar b
     InType z
-      | Just b <- focusBind _typeTyVarBind z -> pure $ InBind $ BindTyVarInType b
+      | Just b <- focusPart _typeTyVarBind z -> pure $ InBind $ BindTyVarInType b
     _ -> throwError $ CustomFailure (Move Binding) "this node does not introduce a (single) binding"
   Move m -> \case
     InExpr z -> InExpr <$> moveExpr m z
@@ -509,9 +509,9 @@ applyAction' a = case a of
     InBind b -> case m of
       -- If we're moving up from a binding, then shift focus to the construct which introduces it.
       Parent -> pure $ case b of
-        BindLVar z -> InExpr $ unfocusBind z
-        BindTyVar z -> InExpr $ unfocusBind z
-        BindTyVarInType z -> InType $ unfocusBind z
+        BindLVar z -> InExpr $ unfocusPart z
+        BindTyVar z -> InExpr $ unfocusPart z
+        BindTyVarInType z -> InType $ unfocusPart z
       _ -> throwError $ CustomFailure (Move m) "Can only move up from a binding"
   Delete -> \case
     InExpr ze -> InExpr . flip replace ze <$> emptyHole
@@ -549,11 +549,11 @@ applyAction' a = case a of
   -- We rename a binding by renaming it in the construct which introduces it, after which we refocus on the binding.
   RenameBinding x -> \case
     InBind (BindLVar zb) ->
-      InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< renameTmBinding x (getID zb) (unfocusBind zb))
+      InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< renameTmBinding x (getID zb) (unfocusPart zb))
     InBind (BindTyVar zb) ->
-      InBind . BindTyVar <$> (refocusBind (focusTyVarBind $ getID zb) =<< renameTyBinding x (unfocusBind zb))
+      InBind . BindTyVar <$> (refocusBind (focusTyVarBind $ getID zb) =<< renameTyBinding x (unfocusPart zb))
     InBind (BindTyVarInType zb) ->
-      InBind . BindTyVarInType <$> (refocusBind (focusTyVarBindInType $ getID zb) =<< renameForall x (unfocusBind zb))
+      InBind . BindTyVarInType <$> (refocusBind (focusTyVarBindInType $ getID zb) =<< renameForall x (unfocusPart zb))
     _ -> throwError $ CustomFailure a "cannot rename this node - not a binding"
   EnterType -> \case
     InExpr ze -> InType <$> enterType ze

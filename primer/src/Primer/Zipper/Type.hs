@@ -61,19 +61,19 @@ import Primer.Core.Type (
 import Primer.Core.Type.Utils (boundVarsTy)
 import Primer.Name (Name)
 import Primer.Zipper.Nested (
-  BindZ,
   IsZipper,
+  PartZ,
   ZipNest (ZipNest),
   down,
   focus,
-  focusBind,
+  focusPart,
   innerZipNest,
   left,
   replace,
   right,
   target,
-  unfocusBind,
   unfocusNest,
+  unfocusPart,
   up,
  )
 
@@ -93,7 +93,7 @@ type KindTZ' b c = ZipNest (TypeZip' b c) (KindZip' c) (Kind' c)
 type KindTZ = KindTZ' TypeMeta KindMeta
 
 -- | A zipper for bindings of type variables, by a ∀ or type-level let, in types
-type TyBindZ' b c = BindZ (TypeZip' b c) (TyVarBind' b)
+type TyBindZ' b c = PartZ (TypeZip' b c) (TyVarBind' b)
 
 type TyBindZ = TyBindZ' TypeMeta KindMeta
 
@@ -126,7 +126,7 @@ unfocusTypeLoc :: Data c => TypeLoc' b c -> TypeZip' b c
 unfocusTypeLoc = \case
   TInType t -> t
   TInKind k -> unfocusKindT k
-  TInBind b -> unfocusBind b
+  TInBind b -> unfocusPart b
 
 -- | Switch from a 'Kind'-in-'Type' zipper back to an 'Type' zipper.
 unfocusKindT :: Data c => KindTZ' b c -> TypeZip' b c
@@ -177,7 +177,7 @@ focusOnTy' i = fmap snd . search matchesID
       -- If the current target has the correct ID, return that
       | getID (target z) == i = Just $ TInType z
       -- If the current target binds a variable with the correct ID, return that
-      | Just b <- focusBind _typeTyVarBind z, getID b == i = Just $ TInBind b
+      | Just b <- focusPart _typeTyVarBind z, getID b == i = Just $ TInBind b
       -- If the current target has a nested kind, search that
       | TForall m a k t <- target z = do
           (zk, _) <- search (guarded (== i) . getID) (focus k)

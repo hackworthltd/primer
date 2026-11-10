@@ -76,7 +76,7 @@ unit_focusOnTy_binding = do
       getID b @?= 1
       bindName (target b) @?= "a"
       getID (target $ unfocusTypeLoc $ TInBind b) @?= 0
-      case target $ unfocusTypeLoc $ TInBind $ replace (Bind (bindZFocus b ^. _bindMeta) "b") b of
+      case target $ unfocusTypeLoc $ TInBind $ replace (Bind (partZFocus b ^. _bindMeta) "b") b of
         TForall _ (Bind m "b") _ _ -> getID m @?= 1
         t' -> assertFailure $ "expected the binding to have been renamed, but got " <> show t'
     _ -> assertFailure "expected to focus on the binding"

@@ -267,12 +267,12 @@ import Primer.Typecheck (
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   BindLoc' (..),
-  BindZ (bindZFocus),
   ExprZ,
   KindTZ,
   KindZ,
   Loc,
   Loc' (InBind, InExpr, InKind, InType),
+  PartZ (partZFocus),
   TypeLoc,
   TypeLoc' (..),
   TypeZ,
@@ -628,16 +628,16 @@ locMeta = \case
   InExpr ze -> Left $ ze ^. _target % _exprMetaLens
   InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
   InKind zk -> Right $ Right $ zk ^. _target % _kindMetaLens
-  InBind (BindLVar zb) -> Left $ bindZFocus zb ^. _bindMeta
-  InBind (BindTyVar zb) -> Right $ Left $ bindZFocus zb ^. _bindMeta
-  InBind (BindTyVarInType zb) -> Right $ Left $ bindZFocus zb ^. _bindMeta
+  InBind (BindLVar zb) -> Left $ partZFocus zb ^. _bindMeta
+  InBind (BindTyVar zb) -> Right $ Left $ partZFocus zb ^. _bindMeta
+  InBind (BindTyVarInType zb) -> Right $ Left $ partZFocus zb ^. _bindMeta
 
 -- | As 'locMeta', but for locations in types.
 typeLocMeta :: TypeLoc -> Either TypeMeta KindMeta
 typeLocMeta = \case
   TInType zt -> Left $ zt ^. _target % _typeMetaLens
   TInKind zk -> Right $ zk ^. _target % _kindMetaLens
-  TInBind zb -> Left $ bindZFocus zb ^. _bindMeta
+  TInBind zb -> Left $ partZFocus zb ^. _bindMeta
 
 -- This only looks in the editable modules, not in any imports
 focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either Loc TypeLoc)

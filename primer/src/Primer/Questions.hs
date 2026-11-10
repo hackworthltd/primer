@@ -39,8 +39,8 @@ import Primer.Zipper (
   Loc,
   Loc' (InBind, InExpr, InKind, InType),
   TypeLoc,
-  unfocusBind,
   unfocusKind,
+  unfocusPart,
   unfocusTypeLoc,
  )
 import Primer.ZipperCxt (
@@ -87,9 +87,9 @@ variablesInScopeExpr defs loc =
         InExpr ze -> extractLocalsExprZ ze
         InType zt -> extractLocalsTypeZ zt
         InKind zk -> extractLocalsTypeZ $ unfocusKind zk
-        InBind (BindLVar zb) -> extractLocalsExprZ $ unfocusBind zb
-        InBind (BindTyVar zb) -> extractLocalsExprZ $ unfocusBind zb
-        InBind (BindTyVarInType zb) -> extractLocalsTypeZ $ unfocusBind zb
+        InBind (BindLVar zb) -> extractLocalsExprZ $ unfocusPart zb
+        InBind (BindTyVar zb) -> extractLocalsExprZ $ unfocusPart zb
+        InBind (BindTyVarInType zb) -> extractLocalsTypeZ $ unfocusPart zb
       globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
@@ -147,9 +147,9 @@ getAvoidSet = \case
   InExpr ze -> mkAvoidForFreshName ze
   InType zt -> mkAvoidForFreshNameTypeZ zt
   InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
-  InBind (BindLVar zb) -> mkAvoidForFreshName $ unfocusBind zb
-  InBind (BindTyVar zb) -> mkAvoidForFreshName $ unfocusBind zb
-  InBind (BindTyVarInType zb) -> mkAvoidForFreshNameTypeZ $ unfocusBind zb
+  InBind (BindLVar zb) -> mkAvoidForFreshName $ unfocusPart zb
+  InBind (BindTyVar zb) -> mkAvoidForFreshName $ unfocusPart zb
+  InBind (BindTyVarInType zb) -> mkAvoidForFreshNameTypeZ $ unfocusPart zb
 
 getAvoidSetTy :: MonadReader Cxt m => TypeLoc -> m (Set.Set Name)
 getAvoidSetTy = mkAvoidForFreshNameTy . unfocusTypeLoc

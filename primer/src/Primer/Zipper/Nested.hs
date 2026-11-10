@@ -6,10 +6,10 @@ module Primer.Zipper.Nested (
   unfocusNest,
   mergeNest,
   innerZipNest,
-  BindZ (..),
-  focusBind,
-  unfocusBind,
-  _bindZFocus,
+  PartZ (..),
+  focusPart,
+  unfocusPart,
+  _partZFocus,
   HasID (..),
   IsZipper (..),
   target,
@@ -118,36 +118,37 @@ replace = over asZipper . replaceHole
 instance IsZipper smallZip elt => IsZipper (ZipNest largeZip smallZip small) elt where
   asZipper = position @1 % asZipper
 
--- | A zipper focused on a variable binding @b@ (e.g. the @x@ in @λx. e@),
--- consisting of the binding itself, along with a zipper @z@ focused on the construct which introduces it.
+-- | A zipper focused on a part @b@ of a node which is not itself a node,
+-- such as a variable binding (e.g. the @x@ in @λx. e@),
+-- consisting of the part itself, along with a zipper @z@ focused on the node which contains it.
 -- Like 'ZipNest', this lets us focus on something embedded in a larger structure, without losing our place,
--- but since a binding has no interesting structure of its own, we don't need a zipper for it.
-data BindZ z b = BindZ
-  { bindZParent :: z
-  -- ^ a zipper focused on the construct which introduces the binding
-  , bindZFocus :: b
-  -- ^ the binding itself
-  , bindZUpdate :: b -> z -> z
-  -- ^ a function to replace the binding
+-- but since such a part has no interesting structure of its own, we don't need a zipper for it.
+data PartZ z b = PartZ
+  { partZParent :: z
+  -- ^ a zipper focused on the node which contains the part
+  , partZFocus :: b
+  -- ^ the part itself
+  , partZUpdate :: b -> z -> z
+  -- ^ a function to replace the part
   }
   deriving stock (Generic)
 
--- | Focus on a binding within the target of a zipper, if there is one.
-focusBind :: IsZipper z a => AffineTraversal' a b -> z -> Maybe (BindZ z b)
-focusBind l z = (\b -> BindZ z b (set $ _target % l)) <$> preview (_target % l) z
+-- | Focus on a part of the target of a zipper, if there is one.
+focusPart :: IsZipper z a => AffineTraversal' a b -> z -> Maybe (PartZ z b)
+focusPart l z = (\b -> PartZ z b (set $ _target % l)) <$> preview (_target % l) z
 
--- | Shift focus from a binding to the construct which introduces it.
-unfocusBind :: BindZ z b -> z
-unfocusBind = bindZParent
+-- | Shift focus from a part to the node which contains it.
+unfocusPart :: PartZ z b -> z
+unfocusPart = partZParent
 
--- | A lens for the focused binding, which keeps the parent zipper in sync.
-_bindZFocus :: Lens' (BindZ z b) b
-_bindZFocus = lens bindZFocus $ \(BindZ z _ u) b -> BindZ (u b z) b u
+-- | A lens for the focused part, which keeps the parent zipper in sync.
+_partZFocus :: Lens' (PartZ z b) b
+_partZFocus = lens partZFocus $ \(PartZ z _ u) b -> PartZ (u b z) b u
 
-instance HasID b => HasID (BindZ z b) where
-  _id = _bindZFocus % _id
+instance HasID b => HasID (PartZ z b) where
+  _id = _partZFocus % _id
 
--- | Like the instance for 'ZipNest', this means that functions such as 'target' and 'replace' see the binding.
--- But since bindings have no children, navigating (e.g. with 'up') will always fail.
-instance Data b => IsZipper (BindZ z b) b where
-  asZipper = _bindZFocus % iso zipper Z.fromZipper
+-- | Like the instance for 'ZipNest', this means that functions such as 'target' and 'replace' see the part.
+-- But since parts have no children, navigating (e.g. with 'up') will always fail.
+instance Data b => IsZipper (PartZ z b) b where
+  asZipper = _partZFocus % iso zipper Z.fromZipper

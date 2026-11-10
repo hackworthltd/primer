@@ -125,7 +125,7 @@ import Primer.Typecheck (
   instantiateValCons',
  )
 import Primer.Zipper (
-  BindZ (bindZFocus),
+  PartZ (partZFocus),
   SomeNode (..),
   TypeLoc' (..),
   findNodeInType,
@@ -659,7 +659,7 @@ options typeDefs defs cxt level def0 sel0 = \case
         pure $ case z of
           TInType zT -> TypeNode $ target zT
           TInKind zK -> KindNode $ target zK
-          TInBind zB -> TyVarBindNode $ bindZFocus zB
+          TInBind zB -> TyVarBindNode $ partZFocus zB
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
         SelectionDef sel -> do
