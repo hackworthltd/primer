@@ -101,7 +101,6 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   CaseFallback' (CaseExhaustive, CaseFallback),
-  Expr,
   Expr' (
     APP,
     Ann,
@@ -117,6 +116,7 @@ import Primer.Core (
     PrimCon,
     Var
   ),
+  GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
   Kind' (..),
@@ -155,9 +155,11 @@ import Primer.Miso.Layout (
  )
 import Primer.Miso.Util (
   ASTDefT (expr, sig),
+  EvalExprT,
   P2,
   SelectionT,
   TermMeta',
+  addExprInfo,
   assumeDefHasTypeCheckInfo,
   assumeDefSelectionHasTypeCheckInfo,
   assumeTypeDefHasTypeCheckInfo,
@@ -169,6 +171,7 @@ import Primer.Miso.Util (
   bindingsInType,
   clayToMiso,
   findASTTypeOrTermDef,
+  forgetExprInfo,
   kindsInType,
   nodeSelectionType,
   optToName,
@@ -179,6 +182,7 @@ import Primer.Miso.Util (
   setSelectionAction,
   showMs,
   stringToOpt,
+  syncDefs,
   typeBindingsInExpr,
  )
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
@@ -191,6 +195,7 @@ component =
     { model =
         Model
           { app = initialApp
+          , defsT = syncDefs $ snd <$> progAllDefs (appProg initialApp)
           , readOnlySelection = Nothing
           , components =
               ComponentModels
@@ -251,6 +256,8 @@ data Model = Model
   { app :: Primer.App.App
   , readOnlySelection :: Maybe SelectionT
   -- ^ A non-editable def is being viewed (e.g. from an imported module), rather than the selection in `app`.
+  , defsT :: Map GVarName ASTDefT
+  -- ^ The frontend versions of the definitions in `app`. See `syncDefs`.
   , components :: ComponentModels
   }
   deriving stock (Eq, Show, Generic)
@@ -278,7 +285,7 @@ data ActionPanelModel = ActionPanelModel
 data EvalModel = EvalModel
   { opts :: EvalOpts
   , fullscreen :: Bool
-  , history :: [(Expr, ([ID], Maybe ID), (ID, NameCounter))]
+  , history :: [(EvalExprT, ([ID], Maybe ID), (ID, NameCounter))]
   -- ^ The head is the result of non-interactive eval, and the rest are the steps which the student has chosen.
   -- Each step includes the produced expression as well as its redexes, and the counter state which produced it.
   }
@@ -397,6 +404,7 @@ updateModel = \case
     resetActionPanel
   SetApp a -> do
     #app .= a
+    #defsT .= syncDefs (snd <$> progAllDefs (appProg a))
     setEval
   SetEvalOpts f -> do
     #components % #eval % #opts %= f
@@ -407,7 +415,7 @@ updateModel = \case
     Right e -> do
       app <- use #app
       let (expr, s) = either absurd identity $ runTC (succ $ appIdCounter app, succ $ appNameCounter app) $ generateIDs e
-      #components % #eval % #history .= [(expr, ([], Nothing), s)]
+      #components % #eval % #history .= [(fromEvalResult expr, ([], Nothing), s)]
   ChooseRedex id -> do
     (tydefs, defs, _) <- getDefs <$> use #app
     use (#components % #eval % #history) >>= \case
@@ -423,7 +431,7 @@ updateModel = \case
               either absurd identity
                 . runTC s0
                 . runPureLogT
-                $ step opts.viewRedex.avoidShadowing' tydefs defs currentEvalExpr opts.dir id
+                $ step opts.viewRedex.avoidShadowing' tydefs defs (forgetExprInfo currentEvalExpr) opts.dir id
         io_ $ logAllToConsole @EvalLog evalStepLogs
         case evalStepResult of
           Left err -> io_ $ consoleLog $ "eval error: " <> showMs err
@@ -433,7 +441,7 @@ updateModel = \case
           Right (expr, _detail) -> do
             let (rxs, redexesLogs) = getRedexes opts tydefs defs expr
             io_ $ logAllToConsole redexesLogs
-            #components % #eval % #history %= ((expr, rxs, s1) :)
+            #components % #eval % #history %= ((fromEvalResult expr, rxs, s1) :)
   StepBackEval -> do
     (#components % #eval % #history) %= \case
       [] -> [] -- TODO warn here? this shouldn't happen since we don't display the button for this in this state
@@ -473,7 +481,7 @@ updateModel = \case
                     tydefs
                     (mkGlobalEnv tydefs defs)
                     opts.dir
-                    (forgetMetadata $ Ann (trivialMeta 0) (exprTtoExpr def.expr) (typeTtoType def.sig))
+                    (forgetMetadata $ Ann (trivialMeta 0) (exprTtoExpr $ forgetExprInfo def.expr) (typeTtoType def.sig))
         _ -> stepEval
     -- Evaluate the selected definition by stepping, up to the step limit.
     stepEval = do
@@ -492,15 +500,18 @@ updateModel = \case
                   . runTC (succ nextId, nextName)
                   . runPureLogT
                   . evalFull opts.normalOrder opts.viewRedex opts.runRedex tydefs defs opts.stepLimit opts.dir
-                  $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr def.expr) (typeTtoType def.sig)
+                  $ Ann (Meta nextId Nothing Nothing) (exprTtoExpr $ forgetExprInfo def.expr) (typeTtoType def.sig)
               expr = case evalResult of
                 Left (TimedOut e) -> e
                 Right e -> e
               (rxs, redexesLogs) = getRedexes opts tydefs defs expr
           io_ $ logAllToConsole @EvalLog evalFullLogs
           io_ $ logAllToConsole redexesLogs
-          pure EvalModel{opts, fullscreen, history = [(expr, rxs, s')]}
+          pure EvalModel{opts, fullscreen, history = [(fromEvalResult expr, rxs, s')]}
       #components % #eval .= evalModel
+    -- Note that any frontend-only metadata of the definition being evaluated, or of the previous step, is lost,
+    -- since the core doesn't pass it through (see `ExprInfo`).
+    fromEvalResult = addExprInfo
     -- TODO `findRedex` and `redexes` do a lot of the same work - we should find some way to use a single fold
     getRedexes (opts :: EvalOpts) tydefs defs expr = runIdentity $ runPureLogT @_ @(WithSeverity EvalLog) do
       normalOrderRedex <- runMaybeT $ getID <$> findRedex opts.normalOrder opts.viewRedex tydefs defs opts.dir expr
@@ -845,7 +856,7 @@ viewModel Model{..} =
                 second (Left . (sel',) . getTypeDef) . fromMaybe (error "selected def not found") $
                   tydefsWithEditableMeta !? d
               SelectionDef sel'@DefSelection{def = d} ->
-                second (Right . (sel',) . getDef) . fromMaybe (error "selected def not found") $
+                second (const $ Right (sel', getDef d)) . fromMaybe (error "selected def not found") $
                   defsWithEditable !? d
             mkMetaSelectable mkSel m =
               let s = mkSel m
@@ -857,10 +868,7 @@ viewModel Model{..} =
     prog = appProg app
     maybeDefSel = readOnlySelection <|> (getSelection <$> progSelection prog)
     -- TODO better error handling
-    getDef =
-      fromMaybe (error "selected def is not fully typechecked")
-        . maybe (error "unexpected primitive def") assumeDefHasTypeCheckInfo
-        . defAST
+    getDef d = fromMaybe (error "selected def is not fully typechecked") $ defsT !? d
     getTypeDef =
       fromMaybe (error "selected typedef is not fully typechecked")
         . maybe (error "unexpected primitive typedef") assumeTypeDefHasTypeCheckInfo

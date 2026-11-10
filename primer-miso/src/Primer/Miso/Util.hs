@@ -23,7 +23,13 @@ module Primer.Miso.Util (
   TypeDefNodeSelectionT,
   DefSelectionT,
   NodeSelectionT,
+  ExprT,
   ExprMetaT,
+  ExprInfo (..),
+  EvalExprT,
+  addExprInfo,
+  forgetExprInfo,
+  syncDefs,
   TypeMetaT,
   ASTTypeDefT,
   KindMetaT,
@@ -58,6 +64,7 @@ import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (WithSeverity)
 import Data.Aeson qualified as Aeson
 import Data.Bitraversable (bitraverse)
+import Data.Data (Data)
 import Data.Map qualified as Map
 import Data.String (String)
 import Data.UUID.Types qualified as UUID
@@ -135,13 +142,13 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Database qualified as DB
-import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr)
+import Primer.Def (ASTDef (..), Def (..), DefMap, astDefExpr, defAST)
 import Primer.Eval (AvoidShadowing (..), ViewRedexOptions (..))
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), TypeDefMap, ValCon (..))
-import Primer.Typecheck (ExprT, exprTtoExpr, typeTtoType)
+import Primer.Typecheck (exprTtoExpr, typeTtoType)
 import StmContainers.Map qualified as StmMap
 
 {- Miso -}
@@ -223,9 +230,39 @@ type TypeDefSelectionT = TypeDefSelection (TermMeta' ExprMetaT TypeMetaT KindMet
 type TypeDefNodeSelectionT = TypeDefNodeSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type DefSelectionT = DefSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
 type NodeSelectionT = NodeSelection (TermMeta' ExprMetaT TypeMetaT KindMetaT)
-type ExprMetaT = Meta TypeCache
+type ExprT = Expr' ExprMetaT TypeMetaT KindMetaT
+type ExprMetaT = Meta (ExprInfo TypeCache)
 type TypeMetaT = Meta (Kind' ())
 type KindMetaT = Meta ()
+
+-- | The metadata of expression nodes in the frontend, i.e. the result of type checking (of type @t@),
+-- along with any information which is only relevant to the frontend.
+-- We are parameterised over the former, since some expressions, e.g. those produced by evaluation,
+-- don't have (reliable) type information.
+--
+-- Note that the core doesn't know about the frontend-only information, so it is lost whenever we pass an expression
+-- through the core, e.g. when editing or evaluating. Ideally, the core would just pass through any extra metadata,
+-- which would also be a step towards not needing `assumeDefHasTypeCheckInfo`.
+data ExprInfo t = ExprInfo
+  { typeInfo :: t
+  }
+  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving (Aeson.ToJSON, Aeson.FromJSON) via PrimerJSON (ExprInfo t)
+
+-- | An expression which has been evaluated, and thus may not have reliable type information.
+type EvalExprT = Expr' (Meta (ExprInfo (Maybe TypeCache))) TypeMeta KindMeta
+
+addExprInfo :: Expr' (Meta t) b c -> Expr' (Meta (ExprInfo t)) b c
+addExprInfo = over (_exprMeta % _type) \typeInfo -> ExprInfo{typeInfo}
+
+forgetExprInfo :: Expr' (Meta (ExprInfo t)) b c -> Expr' (Meta t) b c
+forgetExprInfo = over (_exprMeta % _type) (.typeInfo)
+
+-- | Compute the frontend versions of all definitions, e.g. after a change to the program.
+-- Definitions which fail `assumeDefHasTypeCheckInfo` are dropped.
+syncDefs :: DefMap -> Map GVarName ASTDefT
+syncDefs = Map.mapMaybe $ assumeDefHasTypeCheckInfo <=< defAST
+
 data ASTDefT = ASTDefT {expr :: ExprT, sig :: TypeT} -- TODO parameterise `ASTDef` etc.?
   deriving stock (Eq, Show, Read, Generic)
   deriving (Aeson.ToJSON, Aeson.FromJSON) via PrimerJSON ASTDefT
@@ -265,7 +302,7 @@ bindingsInType = atraversalVL $ \point f -> \case
 nodeSelectionType :: TermMeta' ExprMetaT TypeMetaT KindMetaT -> Either (Type' () ()) (Either (Kind' ()) ())
 nodeSelectionType =
   bimap
-    (getAPIType . (^. _type))
+    (getAPIType . (.typeInfo) . (^. _type))
     (bimap (^. _type) (^. _type))
   where
     -- copied directly from innards of `getSelectionTypeOrKind`
@@ -295,7 +332,7 @@ nodeSelectionType =
 -- as being able to assume that metadata is always available makes the core application code simpler
 assumeDefHasTypeCheckInfo :: ASTDef -> Maybe ASTDefT
 assumeDefHasTypeCheckInfo def = do
-  expr <- sequenceOf (_exprMeta % _type) (astDefExpr def) >>= sequenceOf (_exprTypeMeta % _type)
+  expr <- addExprInfo <$> (sequenceOf (_exprMeta % _type) (astDefExpr def) >>= sequenceOf (_exprTypeMeta % _type))
   sig <- sequenceOf (_typeMeta % _type) (astDefType def)
   pure ASTDefT{expr, sig}
 assumeTypeDefHasTypeCheckInfo :: ASTTypeDef TypeMeta KindMeta -> Maybe ASTTypeDefT
@@ -314,13 +351,14 @@ assumeTypeDefSelectionHasTypeCheckInfo =
       TypeDefConsNodeSelection
         <$> traverseOf (#field % _Just) (traverseOf #meta assumeMetaHasTypeCheckInfo) s
 assumeMetaHasTypeCheckInfo :: Either ExprMeta (Either TypeMeta KindMeta) -> Maybe (Either ExprMetaT (Either TypeMetaT KindMetaT))
-assumeMetaHasTypeCheckInfo = bitraverse (sequenceOf _type) $ bitraverse (sequenceOf _type) pure
+assumeMetaHasTypeCheckInfo =
+  bitraverse (fmap (over _type \typeInfo -> ExprInfo{typeInfo}) . sequenceOf _type) $ bitraverse (sequenceOf _type) pure
 
 -- see `assumeDefHasTypeCheckInfo`
 -- sometimes we need to discard that extra type-level information,
 -- in order to get an input for various Primer library functions
 astDefTtoAstDef :: ASTDefT -> ASTDef
-astDefTtoAstDef def = ASTDef{astDefExpr = exprTtoExpr def.expr, astDefType = typeTtoType def.sig}
+astDefTtoAstDef def = ASTDef{astDefExpr = exprTtoExpr $ forgetExprInfo def.expr, astDefType = typeTtoType def.sig}
 astTypeDefTtoAstTypeDef :: ASTTypeDefT -> ASTTypeDef TypeMeta KindMeta
 astTypeDefTtoAstTypeDef = over (#astTypeDefConstructors % traversed % #valConArgs % traversed % _typeMeta % _type) Just
 
