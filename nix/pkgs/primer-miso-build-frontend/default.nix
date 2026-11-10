@@ -6,7 +6,7 @@
 , primer-miso-node-modules
 , stdenvNoCC
 , wasmGhc
-, buildFrontendScript ? ../../primer-miso-build-frontend
+, buildFrontendScript ? ../../../primer-miso/build-frontend.sh
 }:
 
 stdenvNoCC.mkDerivation {
