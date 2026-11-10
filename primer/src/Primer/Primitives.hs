@@ -44,6 +44,8 @@ module Primer.Primitives (
   Picture (..),
   exprToPicture,
   exprToPath,
+  exprToColour,
+  exprToDouble,
   exprToList,
   pathTrail,
 ) where
