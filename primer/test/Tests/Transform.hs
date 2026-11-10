@@ -259,6 +259,16 @@ unit_cross_capture_2 = do
   afterRenameCross "x" "y" (letrec "y" emptyHole tEmptyHole $ emptyHole `ann` tvar "x") Nothing
   afterRenameCross "x" "y" (case_ emptyHole [branch' (["M"], "C") [("y", Nothing)] $ emptyHole `ann` tvar "x"]) Nothing
 
+-- Even where @x@ is shadowed, so nothing need be renamed, we must not
+-- capture a free @y@, which the binding of @x@ we are renaming would become.
+-- (This was previously not checked when renaming type variables.)
+unit_cross_capture_3 :: Assertion
+unit_cross_capture_3 = do
+  afterRenameCross "x" "y" (lAM "x" $ emptyHole `aPP` tvar "y") Nothing
+  afterRenameCross "x" "y" (lam "x" $ emptyHole `ann` tvar "y") Nothing
+  -- whereas there is no such problem if @y@ is not free
+  afterRenameCross "x" "y" (lAM "x" $ emptyHole `aPP` tvar "x") (Just $ lAM "x" $ emptyHole `aPP` tvar "x")
+
 afterRename :: HasCallStack => LVarName -> LVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRename = afterRename' renameLocalVar clearMeta
 

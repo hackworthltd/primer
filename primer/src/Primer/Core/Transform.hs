@@ -15,20 +15,20 @@ module Primer.Core.Transform (
 import Foreword
 
 import Data.Data (Data)
-import Data.Generics.Uniplate.Data (descendM)
 import Data.List.NonEmpty qualified as NE
-import Optics (Field2 (_2), getting, noneOf, notElemOf, to, traverseOf, (%))
+import Optics (Field2 (_2), getting, noneOf, notElemOf, to, (%))
 import Primer.Core (
-  CaseBranch' (..),
   Expr' (..),
   LVarName,
-  LocalName (unLocalName),
+  LocalName (LocalName, unLocalName),
+  LocalNameKind (ATmVar),
+  SomeBind',
   TmVarRef (..),
   TyVarName,
   Type' (..),
   bindName,
-  traverseFallback,
-  typesInExpr,
+  scopedChildren,
+  scopedChildrenTy,
  )
 import Primer.Core.Meta (TyConName)
 import Primer.Core.Utils (_freeVars, _freeVarsTy)
@@ -42,63 +42,28 @@ import Primer.Core.Utils (_freeVars, _freeVarsTy)
 -- See the tests for explanation and examples.
 renameVar :: (Data a, Data b, Data c) => TmVarRef -> TmVarRef -> Expr' a b c -> Maybe (Expr' a b c)
 renameVar x y expr = case expr of
-  Lam _ v _
-    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
-    | sameVarRef (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  LAM _ v _
-    -- NB: local term and type variables are in the same namespace
-    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
-    | sameVarRef (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  Let m v e1 e2
-    -- the binding only scopes over e2
-    | sameVarRef (bindName v) x -> Let m v <$> renameVar x y e1 <*> whenNotFreeIn y e2
-    | sameVarRef (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  LetType _ v _ _
-    -- the binding only scopes over _e, but due to assuming well-scoped-ness,
-    -- we don't need to rename inside ty. However, we need to check y is
-    -- not free in both the type and term, as type and term variables live
-    -- in the same namespace, so can capture each other.
-    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
-    | sameVarRef (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  Letrec _ v _ _ _
-    -- the binding scopes over both expressions, and we need not rename inside types
-    -- however, we need to check y is not free in the type (since type and term
-    -- variables live in the same namespace).
-    | sameVarRef (bindName v) x -> whenNotFreeIn y expr
-    | sameVarRef (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  Case m scrut branches fallback -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches <*> traverseFallback (renameVar x y) fallback
-    where
-      renameBranch b@(CaseBranch con termargs rhs)
-        | any (`sameVarRef` y) $ bindingNames b = Nothing
-        | any (`sameVarRef` x) $ bindingNames b = guard (notFreeIn y rhs) >> pure b
-        | otherwise = CaseBranch con termargs <$> renameVar x y rhs
-      bindingNames (CaseBranch _ bs _) = map bindName bs
   Var m v
     | v == x -> pure $ Var m y
     | v == y -> Nothing
     | otherwise -> pure expr
-  Hole{} -> substAllChildren
-  EmptyHole{} -> substAllChildren
-  Ann{} -> substAllChildren
-  App{} -> substAllChildren
-  APP{} -> substAllChildren
-  Con{} -> substAllChildren
-  PrimCon{} -> substAllChildren
-  where
-    -- We assume the term is well-scoped, so do not have any references to the
-    -- term vars x,y inside any type child (e.g. annotation), so no need to
-    -- consider renaming inside them. However, but we do need to worry about
-    -- references to the type var y (term and type variables are in the same
-    -- namespace) -- we do not want to capture such a y.
-
-    substAllChildren = do
-      guard $ noneOf (typesInExpr % getting _freeVarsTy % _2) (`sameVarRef` y) expr
-      descendM (renameVar x y) expr
+  _ ->
+    scopedChildren
+      -- NB: local term and type variables are in the same namespace,
+      -- so a binding of either sort can shadow @x@ or capture @y@.
+      ( \bs e ->
+          renameUnder
+            (any (`sameVarRef` x) $ bindingNames bs)
+            (any (`sameVarRef` y) $ bindingNames bs)
+            (whenNotFreeIn y e)
+            (renameVar x y e)
+      )
+      -- We assume the term is well-scoped, so does not have any references to the
+      -- term vars x,y inside any type (e.g. annotation), so there is no need to
+      -- consider renaming inside them. However, we do need to worry about
+      -- references to the type var y (term and type variables are in the same
+      -- namespace): we do not want to capture such a y.
+      (\_ t -> t <$ guard (noneOf (getting _freeVarsTy % _2) (`sameVarRef` y) t))
+      expr
 
 whenNotFreeIn :: TmVarRef -> Expr' a b c -> Maybe (Expr' a b c)
 whenNotFreeIn x e = do
@@ -134,80 +99,49 @@ renameTyVar :: (Data a, Data b) => TyVarName -> TyVarName -> Type' a b -> Maybe 
 -- We cannot use substTy to implement renaming, as that restricts to b~(), so as to not
 -- duplicate metadata. But for renaming, we know that will not happen.
 renameTyVar x y ty = case ty of
-  TForall _ v _ _
-    | bindName v == x -> whenNotFreeInTy y ty
-    | bindName v == y -> Nothing
-    | otherwise -> substAllChildren
   TVar m v
     | v == x -> pure $ TVar m y
     | v == y -> Nothing
-    | otherwise -> substAllChildren
-  TLet m v t b
-    | bindName v == x -> TLet m v <$> renameTyVar x y t <*> whenNotFreeInTy y b
-    | bindName v == y -> Nothing
-    | otherwise -> substAllChildren
-  TEmptyHole{} -> substAllChildren
-  THole{} -> substAllChildren
-  TCon{} -> substAllChildren
-  TFun{} -> substAllChildren
-  TApp{} -> substAllChildren
-  where
-    substAllChildren = descendM (renameTyVar x y) ty
+    | otherwise -> pure ty
+  _ ->
+    scopedChildrenTy
+      (\bs t -> renameUnder (x `elem` (bindName <$> bs)) (y `elem` (bindName <$> bs)) (whenNotFreeInTy y t) (renameTyVar x y t))
+      ty
 
 -- | Attempt to replace all free ocurrences of @x@ in some type inside @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
 renameTyVarExpr :: forall a b c. (Data a, Data b, Data c) => TyVarName -> TyVarName -> Expr' a b c -> Maybe (Expr' a b c)
 renameTyVarExpr x y expr = case expr of
-  Lam _ v _
-    | sameVar (bindName v) x -> pure expr
-    | sameVar (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  LAM _ v _
-    | bindName v == x -> pure expr
-    | bindName v == y -> Nothing
-    | otherwise -> substAllChildren
-  Let m v e1 e2
-    -- the binding only scopes over e2
-    | sameVar (bindName v) x -> Let m v <$> renameTyVarExpr x y e1 <*> pure e2
-    | sameVar (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  LetType m v ty e
-    -- the binding only scopes over e
-    | sameVar (bindName v) x -> LetType m v <$> renameTyVar x y ty <*> pure e
-    | sameVar (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  Letrec m v e1 ty e2
-    -- the binding only scopes over e1 and e2
-    | sameVar (bindName v) x -> Letrec m v e1 <$> renameTyVar x y ty <*> pure e2
-    | sameVar (bindName v) y -> Nothing
-    | otherwise -> substAllChildren
-  Case m scrut branches fallback -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches <*> traverseFallback (renameTyVarExpr x y) fallback
-    where
-      renameBranch b@(CaseBranch con termargs rhs)
-        | any (sameVar x) $ bindingNames b = pure b
-        | any (sameVar y) $ bindingNames b = Nothing
-        | otherwise = CaseBranch con termargs <$> renameTyVarExpr x y rhs
-      bindingNames (CaseBranch _ bs _) = map bindName bs
   -- Since term and type variables are in the same namespace, we need
   -- to worry about references to the term var y since we do not want
   -- to capture such a y.
   Var _ v
     | sameVarRef y v -> Nothing
     | otherwise -> pure expr
-  Hole{} -> substAllChildren
-  EmptyHole{} -> substAllChildren
-  Ann{} -> substAllChildren
-  App{} -> substAllChildren
-  APP{} -> substAllChildren
-  Con{} -> substAllChildren
-  PrimCon{} -> substAllChildren
+  _ ->
+    scopedChildren
+      (\bs e -> renameUnder (shadows bs) (captures bs) (whenNotFreeIn (LocalVarRef $ LocalName $ unLocalName y) e) (renameTyVarExpr x y e))
+      (\bs t -> renameUnder (shadows bs) (captures bs) (whenNotFreeInTy y t) (renameTyVar x y t))
+      expr
   where
-    substAllChildren = descendM (renameTyVarExpr x y) =<< descendTypeM (renameTyVar x y) expr
-    -- NB: cannot use descendBiM here: I want only immediate type
-    -- children, but descendBiM does "top-most" type children: i.e. (λx.x:t)
-    -- will target t even though it is two layers deep!
-    descendTypeM = traverseOf typesInExpr
+    shadows = any (sameVar x) . bindingNames
+    captures = any (sameVar y) . bindingNames
+
+-- | How to rename within a child of a node, given whether the bindings introduced by that node which scope over it
+-- shadow the variable being renamed, and whether they would capture the new name.
+-- If the variable is shadowed, there is nothing to rename within the child, but we must still check that the new name
+-- does not occur free in it, since it would then be captured by the binding we are renaming.
+-- Otherwise, if a binding has the new name, renaming within the child would result in capture.
+renameUnder :: Bool -> Bool -> Maybe a -> Maybe a -> Maybe a
+renameUnder shadowed capturing whenShadowed renamed
+  | shadowed = whenShadowed
+  | capturing = Nothing
+  | otherwise = renamed
+
+-- | The names of some bindings, of either term or type variables.
+bindingNames :: [SomeBind' a b] -> [LocalName 'ATmVar]
+bindingNames = map $ LocalName . either (unLocalName . bindName) (unLocalName . bindName)
 
 -- | Unfold a nested term application into the application head and a list of arguments.
 unfoldApp :: Expr' a b c -> (Expr' a b c, [Expr' a b c])
