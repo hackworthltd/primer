@@ -1,4 +1,4 @@
-index-state: 2026-04-19T00:00:00Z
+index-state: 2026-11-07T22:48:03Z
 jobs: $ncpus
 packages:
   primer
@@ -9,6 +9,10 @@ packages:
 if arch(wasm32)
   -- Required for TemplateHaskell support on Wasm targets.
   shared: True
+  -- Avoids a C++ dynamic linker error.
+  constraints:
+    text installed,
+
   haddock-hoogle: False
   haddock-html: False
   haddock-quickjump: False
@@ -17,7 +21,6 @@ if arch(wasm32)
 
   package *
     optimization: 2
-    ghc-options: -fno-external-interpreter
 else
   optimization: 0
   haddock-hoogle: True
@@ -31,27 +34,13 @@ else
 
 benchmarks: True
 tests: True
---allow-newer: hedgehog:pretty-show, hedgehog-classes:pretty-show, hedgehog-classes:hedgehog, *:time, logging-effect:base, servant:base, http-api-data:base
-allow-newer: all
+-- https://github.com/hedgehogqa/haskell-hedgehog-classes/pull/65
+allow-newer: hedgehog-classes:base, hedgehog-classes:containers, hedgehog-classes:hedgehog
+-- https://github.com/protolude/protolude/pull/153
+allow-newer: protolude:base, protolude:containers
 
 package primer
   test-options: "--size-cutoff=32768"
 
 package primer-api
   test-options: "--size-cutoff=32768"
-
-if arch(wasm32)
-  package tasty
-    flags: -unix
-
--- To generate the SHA (required by `haskell.nix`) for
--- `source-repository-packages`, e.g., for Miso:
---
--- nix run nixpkgs#nix-prefetch-git https://github.com/haskell-miso/miso.git <tag>
--- Upstream requires `happy` at build time, which doesn't work on Wasm
--- targets.
-source-repository-package
-  type: git
-  location: https://github.com/hackworthltd/pretty-show
-  --sha256: sha256-mu8Eq0Sg6nCF8C2sXB6ebZcLhz8TVZAbNMiorA7RVc8=
-  tag: 91d119cb0e3c5f7d866589b25158739580c8fc88
