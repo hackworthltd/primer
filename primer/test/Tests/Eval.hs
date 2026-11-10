@@ -172,7 +172,9 @@ unit_tryReduce_beta_annotation = do
       r ~~= resultType
       -- The lambda's binding becomes the let's
       case (expr, lambda) of
-        (Ann _ (Let _ b _ _) _, Lam _ b' _) -> getID b @?= getID b'
+        (Ann _ (Let _ b _ _) _, Lam _ b' _) -> do
+          getID b @?= getID b'
+          detail.bindingID @?= getID b'
         _ -> assertFailure "expected a let and a lambda"
     _ -> assertFailure $ show result
 
@@ -219,6 +221,7 @@ unit_tryReduce_BETA = do
       case (expr, input) of
         (Ann _ (LetType _ b _ _) (TLet _ c _ _), APP _ (Ann _ (LAM _ b' _) (TForall _ c' _ _)) _) -> do
           getID b @?= getID b'
+          detail.bindingID @?= getID b'
           getID c @?= getID c'
         _ -> assertFailure "expected a let type, type-level let, Λ and ∀"
     _ -> assertFailure $ show result
@@ -288,6 +291,7 @@ unit_tryReduce_let_self_capture = do
       detail.letID @?= 0
       detail.varID @?= 3
       detail.bindingName @?= "x"
+      detail.bindingID @?= 1
       detail.valueID @?= 2
       detail.replacementID @?= 2
       detail.isTypeVar @?= False
@@ -357,6 +361,7 @@ unit_tryReduce_tlet_self_capture = do
       detail.letID @?= 0
       detail.varID @?= 3
       detail.bindingName @?= "x"
+      detail.bindingID @?= 1
       detail.valueID @?= 2
       detail.replacementID @?= 2
       detail.isTypeVar @?= True

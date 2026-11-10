@@ -26,6 +26,8 @@ data BetaReductionDetail k domain codomain = BetaReductionDetail
   { before :: Expr
   , after :: Expr
   , bindingName :: LocalName k
+  , bindingID :: ID
+  -- ^ The ID of the binding of the λ or Λ, which becomes that of the let or let type
   , lambdaID :: ID
   , letID :: ID
   , argID :: ID

@@ -256,6 +256,8 @@ data Redex
     InlineLet
       { var :: LVarName
       -- ^ What variable are we inlining
+      , bindingID :: ID
+      -- ^ The ID of its binding (used for details)
       , expr :: Expr
       -- ^ What is its definition
       , letID :: ID
@@ -273,6 +275,8 @@ data Redex
     InlineLetrec
       { var :: LVarName
       -- ^ What variable are we inlining
+      , bindingID :: ID
+      -- ^ The ID of its binding (used for details)
       , expr :: Expr
       -- ^ What is its definition
       , ty :: Type
@@ -453,6 +457,8 @@ data RedexType
     InlineLetInType
       { var :: TyVarName
       -- ^ What variable are we inlining (used for finding normal-order redex)
+      , bindingID :: ID
+      -- ^ The ID of its binding (used for details)
       , ty :: Type
       -- ^ What is its definition (used for reduction)
       , letID :: ID
@@ -690,20 +696,22 @@ viewRedex opts tydefs globals dir = \case
     | Just (DefAST def) <- gvar `M.lookup` globals ->
         pure $
           InlineGlobal{gvar, def, orig}
-  Let mLet (Bind _ var) rhs (Var mVar (LocalVarRef var'))
+  Let mLet (Bind mBind var) rhs (Var mVar (LocalVarRef var'))
     | var == var' ->
         pure $
           InlineLet
             { var
+            , bindingID = getID mBind
             , expr = rhs
             , letID = getID mLet
             , varID = getID mVar
             }
-  Letrec mLet (Bind _ var) rhs ty (Var mVar (LocalVarRef var'))
+  Letrec mLet (Bind mBind var) rhs ty (Var mVar (LocalVarRef var'))
     | var == var' ->
         pure $
           InlineLetrec
             { var
+            , bindingID = getID mBind
             , expr = rhs
             , ty
             , letID = getID mLet
@@ -873,11 +881,12 @@ foldLetBindingsTy ls t =
 
 viewRedexType :: ViewRedexOptions -> Type -> Reader Cxt (Maybe RedexType)
 viewRedexType opts = \case
-  TLet mLet (Bind _ v) s (TVar mVar var)
+  TLet mLet (Bind mBind v) s (TVar mVar var)
     | v == var ->
         purer $
           InlineLetInType
             { var
+            , bindingID = getID mBind
             , ty = s
             , letID = getID mLet
             , varID = getID mVar
@@ -985,18 +994,19 @@ runRedex opts = \case
     after <- ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
     let details = GlobalVarInlineDetail{def, var = orig, after}
     pure (after, GlobalVarInline details)
-  InlineLet{var, expr, letID, varID} -> do
+  InlineLet{var, bindingID, expr, letID, varID} -> do
     let details =
           LocalVarInlineDetail
             { letID
             , varID
             , valueID = getID expr
             , bindingName = var
+            , bindingID
             , replacementID = getID expr
             , isTypeVar = False
             }
     pure (expr, LocalVarInline details)
-  InlineLetrec{var, expr, ty, letID, varID} -> do
+  InlineLetrec{var, bindingID, expr, ty, letID, varID} -> do
     expr' <- ann (letrec var (pure expr) (pure ty) $ regenerateExprIDs expr) (regenerateTypeIDs ty)
     let details =
           LocalVarInlineDetail
@@ -1004,6 +1014,7 @@ runRedex opts = \case
             , varID
             , valueID = getID expr
             , bindingName = var
+            , bindingID
             , replacementID = getID expr'
             , isTypeVar = False
             }
@@ -1041,6 +1052,7 @@ runRedex opts = \case
             { before = orig
             , after = expr'
             , bindingName = bindName binder
+            , bindingID = getID binder
             , lambdaID = lamID
             , letID = getID expr'
             , argID = getID app
@@ -1059,6 +1071,7 @@ runRedex opts = \case
             { before = orig
             , after = expr'
             , bindingName = bindName tyBinder
+            , bindingID = getID tyBinder
             , lambdaID = lamID
             , letID = getID expr'
             , argID = getID argTy
@@ -1299,13 +1312,14 @@ partitionLetsTy ls t =
       ls
 
 runRedexTy :: MonadEval l m => RunRedexOptions -> RedexType -> m (Type, EvalDetail)
-runRedexTy _opts (InlineLetInType{ty, letID, varID, var}) = do
+runRedexTy _opts (InlineLetInType{ty, letID, varID, var, bindingID}) = do
   let details =
         LocalVarInlineDetail
           { letID
           , varID
           , valueID = getID ty
           , bindingName = var
+          , bindingID
           , replacementID = getID ty
           , isTypeVar = True
           }

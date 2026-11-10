@@ -30,6 +30,7 @@
                 ],
                 "tag": "EmptyHole"
             },
+            "bindingID": 0,
             "bindingName": "x",
             "bodyID": 0,
             "lambdaID": 0,

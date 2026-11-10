@@ -22,6 +22,8 @@ data LocalVarInlineDetail k = LocalVarInlineDetail
   -- ^ ID of the variable being replaced
   , bindingName :: LocalName k
   -- ^ Name of the variable
+  , bindingID :: ID
+  -- ^ ID of the binding of the variable, in the let
   , valueID :: ID
   -- ^ ID of the expression or type that the variable is bound to
   , replacementID :: ID

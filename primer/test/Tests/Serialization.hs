@@ -53,6 +53,7 @@ import Primer.Eval (
     after,
     argID,
     before,
+    bindingID,
     bindingName,
     bodyID,
     lambdaID,
@@ -170,6 +171,7 @@ fixtures =
             { before = expr
             , after = expr
             , bindingName = "x"
+            , bindingID = id0
             , lambdaID = id0
             , letID = id0
             , argID = id0
