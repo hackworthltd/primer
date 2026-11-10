@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 
+# Package the Wasm frontend into a directory that can be served as-is.
+#
+# This script is used in two quite different ways:
+#
+# - By `primer-miso-dist` (via the `primer-miso-build-frontend` package), in a
+#   sandboxed Nix build, with `--prod` and a `--wasm` built by Haskell.nix. The
+#   package's wrapper provides the tools and environment variables we need.
+#
+# - By `make frontend` and `make frontend-prod` in `primer-miso`, run directly
+#   from the `nix develop` shell, with the Wasm found via
+#   `wasm32-unknown-wasip1-cabal list-bin`. The shell provides the tools and
+#   environment variables we need.
+#
+# So to stay compatible with both, we take all inputs from flags or environment
+# variables, use only tools from `PATH`, and write only to the output
+# directory. If this needs a new tool or variable, add it to both the package's
+# wrapper and the shell.
+
 set -euo pipefail
 
 program_name=${BUILD_FRONTEND_NAME:-${0##*/}}
