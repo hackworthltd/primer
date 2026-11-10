@@ -481,7 +481,7 @@
                         hlint
                         fourmolu
 
-                        simple-http-server
+                        http-server
                       ]);
 
                       nativeBuildInputs = [
