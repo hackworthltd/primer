@@ -40,7 +40,6 @@ import Primer.Zipper (
   Loc' (InBind, InExpr, InKind, InType),
   TypeLoc,
   unfocusBind,
-  unfocusCaseBind,
   unfocusKind,
   unfocusTypeLoc,
  )
@@ -88,7 +87,6 @@ variablesInScopeExpr defs loc =
         InExpr ze -> extractLocalsExprZ ze
         InType zt -> extractLocalsTypeZ zt
         InKind zk -> extractLocalsTypeZ $ unfocusKind zk
-        InBind (BindCase zb) -> extractLocalsExprZ $ unfocusCaseBind zb
         InBind (BindLVar zb) -> extractLocalsExprZ $ unfocusBind zb
         InBind (BindTyVar zb) -> extractLocalsExprZ $ unfocusBind zb
         InBind (BindTyVarInType zb) -> extractLocalsTypeZ $ unfocusBind zb
@@ -149,7 +147,6 @@ getAvoidSet = \case
   InExpr ze -> mkAvoidForFreshName ze
   InType zt -> mkAvoidForFreshNameTypeZ zt
   InKind zk -> mkAvoidForFreshNameTypeZ $ unfocusKind zk
-  InBind (BindCase zb) -> mkAvoidForFreshName $ unfocusCaseBind zb
   InBind (BindLVar zb) -> mkAvoidForFreshName $ unfocusBind zb
   InBind (BindTyVar zb) -> mkAvoidForFreshName $ unfocusBind zb
   InBind (BindTyVarInType zb) -> mkAvoidForFreshNameTypeZ $ unfocusBind zb

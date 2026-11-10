@@ -28,6 +28,7 @@ module Primer.Core (
   _exprKindMeta,
   typesInExpr,
   _exprLVarBind,
+  _exprLVarBinds,
   _exprTyVarBind,
 ) where
 
@@ -42,8 +43,11 @@ import Optics (
   AffineTraversal',
   Lens',
   Traversal,
+  Traversal',
   afailing,
   atraversalVL,
+  traversalVL,
+  traverseOf,
   (%),
  )
 import Primer.Core.Meta (
@@ -376,6 +380,13 @@ _exprLVarBind = atraversalVL $ \point f -> \case
   Let m v e1 e2 -> f v <&> \v' -> Let m v' e1 e2
   Letrec m v e1 t e2 -> f v <&> \v' -> Letrec m v' e1 t e2
   e -> point e
+
+-- | All the bindings of term variables introduced by this node,
+-- i.e. that of a λ, let or letrec, or those of each branch of a case.
+_exprLVarBinds :: Traversal' (Expr' a b c) (LVarBind' a)
+_exprLVarBinds = traversalVL $ \f -> \case
+  Case m e bs fb -> Case m e <$> traverse (\(CaseBranch p vs rhs) -> CaseBranch p <$> traverse f vs <*> pure rhs) bs <*> pure fb
+  e -> traverseOf _exprLVarBind f e
 
 -- | The binding of a type variable introduced by this node, i.e. by a Λ or let type, if any.
 _exprTyVarBind :: AffineTraversal' (Expr' a b c) (TyVarBind' b)

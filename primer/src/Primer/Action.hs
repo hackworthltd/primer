@@ -36,7 +36,6 @@ import Data.Aeson (Value)
 import Data.Bifunctor.Swap qualified as Swap
 import Data.Bitraversable (bisequence)
 import Data.Functor.Compose (Compose (..))
-import Data.Generics.Product (typed)
 import Data.Generics.Uniplate.Zipper (fromZipper)
 import Data.List (delete, findIndex, insertBy)
 import Data.List.NonEmpty qualified as NE
@@ -109,12 +108,10 @@ import Primer.Core (
   qualifiedModule,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _bindName,
   _chkedAt,
-  _exprLVarBind,
   _exprMetaLens,
-  _exprTyVarBind,
   _type,
-  _typeTyVarBind,
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -182,7 +179,6 @@ import Primer.Typecheck (
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   BindLoc' (..),
-  CaseBindZ,
   ExprZ,
   IsZipper,
   KindZ,
@@ -196,13 +192,15 @@ import Primer.Zipper (
   findNodeInType,
   findNodeWithParent,
   focus,
-  focusBind,
   focusKind,
+  focusLVarBind,
   focusLoc,
   focusOn,
   focusOnlyKind,
   focusOnlyType,
   focusOnlyTypeBind,
+  focusTyVarBind,
+  focusTyVarBindInType,
   focusType,
   replace,
   right,
@@ -210,13 +208,11 @@ import Primer.Zipper (
   top,
   unfocus,
   unfocusBind,
-  unfocusCaseBind,
   unfocusExpr,
   unfocusLoc,
   unfocusType,
   unfocusTypeLoc,
   up,
-  updateCaseBind,
   _target,
  )
 import Primer.Zipper.Type (KindZip, focusOnlyKindT)
@@ -502,7 +498,6 @@ applyAction' a = case a of
     InBind b -> case m of
       -- If we're moving up from a binding, then shift focus to the construct which introduces it.
       Parent -> pure $ case b of
-        BindCase z -> InExpr $ unfocusCaseBind z
         BindLVar z -> InExpr $ unfocusBind z
         BindTyVar z -> InExpr $ unfocusBind z
         BindTyVarInType z -> InType $ unfocusBind z
@@ -516,7 +511,6 @@ applyAction' a = case a of
     InExpr ze -> pure $ InExpr $ setMetadata d ze
     InType zt -> pure $ InType $ setMetadata d zt
     InKind zk -> pure $ InKind $ setMetadata d zk
-    InBind (BindCase zb) -> pure $ InBind $ BindCase $ setMetadata d zb
     InBind (BindLVar zb) -> pure $ InBind $ BindLVar $ setMetadata d zb
     InBind (BindTyVar zb) -> pure $ InBind $ BindTyVar $ setMetadata d zb
     InBind (BindTyVarInType zb) -> pure $ InBind $ BindTyVarInType $ setMetadata d zb
@@ -558,7 +552,7 @@ applyAction' a = case a of
   ConstructTApp -> typeAction constructTApp "cannot construct type-level application in expr"
   RenameForall x -> typeBindingAction (renameForall x) "cannot rename forall in expr"
   RenameCaseBinding x -> \case
-    InBind (BindCase z) -> InBind . BindCase <$> renameCaseBinding x z
+    InBind (BindLVar zb) -> InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< renameCaseBinding x (getID zb) (unfocusBind zb))
     _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
   ConstructKType -> kindAction constructKType "cannot construct the kind 'Type' - not in kind"
   ConstructKFun -> kindAction constructKFun "cannot construct the arrow kind - not in kind"
@@ -573,14 +567,14 @@ applyAction' a = case a of
     -- or to the construct which introduces it. In the former case, we remain focused on the binding.
     bindingAction f s = \case
       InExpr ze -> InExpr <$> f ze
-      InBind (BindLVar zb) -> InBind . BindLVar <$> (refocusBind _exprLVarBind =<< f (unfocusBind zb))
-      InBind (BindTyVar zb) -> InBind . BindTyVar <$> (refocusBind _exprTyVarBind =<< f (unfocusBind zb))
+      InBind (BindLVar zb) -> InBind . BindLVar <$> (refocusBind (focusLVarBind $ getID zb) =<< f (unfocusBind zb))
+      InBind (BindTyVar zb) -> InBind . BindTyVar <$> (refocusBind (focusTyVarBind $ getID zb) =<< f (unfocusBind zb))
       _ -> throwError $ CustomFailure a s
     typeBindingAction f s = \case
       InType zt -> InType <$> f zt
-      InBind (BindTyVarInType zb) -> InBind . BindTyVarInType <$> (refocusBind _typeTyVarBind =<< f (unfocusBind zb))
+      InBind (BindTyVarInType zb) -> InBind . BindTyVarInType <$> (refocusBind (focusTyVarBindInType $ getID zb) =<< f (unfocusBind zb))
       _ -> throwError $ CustomFailure a s
-    refocusBind l = maybe (throwError $ InternalFailure "binding disappeared") pure . focusBind l
+    refocusBind g = maybe (throwError $ InternalFailure "binding disappeared") pure . g
     kindAction f s = \case
       InKind zt -> InKind <$> f zt
       _ -> throwError $ CustomFailure a s
@@ -1099,24 +1093,25 @@ renameLet y ze = case target ze of
     rename' :: MonadError ActionError m => TyVarName -> TyVarName -> Expr -> m Expr
     rename' fromName toName e = maybe (throwError NameCapture) pure $ renameTyVarExpr fromName toName e
 
-renameCaseBinding :: forall m. MonadError ActionError m => Text -> CaseBindZ -> m CaseBindZ
-renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs -> do
-  let y' = unsafeMkLocalName y
-
-  -- Check that 'y' doesn't clash with any of the other branch bindings
-  let otherBindingNames = bindName <$> otherBindings
-  when (y' `elem` otherBindingNames) $ throwError $ CaseBindsClash y' otherBindingNames
-
-  -- Apply the rename to the rhs
-  rhs' <- case renameLocalVar (bindName bind) y' rhs of
-    Just e -> pure e
-    Nothing -> throwError NameCapture
-
-  -- Rename the binding
-  let bind' = set (typed @LVarName) y' bind
-
-  -- Update the outer expression with these changes
-  pure (bind', rhs')
+-- | Rename the binding with the given ID in one of the branches of the focused case expression,
+-- along with its occurrences in the right hand side of that branch.
+renameCaseBinding :: forall m. MonadError ActionError m => Text -> ID -> ExprZ -> m ExprZ
+renameCaseBinding y i ze = case target ze of
+  Case m scrut branches fb -> do
+    branches' <- traverse renameInBranch branches
+    pure $ replace (Case m scrut branches' fb) ze
+  _ -> throwError $ CustomFailure (RenameCaseBinding y) "the focused expression is not a case"
+  where
+    y' = unsafeMkLocalName y
+    renameInBranch br@(CaseBranch p binds rhs) = case break ((== i) . getID) binds of
+      (_, []) -> pure br
+      (before, bind : after) -> do
+        -- Check that 'y' doesn't clash with any of the other branch bindings
+        let otherBindingNames = bindName <$> before <> after
+        when (y' `elem` otherBindingNames) $ throwError $ CaseBindsClash y' otherBindingNames
+        -- Apply the rename to the rhs
+        rhs' <- maybe (throwError NameCapture) pure $ renameLocalVar (bindName bind) y' rhs
+        pure $ CaseBranch p (before <> (set _bindName y' bind : after)) rhs'
 
 enterType :: MonadError ActionError m => ExprZ -> m TypeZ
 enterType z = case focusType z of

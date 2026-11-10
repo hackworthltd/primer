@@ -277,7 +277,6 @@ import Primer.Zipper (
   TypeLoc' (..),
   TypeZ,
   TypeZip,
-  caseBindZMeta,
   current,
   focusLoc,
   focusOn,
@@ -629,7 +628,6 @@ locMeta = \case
   InExpr ze -> Left $ ze ^. _target % _exprMetaLens
   InType zt -> Right $ Left $ zt ^. _target % _typeMetaLens
   InKind zk -> Right $ Right $ zk ^. _target % _kindMetaLens
-  InBind (BindCase zb) -> Left $ zb ^. caseBindZMeta
   InBind (BindLVar zb) -> Left $ bindZFocus zb ^. _bindMeta
   InBind (BindTyVar zb) -> Right $ Left $ bindZFocus zb ^. _bindMeta
   InBind (BindTyVarInType zb) -> Right $ Left $ bindZFocus zb ^. _bindMeta
