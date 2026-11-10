@@ -58,7 +58,6 @@ module Primer.Zipper (
   prior,
   foldAbove,
   foldAboveTypeZ,
-  foldBelow,
   unfocusExpr,
   unfocusLoc,
   bindersAbove,
@@ -86,6 +85,7 @@ module Primer.Zipper (
 import Foreword
 
 import Data.Data (Data)
+import Data.Generics.Uniplate.Data (universeBi)
 import Data.Generics.Uniplate.Zipper (
   Zipper,
   fromZipper,
@@ -166,7 +166,6 @@ import Primer.Zipper.Type (
   focusOnTy,
   focusOnTy',
   foldAbove,
-  foldBelow,
   getBoundHereDnTy,
   getBoundHereTy,
   getBoundHereUpTy,
@@ -406,11 +405,12 @@ bindersAboveTypeZ =
 getBoundHereUp :: (Eq a, Eq b, Eq c) => FoldAbove (Expr' a b c) -> S.Set Name
 getBoundHereUp e = getBoundHere (current e) (Just $ prior e)
 
--- Get the names bound within the focussed subtree
+-- | The names bound anywhere within the focussed subtree, including within types.
 bindersBelow :: ExprZ -> S.Set Name
-bindersBelow = foldBelow $ \e ->
-  getBoundHereDn e
-    <> maybe mempty (S.map unLocalName . bindersBelowTy . focusOnlyType) (focusType $ focus e)
+bindersBelow z =
+  S.fromList $
+    map (unLocalName . bindName) (universeBi @_ @LVarBind $ target z)
+      <> map (unLocalName . bindName) (universeBi @_ @TyVarBind $ target z)
 
 -- Get all names bound by this layer of an expression, for any child.
 -- E.g. for a "match" we get all vars bound by each branch.

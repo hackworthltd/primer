@@ -22,7 +22,6 @@ module Primer.Zipper.Type (
   FoldAbove,
   FoldAbove' (FA, current, prior),
   foldAbove,
-  foldBelow,
   bindersAboveTy,
   LetTypeBinding' (LetTypeBind),
   LetTypeBinding,
@@ -59,6 +58,7 @@ import Primer.Core.Type (
   TypeMeta,
   _typeTyVarBind,
  )
+import Primer.Core.Type.Utils (boundVarsTy)
 import Primer.Name (Name)
 import Primer.Zipper.Nested (
   BindZ,
@@ -207,8 +207,6 @@ type FoldAbove a = FoldAbove' a a
 -- We keep track of which child we just came up from, as that can be important
 -- in applications: e.g. finding enclosing binders, where @let x=e1 in e2@ has
 -- two children, but only binds a variable in one of them.
--- NB: 'foldAbove' + 'foldBelow' does not encompass the whole term: it misses
--- siblings.
 foldAbove :: (IsZipper za a, Monoid m) => (FoldAbove a -> m) -> za -> m
 foldAbove f z = go (target z) (up z)
   where
@@ -216,24 +214,12 @@ foldAbove f z = go (target z) (up z)
       Nothing -> mempty
       Just z' -> let cur = target z' in f (FA{prior = p, current = cur}) <> go cur (up z')
 
--- | Focus on the current thing, and then everything 'below', in depth-first,
--- leftmost-first order;
--- map each to a monoid, and accumulate
--- NB: 'foldAbove' + 'foldBelow' does not encompass the whole term: it misses
--- siblings.
-foldBelow :: (IsZipper za a, Monoid m) => (a -> m) -> za -> m
-foldBelow f z = f (target z) <> maybe mempty (go . farthest left) (down z)
-  where
-    go z' = f (target z') <> maybe mempty (go . farthest left) (down z') <> maybe mempty go (right z')
-
 bindersAboveTy :: TypeZip -> S.Set TyVarName
 bindersAboveTy = foldAbove getBoundHereUpTy
 
--- Note that we have two specialisations we care about:
--- bindersBelowTy :: TypeZip -> S.Set Name
--- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: (Data a, Eq a, Data b, Eq b) => TypeZip' a b -> S.Set TyVarName
-bindersBelowTy = foldBelow getBoundHereDnTy
+-- | The names bound anywhere within the focussed subtree.
+bindersBelowTy :: (Data a, Data b) => TypeZip' a b -> S.Set TyVarName
+bindersBelowTy = boundVarsTy . target
 
 -- Get the names bound by this layer of an type for a given child.
 getBoundHereUpTy :: (Eq a, Eq b) => FoldAbove (Type' a b) -> S.Set TyVarName

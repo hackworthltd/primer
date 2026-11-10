@@ -21,7 +21,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Data (Data)
-import Data.Generics.Uniplate.Data (universe)
+import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
@@ -42,6 +42,7 @@ import Primer.Core.DSL.Meta (kmeta)
 import Primer.Core.Meta (
   HasID (_id),
   ID,
+  TyVarBind',
   TyVarName,
   bindName,
   trivialMeta,
@@ -56,7 +57,6 @@ import Primer.Core.Type (
   _typeKindMeta,
   _typeMeta,
  )
-import Primer.Zipper.Type (getBoundHereDnTy)
 
 -- | Regenerate all IDs (including in kinds), not changing any other metadata
 regenerateTypeIDs :: (HasID a, HasID b, MonadFresh ID m) => Type' a b -> m (Type' a b)
@@ -120,8 +120,9 @@ traverseFreeVarsTy = go
       TForall m a k s -> TForall m a k <$> go (S.insert (bindName a) bound) f s
       TLet m a t b -> TLet m a <$> go bound f t <*> go (S.insert (bindName a) bound) f b
 
-boundVarsTy :: (Data a, Eq a, Data b, Eq b) => Type' a b -> Set TyVarName
-boundVarsTy = foldMap' getBoundHereDnTy . universe
+-- | The names bound anywhere within a type.
+boundVarsTy :: forall a b. (Data a, Data b) => Type' a b -> Set TyVarName
+boundVarsTy = S.fromList . map bindName . universeBi @_ @(TyVarBind' a)
 
 -- Check two types for alpha equality
 --
