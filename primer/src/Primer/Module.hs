@@ -62,7 +62,7 @@ import Primer.JSON (
   ToJSON,
  )
 import Primer.Name (Name)
-import Primer.Primitives (allPrimTypeDefs, pictureDef, primDefName, primitiveModuleName, tPicture)
+import Primer.Primitives (allPrimTypeDefs, primDefName, primitiveModuleName)
 import Primer.TypeDef (TypeDef (..), TypeDefMap, forgetTypeDefMetadata, generateTypeDefIDs)
 
 data Module = Module
@@ -133,11 +133,10 @@ nextModuleID m =
 primitiveModule :: MonadFresh ID m => m Module
 primitiveModule = do
   allPrimTypeDefs' <- traverse (generateTypeDefIDs . TypeDefPrim) allPrimTypeDefs
-  pictureDef' <- generateTypeDefIDs $ TypeDefAST pictureDef
   pure
     Module
       { moduleName = primitiveModuleName
-      , moduleTypes = M.mapKeys baseName allPrimTypeDefs' <> M.fromList [(baseName tPicture, pictureDef')]
+      , moduleTypes = M.mapKeys baseName allPrimTypeDefs'
       , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
       }
 

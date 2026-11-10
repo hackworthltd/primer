@@ -46,7 +46,6 @@ data PrimDef
   | DoubleNeq
   | DoubleFromInt
   | DoubleFloor
-  | Animate
   | -- | Only for testing
     PrimConst
   deriving stock (Eq, Show, Read, Enum, Bounded, Data, Generic)

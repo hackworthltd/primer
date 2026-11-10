@@ -171,7 +171,6 @@ genPrimCon =
       PrimChar _ -> ()
       PrimInt _ -> ()
       PrimDouble _ -> ()
-      PrimAnimation _ -> ()
 
 genType :: ExprGen Type
 genType =

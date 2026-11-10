@@ -485,7 +485,7 @@ genChk ty = do
             brs0 <- Gen.list (Range.linear 0 5) $ do
               p <- pg
               (p,) . CaseBranch (PatPrim p) [] <$> genChk ty
-            let brs = nubSortOn ((\case PrimInt n -> Left (Left n); PrimChar c -> Left (Right c); PrimDouble x -> Right (Left x); PrimAnimation b -> Right (Right b)) . fst) brs0
+            let brs = nubSortOn ((\case PrimInt n -> Left (Left n); PrimChar c -> Left (Right c); PrimDouble x -> Right x) . fst) brs0
             fb <- genChk ty
             pure $ Case () e (snd <$> brs) (CaseFallback fb)
 
@@ -675,7 +675,6 @@ genPrimCon = catMaybes <$> sequence [whenInScope PrimChar 'a' genChar, whenInSco
       PrimChar _ -> ()
       PrimInt _ -> ()
       PrimDouble _ -> ()
-      PrimAnimation _ -> ()
 
 -- We bias the distribution towards a small set, to make it more likely we
 -- generate name clashes on occasion

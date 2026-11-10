@@ -8,7 +8,6 @@ module Primer.Primitives (
   tInt,
   tChar,
   tDouble,
-  tAnimation,
   primitive,
   primitiveGVar,
   primConName,
@@ -17,14 +16,6 @@ module Primer.Primitives (
   primFunDef,
   PrimFunError (..),
   primitiveModuleName,
-  pictureDef,
-  tPicture,
-  cCircle,
-  cRectangle,
-  cColour,
-  cRotate,
-  cTranslate,
-  cCompoundPicture,
 ) where
 
 import Foreword hiding (rotate)
@@ -35,12 +26,9 @@ import Data.Data (Data)
 import Data.Map qualified as M
 import Numeric.Natural (Natural)
 import Primer.Builtins (
-  cCons,
-  cNil,
   cSucc,
   cZero,
   tBool,
-  tList,
   tMaybe,
   tNat,
  )
@@ -52,11 +40,9 @@ import Primer.Core (
   GlobalName,
   ID,
   ModuleName,
-  PrimCon (PrimAnimation, PrimChar, PrimDouble, PrimInt),
-  TmVarRef (LocalVarRef),
+  PrimCon (PrimChar, PrimDouble, PrimInt),
   TyConName,
   Type' (..),
-  ValConName,
   mkSimpleModuleName,
   qualifyName,
  )
@@ -71,7 +57,7 @@ import Primer.Core.Utils (generateIDs)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
 import Primer.Primitives.PrimDef (PrimDef (..))
-import Primer.TypeDef (ASTTypeDef (..), PrimTypeDef (..), ValCon (..))
+import Primer.TypeDef (PrimTypeDef (..))
 
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
@@ -92,7 +78,6 @@ primConName = \case
   PrimChar _ -> tChar
   PrimInt _ -> tInt
   PrimDouble _ -> tDouble
-  PrimAnimation _ -> tAnimation
 
 primitive :: Name -> GlobalName k
 primitive = qualifyName primitiveModuleName
@@ -105,9 +90,6 @@ tInt = primitive "Int"
 
 tDouble :: TyConName
 tDouble = primitive "Double"
-
-tAnimation :: TyConName
-tAnimation = primitive "Animation"
 
 -- | Construct a reference to a primitive definition.
 primitiveGVar :: PrimDef -> GVarName
@@ -139,13 +121,6 @@ allPrimTypeDefs =
               , primTypeDefNameHints = ["x", "y", "z"]
               }
           )
-    , let name = tAnimation
-       in ( name
-          , PrimTypeDef
-              { primTypeDefParameters = []
-              , primTypeDefNameHints = []
-              }
-          )
     ]
   where
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
@@ -154,7 +129,6 @@ allPrimTypeDefs =
       PrimChar _ -> ()
       PrimInt _ -> ()
       PrimDouble _ -> ()
-      PrimAnimation _ -> ()
 
 primDefName :: PrimDef -> Name
 primDefName = \case
@@ -190,7 +164,6 @@ primDefName = \case
   DoubleNeq -> "Double.≠"
   DoubleFromInt -> "Double.fromInt"
   DoubleFloor -> "Double.floor"
-  Animate -> "animate"
   PrimConst -> "const"
 
 primDefType :: PrimDef -> Type' () ()
@@ -230,25 +203,12 @@ primFunTypes = \case
   DoubleNeq -> ([c tDouble, c tDouble], c tBool)
   DoubleFromInt -> ([c tInt], c tDouble)
   DoubleFloor -> ([c tDouble], c tInt)
-  Animate ->
-    -- A loop time, in seconds, and a function from frame number to output.
-    -- Note that the number of frames per second is currently hardcoded to 10, and that
-    -- ideally we'd use floats here and the function would take a time in seconds as well.
-    -- Thus `Animate n p` will denote an animation of `10*n` frames of `0.1`s duration each, for
-    -- a total of `n` seconds, and will call `p` with arguments `0,1,...,10*n-1` to compute each frame.
-    (
-      [ c tInt
-      , c tInt `f` c tPicture
-      ]
-    , c tAnimation
-    )
   -- Arbitrarily limited to `Int` and `Bool` since we our system doesn't allow polymorphic primitives.
   -- Note that this primitive is only for testing anyway.
   PrimConst -> ([c tBool, c tNat], c tBool)
   where
     c = TCon ()
     a = TApp ()
-    f = TFun ()
 
 primFunDef :: PrimDef -> [Expr' () () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
 primFunDef def args = case def of
@@ -407,32 +367,6 @@ primFunDef def args = case def of
     [PrimCon _ (PrimDouble x)] ->
       Right $ int $ floor x
     _ -> err
-  Animate -> case args of
-    -- Since we only support translating a `Picture` expression to an image once it is in normal form,
-    -- this guard will only pass when `picture` has no free variables other than `time`.
-    [PrimCon () (PrimInt duration), Lam () time picture]
-      | Just _frames <- traverse diagramAtTime [0 .. (duration * 100) `div` frameLength - 1] ->
-          -- temporarily disabled due to dependency issues with WASM
-          -- we keep around as much as we can without `diagrams` (relies on `fsnotify`, and uses Template Haskell),
-          -- or `Rasterific` (relies on `bitvec`, which fails on WASM with GHC <9.8)
-          err
-      where
-        -- Note that this simple substitution hack only allows for trivial functions,
-        -- i.e. those where only substitution is needed for the function body to reach a normal form.
-        -- Our primitives system doesn't yet support further evaluation here.
-        diagramAtTime t = exprToPicture $ substTime (PrimCon () (PrimInt t)) picture
-          where
-            substTime a = \case
-              Var () (LocalVarRef t') | t' == time -> a
-              Con () c es -> Con () c $ map (substTime a) es
-              e -> e
-        -- Values which are hardcoded, for now at least, for the sake of keeping the student-facing API simple.
-        -- We keep the frame rate and resolution low to avoid serialising huge GIFs.
-        -- gifLooping = LoopingForever
-        frameLength = 10 -- in hundredths of a second, as per the GIF spec
-        _width :: Int = 160
-        _height :: Int = 90
-    _ -> err
   PrimConst -> case args of
     [x, _] ->
       Right $ generateIDs x `ann` tcon tBool
@@ -443,72 +377,3 @@ primFunDef def args = case def of
       Con _ c [x] | c == cSucc -> succ <$> exprToNat x
       _ -> Nothing
     err = Left $ PrimFunError def args
-
-pictureDef :: ASTTypeDef () ()
-pictureDef =
-  ASTTypeDef
-    { astTypeDefParameters = []
-    , astTypeDefConstructors =
-        [ ValCon cCircle [TCon () tInt]
-        , ValCon cRectangle [TCon () tInt, TCon () tInt]
-        , ValCon cColour [TCon () tInt, TCon () tInt, TCon () tInt, TCon () tPicture]
-        , ValCon cRotate [TCon () tInt, TCon () tPicture]
-        , ValCon cTranslate [TCon () tInt, TCon () tInt, TCon () tPicture]
-        , -- Pictures are ordered foreground to background, i.e. those earlier in the list appear on top.
-          ValCon cCompoundPicture [TApp () (TCon () tList) (TCon () tPicture)]
-        ]
-    , astTypeDefNameHints = []
-    }
-
-tPicture :: TyConName
-tPicture = primitive "Picture"
-cCircle :: ValConName
-cCircle = primitive "Circle"
-cRectangle :: ValConName
-cRectangle = primitive "Rectangle"
-cColour :: ValConName
-cColour = primitive "Colour"
-cRotate :: ValConName
-cRotate = primitive "Rotate"
-cTranslate :: ValConName
-cTranslate = primitive "Translate"
-cCompoundPicture :: ValConName
-cCompoundPicture = primitive "Compound"
-
--- | A Haskell model of our built-in `Picture` type.
--- Using this type can make working with pictures more convenient,
--- including by giving us compile-time exhaustiveness checks.
-data Picture
-  = Circle Integer
-  | Rect Integer Integer
-  | Colour Integer Integer Integer Picture
-  | Rotate Integer Picture
-  | Translate Integer Integer Picture
-  | CompoundPicture [Picture]
-
-exprToPicture :: Expr' a b c -> Maybe Picture
-exprToPicture = \case
-  Con _ c [PrimCon _ (PrimInt r)]
-    | c == cCircle ->
-        Just $ Circle r
-  Con _ c [PrimCon _ (PrimInt w), PrimCon _ (PrimInt h)]
-    | c == cRectangle ->
-        Just $ Rect w h
-  Con _ c [PrimCon _ (PrimInt r), PrimCon _ (PrimInt g), PrimCon _ (PrimInt b), exprToPicture -> Just p]
-    | c == cColour ->
-        Just $ Colour r g b p
-  Con _ c [PrimCon _ (PrimInt a), exprToPicture -> Just p]
-    | c == cRotate ->
-        Just $ Rotate a p
-  Con _ c [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y), exprToPicture -> Just p]
-    | c == cTranslate ->
-        Just $ Translate x y p
-  Con _ c [exprToList -> Just (traverse exprToPicture -> Just ps)]
-    | c == cCompoundPicture ->
-        Just $ CompoundPicture ps
-  _ -> Nothing
-  where
-    exprToList = \case
-      Con _ c [] | c == cNil -> Just []
-      Con _ c [x, exprToList -> Just xs] | c == cCons -> Just $ x : xs
-      _ -> Nothing

@@ -49,7 +49,6 @@ import Miso.Html (
   button_,
   div_,
   form_,
-  img_,
   input_,
   onChange,
   onChecked,
@@ -65,7 +64,6 @@ import Miso.Html.Property (
   min_,
   placeholder_,
   required_,
-  src_,
   type_,
  )
 import Miso.Navigator (copyClipboard)
@@ -927,101 +925,93 @@ data Level
   | Kind
 
 viewNodeData :: Bool -> P2 Double -> V2 Double -> [View () () Model action] -> NodeViewData action -> View () () Model action
-viewNodeData showIDs position dimensions edges node = case node.opts of
-  PrimNode (PrimAnimation animation) ->
-    img_
-      [ src_ ("data:img/gif;base64," <> ms animation)
+viewNodeData showIDs position dimensions edges node =
+  div_
+    ( [ class_
+          . mconcat
+          . intersperse " "
+          $ [ "node"
+            , case node.level of
+                Expr -> "expr"
+                Type -> "type"
+                Kind -> "kind"
+            , case node.opts of
+                SyntaxNode{} -> "syntax"
+                _ -> "non-syntax"
+            , case node.opts of
+                SyntaxNode{flavor} -> flavor
+                HoleNode{} -> "hole"
+                PrimNode{} -> "prim"
+                StringNode{} -> "string"
+                ConNode{} -> "con"
+                VarNode{} -> "var"
+                PatternBoxNode{} -> "pattern-box"
+            ]
+            <> case node.highlight of
+              NoHighlight -> []
+              _ ->
+                "highlighted" : case node.highlight of
+                  SimpleHighlight -> []
+                  AnimatedHighlight -> ["animated"]
+            <> mwhen (isJust node.clickAction) ["selectable"]
       , style_ $ clayToMiso do
-          Clay.width $ Clay.px $ realToClay dimensions.x
-          Clay.height $ Clay.px $ realToClay dimensions.y
+          Clay.position Clay.absolute
+          Clay.transform $
+            Clay.translate
+              (Clay.px $ realToClay position.x)
+              (Clay.px $ realToClay position.y)
       ]
-  _ ->
-    div_
-      ( [ class_
-            . mconcat
-            . intersperse " "
-            $ [ "node"
-              , case node.level of
-                  Expr -> "expr"
-                  Type -> "type"
-                  Kind -> "kind"
-              , case node.opts of
-                  SyntaxNode{} -> "syntax"
-                  _ -> "non-syntax"
-              , case node.opts of
-                  SyntaxNode{flavor} -> flavor
-                  HoleNode{} -> "hole"
-                  PrimNode{} -> "prim"
-                  StringNode{} -> "string"
-                  ConNode{} -> "con"
-                  VarNode{} -> "var"
-                  PatternBoxNode{} -> "pattern-box"
-              ]
-              <> case node.highlight of
-                NoHighlight -> []
-                _ ->
-                  "highlighted" : case node.highlight of
-                    SimpleHighlight -> []
-                    AnimatedHighlight -> ["animated"]
-              <> mwhen (isJust node.clickAction) ["selectable"]
-        , style_ $ clayToMiso do
-            Clay.position Clay.absolute
-            Clay.transform $
-              Clay.translate
-                (Clay.px $ realToClay position.x)
-                (Clay.px $ realToClay position.y)
-        ]
-          <> foldMap' (pure . onClick) node.clickAction
-      )
-      $ edges -- Edges come first so that they appear behind contents.
-        <> [ div_
-               [ class_ "node-contents"
-               , style_ $ clayToMiso do
-                   Clay.width $ Clay.px $ realToClay dimensions.x
-                   Clay.height $ Clay.px $ realToClay dimensions.y
-                   Clay.boxSizing Clay.borderBox
-                   Clay.display Clay.flex
-                   Clay.justifyContent Clay.center
-                   Clay.alignItems Clay.center
-               ]
-               case node.opts of
-                 PatternBoxNode (Just p) -> [fst p]
-                 PatternBoxNode Nothing ->
-                   [ div_
-                       [class_ "fallback-pattern"]
-                       -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
-                       [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
-                   ]
-                 _ ->
-                   [ div_
-                       [ class_ "node-text"
-                       ]
-                       [ text
-                           if showIDs
-                             then maybe "" (ms @Text . show) node.id
-                             else case node.opts of
-                               SyntaxNode{text = t} -> t
-                               HoleNode{empty = e} -> if e then "?" else "⚠️"
-                               PrimNode pc -> case pc of
-                                 PrimChar c' -> showMs c'
-                                 PrimInt n -> showMs n
-                                 PrimDouble x -> showMs x
-                               StringNode s -> showStringLiteral s
-                               ConNode{name} -> ms $ unName name
-                               VarNode{name} -> ms $ unName name
-                       ]
-                   ]
-                     <> foldMap'
-                       ( \(label, action) ->
-                           [ button_
-                               [ class_ "projection-toggle"
-                               , onClickWithOptions stopPropagation action
-                               ]
-                               [text label]
-                           ]
-                       )
-                       node.projectionToggle
-           ]
+        <> foldMap' (pure . onClick) node.clickAction
+    )
+    $ edges -- Edges come first so that they appear behind contents.
+      <> [ div_
+             [ class_ "node-contents"
+             , style_ $ clayToMiso do
+                 Clay.width $ Clay.px $ realToClay dimensions.x
+                 Clay.height $ Clay.px $ realToClay dimensions.y
+                 Clay.boxSizing Clay.borderBox
+                 Clay.display Clay.flex
+                 Clay.justifyContent Clay.center
+                 Clay.alignItems Clay.center
+             ]
+             case node.opts of
+               PatternBoxNode (Just p) -> [fst p]
+               PatternBoxNode Nothing ->
+                 [ div_
+                     [class_ "fallback-pattern"]
+                     -- "🤷🏽‍♀️" is a lexical error: https://gitlab.haskell.org/ghc/ghc/-/issues/25635
+                     [text "\x1f937\x1f3fd\x200d\x2640\xfe0f"]
+                 ]
+               _ ->
+                 [ div_
+                     [ class_ "node-text"
+                     ]
+                     [ text
+                         if showIDs
+                           then maybe "" (ms @Text . show) node.id
+                           else case node.opts of
+                             SyntaxNode{text = t} -> t
+                             HoleNode{empty = e} -> if e then "?" else "⚠️"
+                             PrimNode pc -> case pc of
+                               PrimChar c' -> showMs c'
+                               PrimInt n -> showMs n
+                               PrimDouble x -> showMs x
+                             StringNode s -> showStringLiteral s
+                             ConNode{name} -> ms $ unName name
+                             VarNode{name} -> ms $ unName name
+                     ]
+                 ]
+                   <> foldMap'
+                     ( \(label, action) ->
+                         [ button_
+                             [ class_ "projection-toggle"
+                             , onClickWithOptions stopPropagation action
+                             ]
+                             [text label]
+                         ]
+                     )
+                     node.projectionToggle
+         ]
 
 -- | Show a string literal, with quotes, but escaping only those characters which would otherwise be confusing.
 showStringLiteral :: Text -> MisoString
