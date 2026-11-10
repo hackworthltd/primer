@@ -5,10 +5,10 @@
 include ../makefiles/common.mk
 
 frontend: build-wasm
-	nix run ..#primer-miso-build-frontend -- --frontend-dir frontend --out-dir dist
+	../nix/primer-miso-build-frontend --frontend-dir frontend --out-dir dist
 
 frontend-prod: build-wasm
-	nix run ..#primer-miso-build-frontend -- --prod --frontend-dir frontend --out-dir dist
+	../nix/primer-miso-build-frontend --prod --frontend-dir frontend --out-dir dist
 
 serve: frontend
 	http-server dist -c-1 -o $(if $(PORT),-p $(PORT))
