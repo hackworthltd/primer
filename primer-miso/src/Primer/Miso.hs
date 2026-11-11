@@ -15,8 +15,6 @@ import Control.Monad.Except (liftEither)
 import Control.Monad.Log (Severity (Notice), WithSeverity, msgSeverity)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
 import Data.Data (Data (..))
 import Data.Default qualified as Default
 import Data.Generics.Uniplate.Data (children)
@@ -34,14 +32,12 @@ import Miso (
   Component (..),
   Effect,
   LogLevel (Off),
-  ROOT,
   View,
   consoleLog,
   io,
   io_,
   text,
  )
-import Miso.Aeson qualified
 import Miso.CSS (style_)
 import Miso.Html (
   button_,
@@ -61,7 +57,6 @@ import Miso.Html.Property (
   src_,
   type_,
  )
-import Miso.JSON qualified
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric.Natural (Natural)
 import Optics (lensVL, to, use, (%), (.~), (^.), (^..))
@@ -176,7 +171,7 @@ import Primer.Name (Name, NameCounter, unName)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (TypeDefAST), ValCon (..), forgetTypeDefMetadata, typeDefAST, typeDefKind)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
-component :: Component ROOT Model Action
+component :: Component () () Model Action
 component =
   Component
     { model =
@@ -227,9 +222,10 @@ component =
     , unmount = Nothing
     , logLevel = Off
     , mailbox = const Nothing
-    , bindings = []
     , hydrateModel = Nothing
     , eventPropagation = False
+    , useContext = False
+    , onPropsChanged = Nothing
     }
 
 data Model = Model
@@ -240,14 +236,6 @@ data Model = Model
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Model
-
-instance Miso.JSON.ToJSON Model where
-  toJSON = Miso.Aeson.aesonToJSON . Aeson.toJSON
-instance Miso.JSON.FromJSON Model where
-  parseJSON = convertParser . Aeson.parseJSON . Miso.Aeson.jsonToAeson
-    where
-      convertParser :: Aeson.Parser a -> Miso.JSON.Parser a
-      convertParser p = hush $ Aeson.parseEither (\() -> p) ()
 
 -- TODO When Miso 1.9/2.0 is released, we should take advantage of its component support
 -- we can then simplify some code, removing unnecessary error handling etc.
@@ -300,7 +288,7 @@ data Action
   | ChooseRedex ID
   | StepBackEval
 
-updateModel :: Action -> Effect ROOT Model Action
+updateModel :: Action -> Effect () () Model Action
 updateModel = \case
   NoOp _ -> pure ()
   Select editable sel -> do
@@ -444,7 +432,7 @@ updateModel = \case
        in
         (tydefs, defs, def)
 
-viewModel :: Model -> View Model Action
+viewModel :: Model -> View () () Model Action
 viewModel Model{..} =
   div_
     ([id_ "miso-root"] <> mwhen components.eval.fullscreen [class_ "fullscreen-eval"])
@@ -784,14 +772,14 @@ data NodeViewOpts action
   | PrimNode PrimCon
   | ConNode {name :: Name, scope :: ModuleName}
   | VarNode {name :: Name, mscope :: Maybe ModuleName} -- TODO we should be able to re-use the name `scope`: https://github.com/ghc-proposals/ghc-proposals/pull/535#issuecomment-1694388075
-  | PatternBoxNode (Maybe (View Model action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
+  | PatternBoxNode (Maybe (View () () Model action, V2 Double)) -- `Nothing` indicates that this is a fallback pattern.
 
 data Level
   = Expr
   | Type
   | Kind
 
-viewNodeData :: Bool -> P2 Double -> V2 Double -> [View Model action] -> NodeViewData action -> View Model action
+viewNodeData :: Bool -> P2 Double -> V2 Double -> [View () () Model action] -> NodeViewData action -> View () () Model action
 viewNodeData showIDs position dimensions edges node = case node.opts of
   PrimNode (PrimAnimation animation) ->
     img_
@@ -978,7 +966,7 @@ viewTreeKind mkMeta k =
       KFun{} -> SyntaxNode False "kind-fun" "→"
     childViews = map (viewTreeKind mkMeta) (children k)
 
-viewEdge :: V2 Double -> View Model action
+viewEdge :: V2 Double -> View () () Model action
 viewEdge v =
   div_
     [ class_ "edge"
@@ -996,7 +984,7 @@ viewEdge v =
     theta = unangle v
     size = norm v
 
-viewTree :: Tree (NodeViewData action) -> (View Model action, V2 Double)
+viewTree :: Tree (NodeViewData action) -> (View () () Model action, V2 Double)
 viewTree t =
   ( div_
       [ class_ "tree"

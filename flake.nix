@@ -23,12 +23,12 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    haskell-language-server.url = "github:haskell/haskell-language-server/fe6551bca3b4a7fa7f161e485781bf2ba89f8c3a";
+    haskell-language-server.url = "github:haskell/haskell-language-server/2.15.0.0";
 
-    browser-wasi-shim.url = "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.3.0.tgz";
+    browser-wasi-shim.url = "https://registry.npmjs.org/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.4.2.tgz";
     browser-wasi-shim.flake = false;
 
-    ws.url = "https://registry.npmjs.org/ws/-/ws-8.18.0.tgz";
+    ws.url = "https://registry.npmjs.org/ws/-/ws-8.22.2.tgz";
     ws.flake = false;
   };
 
@@ -194,10 +194,11 @@
               primer-benchmark
               primer-miso-build-frontend
               primer-miso-dist
+              primer-miso-serve
               primer-miso-frontend-tools
               primer-miso-node-modules
               wasm32-test-runner
-              wasm32-unknown-wasi-cabal
+              wasm32-unknown-wasip1-cabal
               ;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
@@ -254,10 +255,12 @@
                 type = "app";
                 program = "${pkg}/bin/${script}";
               };
+              extraApps = (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
+                inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend primer-miso-serve;
+              });
             in
-            (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) deploy-to-cloudflare primer-benchmark primer-miso-build-frontend;
-            })
+            extraApps
+            // { default = extraApps.primer-miso-serve; }
             // primerFlake.apps;
 
           treefmt.config =
@@ -322,22 +325,9 @@
         {
           overlays.default =
             inputs.hacknix.lib.overlays.combine [
-              (final: prev: {
-                haskell-nix = prev.haskell-nix // {
-                  compiler = prev.haskell-nix.compiler // {
-                    ghc9141 = prev.haskell-nix.compiler.ghc9141.override {
-                      ghc-patches = prev.haskell-nix.compiler.ghc9141.patches ++
-                        (with final.lib; optionals final.stdenv.targetPlatform.isWasm (
-                          filter (hasSuffix ".patch") (filesystem.listFilesRecursive ./ghc-wasm-patches))
-                        );
-                    };
-                  };
-                };
-              })
-
               (final: prev:
                 let
-                  ghc9123Tools = final.haskell-nix.tools "ghc9123" {
+                  ghc9124Tools = final.haskell-nix.tools "ghc9124" {
                     fourmolu = fourmoluVersion;
                     hlint = "latest";
                   };
@@ -348,14 +338,14 @@
                     inherit (inputs) ws;
                   };
 
-                  wasm32-unknown-wasi-cabal = final.callPackage ./nix/pkgs/wasm32-unknown-wasi-cabal {
+                  wasm32-unknown-wasip1-cabal = final.callPackage ./nix/pkgs/wasm32-unknown-wasip1-cabal {
                     inherit cabalTool;
                   };
 
                   wasm32-test-runner = final.callPackage ./nix/pkgs/wasm32-test-runner { };
 
                   primer-miso-frontend-tools = final.callPackage ./nix/pkgs/primer-miso-frontend-tools {
-                    inherit wasm32-unknown-wasi-cabal;
+                    inherit wasm32-unknown-wasip1-cabal;
                   };
 
                   primer = final.haskell-nix.cabalProject {
@@ -460,6 +450,9 @@
                       withHoogle = false;
 
                       tools = {
+                        # The HLS 2.15 Hackage release doesn't build on GHC 9.14.
+                        # It requires workarounds from the source repo's `cabal.project`, e.g. `allow-newer`s.
+                        #haskell-language-server = "latest";
                         haskell-language-server = {
                           src = inputs.haskell-language-server;
                         };
@@ -491,7 +484,7 @@
                         hlint
                         fourmolu
 
-                        simple-http-server
+                        http-server
                       ]);
 
                       nativeBuildInputs = [
@@ -502,6 +495,10 @@
                       shellHook = ''
                         export BROWSER_WASI_SHIM="${inputs.browser-wasi-shim}"
                         export NODE_PATH="${primer-miso-node-modules}''${NODE_PATH:+:$NODE_PATH}"
+                        export PRIMER_WASM_NIX_LDFLAGS="''${PRIMER_WASM_NIX_LDFLAGS-$NIX_LDFLAGS}"
+                        export PRIMER_WASM_NIX_LDFLAGS_FOR_TARGET="''${PRIMER_WASM_NIX_LDFLAGS_FOR_TARGET-$NIX_LDFLAGS_FOR_TARGET}"
+                        NIX_LDFLAGS=$(echo "$NIX_LDFLAGS" | tr ' ' '\n' | grep -v -e wasm32-unknown-wasip1 -e libffi-wasm | tr '\n' ' ')
+                        NIX_LDFLAGS_FOR_TARGET=$(echo "$NIX_LDFLAGS_FOR_TARGET" | tr ' ' '\n' | grep -v -e wasm32-unknown-wasip1 -e libffi-wasm | tr '\n' ' ')
                       '';
                     };
                   };
@@ -518,7 +515,11 @@
                     browser-wasi-shim = inputs.browser-wasi-shim;
                     inherit version;
                     inherit primer-miso-build-frontend;
-                    primer-miso-wasm = primerFlake.packages."wasm32-unknown-wasi:primer-miso:exe:primer-miso";
+                    primer-miso-wasm = primerFlake.packages."wasm32-unknown-wasip1:primer-miso:exe:primer-miso";
+                  };
+
+                  primer-miso-serve = final.callPackage ./nix/pkgs/primer-miso-serve {
+                    inherit primer-miso-dist;
                   };
 
                   deploy-to-cloudflare = final.callPackage ./nix/pkgs/deploy-to-cloudflare { };
@@ -565,17 +566,18 @@
                     deploy-to-cloudflare
                     primer-miso-build-frontend
                     primer-miso-dist
+                    primer-miso-serve
                     primer-miso-frontend-tools
                     primer-miso-node-modules
                     wasm32-test-runner
-                    wasm32-unknown-wasi-cabal
+                    wasm32-unknown-wasip1-cabal
                     ;
 
                   inherit (benchmarks) primer-benchmark-results-json;
                   inherit (benchmarks) primer-criterion-results-github-action-benchmark;
                   inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
 
-                  inherit (ghc9123Tools) fourmolu hlint;
+                  inherit (ghc9124Tools) fourmolu hlint;
                 }
               )
 

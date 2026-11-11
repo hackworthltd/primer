@@ -14,9 +14,9 @@ $(package-targets):
 update-tests:
 
 build-wasm:
-	wasm32-unknown-wasi-cabal build
+	wasm32-unknown-wasip1-cabal build
 
 test-wasm:
-	wasm32-unknown-wasi-cabal test --test-wrapper=wasm32-test-runner
+	wasm32-unknown-wasip1-cabal test --test-wrapper=wasm32-test-runner
 
 .PHONY: build $(package-targets) update-tests build-wasm test-wasm
