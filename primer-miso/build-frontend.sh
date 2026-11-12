@@ -1,18 +1,36 @@
 #!/usr/bin/env bash
 
+# Package the Wasm frontend into a directory that can be served as-is.
+#
+# This script is used in two quite different ways:
+#
+# - By `primer-miso-dist` (via the `primer-miso-build-frontend` package), in a
+#   sandboxed Nix build, with `--prod` and a `--wasm` built by Haskell.nix. The
+#   package's wrapper provides the tools and environment variables we need.
+#
+# - By `make frontend` and `make frontend-prod` in `primer-miso`, run directly
+#   from the `nix develop` shell, with the Wasm found via
+#   `wasm32-unknown-wasip1-cabal list-bin`. The shell provides the tools and
+#   environment variables we need.
+#
+# So to stay compatible with both, we take all inputs from flags or environment
+# variables, use only tools from `PATH`, and write only to the output
+# directory. If this needs a new tool or variable, add it to both the package's
+# wrapper and the shell.
+
 set -euo pipefail
 
 program_name=${BUILD_FRONTEND_NAME:-${0##*/}}
 
 usage() {
     cat <<EOF
-Usage: $program_name [OPTIONS]
+Usage: $program_name --out-dir DIR --frontend-dir DIR [OPTIONS]
 
 Options:
   --dev                    Package a development frontend (default)
   --prod                   Package a production frontend
-  --out-dir DIR            Write the frontend distribution to DIR (default: dist)
-  --frontend-dir DIR       Read static frontend files from DIR (default: frontend)
+  --out-dir DIR            Write the frontend distribution to DIR (required)
+  --frontend-dir DIR       Read static frontend files from DIR (required)
   --browser-wasi-shim DIR  Read browser_wasi_shim from DIR (default: BROWSER_WASI_SHIM)
   --wasm FILE              Use FILE instead of wasm32-unknown-wasip1-cabal list-bin
   --help                   Show this help
@@ -27,8 +45,8 @@ require_arg() {
 }
 
 dev_mode=true
-out_dir=dist
-frontend_dir=frontend
+out_dir=
+frontend_dir=
 browser_wasi_shim=${BROWSER_WASI_SHIM:-}
 hs_wasm_path=
 
@@ -97,7 +115,13 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-if [ -z "$out_dir" ] || [ "$out_dir" = "/" ]; then
+if [ -z "$out_dir" ] || [ -z "$frontend_dir" ]; then
+    echo "--out-dir and --frontend-dir are required" >&2
+    usage >&2
+    exit 1
+fi
+
+if [ "$out_dir" = "/" ]; then
     echo "Refusing to package frontend into unsafe output directory: $out_dir" >&2
     exit 1
 fi
