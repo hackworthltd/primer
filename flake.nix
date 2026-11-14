@@ -2,7 +2,7 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = "github:input-output-hk/haskell.nix";
+    haskell-nix.url = "github:ican-group/haskell.nix";
 
     # We use this for some convenience functions only.
     hacknix.url = "github:hackworthltd/hacknix";
@@ -396,7 +396,7 @@
                         doQuickjump = true;
 
                         # Hoogle generation is currently broken:
-                        # https://github.com/input-output-hk/haskell.nix/issues/2477
+                        # https://github.com/ican-group/haskell.nix/issues/2477
                         doHoogle = false;
                       }
                       {
@@ -404,7 +404,7 @@
                         # to be added manually.
                         #
                         # Ref:
-                        # https://github.com/input-output-hk/haskell.nix/commit/61fbe408c01b6d61d010e6fb8e78bd19b5b025cc
+                        # https://github.com/ican-group/haskell.nix/commit/61fbe408c01b6d61d010e6fb8e78bd19b5b025cc
                         package-keys = [
                           "bytestring-builder"
                           "diagrams"
@@ -412,7 +412,7 @@
                         ];
 
                         # These packages don't/can't generate HIE files. See:
-                        # https://github.com/input-output-hk/haskell.nix/issues/1242
+                        # https://github.com/ican-group/haskell.nix/issues/1242
                         packages.mtl-compat.writeHieFiles = false;
                         packages.bytestring-builder.writeHieFiles = false;
                         packages.fail.writeHieFiles = false;
@@ -428,7 +428,7 @@
                           # This makes it a lot easier to see which test is the culprit when CI fails.
                           hide-successes = [ "--hide-successes" ];
                           #TODO Haskell.nix would ideally pick this up from `cabal.project`.
-                          # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
+                          # See: https://github.com/ican-group/haskell.nix/issues/1149#issuecomment-946664684
                           size-cutoff = [ "--size-cutoff=32768" ];
                         in
                         {
@@ -446,7 +446,7 @@
                       #exactDeps = true;
 
                       # Hoogle generation is currently broken:
-                      # https://github.com/input-output-hk/haskell.nix/issues/2477
+                      # https://github.com/ican-group/haskell.nix/issues/2477
                       withHoogle = false;
 
                       tools = {
