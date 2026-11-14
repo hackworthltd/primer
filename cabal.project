@@ -11,9 +11,11 @@ packages:
 optimization: 0
 
 if arch(wasm32)
-  -- Required for TemplateHaskell support on Wasm targets.
+  -- The Wasm GHCi (as used by `make dev` in `primer-miso`) loads compiled libraries via the dynamic linker,
+  -- so ours need to be built as shared libraries, just as Nix builds our dependencies.
   shared: True
   -- Avoids a C++ dynamic linker error.
+  -- Cabal currently picks the installed `text` (from Nix) regardless, so this is just a safeguard.
   constraints:
     text installed,
 
