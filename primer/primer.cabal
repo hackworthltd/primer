@@ -332,5 +332,5 @@ test-suite primer-test
     uuid-types,
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
--- See: https://github.com/input-output-hk/haskell.nix/issues/839
+-- See: https://github.com/ican-group/haskell.nix/issues/839
 -- build-tool-depends: tasty-discover:tasty-discover ^>=5.0
