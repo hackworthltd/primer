@@ -3,10 +3,9 @@
 , lib
 , makeWrapper
 , primer-miso-frontend-tools
-, primer-miso-node-modules
 , stdenvNoCC
 , wasmGhc
-, buildFrontendScript ? ../../primer-miso-build-frontend
+, buildFrontendScript ? ../../../primer-miso/build-frontend.sh
 }:
 
 stdenvNoCC.mkDerivation {
@@ -32,8 +31,7 @@ stdenvNoCC.mkDerivation {
         wasmGhc
       ]} \
       --set BROWSER_WASI_SHIM ${browser-wasi-shim} \
-      --set BUILD_FRONTEND_NAME primer-miso-build-frontend \
-      --prefix NODE_PATH : ${primer-miso-node-modules}
+      --set BUILD_FRONTEND_NAME primer-miso-build-frontend
 
     runHook postInstall
   '';

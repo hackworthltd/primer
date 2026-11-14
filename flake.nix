@@ -507,7 +507,7 @@
 
                   primer-miso-build-frontend = final.callPackage ./nix/pkgs/primer-miso-build-frontend {
                     browser-wasi-shim = inputs.browser-wasi-shim;
-                    inherit primer-miso-frontend-tools primer-miso-node-modules;
+                    inherit primer-miso-frontend-tools;
                     wasmGhc = primer.projectCross.wasi32.pkg-set.config.ghc.package;
                   };
 
