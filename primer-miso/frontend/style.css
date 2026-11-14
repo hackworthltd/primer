@@ -156,6 +156,14 @@ body {
     color: var(--white-primary);
     background-color: var(--blue-secondary);
   }
+  > button.new {
+    color: var(--grey-tertiary);
+    font-style: italic;
+  }
+  > button.new:hover {
+    color: var(--blue-primary);
+    background-color: var(--green-primary);
+  }
   > button.cancel {
     color: var(--white-primary);
     background-color: var(--red-secondary);

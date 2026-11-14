@@ -120,6 +120,8 @@ import Primer.Core (
   Type' (..),
   getID,
   globalNamePretty,
+  mkSimpleModuleName,
+  qualifyName,
   typesInExpr,
   _exprMetaLens,
   _kindMetaLens,
@@ -168,7 +170,7 @@ import Primer.Miso.Util (
   stringToOpt,
   typeBindingsInExpr,
  )
-import Primer.Name (Name, NameCounter, unName)
+import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (TypeDefAST), ValCon (..), forgetTypeDefMetadata, typeDefAST, typeDefKind)
 import Primer.Typecheck (SmartHoles (SmartHoles), buildTypingContext, exprTtoExpr, typeTtoType)
 
@@ -250,7 +252,7 @@ data ComponentModels = ComponentModels
 
 {- HLINT ignore "Use newtype instead of data" -}
 data ActionPanelModel = ActionPanelModel
-  { optionsMode :: Maybe (Available.InputAction, Available.Options)
+  { optionsMode :: Maybe (Either TypeOrTermDef (Available.InputAction, Available.Options))
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON ActionPanelModel
@@ -280,6 +282,8 @@ data Action
   | Select Editable SelectionT
   | ShowActionOptions (Available.InputAction, Available.Options)
   | ApplyAction (Either Available.NoInputAction (Available.InputAction, Available.Option))
+  | SelectCreateDef TypeOrTermDef
+  | CreateDef TypeOrTermDef Text
   | CancelActionInput
   | RunUndo
   | RunRedo
@@ -288,6 +292,10 @@ data Action
   | ToggleFullscreenEval
   | ChooseRedex ID
   | StepBackEval
+
+data TypeOrTermDef = TypeDef | TermDef
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON TypeOrTermDef
 
 updateModel :: Action -> Effect () () Model Action
 updateModel = \case
@@ -301,7 +309,7 @@ updateModel = \case
         #readOnlySelection .= Nothing
         runMutation $ Edit $ pure $ setSelectionAction sel
   ShowActionOptions a ->
-    #components % #actionPanel % #optionsMode ?= a
+    #components % #actionPanel % #optionsMode ?= Right a
   ApplyAction actionAndOpts -> do
     prog <- appProg <$> use #app
     let defs = progAllDefs prog
@@ -319,6 +327,17 @@ updateModel = \case
     case actionResult of
       Right actions -> runMutation $ Edit actions
       Left e -> io_ $ consoleLog $ "running action failed: " <> either identity showMs e
+    resetActionPanel
+  SelectCreateDef d ->
+    #components % #actionPanel % #optionsMode ?= Left d
+  CreateDef d name -> do
+    let activeModule = mkSimpleModuleName "Main"
+    runMutation $
+      Edit
+        [ case d of
+            TermDef -> Primer.App.CreateDef activeModule $ Just name
+            TypeDef -> Primer.App.AddTypeDef (qualifyName activeModule $ unsafeMkName name) $ ASTTypeDef [] [] []
+        ]
     resetActionPanel
   RunUndo -> do
     runMutation Undo
@@ -605,59 +624,68 @@ viewModel Model{..} =
               ]
           , div_ [id_ "action-panel"] case components.actionPanel.optionsMode of
               Nothing ->
-                availableForSelection tydefs defs level editable def sel <&> \action ->
-                  button_
-                    [ onClick case action of
-                        Available.NoInput a -> ApplyAction $ Left a
-                        Available.Input a ->
-                          ShowActionOptions
-                            ( a
-                            , fromMaybe (error "couldn't get action options") $
-                                Available.options
-                                  tydefs
-                                  defs
-                                  (buildTypingContext tydefs defs SmartHoles)
-                                  level
-                                  def
-                                  (getID <$> sel)
-                                  a
-                            )
-                    ]
-                    [ text case action of
-                        Available.NoInput a -> showMs a
-                        Available.Input a -> showMs a
-                    ]
+                [ button_ [class_ "new", onClick $ SelectCreateDef TermDef] [text "New Def"]
+                , button_ [class_ "new", onClick $ SelectCreateDef TypeDef] [text "New Type"]
+                ]
+                  <> ( availableForSelection tydefs defs level editable def sel <&> \action ->
+                         button_
+                           [ onClick case action of
+                               Available.NoInput a -> ApplyAction $ Left a
+                               Available.Input a ->
+                                 ShowActionOptions
+                                   ( a
+                                   , fromMaybe (error "couldn't get action options") $
+                                       Available.options
+                                         tydefs
+                                         defs
+                                         (buildTypingContext tydefs defs SmartHoles)
+                                         level
+                                         def
+                                         (getID <$> sel)
+                                         a
+                                   )
+                           ]
+                           [ text case action of
+                               Available.NoInput a -> showMs a
+                               Available.Input a -> showMs a
+                           ]
+                     )
                 where
                   def = bimap (astTypeDefTtoAstTypeDef . snd) (astDefTtoAstDef . snd) selAndDef
                   level = Primer.App.Expert -- TODO don't hardcode
-              Just (action, opts) ->
-                ( case opts.free of
-                    Available.FreeNone -> []
-                    _ ->
-                      [ form_
-                          [onSubmit $ NoOp "form submitted"] -- disables form submission, via `preventDefault`
-                          [ input_
-                              [ type_ "text"
-                              , required_ True
-                              , onChange $ ApplyAction . Right . (action,) . stringToOpt . fromMisoString
-                              ]
-                          , button_ [] [text "↩"]
-                          ]
-                      ]
+              Just optsMode ->
+                ( case optsMode of
+                    Left d -> [textEntryForm $ CreateDef d . fromMisoString]
+                    Right (action, opts) ->
+                      ( case opts.free of
+                          Available.FreeNone -> []
+                          _ -> [textEntryForm $ ApplyAction . Right . (action,) . stringToOpt . fromMisoString]
+                      )
+                        <> ( opts.opts
+                               <&> \opt ->
+                                 button_
+                                   ( [onClick $ ApplyAction $ Right (action, opt)]
+                                       <> mwhen
+                                         opt.matchesType
+                                         [class_ "matches-type"]
+                                   )
+                                   [ text $ ms $ either (unName . unLocalName) globalNamePretty $ optToName opt
+                                   ]
+                           )
                 )
-                  <> ( opts.opts
-                         <&> \opt ->
-                           button_
-                             ( [onClick $ ApplyAction $ Right (action, opt)]
-                                 <> mwhen
-                                   opt.matchesType
-                                   [class_ "matches-type"]
-                             )
-                             [ text $ ms $ either (unName . unLocalName) globalNamePretty $ optToName opt
-                             ]
-                     )
                   <> [ button_ [class_ "cancel", onClick CancelActionInput] [text "Cancel"]
                      ]
+                where
+                  textEntryForm onEnter =
+                    form_
+                      [onSubmit $ NoOp "form submitted"] -- disables form submission, via `preventDefault`
+                      [ input_
+                          [ type_ "text"
+                          , required_ True
+                          , onChange onEnter
+                          ]
+                      , button_ [] [text "↩"]
+                      ]
           , div_
               [id_ "undo-redo-panel"]
               [ button_ [onClick RunUndo] [text "Undo"]
