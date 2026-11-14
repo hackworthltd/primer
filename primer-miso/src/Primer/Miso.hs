@@ -132,16 +132,18 @@ import Primer.Core (
   globalNamePretty,
   mkSimpleModuleName,
   qualifyName,
+  trivialMeta,
   typesInExpr,
   _exprMetaLens,
   _kindMetaLens,
   _typeMetaLens,
  )
 import Primer.Core qualified as Primer
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata, generateIDs)
 import Primer.Def (defAST)
 import Primer.Eval (Dir (..), EvalLog, NormalOrderOptions (..), findRedex, redexes, step)
 import Primer.Eval.Redex (RunRedexOptions (..), ViewRedexOptions (..))
+import Primer.EvalFullInterp (InterpError, Timeout (MicroSec), interp, mkGlobalEnv)
 import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
@@ -220,6 +222,7 @@ component =
                                   }
                             , stepLimit = 0
                             , dir = Chk
+                            , interpret = False
                             }
                       , fullscreen = False
                       , history = []
@@ -290,6 +293,7 @@ data EvalOpts = EvalOpts
   , runRedex :: RunRedexOptions
   , stepLimit :: Natural
   , dir :: Dir
+  , interpret :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EvalOpts
@@ -316,6 +320,7 @@ data Action
   | ToggleFullscreenEval
   | ChooseRedex ID
   | StepBackEval
+  | SetInterpResult (Either InterpError (Expr' () () ()))
 
 data TypeOrTermDef = TypeDef | TermDef
   deriving stock (Eq, Show, Generic)
@@ -399,6 +404,12 @@ updateModel = \case
     #components % #eval % #opts %= f
     setEval
   ToggleFullscreenEval -> #components % #eval % #fullscreen %= not
+  SetInterpResult result -> case result of
+    Left e -> io_ $ consoleLog $ "interpreter failed: " <> showMs e
+    Right e -> do
+      app <- use #app
+      let (expr, s) = either absurd identity $ runTC (succ $ appIdCounter app, succ $ appNameCounter app) $ generateIDs e
+      #components % #eval % #history .= [(expr, ([], Nothing), s)]
   ChooseRedex id -> do
     (tydefs, defs, _) <- getDefs <$> use #app
     use (#components % #eval % #history) >>= \case
@@ -449,6 +460,25 @@ updateModel = \case
     -- this may become simpler when we make the panel a Miso component
     resetActionPanel = #components % #actionPanel % #optionsMode .= Nothing
     setEval = do
+      app <- use #app
+      opts <- use $ #components % #eval % #opts
+      let (tydefs, defs, maybeDef) = getDefs app
+      case maybeDef of
+        Just def
+          | opts.interpret ->
+              -- PROTOTYPE: the interpreter's timeout relies on the runtime being able to interrupt a pure computation,
+              -- which may not be the case on Wasm, so a non-terminating program may hang the frontend.
+              io $
+                SetInterpResult
+                  <$> interp
+                    (MicroSec 1_000_000)
+                    tydefs
+                    (mkGlobalEnv tydefs defs)
+                    opts.dir
+                    (forgetMetadata $ Ann (trivialMeta 0) (exprTtoExpr def.expr) (typeTtoType def.sig))
+        _ -> stepEval
+    -- Evaluate the selected definition by stepping, up to the step limit.
+    stepEval = do
       app <- use #app
       opts <- use $ #components % #eval % #opts
       fullscreen <- use $ #components % #eval % #fullscreen
@@ -769,6 +799,7 @@ viewModel Model{..} =
                       , checkBox "Avoid shadowing" \b -> #viewRedex % #avoidShadowing .~ b
                       , checkBox "Push and elide" \b -> #runRedex % #pushAndElide .~ b
                       , checkBox "Synthesise" \b -> #dir .~ if b then Syn else Chk
+                      , checkBox "Interpret" \b -> #interpret .~ b
                       , div_
                           []
                           [ input_
