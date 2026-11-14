@@ -48,6 +48,7 @@ import Miso.Html (
   onChange,
   onChecked,
   onClick,
+  onSubmit,
  )
 import Miso.Html.Property (
   class_,
@@ -634,7 +635,7 @@ viewModel Model{..} =
                     Available.FreeNone -> []
                     _ ->
                       [ form_
-                          []
+                          [onSubmit $ NoOp "form submitted"] -- disables form submission, via `preventDefault`
                           [ input_
                               [ type_ "text"
                               , required_ True
