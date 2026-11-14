@@ -145,6 +145,7 @@ import Primer.Eval.Redex (RunRedexOptions (..), ViewRedexOptions (..))
 import Primer.EvalFullStep (EvalFullError (TimedOut), evalFull)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Log (runPureLogT)
+import Primer.Miso.ActionName (actionName)
 import Primer.Miso.Layout (
   slHSep,
   slHeight,
@@ -694,10 +695,7 @@ viewModel Model{..} =
                                          a
                                    )
                            ]
-                           [ text case action of
-                               Available.NoInput a -> showMs a
-                               Available.Input a -> showMs a
-                           ]
+                           [text $ ms $ actionName action]
                      )
                 where
                   def = bimap (astTypeDefTtoAstTypeDef . snd) (astDefTtoAstDef . snd) selAndDef

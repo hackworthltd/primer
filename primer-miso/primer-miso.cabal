@@ -27,6 +27,7 @@ executable primer-miso
   main-is: Main.hs
   other-modules:
     Primer.Miso
+    Primer.Miso.ActionName
     Primer.Miso.Layout
     Primer.Miso.Util
 
