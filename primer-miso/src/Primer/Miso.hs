@@ -189,7 +189,7 @@ component =
   Component
     { model =
         Model
-          { app = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
+          { app = initialApp
           , readOnlySelection = Nothing
           , components =
               ComponentModels
@@ -241,6 +241,9 @@ component =
     , useContext = False
     , onPropsChanged = Nothing
     }
+
+initialApp :: Primer.App.App
+initialApp = fromRight (error "initial app is not well-formed") $ checkAppWellFormed newApp
 
 data Model = Model
   { app :: Primer.App.App
@@ -304,6 +307,7 @@ data Action
   | OpenLoadBox
   | CloseLoadBox
   | LoadApp MisoString
+  | ResetApp
   | Focus DOMRef
   | Alert MisoString
   | SetApp Primer.App.App
@@ -382,6 +386,7 @@ updateModel = \case
             replaceApp app
     where
       t' = fromMisoString t
+  ResetApp -> replaceApp initialApp
   Focus e -> io_ $ void $ e # "focus" $ ()
   Alert t -> io_ $ alert t
   CancelActionInput ->
@@ -736,6 +741,7 @@ viewModel Model{..} =
                 , button_ [onClick RunRedo] [text "Redo"]
                 , button_ [onClick SaveApp] [text "Save"]
                 , button_ [onClick OpenLoadBox] [text "Load"]
+                , button_ [onClick ResetApp] [text "Reset"]
                 ]
               Just err ->
                 [ textarea_
