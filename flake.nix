@@ -450,12 +450,7 @@
                       withHoogle = false;
 
                       tools = {
-                        # The HLS 2.15 Hackage release doesn't build on GHC 9.14.
-                        # It requires workarounds from the source repo's `cabal.project`, e.g. `allow-newer`s.
-                        #haskell-language-server = "latest";
-                        haskell-language-server = {
-                          src = inputs.haskell-language-server;
-                        };
+                        haskell-language-server = "latest";
 
                         ghcid = "latest";
 
