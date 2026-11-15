@@ -794,7 +794,8 @@ applyProgAction prog = \case
                     Var _ (GlobalVarRef v) | v == d -> emptyHole
                     e -> pure e
               )
-        pure (ms', Nothing)
+        ms'' <- runFullTCPass (progSmartHoles prog) (progImports prog) ms'
+        pure (ms'', Nothing)
   MoveToTypeDef d -> do
     m <- lookupEditableModule (qualifiedModule d) prog
     case Map.lookup d $ moduleTypesQualified m of
@@ -1078,7 +1079,8 @@ applyProgAction prog = \case
                 Con _ c _ | c == vcName -> emptyHole
                 e -> pure e
           )
-    pure (ms', Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
+    ms'' <- runFullTCPass (progSmartHoles prog) (progImports prog) ms'
+    pure (ms'', Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateTypeDef m
@@ -1160,8 +1162,9 @@ applyProgAction prog = \case
                 Con meta c es | c == vcName -> map (Con meta c . fst) $ deleteIndex es
                 e -> pure e
           )
+    ms'' <- runFullTCPass (progSmartHoles prog) (progImports prog) ms'
     pure
-      ( ms'
+      ( ms''
       , Just
           . SelectionTypeDef
           . TypeDefSelection tdName

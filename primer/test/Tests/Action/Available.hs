@@ -68,6 +68,7 @@ import Primer.App (
     ConAlreadyExists,
     DefAlreadyExists,
     EvalError,
+    RenameModuleNameClash,
     TypeDefAlreadyExists,
     TypeDefModifyNameClash
   ),
@@ -522,6 +523,8 @@ actionSucceedsOrCapture m a = do
     (Left (ConAlreadyExists _), _) -> do
       pure Clash
     (Left (TypeDefModifyNameClash _), _) -> do
+      pure Clash
+    (Left RenameModuleNameClash, _) -> do
       pure Clash
     (Left err, _) -> annotateShow err >> failure
     (Right _, a'') -> ensureSHNormal a'' $> Succeed a''
